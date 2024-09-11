@@ -156,7 +156,7 @@ class CMqldatasetup:
         lv_rates2['time']=pd.to_datetime(lv_rates2['time'], unit='s')
         lv_rates2['close']=(lv_rates2['ask']+lv_rates2['bid'])/2
         return lv_rates2
-   
+
 #-------------------------------------------------------
 # create method  "set_data_frame_shift()".
 # class: cmqldatasetup      
@@ -170,7 +170,7 @@ class CMqldatasetup:
         number_of_rows=lp_seconds
         empty_rows = pd.dataframe(np.nan, index=range(number_of_rows), columns=lp_rates2.columns)
         #if.append(empty_rows, ignore_index=true) appends the empty rows to the original dataframe ( df ) while ignoring the index to ensure a continuous index.
-        lp_rates2= lp_rates2._append(empty_rows, ignore_index=true)
+        lp_rates2= lp_rates2._append(empty_rows, ignore_index=True)
         #df['target'] = df['close'].shift(-seconds) creates a new column 'target' containing the 'close' values shifted by a negative value of the specified number of seconds. this is commonly done when preparing time series data for predictive modeling.
         lp_rates2['target'] = lp_rates2['close'].shift(-lp_seconds)
         print("rates_frame modified",lp_rates2)
