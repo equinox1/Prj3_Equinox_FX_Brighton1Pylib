@@ -39,8 +39,30 @@ from tensorflow import keras
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras.regularizers import l2
 
-#+-------------------------------------------------------------------
-# import local components
-#+-------------------------------------------------------------------
-#import tsmqldata as tsd1
+#======================================================
+# import local packages
+#======================================================
+import tsMqlData as tsd1
 
+#+-------------------------------------------------------------------
+# run Data Setup steps
+#+-------------------------------------------------------------------
+mp_future = 10
+mv_new_df=set_mql_newdf_step(mp_new_df)
+mv_target_columns = set_mql_target_step(mv_new_df,mp_future).dropna()
+mv combined_df = pd.concat(mv_new_df,mv_target_columns,axis =1)#concatenating the new pandas dataframe with the target
+mv combined_df = mv combined_df.dropna() #dropping rows with nan values caused by shifting values
+mv_target_cols_names = [f'target_close_{i}' for i in range(1, mp_future + 1)]
+mv_x = mv_combined_df.drop(columns=mv_target_cols_names).values #dropping all target columns from the x array
+mv_y = mv_combined_df[mv_target_cols_names].values # creating the target variables
+print(f"mv_x={mv_x.shape} mv_y={mv_y.shape}")
+mv_combined_df.head(10)
+
+#+-------------------------------------------------------------------
+# Import Data from MQL
+#+-------------------------------------------------------------------
+
+
+#+-------------------------------------------------------------------
+# Prepare Training data
+#+-------------------------------------------------------------------

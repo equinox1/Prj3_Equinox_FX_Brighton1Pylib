@@ -56,9 +56,10 @@ from datetime import datetime
 # \param  double svar;              -  value
 #-------------------------------------------------------------------- 
 class CMqldatasetup:
-    def __init__(self,lp_dfinit,lp_dfnew,lp_dfmql ,lp_future = 10, lp_seconds = 60,lp_step = 1 ,lp_train = 0.7,lp_random_state = 42):
+    def __init__(self,lp_target ,lp_dfinit,lp_dfnew,lp_dfmql ,lp_future = 10, lp_seconds = 60,lp_step = 1 ,lp_train = 0.7,lp_random_state = 42):
         self.lp_dfinit  =  lp_dfinit
         self.lp_dfnew  =  lp_dfnew
+        self.lp_target = lp_target
         self.lp_future = lp_future
         self.lp_seconds = lp_seconds
         self.lp_dfmql = lp_dfmql
@@ -78,86 +79,77 @@ class CMqldatasetup:
         c= a + b 
         print("sum: ",c)   
         return c 
-
+    
 #--------------------------------------------------------------------
-# create method  "get/set_mql_load_step1()".
+# create method  "set_mql_newdf_step()".
 # class: cmqldatasetup      
 # usage: mql data
 # \param  var                          
 #--------------------------------------------------------------------     
-    def set_mql_load_step1(lp_df,lp_dfinit,lp_dfnew ,lp_future = 10):
-        # using close prices for the next i bar
-        target = pd.concat([lp_dfinit['close'].shift(-i) for i in range(1, lp_future + 1)], axis=1) 
-        # naming the columns
-        target.columns = [f'target_close_{i}' for i in range(1, lp_future + 1)] 
-        lp_dfnew = pd.dataframe({'open': lp_df['open'],'high': lp_df['high'],'low':  lp_df['low'],'close': lp_df['close'] })
-    
-    def get_mql_load_step1():    
-        return self.lp_dfnew
-
-#--------------------------------------------------------------------
-# create method  "get/set_mql_load_step2()".
+    def set_mql_newdf_step(lp_target) :
+        lv_new_df = pd.DataFrame({'Open': lp_target['Open'],'High': lp_target['High'],'Low': lp_target['Low'],'Close': lp_target['Close'] })
+        return lv_new_df     
+#--------------------------------------------------------------------   
+# create method  "set_mql_target_step()".
 # class: cmqldatasetup      
 # usage: mql data
-# \param  var                          
-#--------------------------------------------------------------------     
-    def set_mql_load_step2(lp_dfnew,lp_future = 10):
-        target_columns =  self.set_initial_target_step1(lp_dfnew, lp_future).dropna()
-        combined_df = pd.concat([lp_dfnew, target_columns], axis=1) #concatenating the new pandas dataframe with the target columns
-        combined_df = combined_df.dropna() #droping rows with nan values caused by shifting values
-        target_cols_names = [f'target_close_{i}' for i in range(1, lp_future + 1)]
-        x = combined_df.drop(columns=target_cols_names).values #dropping all target columns from the x array
-        y = combined_df[target_cols_names].values # creating the target variables
-        print(f"x={x.shape} y={y.shape}")
-        combined_df.head(10)
-    
-    def get_mql_load_step2():
-        return combined_df
-
-#--------------------------------------------------------------------
-# create method  "get/set_mql_load_step3()".
+# \param  var 
+#--------------------------------------------------------------------                         
+    def set_mql_target_step(lp_df,lp_future = 10):
+        lv_target = pd.concat([lp_df['close'].shift(-i) for i in range(1, lp_future + 1)], axis=1) # using close prices for the next i
+        lv_target.columns = [f'target_close_{i}' for i in range(1, lp_future + 1)] # naming the columns
+        return lv_target   
+----------------------------------------------------
+# create method  "multi_steps_data_process()".
 # class: cmqldatasetup      
-# usage: mql data
+# usage: This function creates the new target variable using the column "Signal" from the dataset.
+# usage: The target variable is taken from the index step+1 value in the signal column
+# usage:  At step 1, the next signal will be 2, at step 2,  the next signal will be 3, and so on.
+# usage: This means that in step 1, we create a dataset in such a way the target variable is a value from 1
+# usage: bar in the future, and so on. All the independent variables remain the same.
 # \param  var                          
 #--------------------------------------------------------------------   
-    def set_mql_load_step3(lp_dfmql, lp_step, lp_train_size=0.7, lp_random_state=42):
+    def multi_steps_data_process(lp_dfmql, lp_step, lp_train_size=0.7, lp_random_state=42):
         # since we are using the open high low close ohlc values only
         lp_dfmql["next signal"] = lp_dfmql["signal"].shift(-lp_step) # the target variable from next n future values
         lp_dfmql = lp_dfmql.dropna()
         y = lp_dfmql["next signal"]
         x = lp_dfmql.drop(columns=["signal", "next signal"])
-        step3result=train_test_split(x, y, train_size=lp_train_size, random_state=lp_random_state) 
-    
-    def get_mql_load_step3():
-        return step3result
-
+        lv_result=train_test_split(x, y, train_size=lp_train_size, random_state=lp_random_state) 
+        return lv_result
 #--------------------------------------------------------------------
-# create method  "get/set_load_from_mql()".
+# create method  "set_load_from_mql()".
 # class: cmqldatasetup      
 # usage: mql data
 # \param  var                          
 #--------------------------------------------------------------------   
-    def set_load_from_mql(lp_rates1 = "rates",lp_year = 2024, lp_month = 1, lp_day =1 ,lp_timezone = "etc/utc",lp_symbol = "eurusd"):
-        lp_rates1= pd.dataframe()
-        lp_rates1 = lp_rates1.drop(index=lp_rates1.index)
-        # set time zone to utc
-        timezone = pytz.timezone(lp_timezone)
+    def set_utc_timezone(lp_year = 2024, lp_month = 1, lp_day =1 ,lp_timezone = "etc/utc",lp_symbol = "eurusd"):
+        timezone = pytz.timezone(lp_timezone) # set time zone to utc
         # create 'datetime' object in utc time zone to avoid the implementation of a local time zone offset
         utc_from = datetime(lp_year, lp_month, lp_day, tzinfo=lp_timezone)
+        return utc_from
+#--------------------------------------------------------------------
+# create method  "set_load_from_mql()".
+# class: cmqldatasetup      
+# usage: mql data
+# \param  var                          
+#--------------------------------------------------------------------         
+        
+    def set_load_from_mql(lp_rates1 = "rates",lp_timezone = "etc/utc",lp_symbol = "eurusd", lp_rows = 1000,):
+        lp_rates1= pd.dataframe()
+        lp_rates1 = lp_rates1.drop(index=lp_rates1.index)
         # request 100 000 eurusd ticks starting from lp_year, lp_month, lp_day in utc time zone
-        lp_rates1 = mt5.copy_ticks_from(lp_symbol, utc_from, 1000000000, mt5.copy_ticks_all)
+        lp_rates1 = mt5.copy_ticks_from(lp_symbol, utc_from, lp_rows = 1000, mt5.copy_ticks_all)
         print("ticks received:",len(lp_rates1))
-    
-    def get_load_from_mql():
-        return self.lp_rates1
+        return(lp_rates1)
 
 #--------------------------------------------------------------------
-# create method  "get/set_load_from_mql_toframe()".
+# create method  "set_load_from_mql_toframe()".
 # class: cmqldatasetup      
 # usage: mql data
 # \param  var                          
 #--------------------------------------------------------------------     
-    def set_load_from_mql_toframe(lp_rates1 = "rates" ,lp_rates2 = "rates_frame" ,lp_year = 2024, lp_month = 1, lp_day =1 ,lp_timezone = "etc/utc",lp_symbol = "eurusd"):
+    def set_load_from_mql_toframe(lp_rates1 = "rates" ,lp_rates2 = "rates_frame"):
         # copy rates into a new panda dataframe
         lp_rates2=pd.dataframe()
         lp_rates2 = lp_rates2.drop(index=lp_rates2.index)
@@ -165,12 +157,10 @@ class CMqldatasetup:
         #add and divide the bid and ask values in the data by two. this way, we obtain the average value, which will be our input for deep learning.
         lp_rates2['time']=pd.to_datetime(lp_rates2['time'], unit='s')
         lp_rates2['close']=(lp_rates2['ask']+lp_rates2['bid'])/2
-    
-    def get_load_from_mql_toframe():
         return lp_rates2
-
+    
 #--------------------------------------------------------------------
-# create method  "get/set_data_frame_shift()".
+# create method  "set_data_frame_shift()".
 # class: cmqldatasetup      
 # usage: mql data
 # \param  var                          
@@ -186,12 +176,8 @@ class CMqldatasetup:
         #df['target'] = df['close'].shift(-seconds) creates a new column 'target' containing the 'close' values shifted by a negative value of the specified number of seconds. this is commonly done when preparing time series data for predictive modeling.
         lp_rates2['target'] = lp_rates2['close'].shift(-lp_seconds)
         print("rates_frame modified",lp_rates2)
+        return(lp_rates2)
 
-    def set_data_frame_shift(lp_seconds = 60, lp_rates2 = "rates_frame"):
-        return lp_rates2
-
-#--------------------------------------------------------------------
-# create method  "get/set_data_frame_shift_clean()".
 # class: cmqldatasetup      
 # usage: mql data
 # \param  var                          
@@ -199,7 +185,7 @@ class CMqldatasetup:
     def set_data_frame_shift_clean(lp_rates2):
         #now, all that's left is to clean the data so that we can use it as input with tensorflow.
         lp_rates2=lp_rates2.dropna()
-        #the result is a modified dataframe ( df ) with additional rows filled with nan values and a new 'target' column for time-shifted 'close' values.
+        #the result is a modified dataframe ( df ) with additional rows filled with nan values and 
+        # a new 'target' column for time-shifted 'close' values.
+        return(lp_rates2)
     
-    def get_data_frame_shift_clean(lp_rates2):
-        return lp_rates2
