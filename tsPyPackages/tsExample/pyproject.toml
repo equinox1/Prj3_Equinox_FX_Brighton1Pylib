@@ -1,5 +1,5 @@
 [project]
-name = "example_package_shepa"
+name = "tsExample.py"
 version = "0.0.1"
 authors = [
   { name="Example Author", email="shep.antony@gmail.com" },
@@ -14,5 +14,4 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/pypa/sampleproject"
-Issues = "https://github.com/pypa/sampleproject/issues"
+Homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsExample"
