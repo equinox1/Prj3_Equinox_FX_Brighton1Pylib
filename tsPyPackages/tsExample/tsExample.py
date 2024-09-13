@@ -10,7 +10,6 @@
 # import standard python packages
 #+-------------------------------------------------------------------
 
-
 """
 Class Getter Setter Model1 
 
