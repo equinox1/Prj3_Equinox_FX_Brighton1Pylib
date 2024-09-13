@@ -42,8 +42,18 @@ from tensorflow.python.keras.regularizers import l2
 #======================================================
 # import local packages
 #======================================================
-import tsMqlData as tsd1
+import tsMqlData as ts1
+import tsMqlConnect as ts2
 
+print("Pkg",ts1.__path__)
+print("Pkg",ts1.__annotations__)
+print("Pkg",ts1.__builtins__)
+print("Pkg",ts1.__dict__)
+print("Pkg",ts1.__cached__)
+
+
+
+""""
 #+-------------------------------------------------------------------
 # run Data Setup steps
 #+-------------------------------------------------------------------
@@ -65,3 +75,4 @@ mv_loaded_df=set_load_from_mql()
 #+-------------------------------------------------------------------
 # Prepare Training data
 #+-------------------------------------------------------------------
+"""
