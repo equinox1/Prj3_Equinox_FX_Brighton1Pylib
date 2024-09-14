@@ -1,5 +1,5 @@
 [project]
-name = "tsModMqlML1.pyw"
+name = "tsMqlML.py"
 version = "1.1.2"
 authors = [
   { name="Tony Shepherd", email="shep.antony@gmail.com" },
