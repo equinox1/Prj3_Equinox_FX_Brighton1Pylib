@@ -46,9 +46,9 @@ class Geeks:
     
     age = property(get_age, set_age, del_age)  
 
-mark = Geeks() 
-mark.age = 10
-print(mark.age) 
+#mark = Geeks() 
+#mark.age = 10
+#print(mark.age) 
 
 
 """
@@ -86,6 +86,6 @@ class Geeks:
         print("setter method called") 
         self._age = a 
 
-mark = Geeks() 
-mark.age = 19
-print(mark.age) 
+#mark = Geeks() 
+#mark.age = 19
+#print(mark.age) 

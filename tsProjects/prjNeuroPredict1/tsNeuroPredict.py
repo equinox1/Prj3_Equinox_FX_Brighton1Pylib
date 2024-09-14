@@ -42,8 +42,21 @@ from tensorflow.python.keras.regularizers import l2
 #======================================================
 # import local packages
 #======================================================
-import tsMqlData as ts1
-import tsMqlConnect as ts2
+
+import tsMqlConnect
+import tsMqlData
+import tsMqlML
+
+from tsMqlConnect import CMqlinitdemo
+from tsMqlData import CMqldatasetup
+
+
+ts1 = CMqlinitdemo
+#ts2 = CMqldatasetup
+
+ts1.set_mql_login()
+
+
 
 
 """
