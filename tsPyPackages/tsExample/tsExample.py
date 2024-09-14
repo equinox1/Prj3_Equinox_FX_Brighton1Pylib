@@ -9,6 +9,72 @@
 #+-------------------------------------------------------------------
 # import standard python packages
 #+-------------------------------------------------------------------
+"""
+Java C++ type approach in Python
+
+You may be wondering why I didn't call defaultX and defaultY in the object's__init__ method. 
+The reason is that for our case I want to assume that the someDefaultComputation methods return
+values that vary over time, say a timestamp, and whenever x (or y) is not set (where, for the 
+purpose of this example, "not set" means "set to None") I want the value of x's (or y's) default computation.
+
+"""
+
+class Example(object):
+    def __init__(self, x=None, y=None):
+        self.x = x
+        self.y = y
+
+    def getX(self):
+        return self.x or self.defaultX()
+
+    def getY(self):
+        return self.y or self.defaultY()
+
+    def setX(self, x):
+        self.x = x
+
+    def setY(self, y):
+        self.y = y
+
+    def defaultX(self):
+        return someDefaultComputationForX()
+
+    def defaultY(self):
+        return someDefaultComputationForY()
+
+
+"""
+Re-written with properties ala python. The Java approach is lame in python.
+"""
+
+class Example(object):
+    def __init__(self, x=None, y=None):
+        self._x = x
+        self._y = y
+
+    @property
+    def x(self):
+        return self.x or self.defaultX()
+
+    @x.setter
+    def x(self, value):
+        self._x = value
+
+    @property
+    def y(self):
+        return self.y or self.defaultY()
+
+    @y.setter
+    def y(self, value):
+        self._y = value
+
+    # default{XY} as before.
+
+
+
+
+
+
 
 """
 Class Getter Setter Model1 
