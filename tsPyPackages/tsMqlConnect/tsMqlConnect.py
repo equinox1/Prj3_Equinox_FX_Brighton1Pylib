@@ -153,12 +153,12 @@ class CMqlinit:
     
  
 #--------------------------------------------------------------------
-# create method  "set_mql_login()".
+# create method  "run_mql_login()".
 # class: cmqlinit      
 # usage: login
 # \param cmqlinit    var                          
 #--------------------------------------------------------------------
-    def set_mql_login(lp_path,lp_login,lp_password,lp_server,lp_timeout,lp_portable):
+    def run_mql_login(lp_path,lp_login,lp_password,lp_server,lp_timeout,lp_portable):
         if mt5.initialize(path=lp_path,login=lp_login,password=lp_password,server=lp_server,timeout=lp_timeout,portable=lp_portable):
             print("Platform mt5 launched correctly")
             lp_return=mt5.last_error()
@@ -180,7 +180,7 @@ class CMqlinitdemo(CMqlinit):
     pass
 
 #--------------------------------------------------------------------
-# create method  "set_mql_login()".
+# create method  "run_mql_login()".
 # class: cmqlinitdemo      
 # usage: login
 # \param cmqlinit    var                          
@@ -192,10 +192,6 @@ class CMqlinitdemo(CMqlinit):
     lp_timeout =  60000
     lp_portable = True
     
-    #run the program
-    #lp_Obj_New=CMqlinitdemo
-    #lp_Obj_New.set_mql_login(lp_path,lp_login,lp_password,lp_server,lp_timeout,lp_portable)
-
 #--------------------------------------------------------------------
 # create class  "CMmqlinitdemo"
 # usage: connect services mql api
