@@ -57,30 +57,106 @@ from datetime import datetime
 #-------------------------------------------------------------------- 
 class CMqldatasetup:
     def __init__(self,lp_target ,lp_dfinit,lp_dfnew,lp_dfmql ,lp_future = 10, lp_seconds = 60,lp_step = 1 ,lp_train = 0.7,lp_random_state = 42):
-        self.lp_dfinit  =  lp_dfinit
-        self.lp_dfnew  =  lp_dfnew
-        self.lp_target = lp_target
-        self.lp_future = lp_future
-        self.lp_seconds = lp_seconds
-        self.lp_dfmql = lp_dfmql
-        self.lp_step = lp_step
-        self.lp_train = lp_train
-        self.lp_random_state = lp_random_state
-    
-#--------------------------------------------------------------------
-# create method  "litmus_test()".
-# class: cmqldatasetup      
-# usage: mql data
-# \param  var                          
-#--------------------------------------------------------------------     
-    def litmus_test():
-        a=10
-        b=20
-        c= a + b 
-        print("sum: ",c)   
-        return c 
-    
-#--------------------------------------------------------------------
+        self._lp_dfinit  =  lp_dfinit
+        self._lp_dfnew  =  lp_dfnew
+        self._lp_target = lp_target
+        self._lp_future = lp_future
+        self._lp_seconds = lp_seconds
+        self._lp_dfmql = lp_dfmql
+        self._lp_step = lp_step
+        self._lp_train = lp_train
+        self._lp_random_state = lp_random_state
+        
+        #Setter and Getter lp_dfinit  
+        @property
+        def lp_dfinit(self):
+            return self.lp_dfinit
+        
+        @lp_dfinit.setter
+        def lp_dfinit(self, value):
+            self.lp_dfinit = value
+        
+        #Setter and Getter lp_dfnew 
+        @property
+        def lp_dfnew(self):
+            return self.lp_dfnew
+        
+        @lp_dfnew.setter
+        def lp_dfnew(self, value):
+            self.lp_dfnew = value
+
+        #Setter and Getter lp_target
+        @property
+        def lp_target(self):
+            return self.lp_target
+        
+        @lp_target.setter
+        def lp_target(self, value):
+            self.lp_target = value
+        
+        #Setter and Getter lp_future
+        @property
+        def lp_future(self):
+            return self.lp_future
+        
+        @lp_future.setter
+        def lp_future(self, value):
+            self.lp_future = value       
+        
+        #Setter and Getter lp_seconds
+        @property
+        def lp_seconds(self):
+            return self.lp_seconds
+        
+        @lp_seconds.setter
+        def lp_seconds(self, value):
+            self.lp_seconds = value          
+        
+        #Setter and Getter lp_dfmql
+        @property
+        def lp_dfmql(self):
+            return self.lp_dfmql
+        
+        @lp_dfmql.setter
+        def lp_dfmql(self,value):
+            self.lp_dfmql = value                 
+        
+        #Setter and Getter lp_dfmql
+        @property
+        def lp_dfmql(self):
+            return self.lp_dfmql
+        
+        @lp_dfmql.setter
+        def lp_dfmql(self,value):
+            self.lp_dfmql = value    
+            
+        #Setter and Getter lp_step
+        @property
+        def lp_step(self):
+            return self.lp_step
+        
+        @lp_step.setter
+        def lp_step(self,value):
+            self.lp_step = value                       
+            
+        #Setter and Getter lp_train
+        @property
+        def lp_train(self):
+            return self.lp_train
+        
+        @lp_train.setter
+        def lp_train(self,value):
+            self.lp_train = value                
+            
+        #Setter and Getter lp_random_state
+        @property
+        def lp_random_state(self):
+            return self.lp_random_
+        
+        @lp_train.setter
+        def lp_random_state(self,value):
+            self.lp_random_state = value   
+# #--------------------------------------------------------------------
 # create method  "set_mql_newdf_step()".
 # class: cmqldatasetup      
 # usage: mql data

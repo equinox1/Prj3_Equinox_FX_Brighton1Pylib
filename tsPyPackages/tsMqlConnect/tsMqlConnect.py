@@ -39,6 +39,39 @@ Don’t use multiple blank lines in a row.
 Use whitespace around operators, but don’t use too much.
 Use whitespace to align code, but don’t use too much.
 """
+#+-------------------------------------------------------------------
+# Class template
+#+-------------------------------------------------------------------
+class Example(object):
+    def __init__(self, x=None, y=None):
+        self._x = x
+        self._y = y
+
+    @property
+    def x(self):
+        return self.x or self.defaultX()
+
+    @x.setter
+    def x(self, value):
+        self._x = value
+
+    @property
+    def y(self):
+        return self.y or self.defaultY()
+
+    @y.setter
+    def y(self, value):
+        self._y = value
+
+    def defaultX(self):
+        return someDefaultComputationForX()
+
+    def defaultY(self):
+        return someDefaultComputationForY()
+
+
+
+
 # packages dependencies for this module
 #
 import MetaTrader5 as mt5
@@ -55,21 +88,70 @@ import MetaTrader5 as mt5
 #-------------------------------------------------------------------- 
 class CMqlinit:
     def __init__(self,lp_path,lp_login,lp_password,lp_server,lp_timeout,lp_portable):
-        self.lp_path  =  lp_path
-        self.lp_login = lp_login
-        self.lp_password = lp_password
-        self.lp_server = lp_server
-        self.lp_timeout = lp_timeout
-        self.lp_portable = lp_portable
+        self._lp_path  =  lp_path
+        self._lp_login = lp_login
+        self._lp_password = lp_password
+        self._lp_server = lp_server
+        self._lp_timeout = lp_timeout
+        self._lp_portable = lp_portable
+    
+    #Setter and Getter lp_path  
+    @property
+    def lp_path(self):
+        return self.lp_path
 
-    def __str__(self):
-        return f"{self.lp_path}"
-        return f"{self.lp_login}"
-        return f"{self.lp_password}"
-        return f"{self.lp_server}"
-        return f"{self.lp_timeout}"
-        return f"{self.lp_portable}"
-
+    @lp_path.setter
+    def lp_path(self, value):
+        self._lp_path = value
+        
+    #Setter and Getter lp_login  
+    @property
+    def lp_login(self):
+        return self.lp_login
+    
+    @lp_login.setter
+    def lp_login(self, value):
+        self._lp_login = value
+        
+    #Setter and Getter lp_password
+    @property
+    def lp_password(self):
+        return self.lp_password
+    
+    @lp_password.setter
+    def lp_password(self, value):
+        self._lp_password = value
+        
+    #Setter and Getter lp_server
+    @property
+    def lp_server(self):
+        return self.lp_server
+    
+    @lp_server.setter
+    def lp_server(self,value):
+        self._lp_server = value    
+        
+    #Setter and Getter lp_timeout
+    @property
+    def lp_timeout(self):
+        return self.lp_timeout
+    
+    @lp_timeout.setter
+    def lp_timeout(self,value):
+        self._lp_timeout = value       
+        
+    #Setter and Getter lp_portable
+    @property
+    def lp_portable(self):
+        return self.lp_portable
+    
+    @lp_portable.setter
+    def lp_portable(self,value):
+        self._lp_portable = value         
+        
+        
+    
+ 
 #--------------------------------------------------------------------
 # create method  "set_mql_login()".
 # class: cmqlinit      
@@ -102,16 +184,17 @@ class CMqlinitdemo(CMqlinit):
 # class: cmqlinitdemo      
 # usage: login
 # \param cmqlinit    var                          
-#--------------------------------------------------------------------     
-        lp_Obj_New=CMqlinitdemo
-        lp_path  =   r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
-        lp_login = 51698985
-        lp_password =  r'lsor31tz$r8aih'
-        lp_server = r"icmarketssc-demo"
-        lp_timeout =  60000
-        lp_portable = True
-        #run the setter
-        lp_Obj_New.set_mql_login(lp_path,lp_login,lp_password,lp_server,lp_timeout,lp_portable)
+#--------------------------------------------------------------------       
+    lp_path  =   r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
+    lp_login = 51698985
+    lp_password =  r'lsor31tz$r8aih'
+    lp_server = r"icmarketssc-demo"
+    lp_timeout =  60000
+    lp_portable = True
+    
+    #run the program
+    #lp_Obj_New=CMqlinitdemo
+    #lp_Obj_New.set_mql_login(lp_path,lp_login,lp_password,lp_server,lp_timeout,lp_portable)
 
 #--------------------------------------------------------------------
 # create class  "CMmqlinitdemo"
