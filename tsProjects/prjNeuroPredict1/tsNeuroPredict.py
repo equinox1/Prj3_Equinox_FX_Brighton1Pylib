@@ -55,7 +55,9 @@ ts1 = CMqlinitdemo
 #ts2 = CMqldatasetup
 
 ts1.set_mql_login()
-
+#run the program
+#lp_Obj_New=CMqlinitdemo
+#lp_Obj_New.set_mql_login(lp_path,lp_login,lp_password,lp_server,lp_timeout,lp_portable)
 
 
 
