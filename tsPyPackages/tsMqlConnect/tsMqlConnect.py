@@ -39,6 +39,8 @@ Don’t use multiple blank lines in a row.
 Use whitespace around operators, but don’t use too much.
 Use whitespace to align code, but don’t use too much.
 """
+
+"""
 #+-------------------------------------------------------------------
 # Class template
 #+-------------------------------------------------------------------
@@ -68,7 +70,7 @@ class Example(object):
 
     def defaultY(self):
         return someDefaultComputationForY()
-
+"""
 
 
 
