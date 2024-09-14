@@ -165,10 +165,7 @@ class CMqlinit:
         else:
             print(f"there has been a problem with initialization: {mt5.last_error()}")
             lp_return=mt5.last_error()
-    
-    def get_mql_login(l):
-            lp_return=mt5.last_error()  
-                
+
 #--------------------------------------------------------------------
 # create class  "CMqlinitdemo"
 # usage: connect services mql api
@@ -191,6 +188,14 @@ class CMqlinitdemo(CMqlinit):
     lp_server = r"icmarketssc-demo"
     lp_timeout =  60000
     lp_portable = True
+    
+    def __init__(self,lp_path,lp_login,lp_password,lp_server,lp_timeout,lp_portable):
+        self._lp_path  =  lp_path
+        self._lp_login = lp_login
+        self._lp_password = lp_password
+        self._lp_server = lp_server
+        self._lp_timeout = lp_timeout
+        self._lp_portable = lp_portable
     
 #--------------------------------------------------------------------
 # create class  "CMmqlinitdemo"
