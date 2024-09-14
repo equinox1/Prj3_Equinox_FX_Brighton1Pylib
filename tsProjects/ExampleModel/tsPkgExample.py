@@ -10,7 +10,7 @@ print(mark.age)
 mark.age = 21
 print(mark.age) 
 """
-
+import MetaTrader5 as mt5
 from tsMqlConnect import CMqlinitdemo
 
 lp_path  =   r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
@@ -24,6 +24,6 @@ conn2 = CMqlinitdemo
 
 conn2.run_mql_login(lp_path,lp_login,lp_password,lp_server,lp_timeout,lp_portable)
 
-import MetaTrader5 as mt5
 
-print(" ASK:", mt5.TICK_FLAG_ASK)
+
+#print(" ASK:", mt5.TICK_FLAG_ASK)
