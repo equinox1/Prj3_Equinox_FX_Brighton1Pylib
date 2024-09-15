@@ -40,42 +40,6 @@ Use whitespace around operators, but don’t use too much.
 Use whitespace to align code, but don’t use too much.
 """
 
-"""
-#+-------------------------------------------------------------------
-# Class template
-#+-------------------------------------------------------------------
-class Example(object):
-    def __init__(self, x=None, y=None):
-        self._x = x
-        self._y = y
-
-    @property
-    def x(self):
-        return self.x or self.defaultX()
-
-    @x.setter
-    def x(self, value):
-        self._x = value
-
-    @property
-    def y(self):
-        return self.y or self.defaultY()
-
-    @y.setter
-    def y(self, value):
-        self._y = value
-
-    def defaultX(self):
-        return someDefaultComputationForX()
-
-    def defaultY(self):
-        return someDefaultComputationForY()
-"""
-
-
-
-# packages dependencies for this module
-#
 import MetaTrader5 as mt5
 #+-------------------------------------------------------------------
 # classes for mql
@@ -184,13 +148,7 @@ class CMqlinitdemo(CMqlinit):
 # usage: login
 # \param cmqlinit    var                          
 #--------------------------------------------------------------------       
-    lp_path  =   r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
-    lp_login = 51698985
-    lp_password =  r'lsor31tz$r8aih'
-    lp_server = r"icmarketssc-demo"
-    lp_timeout =  60000
-    lp_portable = True
-    
+
     def __init__(self,lp_path,lp_login,lp_password,lp_server,lp_timeout,lp_portable):
         self._lp_path  =  lp_path
         self._lp_login = lp_login
