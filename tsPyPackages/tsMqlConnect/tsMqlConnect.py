@@ -68,7 +68,7 @@ class CMqlinit:
 
     @lp_path.setter
     def lp_path(self, value):
-        self._lp_path = value
+        self._lp_path = value.encode("utf-8")
         
     #Setter and Getter lp_login  
     @property
@@ -95,7 +95,7 @@ class CMqlinit:
     
     @lp_server.setter
     def lp_server(self,value):
-        self._lp_server = value    
+        self._lp_server = value
         
     #Setter and Getter lp_timeout
     @property
@@ -104,7 +104,7 @@ class CMqlinit:
     
     @lp_timeout.setter
     def lp_timeout(self,value):
-        self._lp_timeout = value       
+        self._lp_timeout = value 
         
     #Setter and Getter lp_portable
     @property
@@ -115,9 +115,6 @@ class CMqlinit:
     def lp_portable(self,value):
         self._lp_portable = value         
         
-        
-    
- 
 #--------------------------------------------------------------------
 # create method  "run_mql_login()".
 # class: cmqlinit      
@@ -142,22 +139,7 @@ class CMqlinit:
 class CMqlinitdemo(CMqlinit):
     pass
 
-#--------------------------------------------------------------------
-# create method  "run_mql_login()".
-# class: cmqlinitdemo      
-# usage: login
-# \param cmqlinit    var                          
-#--------------------------------------------------------------------       
-
-    def __init__(self,lp_path,lp_login,lp_password,lp_server,lp_timeout,lp_portable):
-        self._lp_path  =  lp_path
-        self._lp_login = lp_login
-        self._lp_password = lp_password
-        self._lp_server = lp_server
-        self._lp_timeout = lp_timeout
-        self._lp_portable = lp_portable
-    
-#--------------------------------------------------------------------
+#-------------------------------------------------------------------
 # create class  "CMmqlinitdemo"
 # usage: connect services mql api
 #
