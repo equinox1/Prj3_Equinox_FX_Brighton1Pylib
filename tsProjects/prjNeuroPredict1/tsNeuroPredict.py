@@ -64,16 +64,26 @@ cred = kr.get_credential("xercesdemo","")
 print("Username : ",cred.username) 
 print("Password : ",cred.password)
 
-conn1 = CMqlinitdemo
+c1 = CMqlinitdemo
 
-conn1.lp_path=r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
-conn1.lp_login=cred.username
-conn1.lp_password=cred.password
-conn1.lp_server=r"ICMarketsSC-Demo"
-conn1.lp_timeout=60000
-conn1.lp_portable= True
+c1.lp_path=r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
+c1.lp_login=int(cred.username)
+c1.lp_password=str(cred.password)
+c1.lp_server=r"ICMarketsSC-Demo"
+c1.lp_timeout=60000
+c1.lp_portable= True
 
-conn1.run_mql_login()
+print("lp_path:",c1.lp_path)
+print("lp_login:",c1.lp_login)
+print("lp_password:",c1.lp_password)
+print("lp_server:",c1.lp_server)
+print("lp_timeout:",c1.lp_timeout)
+print("lp_portable:",c1.lp_portable)
+
+#lp_path=r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
+#mt5.initialize(path=lp_path,login=51698985,password=r"lsor31tz$r8aih",server=r"ICMarketsSC-Demo",timeout=60000,portable=True)
+
+c1.run_mql_login(c1.lp_path,c1.lp_login,c1.lp_password,c1.lp_server,c1.lp_timeout,c1.lp_portable)
 
 """
 #+-------------------------------------------------------------------
@@ -81,7 +91,7 @@ conn1.run_mql_login()
 #+-------------------------------------------------------------------
 mp_future = 10
 mv_new_df=set_mql_newdf_step(mp_new_df)
-mv_target_columns = set_mql_target_step(mv_new_df,mp_future).dropna()
+mv_target_columns = set_mql_target_step(mv_new_df,mp_future).dropna()cls
 mv combined_df = pd.concat(mv_new_df,mv_target_columns,axis =1)#concatenating the new pandas dataframe with the target
 mv combined_df = mv combined_df.dropna() #dropping rows with nan values caused by shifting values
 mv_target_cols_names = [f'target_close_{i}' for i in range(1, mp_future + 1)]
