@@ -47,22 +47,33 @@ import tsMqlConnect
 import tsMqlData
 import tsMqlML
 
+import keyring as kr 
+
+# User can use the alias if they want 
+
 from tsMqlConnect import CMqlinitdemo
 from tsMqlData import CMqldatasetup 
 
 #======================================================
 # Login MQL Terminal
 #======================================================
-# Add to hash Vault
-lp_path  =   r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
-lp_login = 51698985
-lp_password =  r'lsor31tz$r8aih'
-lp_server = r"icmarketssc-demo"
-lp_timeout =  60000
-lp_portable = True
+# Add to hash Vault keyring externally via CLI
+
+cred = kr.get_credential("xercesdemo","")
+
+print("Username : ",cred.username) 
+print("Password : ",cred.password)
 
 conn1 = CMqlinitdemo
-conn1.run_mql_login(lp_path,lp_login,lp_password,lp_server,lp_timeout,lp_portable)
+
+conn1.lp_path=r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
+conn1.lp_login=cred.username
+conn1.lp_password=cred.password
+conn1.lp_server=r"ICMarketsSC-Demo"
+conn1.lp_timeout=60000
+conn1.lp_portable= True
+
+conn1.run_mql_login()
 
 """
 #+-------------------------------------------------------------------
