@@ -156,64 +156,38 @@ class CMqldatasetup:
         @lp_train.setter
         def lp_random_state(self,value):
             self.lp_random_state = value   
-# #--------------------------------------------------------------------
-# create method  "set_mql_newdf_step()".
-# class: cmqldatasetup      
-# usage: mql data
-# \param  var                          
-#--------------------------------------------------------------------     
-    def set_mql_newdf_step(lp_target) :
-        lv_new_df = pd.DataFrame({'Open': lp_target['Open'],'High': lp_target['High'],'Low': lp_target['Low'],'Close': lp_target['Close'] })
-        return lv_new_df     
-#--------------------------------------------------------------------   
-# create method  "set_mql_target_step()".
-# class: cmqldatasetup      
-# usage: mql data
-# \param  var 
-#--------------------------------------------------------------------                         
-    def set_mql_target_step(lp_df,lp_future = 10):
-        lv_target = pd.concat([lp_df['close'].shift(-i) for i in range(1, lp_future + 1)], axis=1) # using close prices for the next i
-        lv_target.columns = [f'target_close_{i}' for i in range(1, lp_future + 1)] # naming the columns
-        return lv_target  
-#--------------------------------------------------------------------     
-# usage: This function creates the new target variable using the column "Signal" from the dataset.
-# usage: The target variable is taken from the index step+1 value in the signal column
-# usage:  At step 1, the next signal will be 2, at step 2,  the next signal will be 3, and so on.
-# usage: This means that in step 1, we create a dataset in such a way the target variable is a value from 1
-# usage: bar in the future, and so on. All the independent variables remain the same.
-# \param  var                          
-#--------------------------------------------------------------------   
-    def multi_steps_data_process(lp_dfmql, lp_step, lp_train_size=0.7, lp_random_state=42):
-        # since we are using the open high low close ohlc values only
-        lp_dfmql["next signal"] = lp_dfmql["signal"].shift(-lp_step) # the target variable from next n future values
-        lp_dfmql = lp_dfmql.dropna()
-        y = lp_dfmql["next signal"]
-        x = lp_dfmql.drop(columns=["signal", "next signal"])
-        lv_result=train_test_split(x, y, train_size=lp_train_size, random_state=lp_random_state) 
-        return lv_result
-#--------------------------------------------------------------------
-# create method  "set_load_from_mql()".
+
+# create method  "setmql_timezone()".
 # class: cmqldatasetup      
 # usage: mql data
 # \param  var                          
 #--------------------------------------------------------------------   
-    def set_utc_timezone(lp_year = 2024, lp_month = 1, lp_day =1 ,lp_timezone = "etc/utc",lp_symbol = "eurusd"):
-        timezone = pytz.timezone(lp_timezone) # set time zone to utc
+    def set_mql_timezone(lp_year = 2024, lp_month = 1, lp_day =1 ,lp_timezone = "UTC"):
+        lv_timezone = pytz.timezone(lp_timezone) # set time zone to utc
         # create 'datetime' object in utc time zone to avoid the implementation of a local time zone offset
-        lv_utc_from = datetime(lp_year, lp_month, lp_day, tzinfo=lp_timezone)
+        lv_utc_from = datetime(lp_year, lp_month, lp_day, tzinfo=lv_timezone)
         return lv_utc_from
+
 #--------------------------------------------------------------------
-# create method  "set_load_from_mql()".
+# create method  "run_load_from_mql()".
 # class: cmqldatasetup      
 # usage: mql data
 # \param  var                          
 #--------------------------------------------------------------------         
         
-    def set_load_from_mql(lp_rates1 = "rates",lp_timezone = "etc/utc",lp_utc_from = 0,lp_symbol = "eurusd", lp_rows = 1000,lp_flag = "COPY_TICKS_ALL" ):
-        lp_rates1= pd.dataframe()
-        lp_rates1 = lp_rates1.drop(index=lp_rates1.index)
+    def run_load_from_mql(lp_rates1 = "rates",lp_utc_from = "2023-01-01 00:00:00+00:00",lp_symbol = "JPYUSD", lp_rows = 1000,lp_flag = mt5.COPY_TICKS_ALL ):
         # request 100 000 eurusd ticks starting from lp_year, lp_month, lp_day in utc time zone
-        lp_rates1 = mt5.copy_ticks_from(lp_symbol, lp_utc_from, lp_rows = 1000, lp_flag = "COPY_TICKS_ALL")
+        print("lp_rates1:",lp_rates1)
+        print("lp_utc_from:",lp_utc_from)
+        print("lp_symbol:",lp_symbol)
+        print("lp_rows:",lp_rows)
+        print("lp_flag:",lp_flag)
+        
+        lp_rates1= pd.DataFrame()
+        lp_rates1 = lp_rates1.drop(index=lp_rates1.index)
+    
+        
+        lp_rates1 = mt5.copy_ticks_from(lp_symbol, lp_utc_from, lp_rows, lp_flag )
         print("ticks received:",len(lp_rates1))
         return lp_rates1
 
@@ -262,4 +236,39 @@ class CMqldatasetup:
         #the result is a modified dataframe ( df ) with additional rows filled with nan values and 
         # a new 'target' column for time-shifted 'close' values.
         return lp_rates2
-    
+#--------------------------------------------------------------------
+# create method  "set_mql_newdf_step()".
+# class: cmqldatasetup      
+# usage: mql data
+# \param  var                          
+#--------------------------------------------------------------------     
+    def set_mql_newdf_step(lp_target) :
+        lv_new_df = pd.DataFrame({'Open': lp_target['Open'],'High': lp_target['High'],'Low': lp_target['Low'],'Close': lp_target['Close'] })
+        return lv_new_df     
+#--------------------------------------------------------------------   
+# create method  "set_mql_target_step()".
+# class: cmqldatasetup      
+# usage: mql data
+# \param  var 
+#--------------------------------------------------------------------                         
+    def set_mql_target_step(lp_df,lp_future = 10):
+        lv_target = pd.concat([lp_df['close'].shift(-i) for i in range(1, lp_future + 1)], axis=1) # using close prices for the next i
+        lv_target.columns = [f'target_close_{i}' for i in range(1, lp_future + 1)] # naming the columns
+        return lv_target  
+#--------------------------------------------------------------------     
+# usage: This function creates the new target variable using the column "Signal" from the dataset.
+# usage: The target variable is taken from the index step+1 value in the signal column
+# usage:  At step 1, the next signal will be 2, at step 2,  the next signal will be 3, and so on.
+# usage: This means that in step 1, we create a dataset in such a way the target variable is a value from 1
+# usage: bar in the future, and so on. All the independent variables remain the same.
+# \param  var                          
+#--------------------------------------------------------------------   
+    def multi_steps_data_process(lp_dfmql, lp_step, lp_train_size=0.7, lp_random_state=42):
+        # since we are using the open high low close ohlc values only
+        lp_dfmql["next signal"] = lp_dfmql["signal"].shift(-lp_step) # the target variable from next n future values
+        lp_dfmql = lp_dfmql.dropna()
+        y = lp_dfmql["next signal"]
+        x = lp_dfmql.drop(columns=["signal", "next signal"])
+        lv_result=train_test_split(x, y, train_size=lp_train_size, random_state=lp_random_state) 
+        return lv_result
+#-------------------------------------------------------------------- 
