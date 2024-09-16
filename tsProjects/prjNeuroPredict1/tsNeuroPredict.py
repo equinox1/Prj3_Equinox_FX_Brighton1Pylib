@@ -12,6 +12,8 @@
 import sys
 from datetime import datetime
 import pytz
+import jinja2
+import tabulate
 
 import pandas as pd
 #numpy is widely used for numerical operations in python.
@@ -55,7 +57,7 @@ from tsMqlConnect import CMqlinitdemo
 from tsMqlData import CMqldatasetup 
 
 #======================================================
-# Login MQL Terminal
+# Start Login MQL Terminal
 #======================================================
 # Add to hash Vault keyring externally via CLI
 
@@ -80,10 +82,41 @@ print("lp_server:",c1.lp_server)
 print("lp_timeout:",c1.lp_timeout)
 print("lp_portable:",c1.lp_portable)
 
-#lp_path=r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
-#mt5.initialize(path=lp_path,login=51698985,password=r"lsor31tz$r8aih",server=r"ICMarketsSC-Demo",timeout=60000,portable=True)
-
+# Login Metatrader
 c1.run_mql_login(c1.lp_path,c1.lp_login,c1.lp_password,c1.lp_server,c1.lp_timeout,c1.lp_portable)
+#======================================================
+# End Login MQL Terminal
+#======================================================
+
+#+-------------------------------------------------------------------
+# Import Data from MQL
+#+-------------------------------------------------------------------   
+mv_symbol_primary = "EURUSD"
+mv_symbol_secondary = "GBPUSD"
+mv_year = 2024
+mv_month = 1
+mv_day = 1
+mv_timezone = "UTC"
+
+mv_rows = 100000
+mv_command = mt5.COPY_TICKS_ALL
+
+d1=CMqldatasetup
+mv_utc_from = d1.set_mql_timezone(mv_year,mv_month,mv_day,mv_timezone)
+print("Timezone Set to : ",mv_utc_from)
+mv_ticks1= pd.DataFrame(d1.run_load_from_mql("mv_dfrates",mv_utc_from,mv_symbol_primary,mv_rows,mv_command))
+
+# Tabulate formatting
+# Use seaborn to set the style
+import matplotlib
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set(style="whitegrid")  # You can choose other styles like "darkgrid", "ticks", etc.
+
+
+
+from tabulate import tabulate
+print(tabulate(mv_ticks1, showindex=False, headers=mv_ticks1.columns,tablefmt="grid",numalign="left",stralign="left",floatfmt=".4f"))
 
 """
 #+-------------------------------------------------------------------
@@ -100,11 +133,11 @@ mv_y = mv_combined_df[mv_target_cols_names].values # creating the target variabl
 print(f"mv_x={mv_x.shape} mv_y={mv_y.shape}")
 mv_combined_df.head(10)
 
-#+-------------------------------------------------------------------
-# Import Data from MQL
-#+-------------------------------------------------------------------   
-mv_loaded_df=set_load_from_mql()
-#+-------------------------------------------------------------------
+
+
+
+
+
 # Prepare Training data
 #+-------------------------------------------------------------------
 """
