@@ -23,24 +23,6 @@ import numpy as np
 #+-------------------------------------------------------------------
 import MetaTrader5 as mt5
 
-#+-------------------------------------------------------------------
-# import ai packages scikit learns
-#+-------------------------------------------------------------------
-#sklearn library. it includes utilities for data preprocessing, model evaluation, and model selection.
-from sklearn import datasets, svm, metrics
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-#This line imports the KFold class from scikit-learn, which is often used for cross-validation in machine learning.
-from sklearn.model_selection import KFold
-
-#======================================================
-# import ai packages tensorflow and keras libraries
-#======================================================
-from tensorflow import keras
-from tensorflow.python.keras.layers import Dense
-from tensorflow.python.keras.regularizers import l2
-
 #======================================================
 # import local packages
 #======================================================
@@ -55,6 +37,7 @@ import keyring as kr
 
 from tsMqlConnect import CMqlinitdemo
 from tsMqlData import CMqldatasetup 
+mv_debug = 0
 
 #======================================================
 # Start Login MQL Terminal
@@ -62,10 +45,6 @@ from tsMqlData import CMqldatasetup
 # Add to hash Vault keyring externally via CLI
 
 cred = kr.get_credential("xercesdemo","")
-
-print("Username : ",cred.username) 
-print("Password : ",cred.password)
-
 c1 = CMqlinitdemo
 
 c1.lp_path=r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
@@ -75,12 +54,15 @@ c1.lp_server=r"ICMarketsSC-Demo"
 c1.lp_timeout=60000
 c1.lp_portable= True
 
-print("lp_path:",c1.lp_path)
-print("lp_login:",c1.lp_login)
-print("lp_password:",c1.lp_password)
-print("lp_server:",c1.lp_server)
-print("lp_timeout:",c1.lp_timeout)
-print("lp_portable:",c1.lp_portable)
+if mv_debug == 1:
+    print("lp_path:",c1.lp_path)
+    print("lp_login:",c1.lp_login)
+    print("lp_password:",c1.lp_password)
+    print("lp_server:",c1.lp_server)
+    print("lp_timeout:",c1.lp_timeout)
+    print("lp_portable:",c1.lp_portable)
+else:
+    pass
 
 # Login Metatrader
 c1.run_mql_login(c1.lp_path,c1.lp_login,c1.lp_password,c1.lp_server,c1.lp_timeout,c1.lp_portable)
@@ -98,46 +80,72 @@ mv_month = 1
 mv_day = 1
 mv_timezone = "UTC"
 
-mv_rows = 100000
+mv_rows = 10000
 mv_command = mt5.COPY_TICKS_ALL
 
 d1=CMqldatasetup
 mv_utc_from = d1.set_mql_timezone(mv_year,mv_month,mv_day,mv_timezone)
 print("Timezone Set to : ",mv_utc_from)
-mv_ticks1= pd.DataFrame(d1.run_load_from_mql("mv_dfrates",mv_utc_from,mv_symbol_primary,mv_rows,mv_command))
+mv_ticks1= pd.DataFrame(d1.run_load_from_mql(mv_debug,"mv_dfrates",mv_utc_from,mv_symbol_primary,mv_rows,mv_command))
 
 # Tabulate formatting
 # Use seaborn to set the style
-import matplotlib
-import matplotlib.pyplot as plt
-import seaborn as sns
-sns.set(style="whitegrid")  # You can choose other styles like "darkgrid", "ticks", etc.
-
-
-
 from tabulate import tabulate
 print(tabulate(mv_ticks1, showindex=False, headers=mv_ticks1.columns,tablefmt="grid",numalign="left",stralign="left",floatfmt=".4f"))
+print("Count: ",mv_ticks1.count())
 
-"""
 #+-------------------------------------------------------------------
-# run Data Setup steps
+# Prepare Data
+#+-------------------------------------------------------------------  
+# This code converts the 'time' column to datetime format using seconds as the unit
+# and calculates the average of 'ask' and 'bid' values, assigning the result to a new
+# column named 'close' in the rates_frame DataFrame.The choice of input data for deep learning
+# in financial applications, such as predicting price movements, depends on various factors, and 
+# there isn't a one-size-fits-all solution. However, there are some considerations and general
+# guidelines to keep in mind:
+
+mv_ticks2=pd.DataFrame()
+# Empty DataFrame
+mv_ticks2 = mv_ticks2.drop(index=mv_ticks2.index)
+mv_ticks2 = pd.DataFrame(mv_ticks1)
+#To simplify things, let's add and divide the bid and ask values in the data by two.
+# This way, we obtain the average value, which will be our input for deep learning.
+mv_ticks2['time']=pd.to_datetime(mv_ticks2['time'], unit='s')
+mv_ticks2['close']=(mv_ticks2['ask']+mv_ticks2['bid'])/2
+
 #+-------------------------------------------------------------------
-mp_future = 10
-mv_new_df=set_mql_newdf_step(mp_new_df)
-mv_target_columns = set_mql_target_step(mv_new_df,mp_future).dropna()cls
-mv combined_df = pd.concat(mv_new_df,mv_target_columns,axis =1)#concatenating the new pandas dataframe with the target
-mv combined_df = mv combined_df.dropna() #dropping rows with nan values caused by shifting values
-mv_target_cols_names = [f'target_close_{i}' for i in range(1, mp_future + 1)]
-mv_x = mv_combined_df.drop(columns=mv_target_cols_names).values #dropping all target columns from the x array
-mv_y = mv_combined_df[mv_target_cols_names].values # creating the target variables
-print(f"mv_x={mv_x.shape} mv_y={mv_y.shape}")
-mv_combined_df.head(10)
+# Shift Data
+#+-------------------------------------------------------------------  
+#Shifting a DataFrame in the context of deep learning, particularly in time series forecasting,
+#is commonly done to create sequences of input and target variables. Here are the reasons why shifting
+# is used in the context of deep learning for time series prediction:
+#Temporal Dependencies: Deep learning models, such as recurrent neural networks (RNNs)
+# or long short-term memory networks (LSTMs), can capture temporal dependencies in sequential data. 
+# Shifting the DataFrame allows you to create sequences where each input sequence corresponds to a segment of past data
+# and the corresponding target sequence represents the future data.
+# Sequential Learning: Deep learning models are effective at learning patterns and dependencies in sequential data. 
+# By shifting the DataFrame, you ensure that the input and target sequences align temporally, 
+# allowing the model to learn from the historical context and make predictions based on that context.
+# Training Input-Output Pairs: Shifting helps in creating training examples for the deep learning model. 
+# Each row in the shifted DataFrame can be considered an input-output pair, where the input is 
+# a sequence of past observations, and the output is the target variable to be predicted in the future.
 
+#number_of_rows is a variable representing the number of seconds.
+#empty_rows creates a new DataFrame with NaN values, having the same columns as the original DataFrame ( df ).
+#df.append(empty_rows, ignore_index=True) appends the empty rows to the original DataFrame ( df ) 
+#while ignoring the index to ensure a continuous index.
+#df['target'] = df['close'].shift(-seconds) creates a new column 'target' containing the 'close' values 
+# shifted by a negative value of the specified number of seconds. 
+# This is commonly done when preparing time series data for predictive modeling.
 
+mv_seconds =60
+mv_number_of_rows = mv_seconds 
 
+empty_rows = pd.DataFrame(np.nan, index=range(mv_number_of_rows), columns=mv_ticks2.columns)
 
-
-
-# Prepare Training data
-#+-------------------------------------------------------------------
-"""
+mv_ticks2 = mv_ticks2._append(empty_rows, ignore_index=True)
+mv_ticks2['target'] = mv_ticks2['close'].shift(-mv_seconds)
+#The result is a modified DataFrame ( df ) with additional rows filled with NaN values and a new 'target' column for time-shifted 'close' values.
+mv_ticks2=mv_ticks2.dropna()
+print("======================DF Modified:=================================")
+print(tabulate(mv_ticks2, showindex=False, headers=mv_ticks1.columns,tablefmt="grid",numalign="left",stralign="left",floatfmt=".4f"))

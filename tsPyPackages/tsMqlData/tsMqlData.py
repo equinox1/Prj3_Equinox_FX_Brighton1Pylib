@@ -44,6 +44,24 @@ import MetaTrader5 as mt5
 import pandas as pd
 import pytz
 from datetime import datetime
+
+#+-------------------------------------------------------------------
+# import ai packages scikit learns
+#+-------------------------------------------------------------------
+#sklearn library. it includes utilities for data preprocessing, model evaluation, and model
+from sklearn import datasets, svm, metrics
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+#This line imports the KFold class from scikit-learn, which is often used for cross-validat
+from sklearn.model_selection import KFold
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
+#======================================================
+# import ai packages tensorflow and keras libraries
+#======================================================
+from tensorflow import keras
+from tensorflow.python.keras.layers import Dense
+from tensorflow.python.keras.regularizers import l2
 #+-------------------------------------------------------------------
 # classes for mql
 #+-------------------------------------------------------------------
@@ -175,18 +193,20 @@ class CMqldatasetup:
 # \param  var                          
 #--------------------------------------------------------------------         
         
-    def run_load_from_mql(lp_rates1 = "rates",lp_utc_from = "2023-01-01 00:00:00+00:00",lp_symbol = "JPYUSD", lp_rows = 1000,lp_flag = mt5.COPY_TICKS_ALL ):
+    def run_load_from_mql(lp_debug,lp_rates1 = "rates",lp_utc_from = "2023-01-01 00:00:00+00:00",lp_symbol = "JPYUSD", lp_rows = 1000,lp_flag = mt5.COPY_TICKS_ALL ):
         # request 100 000 eurusd ticks starting from lp_year, lp_month, lp_day in utc time zone
-        print("lp_rates1:",lp_rates1)
-        print("lp_utc_from:",lp_utc_from)
-        print("lp_symbol:",lp_symbol)
-        print("lp_rows:",lp_rows)
-        print("lp_flag:",lp_flag)
-        
+        if lp_debug == 1:
+            print("lp_rates1:",lp_rates1)
+            print("lp_utc_from:",lp_utc_from)
+            print("lp_symbol:",lp_symbol)
+            print("lp_rows:",lp_rows)
+            print("lp_flag:",lp_flag)
+        else:
+            pass
+                
         lp_rates1= pd.DataFrame()
         lp_rates1 = lp_rates1.drop(index=lp_rates1.index)
     
-        
         lp_rates1 = mt5.copy_ticks_from(lp_symbol, lp_utc_from, lp_rows, lp_flag )
         print("ticks received:",len(lp_rates1))
         return lp_rates1
@@ -266,9 +286,9 @@ class CMqldatasetup:
     def multi_steps_data_process(lp_dfmql, lp_step, lp_train_size=0.7, lp_random_state=42):
         # since we are using the open high low close ohlc values only
         lp_dfmql["next signal"] = lp_dfmql["signal"].shift(-lp_step) # the target variable from next n future values
-        lp_dfmql = lp_dfmql.dropna()
-        y = lp_dfmql["next signal"]
-        x = lp_dfmql.drop(columns=["signal", "next signal"])
-        lv_result=train_test_split(x, y, train_size=lp_train_size, random_state=lp_random_state) 
+        #lp_dfmql = lp_dfmql.dropna()
+        #y = lp_dfmql["next signal"]
+        #x = lp_dfmql.drop(columns=["signal", "next signal"])
+        #lv_result=train_test_split(x, y, train_size=lp_train_size, random_state=lp_random_state) 
+        lv_result = 1
         return lv_result
-#-------------------------------------------------------------------- 
