@@ -37,6 +37,7 @@ import keyring as kr
 
 from tsMqlConnect import CMqlinitdemo
 from tsMqlData import CMqldatasetup 
+from tsMqlML import CMqlmlsetup
 mv_debug = 0
 
 #======================================================
@@ -109,8 +110,22 @@ print(tabulate(mv_ticks3, showindex=False, headers=mv_ticks1.columns,tablefmt="p
 #+-------------------------------------------------------------------
 ## Build a neural network model
 #+-------------------------------------------------------------------  
-import tsMqlML
-m1 = tsMqlML
-lp_k_reg = 0.01
 
-m1.dl_build_neuro_network(lp_k_reg= 0.01), 
+m1 = CMqlmlsetup
+mp_k_reg = 0.01
+mp_test_size = 0.2
+mp_shuffle = False
+mv_X_train =[]
+mv_y_train =[]
+
+mv_X_train=m1.dl_split_data_sets(mv_ticks3,mp_shuffle,1)
+mv_y_train=m1.dl_split_data_sets(mv_ticks3,mp_shuffle,2)
+mv_X_test=m1.dl_split_data_sets(mv_ticks3,mp_shuffle,3)
+mv_y_test=m1.dl_split_data_sets(mv_ticks3,mp_shuffle,4)
+
+
+#mv_X_train_scaled=m1.dl_train_model_scaled(mv_X_train)
+#mv_X_test_scaled=m1.dl_test_model_scaled(mv_X_test)
+
+#mv_model=m1.dl_build_neuro_network(mp_k_reg,mv_X_train)
+#mv_model_compiled=m1.dl_compile_neuro_network(mv_model)

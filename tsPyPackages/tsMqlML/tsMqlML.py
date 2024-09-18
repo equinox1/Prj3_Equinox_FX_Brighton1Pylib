@@ -33,10 +33,10 @@ from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras.regularizers import l2
 #+--------------------------------------------------
-# Class CMqlml
+# Class CMqlmlsetup
 #+--------------------------------------------------
-class CMqlml:
-    def __init__(self, lp_df = "",lv_X = [], lv_y = [] ,lv_X_train = [], lv_X_train_scaled =[],lv_X_test =[], lv_X_test_scaled = [],lv_y_train =[],lv_y_test = []):
+class CMqlmlsetup:
+    def __init__(self, lp_df ,lv_X = [], lv_y = [] ,lv_X_train = [], lv_X_train_scaled =[],lv_X_test =[], lv_X_test_scaled = [],lv_y_train =[],lv_y_test = []):
         self._lp_df = lp_df
         
     @property
@@ -52,6 +52,7 @@ class CMqlml:
         return self.lv_X
     @lv_X.setter
     def lv_X(self, value):
+        value = self._lv_X = []
         self._lv_X = value
         
     @property
@@ -59,6 +60,7 @@ class CMqlml:
         return self.lv_y
     @lv_y.setter
     def lv_y(self, value):
+        value = self._lv_y = []
         self._lv_y = value
         
     @property
@@ -79,7 +81,10 @@ class CMqlml:
     def lv_X_train_scaled(self):
         return self.lv_X_train_scaled
     @lv_X_train_scaled.setter
+    
     def lv_X_train_scaled(self, value):
+        scaler = StandardScaler()
+        value = scaler.fit_transform(self.lv_X_train)
         self._lv_X_train_scaled = value   
         
     @property
@@ -87,6 +92,8 @@ class CMqlml:
         return self.lv_X_test_scaled
     @lv_X_test_scaled.setter
     def lv_X_test_scaled(self, value):
+        scaler = StandardScaler()
+        value = scaler.transform(self.lv_X_test)
         self._lv_X_test_scaled = value          
         
     @property
@@ -101,11 +108,61 @@ class CMqlml:
         return self.lv_y_test
     @lv_y_test.setter
     def lv_y_test(self, value):
-        self._lv_y_test = value               
+        self._lv_y_test = value  
+        
+        
+#--------------------------------------------------------------------
+# create method  "dl_split_data_sets".
+# class:cmqlmlsetup      
+# usage: mql data
+# \pdlsplit data
+#--------------------------------------------------------------------
+    def dl_split_data_sets(lp_df, lv_X = [],lv_y = [],lp_test_size=0.2,lp_shuffle = False, lp_prog = 1): 
+        lv_X = []
+        lv_y = []
+        lv_X = lp_df[['close']]   
+        lv_y = lp_df['target']
+                
+        if lp_prog == 1:
+            lv_X_train = train_test_split(lv_X, lv_y, test_size=lp_test_size, shuffle=lp_shuffle)
+            return lv_X_train
+        if lp_prog == 2:
+            lv_y_train = train_test_split(lv_X, lv_y, test_size=lp_test_size, shuffle=lp_shuffle)
+            return lv_y_train     
+        if lp_prog == 3:
+            lv_X_test =  train_test_split(lv_X, lv_y, test_size=lp_test_size, shuffle=lp_shuffle)            
+            return lv_X_test
+        if lp_prog == 4:
+            lv_y_test =  train_test_split(lv_X, lv_y, test_size=lp_test_size, shuffle=lp_shuffle) 
+            return lv_y_test            
+#--------------------------------------------------------------------       
+# create method  "dl_train_model_scaled".
+# class:cmqlmlsetup      
+# usage: mql data
+# \param  var  
+#-------------------------------------------------------------------- 
+    def dl_train_model_scaled(lp_X_train):
+        # meta names
+        scaler = StandardScaler()
+        lp_X_train_scaled = scaler.fit_transform(lp_X_train)
+        return lp_X_train_scaled
+    
+#-------------------------------------------------------------------- 
+# create method  "dl_test_model_scaled".
+# class:cmqlmlsetup      
+# usage: mql data
+# \param  var  
+#----------test----------------------------------------------------- 
+    def dl_test_model_scaled(lp_X_test = []):
+        # meta names
+        scaler = StandardScaler()
+        lp_X_test_scaled = scaler.fit_transform(lp_X_test)
+        return lp_X_test_scaled   
+        
 
 #--------------------------------------------------------------------
 # create method  "dl_build_neuro_network".
-# class: cmqldatasetup      
+# class:cmqlmlsetup      
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
@@ -122,49 +179,27 @@ class CMqlml:
 
 #--------------------------------------------------------------------  
 # create method  "dl_compile_neuro_network".
-# class: cmqldatasetup      
+# class:cmqlmlsetup      
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
     def dl_compile_neuro_network(lp_model,lp_optimizer = 'adam',lp_loss = 'mean_squared_error'):
         # Compile thelp_optimizer, lp_loss
-        lp_model.compile(lp_optimizer, lp_loss)
-        return lp_model
+        lv_model=lp_model.compile(optimizer=lp_optimizer, loss=lp_loss)
+        return lv_model
+    
 # create method  "dl_train_model".
-# class: cmqldatasetup      
+# class:cmqlmlsetup      
 # usage: mql data
 # \param  var  
 #-------------------------------------------------------------------- 
     def dl_train_model(lp_df,lp_test_size=0.2,lp_shuffle=False,lv_X = 0,lv_y = 0):
         X_train, X_test, y_train, y_test = np.train_test_split(lv_X, lv_y, lp_test_size, lp_shuffle) 
         return X_train, X_test, y_train, y_test
-#--------------------------------------------------------------------       
-# create method  "dl_train_model_scaled".
-# class: cmqldatasetup      
-# usage: mql data
-# \param  var  
-#-------------------------------------------------------------------- 
-    def dl_train_model_scaled(lp_X_train):
-        # meta names
-        scaler = StandardScaler()
-        lp_X_train_scaled = scaler.fit_transform(lp_X_train)
-        return lp_X_train_scaled
-#--------------------------------------------------------------------       
-# create method  "dl_test_model_scaled".
-# class: cmqldatasetup      
-# usage: mql data
-# \param  var  
-#----------test----------------------------------------------------- 
-    def dl_test_model_scaled(lp_X_test):
-        # meta names
-        scaler = StandardScaler()
-        lp_X_test_scaled = scaler.fit_transform(lp_X_test)
-        return lp_X_test_scaled   
-        
 
 #--------------------------------------------------------------------   
 # create method  "dl_compile_neuro_network".
-# class: cmqldatasetup      
+# class:cmqlmlsetup      
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
@@ -175,7 +210,7 @@ class CMqlml:
 
 #--------------------------------------------------------------------
 # create method  "dl_predict_network"
-# class: cmqldatasetup      
+# class:cmqlmlsetup      
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
@@ -198,7 +233,7 @@ class CMqlml:
 
 #--------------------------------------------------------------------
 # create method  "dl_model_performance"
-# class: cmqldatasetup      
+# class:cmqlmlsetup      
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
