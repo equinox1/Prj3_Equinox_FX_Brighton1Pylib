@@ -111,6 +111,6 @@ print(tabulate(mv_ticks3, showindex=False, headers=mv_ticks1.columns,tablefmt="p
 #+-------------------------------------------------------------------  
 import tsMqlML
 m1 = tsMqlML
-lp_k_reg = 1
+lp_k_reg = 0.01
 
-m1.dl_build_neuro_network()
+m1.dl_build_neuro_network(lp_k_reg= 0.01), 
