@@ -36,7 +36,7 @@ from tensorflow.python.keras.regularizers import l2
 # Class CMqlml
 #+--------------------------------------------------
 class CMqlml:
-    def __init__(self, lp_df = ""):
+    def __init__(self, lp_df = "",lv_X = [], lv_y = [] ,lv_X_train = [], lv_X_train_scaled =[],lv_X_test =[], lv_X_test_scaled = [],lv_y_train =[],lv_y_test = []):
         self._lp_df = lp_df
         
     @property
@@ -46,20 +46,62 @@ class CMqlml:
     @lp_df.setter
     def lp_dfx(self, value):
         self._lp_df = value
+                
+    @property
+    def lv_X(self):
+        return self.lv_X
+    @lv_X.setter
+    def lv_X(self, value):
+        self._lv_X = value
+        
+    @property
+    def lv_y(self):
+        return self.lv_y
+    @lv_y.setter
+    def lv_y(self, value):
+        self._lv_y = value
+        
+    @property
+    def lv_X_train(self):
+        return self.lv_X_train
+    @lv_X_train.setter
+    def lv_X_train(self, value):
+        self._lv_X_train = value   
+        
+    @property
+    def lv_X_test(self):
+        return self.lv_X_test
+    @lv_X_test.setter
+    def lv_X_test(self, value):
+        self._lv_X_test = value      
+        
+    @property
+    def lv_X_train_scaled(self):
+        return self.lv_X_train_scaled
+    @lv_X_train_scaled.setter
+    def lv_X_train_scaled(self, value):
+        self._lv_X_train_scaled = value   
+        
+    @property
+    def lv_X_test_scaled(self):
+        return self.lv_X_test_scaled
+    @lv_X_test_scaled.setter
+    def lv_X_test_scaled(self, value):
+        self._lv_X_test_scaled = value          
+        
+    @property
+    def lv_y_train(self):
+        return self.lv_y_train
+    @lv_y_train.setter
+    def lv_y_train(self, value):
+        self._lv_y_train = value       
 
-    #Split the data into features (X) 
-    lv_X=[]
-    lv_y=[]
-    
-    #Split the data into training and testing sets
-    lv_X_train=[]
-    lv_X_test=[]
-    lv_y_train=[]
-    lv_y_test=[]
-    
-    # Standardize the features
-    lv_X_train_scaled=[]
-    lv_X_test_scaled=[]
+    @property
+    def lv_y_test(self):
+        return self.lv_y_test
+    @lv_y_test.setter
+    def lv_y_test(self, value):
+        self._lv_y_test = value               
 
 #--------------------------------------------------------------------
 # create method  "dl_build_neuro_network".
