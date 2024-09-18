@@ -105,3 +105,12 @@ lp_seconds = 60
 lp_unit = 's' 
 mv_ticks3 = d1.run_shift_data1(mv_ticks2, lp_seconds,lp_unit)
 print(tabulate(mv_ticks3, showindex=False, headers=mv_ticks1.columns,tablefmt="pretty",numalign="left",stralign="left",floatfmt=".4f"))
+
+#+-------------------------------------------------------------------
+## Build a neural network model
+#+-------------------------------------------------------------------  
+import tsMqlML
+m1 = tsMqlML
+lp_k_reg = 1
+
+m1.dl_build_neuro_network()
