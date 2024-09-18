@@ -122,18 +122,15 @@ class CMqlmlsetup:
         lv_y = []
         lv_X = lp_df[['close']]   
         lv_y = lp_df['target']
-                
+    
+        lv_X_train,lv_y_train,lv_X_test,lv_y_test =  train_test_split(lv_X, lv_y, test_size=lp_test_size, shuffle=lp_shuffle)        
         if lp_prog == 1:
-            lv_X_train = train_test_split(lv_X, lv_y, test_size=lp_test_size, shuffle=lp_shuffle)
             return lv_X_train
         if lp_prog == 2:
-            lv_y_train = train_test_split(lv_X, lv_y, test_size=lp_test_size, shuffle=lp_shuffle)
             return lv_y_train     
-        if lp_prog == 3:
-            lv_X_test =  train_test_split(lv_X, lv_y, test_size=lp_test_size, shuffle=lp_shuffle)            
+        if lp_prog == 3:          
             return lv_X_test
         if lp_prog == 4:
-            lv_y_test =  train_test_split(lv_X, lv_y, test_size=lp_test_size, shuffle=lp_shuffle) 
             return lv_y_test            
 #--------------------------------------------------------------------       
 # create method  "dl_train_model_scaled".
