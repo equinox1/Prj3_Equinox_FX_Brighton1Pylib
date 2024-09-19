@@ -26,12 +26,21 @@ from sklearn.metrics import confusion_matrix, classification_report, accuracy_sc
 #======================================================
 # import ai packages tensorflow and keras libraries
 #======================================================
-from tensorflow import keras
-from tensorflow.python.keras.layers import Dense
-from tensorflow.python.keras.regularizers import l2
+
+from tensorflow import keras 
+import tensorflow as tf; tf.keras
+#from tensorflow.python.keras.layers import Dense
+#from tensorflow.python.keras.regularizers import l2
+#from tensorflow.python.keras.models import Sequential
+
+from tensorflow.keras.layers import Dense, Input
+from tensorflow.keras import Sequential
+from tensorflow.keras.activations import sigmoid
+from tensorflow.keras.regularizers import l2
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras.regularizers import l2
+
 #+--------------------------------------------------
 # Class CMqlmlsetup
 #+--------------------------------------------------
@@ -118,8 +127,6 @@ class CMqlmlsetup:
 # \pdlsplit data
 #--------------------------------------------------------------------
     def dl_split_data_sets(lp_df, lv_X = [],lv_y = [],lp_test_size=0.2,lp_shuffle = False, lp_prog = 1): 
-        lv_X = []
-        lv_y = []
         lv_X = lp_df[['close']]   
         lv_y = lp_df['target']
     
@@ -163,15 +170,17 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-    def dl_build_neuro_network(lp_k_reg= 0.01,lv_X_train = 0):
+    def dl_build_neuro_network(lp_k_reg= 0.01,lp_X_train = [],lp_optimizer = 'adam',lp_loss = 'mean_squared_error'):
         # Build a neural network model
         model=None
         model = Sequential()
-        model.add(Dense(128, activation='relu', input_shape=(lv_X_train.shape[1],), kernel_regularizer=l2(lp_k_reg)))
+        model.add(Dense(128, activation='relu', input_shape=(lp_X_train.shape[1],), kernel_regularizer=l2(lp_k_reg)))
         model.add(Dense(256, activation='relu', kernel_regularizer=l2(lp_k_reg)))
         model.add(Dense(128, activation='relu', kernel_regularizer=l2(lp_k_reg)))
         model.add(Dense(64, activation='relu', kernel_regularizer=l2(lp_k_reg)))
         model.add(Dense(1, activation='linear'))
+        model=model.compile(optimizer=lp_optimizer, loss=lp_loss)
+        
         return model
 
 #--------------------------------------------------------------------  
@@ -184,26 +193,17 @@ class CMqlmlsetup:
         # Compile thelp_optimizer, lp_loss
         lv_model=lp_model.compile(optimizer=lp_optimizer, loss=lp_loss)
         return lv_model
-    
+
+
 # create method  "dl_train_model".
 # class:cmqlmlsetup      
 # usage: mql data
 # \param  var  
 #-------------------------------------------------------------------- 
-    def dl_train_model(lp_df,lp_test_size=0.2,lp_shuffle=False,lv_X = 0,lv_y = 0):
-        X_train, X_test, y_train, y_test = np.train_test_split(lv_X, lv_y, lp_test_size, lp_shuffle) 
-        return X_train, X_test, y_train, y_test
-
-#--------------------------------------------------------------------   
-# create method  "dl_compile_neuro_network".
-# class:cmqlmlsetup      
-# usage: mql data
-# \pdl_build_neuro_network
-#--------------------------------------------------------------------
-    def dl_train_neuro_network(lp_model,lp_X_train_scaled,lp_y_train,lp_epochs,lp_batch_size=256, lp_validation_split=0.2, lp_verbose=1):
-        # Train the model
-        lp_model.fit(lp_X_train_scaled, lp_y_train, lp_epochs, lp_batch_size, lp_validation_split, lp_verbose)
+    def dl_train_model(lp_model,lp_X_train_scaled,lp_y_train,lp_epoch,lp_batch_size = 256, lp_validation_split = 0.2,lp_verbose =1):
+        lp_model.fit(lp_X_train_scaled, lp_y_train, epochs=lp_epoch, batch_size=lp_batch_size, validation_split=lp_validation_split, verbose=lp_verbose)
         return lp_model
+
 
 #--------------------------------------------------------------------
 # create method  "dl_predict_network"
@@ -211,11 +211,8 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-    def dl_predict_network(lp_df, lp_model,lp_seconds = 60):         
-        # Use the model to predict the next 4 instances
-        lv_X = lp_df[['close']]
-        lv_y = lp_df['target']     
-            
+    def dl_predict_values(lp_df, lp_model,lp_seconds = 60):         
+        # Use the model to predict the next N instances
         lv_X_predict=[]
         lv_X_predict_scaled=[]
 
