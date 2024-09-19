@@ -137,22 +137,6 @@ mp_loss='mean_squared_error'
 
 mv_model=m1.dl_build_neuro_network(mp_k_reg,mv_X_train,mp_optimizer,mp_loss)
 
-
-"""
-from tensorflow.python.keras.models import Sequential
-from tensorflow.python.keras.layers import Dense
-from tensorflow.python.keras.regularizers import l2
-k_reg=0.001
-model=None
-model = Sequential()
-model.add(Dense(128, activation='relu', input_shape=(mv_X_train.shape[1],), kernel_regularizer=l2(k_reg)))
-model.add(Dense(256, activation='relu', kernel_regularizer=l2(k_reg)))
-model.add(Dense(128, activation='relu', kernel_regularizer=l2(k_reg)))
-model.add(Dense(64, activation='relu', kernel_regularizer=l2(k_reg)))
-model.add(Dense(1, activation='linear'))
-model.compile(optimizer='adam', loss='mean_squared_error')
-
-"""
 #+--------------------------------------------------------------------
 # Train the model
 #+--------------------------------------------------------------------
@@ -162,6 +146,7 @@ mp_batch_size=256
 mp_validation_split=0.2
 mp_verbose=1
 #End Params
+
 mv_model=m1.dl_train_model(mv_model,mv_X_train_scaled,mv_y_train,mp_epoch,mp_batch_size, mp_validation_split ,mp_verbose )
 
 #+--------------------------------------------------------------------

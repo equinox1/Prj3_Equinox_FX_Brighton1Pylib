@@ -25,15 +25,17 @@ from sklearn.metrics import confusion_matrix, classification_report, accuracy_sc
 
 #======================================================
 # import ai packages tensorflow and keras libraries
-#======================================================
-
-from tensorflow import keras 
+#====================================================== 
 import tensorflow as tf; tf.keras
+from tensorflow.python import keras 
+
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras.regularizers import l2
 
-#+--------------------------------------------------
+from tensorflow.python.keras.engine import data_adapter
+
+#-----------------------------------------------
 # Class CMqlmlsetup
 #+--------------------------------------------------
 class CMqlmlsetup:
@@ -111,6 +113,11 @@ class CMqlmlsetup:
     def lv_y_test(self, value):
         self._lv_y_test = value  
         
+    def _is_distributed_dataset(ds):
+        return isinstance(ds, data_adapter.input_lib.DistributedDatasetSpec)
+
+    data_adapter._is_distributed_dataset = _is_distributed_dataset
+        
         
 #--------------------------------------------------------------------
 # create method  "dl_split_data_sets".
@@ -183,6 +190,8 @@ class CMqlmlsetup:
 #-------------------------------------------------------------------- 
 
     def dl_train_model(lp_model = [],lp_X_train_scaled = [],lp_y_train = [],lp_epoch = 1,lp_batch_size = 256, lp_validation_split = 0.2,lp_verbose =1):
+        lp_X_train_scaled = tf.stack(lp_X_train_scaled)
+        lp_y_train = tf.stack(lp_y_train)
         lp_model.fit(lp_X_train_scaled, lp_y_train, epochs=lp_epoch, batch_size=lp_batch_size, validation_split=lp_validation_split, verbose=lp_verbose)
         return lp_model
 
