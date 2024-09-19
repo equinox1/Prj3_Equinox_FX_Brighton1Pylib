@@ -29,14 +29,6 @@ from sklearn.metrics import confusion_matrix, classification_report, accuracy_sc
 
 from tensorflow import keras 
 import tensorflow as tf; tf.keras
-#from tensorflow.python.keras.layers import Dense
-#from tensorflow.python.keras.regularizers import l2
-#from tensorflow.python.keras.models import Sequential
-
-from tensorflow.keras.layers import Dense, Input
-from tensorflow.keras import Sequential
-from tensorflow.keras.activations import sigmoid
-from tensorflow.keras.regularizers import l2
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras.regularizers import l2
@@ -170,7 +162,7 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-    def dl_build_neuro_network(lp_k_reg= 0.01,lp_X_train = [],lp_optimizer = 'adam',lp_loss = 'mean_squared_error'):
+    def dl_build_neuro_network(lp_k_reg= 0.001,lp_X_train = [] ,lp_optimizer = 'adam',lp_loss = 'mean_squared_error'):
         # Build a neural network model
         model=None
         model = Sequential()
@@ -179,28 +171,18 @@ class CMqlmlsetup:
         model.add(Dense(128, activation='relu', kernel_regularizer=l2(lp_k_reg)))
         model.add(Dense(64, activation='relu', kernel_regularizer=l2(lp_k_reg)))
         model.add(Dense(1, activation='linear'))
-        model=model.compile(optimizer=lp_optimizer, loss=lp_loss)
-        
+        model.compile(optimizer='adam', loss='mean_squared_error')
+        #model=model.compile(optimizer=lp_optimizer, loss=lp_loss)  
         return model
-
-#--------------------------------------------------------------------  
-# create method  "dl_compile_neuro_network".
-# class:cmqlmlsetup      
-# usage: mql data
-# \pdl_build_neuro_network
-#--------------------------------------------------------------------
-    def dl_compile_neuro_network(lp_model,lp_optimizer = 'adam',lp_loss = 'mean_squared_error'):
-        # Compile thelp_optimizer, lp_loss
-        lv_model=lp_model.compile(optimizer=lp_optimizer, loss=lp_loss)
-        return lv_model
-
+    
 
 # create method  "dl_train_model".
 # class:cmqlmlsetup      
 # usage: mql data
 # \param  var  
 #-------------------------------------------------------------------- 
-    def dl_train_model(lp_model,lp_X_train_scaled,lp_y_train,lp_epoch,lp_batch_size = 256, lp_validation_split = 0.2,lp_verbose =1):
+
+    def dl_train_model(lp_model = [],lp_X_train_scaled = [],lp_y_train = [],lp_epoch = 1,lp_batch_size = 256, lp_validation_split = 0.2,lp_verbose =1):
         lp_model.fit(lp_X_train_scaled, lp_y_train, epochs=lp_epoch, batch_size=lp_batch_size, validation_split=lp_validation_split, verbose=lp_verbose)
         return lp_model
 
