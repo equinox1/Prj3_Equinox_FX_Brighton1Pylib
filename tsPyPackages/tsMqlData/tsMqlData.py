@@ -63,6 +63,7 @@ from sklearn.metrics import confusion_matrix, classification_report, accuracy_sc
 from tensorflow import keras
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras.regularizers import l2
+
 #+-------------------------------------------------------------------
 # classes for mql
 #+-------------------------------------------------------------------
@@ -73,7 +74,7 @@ from tensorflow.python.keras.regularizers import l2
 #
 # section:params
 # \param  double svar;              -  value
-#-------------------------------------------------------------------- 
+#--------------------------------------------------------------------
 class CMqldatasetup:
     def __init__(self,lp_target ,lp_dfinit,lp_dfnew,lp_dfmql ,lp_future = 10, lp_seconds = 60,lp_step = 1 ,lp_train = 0.7,lp_random_state = 42):
         self._lp_dfinit  =  lp_dfinit
@@ -85,21 +86,21 @@ class CMqldatasetup:
         self._lp_step = lp_step
         self._lp_train = lp_train
         self._lp_random_state = lp_random_state
-        
-        #Setter and Getter lp_dfinit  
+
+        #Setter and Getter lp_dfinit
         @property
         def lp_dfinit(self):
             return self.lp_dfinit
-        
+
         @lp_dfinit.setter
         def lp_dfinit(self, value):
             self.lp_dfinit = value
-        
-        #Setter and Getter lp_dfnew 
+
+        #Setter and Getter lp_dfnew
         @property
         def lp_dfnew(self):
             return self.lp_dfnew
-        
+
         @lp_dfnew.setter
         def lp_dfnew(self, value):
             self.lp_dfnew = value
@@ -108,137 +109,135 @@ class CMqldatasetup:
         @property
         def lp_target(self):
             return self.lp_target
-        
+
         @lp_target.setter
         def lp_target(self, value):
             self.lp_target = value
-        
+
         #Setter and Getter lp_future
         @property
         def lp_future(self):
             return self.lp_future
-        
+
         @lp_future.setter
         def lp_future(self, value):
-            self.lp_future = value       
-        
+            self.lp_future = value
         #Setter and Getter lp_seconds
+
         @property
         def lp_seconds(self):
             return self.lp_seconds
-        
+
         @lp_seconds.setter
         def lp_seconds(self, value):
-            self.lp_seconds = value          
-        
+            self.lp_seconds = value
+
         #Setter and Getter lp_dfmql
         @property
         def lp_dfmql(self):
             return self.lp_dfmql
-        
+
         @lp_dfmql.setter
         def lp_dfmql(self,value):
-            self.lp_dfmql = value                 
-        
+            self.lp_dfmql = value
+
         #Setter and Getter lp_dfmql
         @property
         def lp_dfmql(self):
             return self.lp_dfmql
-        
+
         @lp_dfmql.setter
         def lp_dfmql(self,value):
-            self.lp_dfmql = value    
-            
+            self.lp_dfmql = value
+
         #Setter and Getter lp_step
         @property
         def lp_step(self):
             return self.lp_step
-        
+
         @lp_step.setter
         def lp_step(self,value):
-            self.lp_step = value                       
-            
+                        self.lp_step = value
         #Setter and Getter lp_train
+
         @property
         def lp_train(self):
             return self.lp_train
-        
+
         @lp_train.setter
         def lp_train(self,value):
-            self.lp_train = value                
-            
+            self.lp_train = value
+
         #Setter and Getter lp_random_state
         @property
         def lp_random_state(self):
             return self.lp_random_
-        
+
         @lp_train.setter
         def lp_random_state(self,value):
-            self.lp_random_state = value   
+            self.lp_random_state = value
 
 # create method  "setmql_timezone()".
-# class: cmqldatasetup      
+# class: cmqldatasetup
 # usage: mql data
-# \param  var                          
-#--------------------------------------------------------------------   
-    def set_mql_timezone(lp_year = 2024, lp_month = 1, lp_day =1 ,lp_timezone = "UTC"):
+# \param  var
+#--------------------------------------------------------------------
+    def set_mql_timezone(self, lp_month = 1, lp_day =1, lp_timezone = "UTC"):
         lv_timezone = pytz.timezone(lp_timezone) # set time zone to utc
-        # create 'datetime' object in utc time zone to avoid the implementation of a local time zone offset
-        lv_utc_from = datetime(lp_year, lp_month, lp_day, tzinfo=lv_timezone)
-        return lv_utc_from
+        return datetime(self, lp_month, lp_day, tzinfo=lv_timezone)
 
 #--------------------------------------------------------------------
 # create method  "run_load_from_mql()".
-# class: cmqldatasetup      
+# class: cmqldatasetup
 # usage: mql data
-# \param  var                          
-#--------------------------------------------------------------------         
-        
-    def run_load_from_mql(lp_debug,lp_rates1 = "rates",lp_utc_from = "2023-01-01 00:00:00+00:00",lp_symbol = "JPYUSD", lp_rows = 1000,lp_flag = mt5.COPY_TICKS_ALL ):
+# \param  var
+#--------------------------------------------------------------------
+    def run_load_from_mql(self, lp_rates1 = "rates", lp_utc_from = "2023-01-01 00:00:00+00:00", lp_symbol = "JPYUSD", lp_rows = 1000, lp_flag = mt5.COPY_TICKS_ALL):
         # request 100 000 eurusd ticks starting from lp_year, lp_month, lp_day in utc time zone
-        if lp_debug == 1:
+        if self == 1:
             print("lp_rates1:",lp_rates1)
             print("lp_utc_from:",lp_utc_from)
             print("lp_symbol:",lp_symbol)
             print("lp_rows:",lp_rows)
             print("lp_flag:",lp_flag)
-        else:
-            pass
-                
         lp_rates1= pd.DataFrame()
         lp_rates1 = lp_rates1.drop(index=lp_rates1.index)
-    
+
         lp_rates1 = mt5.copy_ticks_from(lp_symbol, lp_utc_from, lp_rows, lp_flag )
         print("ticks received:",len(lp_rates1))
         return lp_rates1
-    
+
 #--------------------------------------------------------------------
 # create method  "run_shift_data1()".
-# class: cmqldatasetup      
+# class: cmqldatasetup
 # usage: mql data
-# \param  var                          
-#--------------------------------------------------------------------         
+# \param  var
+#--------------------------------------------------------------------
 
-    def run_shift_data1(lp_df, lp_seconds = 60 , lp_unit = 's'):
-        
+    def run_shift_data1(self, lp_seconds = 60, lp_unit = 's'):
+
         lv_seconds =lp_seconds
-        lv_number_of_rows = lv_seconds 
-        #+-------------------------------------------------------------------  
+        lv_number_of_rows = lv_seconds
+        #+-------------------------------------------------------------------
         # This code converts the 'time' column to datetime format using seconds as the unit
         # and calculates the average of 'ask' and 'bid' values, assigning the result to a new
         # column named 'close' in the rates_frame DataFrame. lp_unit 's' = seconds
-        #+------------------------------------------------------------------- 
-        # head time(datetime),bid(float5),ask(float5),last  volume(int),time_msc(datetime),flags(int),volume_real(int),close(float5),target(float5) 
-        lp_df.style.set_properties(**{'text-align': 'left'})
+        #+-------------------------------------------------------------------
+        # head time(datetime),bid(float5),ask(float5),last  volume(int),time_msc(datetime),flags(int),volume_real(int),close(float5),target(float5)
+        self.style.set_properties(**{'text-align': 'left'})
         #lp_df['time']=pd.to_datetime(lp_df['time'], unit=lp_unit)
-        lp_df['time']= pd.to_datetime(lp_df.time, format='%Y%m%d%H%M%S', errors='coerce')
-        #lp_df['time_msc']= pd.to_datetime(lp_df.time_msc, format='%Y%m%d%H%M%S', errors='coerce')    
-        
-        lp_df['close']=(lp_df['ask']+lp_df['bid'])/2
-        
-        lv_empty_rows = pd.DataFrame(np.nan, index=range(lv_number_of_rows), columns=lp_df.columns)
-        lp_df = lp_df._append(lv_empty_rows, ignore_index=True)
-        lp_df['target'] = lp_df['close'].shift(-lv_seconds)
-        lp_df=lp_df.dropna()
-        lp_df.style.set_properties(**{'text-align': 'left'})
-        return lp_df
+        self['time'] = pd.to_datetime(
+            self.time, format='%Y%m%d%H%M%S', errors='coerce'
+        )
+        #lp_df['time_msc']= pd.to_datetime(lp_df.time_msc, format='%Y%m%d%H%M%S', errors='coerce')
+
+        self['close'] = (self['ask'] + self['bid']) / 2
+
+        lv_empty_rows = pd.DataFrame(
+            np.nan, index=range(lv_number_of_rows), columns=self.columns
+        )
+        self = self._append(lv_empty_rows, ignore_index=True)
+        self['target'] = self['close'].shift(-lv_seconds)
+        self = self.dropna()
+        self.style.set_properties(**{'text-align': 'left'})
+        return self
