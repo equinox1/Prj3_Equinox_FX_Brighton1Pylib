@@ -155,3 +155,8 @@ class Geeks:
 #mark = Geeks() 
 #mark.age = 19
 #print(mark.age) 
+
+import sys
+
+print("path: ",sys.path )
+print("path: ",sys.getprofile )
