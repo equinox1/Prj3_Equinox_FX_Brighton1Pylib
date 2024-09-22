@@ -10,23 +10,27 @@
 # Classes for MQL
 #+-------------------------------------------------------------------
 import numpy as np
+import matplotlib.pyplot as plt
 import pandas as pd
-
 
 #+-------------------------------------------------------------------
 # import ai packages scikit-learns
 #+-------------------------------------------------------------------
-from sklearn import datasets, svm, metrics
+import scipy
+import sklearn
+from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-from sklearn.model_selection import KFold
+
+from sklearn.metrics import mean_squared_error,mean_absolute_error,r2_score
+
 from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import  KFold
 from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
 
 #======================================================
 # import ai packages tensorflow and keras libraries
 #======================================================
-import tensorflow as tf
+
 import keras
 from keras import Sequential
 from keras import layers
@@ -209,8 +213,8 @@ class CMqlmlsetup:
             lp_X_train_scaled = []
         if lp_y_train is None:
             lp_y_train = []
-        lp_X_train_scaled = tf.stack(lp_X_train_scaled)
-        lp_y_train = tf.stack(lp_y_train)
+        lp_X_train_scaled = np.stack(lp_X_train_scaled)
+        lp_y_train = np.stack(lp_y_train)
         self.fit(
             lp_X_train_scaled,
             lp_y_train,
