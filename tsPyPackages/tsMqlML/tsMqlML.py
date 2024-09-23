@@ -45,112 +45,112 @@ from tensorflow.python.keras.regularizers import l2
 # Class CMqlmlsetup
 #+--------------------------------------------------
 class CMqlmlsetup:
-    def __init__(self, lp_df, lv_X=None, lv_y=None, lv_X_train=None, lv_X_train_scaled=None, lv_X_test=None, lv_X_test_scaled=None, lv_y_train=None, lv_y_test=None):
-        if lv_X is None:
-            lv_X = []
-        if lv_y is None:
-            lv_y = []
-        if lv_X_train is None:
-            lv_X_train = []
-        if lv_X_train_scaled is None:
-            lv_X_train_scaled = []
-        if lv_X_test is None:
-            lv_X_test = []
-        if lv_X_test_scaled is None:
-            lv_X_test_scaled = []
-        if lv_y_train is None:
-            lv_y_train = []
-        if lv_y_test is None:
-            lv_y_test = []
-        self._lp_df = lp_df
+    def __init__(self, df, X=None, y=None, X_train=None, X_train_scaled=None, X_test=None, X_test_scaled=None, y_train=None, y_test=None):
+        if X is None:
+            X = []
+        if y is None:
+            y = []
+        if X_train is None:
+            X_train = []
+        if X_train_scaled is None:
+            X_train_scaled = []
+        if X_test is None:
+            X_test = []
+        if X_test_scaled is None:
+            X_test_scaled = []
+        if y_train is None:
+            y_train = []
+        if y_test is None:
+            y_test = []
+        self._df = df
     @property
-    def lp_df(self):
-        return self.lp_df
+    def df(self):
+        return self.df
 
-    @lp_df.setter
-    def lp_dfx(self, value):
-        self._lp_df = value
+    @df.setter
+    def dfx(self, value):
+        self._df = value
     @property
-    def lv_X(self):
-        return self.lv_X
-    @lv_X.setter
-    def lv_X(self, value):
-        value = self._lv_X = []
-        self._lv_X = value
+    def X(self):
+        return self.X
+    @X.setter
+    def X(self, value):
+        value = self._X = []
+        self._X = value
     @property
-    def lv_y(self):
-        return self.lv_y
-    @lv_y.setter
-    def lv_y(self, value):
-        value = self._lv_y = []
-        self._lv_y = value
+    def y(self):
+        return self.y
+    @y.setter
+    def y(self, value):
+        value = self._y = []
+        self._y = value
     @property
-    def lv_X_train(self):
-        return self.lv_X_train
-    @lv_X_train.setter
-    def lv_X_train(self, value):
-        self._lv_X_train = value
+    def X_train(self):
+        return self.X_train
+    @X_train.setter
+    def X_train(self, value):
+        self._X_train = value
     @property
-    def lv_X_test(self):
-        return self.lv_X_test
-    @lv_X_test.setter
-    def lv_X_test(self, value):
-        self._lv_X_test = value
+    def X_test(self):
+        return self.X_test
+    @X_test.setter
+    def X_test(self, value):
+        self._X_test = value
     @property
-    def lv_X_train_scaled(self):
-        return self.lv_X_train_scaled
-    @lv_X_train_scaled.setter
+    def X_train_scaled(self):
+        return self.X_train_scaled
+    @X_train_scaled.setter
 
-    def lv_X_train_scaled(self, value):
+    def X_train_scaled(self, value):
         scaler = StandardScaler()
-        value = scaler.fit_transform(self.lv_X_train)
-        self._lv_X_train_scaled = value
+        value = scaler.fit_transform(self.X_train)
+        self._X_train_scaled = value
 
     @property
-    def lv_X_test_scaled(self):
-        return self.lv_X_test_scaled
-    @lv_X_test_scaled.setter
-    def lv_X_test_scaled(self, value):
+    def X_test_scaled(self):
+        return self.X_test_scaled
+    @X_test_scaled.setter
+    def X_test_scaled(self, value):
         scaler = StandardScaler()
-        value = scaler.transform(self.lv_X_test)
-        self._lv_X_test_scaled = value
+        value = scaler.transform(self.X_test)
+        self._X_test_scaled = value
 
     @property
-    def lv_y_train(self):
-        return self.lv_y_train
-    @lv_y_train.setter
-    def lv_y_train(self, value):
-        self._lv_y_train = value
+    def y_train(self):
+        return self.y_train
+    @y_train.setter
+    def y_train(self, value):
+        self._y_train = value
 
     @property
-    def lv_y_test(self):
-        return self.lv_y_test
-    @lv_y_test.setter
-    def lv_y_test(self, value):
-        self._lv_y_test = value
+    def y_test(self):
+        return self.y_test
+    @y_test.setter
+    def y_test(self, value):
+        self._y_test = value
 #--------------------------------------------------------------------
 # create method  "dl_split_data_sets".
 # class:cmqlmlsetup
 # usage: mql data
 # \pdlsplit data
 #--------------------------------------------------------------------
-    def dl_split_data_sets(self, lp_df, lv_X=None, lv_y=None, lp_test_size=0.2, lp_shuffle = False, lp_prog = 1):
-        if lv_X is None:
-            lv_X = []
-        if lv_y is None:
-            lv_y = []
-        lv_X = lp_df[['close']]
-        lv_y = lp_df['target']
+    def dl_split_data_sets(self, df, X=None, y=None, test_size=0.2, shuffle = False, prog = 1):
+        if X is None:
+            X = []
+        if y is None:
+            y = []
+        X = df[['close']]
+        y = df['target']
 
-        lv_X_train,lv_y_train,lv_X_test,lv_y_test =  train_test_split(lv_X, lv_y, test_size=lp_test_size, shuffle=lp_shuffle)
-        if lp_prog == 1:
-            return lv_X_train
-        if lp_prog == 2:
-            return lv_y_train
-        if lp_prog == 3:
-            return lv_X_test
-        if lp_prog == 4:
-            return lv_y_test
+        X_train,y_train,X_test,y_test =  train_test_split(X, y, test_size=test_size, shuffle=shuffle)
+        if prog == 1:
+            return X_train
+        if prog == 2:
+            return y_train
+        if prog == 3:
+            return X_test
+        if prog == 4:
+            return y_test
 #--------------------------------------------------------------------
 # create method  "dl_train_model_scaled".
 # class:cmqlmlsetup
@@ -180,9 +180,9 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-    def dl_build_neuro_network(self, lp_X_train=None, lp_optimizer = 'adam', lp_loss = 'mean_squared_error'):
-        if lp_X_train is None:
-            lp_X_train = []
+    def dl_build_neuro_network(self, X_train=None, optimizer = 'adam', loss = 'mean_squared_error'):
+        if X_train is None:
+            X_train = []
         # Build a neural network model
         model=None
         model = Sequential()
@@ -190,7 +190,7 @@ class CMqlmlsetup:
                 Dense(
                 128,
                 activation='relu',
-                input_shape=(lp_X_train.shape[1],),
+                input_shape=(X_train.shape[1],),
                 kernel_regularizer=l2(self),
             )
         )
@@ -199,7 +199,7 @@ class CMqlmlsetup:
         model.add(Dense(64, activation='relu', kernel_regularizer=l2(self)))
         model.add(Dense(1, activation='linear'))
         model.compile(optimizer='adam', loss='mean_squared_error')
-        #model=model.compile(optimizer=lp_optimizer, loss=lp_loss)
+        #model=model.compile(optimizer=optimizer, loss=loss)
         return model
 
 
@@ -208,20 +208,20 @@ class CMqlmlsetup:
 # \param  var
 #--------------------------------------------------------------------
 
-    def dl_train_model(self, lp_X_train_scaled=None, lp_y_train=None, lp_epoch = 1, lp_batch_size = 256, lp_validation_split = 0.2, lp_verbose =1):
-        if lp_X_train_scaled is None:
-            lp_X_train_scaled = []
-        if lp_y_train is None:
-            lp_y_train = []
-        lp_X_train_scaled = np.stack(lp_X_train_scaled)
-        lp_y_train = np.stack(lp_y_train)
+    def dl_train_model(self, X_train_scaled=None, y_train=None, epoch = 1, batch_size = 256, validation_split = 0.2, verbose =1):
+        if X_train_scaled is None:
+            X_train_scaled = []
+        if y_train is None:
+            y_train = []
+        X_train_scaled = np.stack(X_train_scaled)
+        y_train = np.stack(y_train)
         self.fit(
-            lp_X_train_scaled,
-            lp_y_train,
-            epochs=lp_epoch,
-            batch_size=lp_batch_size,
-            validation_split=lp_validation_split,
-            verbose=lp_verbose,
+            X_train_scaled,
+            y_train,
+            epochs=epoch,
+            batch_size=batch_size,
+            validation_split=validation_split,
+            verbose=verbose,
         )
         return self
 
@@ -232,18 +232,18 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-    def dl_predict_values(self, lp_model, lp_seconds = 60):
+    def dl_predict_values(self, model, seconds = 60):
         # Use the model to predict the next N instances
-        lv_X_predict=[]
-        lv_X_predict_scaled=[]
+        X_predict=[]
+        X_predict_scaled=[]
 
-        lv_predictions = pd.DataFrame()
-        lv_predictions=[]
+        predictions = pd.DataFrame()
+        predictions=[]
         scaler = StandardScaler()
         # Empty DataFrame
-        lv_X_predict = self.tail(lp_seconds)[['close']]
-        lv_X_predict_scaled = scaler.transform(lv_X_predict)
-        return lp_model.predict(lv_X_predict_scaled)
+        X_predict = self.tail(seconds)[['close']]
+        X_predict_scaled = scaler.transform(X_predict)
+        return model.predict(X_predict_scaled)
 
 #--------------------------------------------------------------------
 # create method  "dl_model_performance"
@@ -261,14 +261,14 @@ class CMqlmlsetup:
 # dependent variable that is predictable from the independent variable(s). An R2 score of 1 indicates
 # a perfect fit, while a score of 0 suggests that the model is no better than predicting the mean of the
 #target variable. Negative values indicate poor model performance.
-    def dl_model_performance(self, lp_model, lp_X_test_scaled):
+    def dl_model_performance(self, model, X_test_scaled):
         # Calculate and print mean squared error
-        mse = mean_squared_error(self, lp_model.predict(lp_X_test_scaled))
+        mse = mean_squared_error(self, model.predict(X_test_scaled))
         print(f"\nMean Squared Error: {mse}")
         # Calculate and print mean absolute error
-        mae = mean_absolute_error(self, lp_model.predict(lp_X_test_scaled))
+        mae = mean_absolute_error(self, model.predict(X_test_scaled))
         print(f"\nMean Absolute Error: {mae}")
         # Calculate and print R2 Score
-        r2 = r2_score(self, lp_model.predict(lp_X_test_scaled))
+        r2 = r2_score(self, model.predict(X_test_scaled))
         print(f"\nR2 Score: {r2}")
         return r2
