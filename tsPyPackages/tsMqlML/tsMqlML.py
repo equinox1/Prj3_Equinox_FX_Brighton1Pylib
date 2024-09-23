@@ -36,8 +36,8 @@ from keras import Sequential
 from keras import layers
 from keras import ops
 
-from tensorflow.python.keras import layers
 
+from tensorflow.python.keras import layers
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras.regularizers import l2
@@ -134,13 +134,13 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdlsplit data
 #--------------------------------------------------------------------
-    def dl_split_data_sets(self, df, X=None, y=None, test_size=0.2, shuffle = False, prog = 1):
+    def dl_split_data_sets(df2, X=None, y=None, test_size=0.2, shuffle = False, prog = 1):
         if X is None:
             X = []
         if y is None:
             y = []
-        X = df[['close']]
-        y = df['target']
+        X = df2[['close']]
+        y = df2['target']
 
         X_train,y_train,X_test,y_test =  train_test_split(X, y, test_size=test_size, shuffle=shuffle)
         if prog == 1:

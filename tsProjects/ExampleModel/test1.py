@@ -13,4 +13,4 @@ import pytz
 tz = pytz
 
  
-print('The timezones supported by pytz module: ', pytz.all_timezones, '\n')
+#print('The timezones supported by pytz module: ', pytz.all_timezones, '\n')
