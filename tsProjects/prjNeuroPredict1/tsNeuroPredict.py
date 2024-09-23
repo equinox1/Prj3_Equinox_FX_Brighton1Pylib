@@ -155,8 +155,7 @@ mp_validation_split = 0.2
 mp_verbose = 1
 # End Params
 
-mv_model = m1.dl_train_model(mv_model, mv_X_train_scaled, mv_y_train,
-                             mp_epoch, mp_batch_size, mp_validation_split, mp_verbose)
+#mv_model = m1.dl_train_model(mv_model, mv_X_train_scaled, mv_y_train,mp_epoch, mp_batch_size, mp_validation_split, mp_verbose)
 
 # +--------------------------------------------------------------------
 # Predict the model

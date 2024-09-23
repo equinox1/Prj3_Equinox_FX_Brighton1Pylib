@@ -30,17 +30,22 @@ from sklearn.metrics import confusion_matrix, classification_report, accuracy_sc
 #======================================================
 # import ai packages tensorflow and keras libraries
 #======================================================
+import tensorflow as tf
+mnist = tf.keras.datasets.mnist  
 
-import keras
-from keras import Sequential
-from keras import layers
-from keras import ops
+"""
 
+from tensorflow import keras
+from tensorflow.keras.layers import Dense, Input
+from tensorflow.keras import Sequential
+from tensorflow.keras.activations import sigmoid
+from tensorflow.keras.regularizers import l2
 
 from tensorflow.python.keras import layers
 from tensorflow.python.keras.models import Sequential
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras.regularizers import l2
+"""
 #-----------------------------------------------
 # Class CMqlmlsetup
 #+--------------------------------------------------
@@ -180,26 +185,26 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-    def dl_build_neuro_network(self, X_train=None, optimizer = 'adam', loss = 'mean_squared_error'):
-        if X_train is None:
-            X_train = []
-        # Build a neural network model
+#from tensorflow import keras
+#from tensorflow.keras.layers import Dense, Input
+#from tensorflow.keras import Sequential
+#from tensorflow.keras.activations import sigmoid
+#from tensorflow.keras.regularizers import l2
+    
+#import tensorflow as tf
+#mnist = tf.keras.datasets.mnist   
+   
+    def dl_build_neuro_network(X_train=[], optimizer = 'adam', loss = 'mean_squared_error'):
         model=None
-        model = Sequential()
-        model.add(
-                Dense(
-                128,
-                activation='relu',
-                input_shape=(X_train.shape[1],),
-                kernel_regularizer=l2(self),
-            )
-        )
-        model.add(Dense(256, activation='relu', kernel_regularizer=l2(self)))
-        model.add(Dense(128, activation='relu', kernel_regularizer=l2(self)))
-        model.add(Dense(64, activation='relu', kernel_regularizer=l2(self)))
+        model = tf.keras.models.Sequential([  
+        model.add(Dense(128,activation='relu',input_shape=(X_train.shape[1],),kernel_regularizer=l2(k_reg))),
+        model.add(Dense(256, activation='relu', kernel_regularizer=l2(k_reg))),
+        model.add(Dense(128, activation='relu', kernel_regularizer=l2(k_reg))),
+        model.add(Dense(64, activation='relu', kernel_regularizer=l2(k_reg))),
         model.add(Dense(1, activation='linear'))
-        model.compile(optimizer='adam', loss='mean_squared_error')
-        #model=model.compile(optimizer=optimizer, loss=loss)
+        ])
+
+        model.compile(optimizer='adam',loss='mean_squared_error', metrics=['accuracy'])
         return model
 
 
@@ -208,7 +213,7 @@ class CMqlmlsetup:
 # \param  var
 #--------------------------------------------------------------------
 
-    def dl_train_model(self, X_train_scaled=None, y_train=None, epoch = 1, batch_size = 256, validation_split = 0.2, verbose =1):
+    def dl_train_model(X_train_scaled=None, y_train=None, epoch = 1, batch_size = 256, validation_split = 0.2, verbose =1):
         if X_train_scaled is None:
             X_train_scaled = []
         if y_train is None:
