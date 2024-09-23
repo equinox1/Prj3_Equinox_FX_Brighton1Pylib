@@ -1,10 +1,16 @@
 
-import pandas as pd
 import sys
 import sysconfig
+
+import pandas as pd
 
 df = pd.DataFrame()
 
 print("Path", sys.path)
-print("Conf1",sysconfig.get_path_names)
-print("Conf2",sysconfig.get_default_scheme)
+
+import pytz
+
+tz = pytz
+
+ 
+print('The timezones supported by pytz module: ', pytz.all_timezones, '\n')

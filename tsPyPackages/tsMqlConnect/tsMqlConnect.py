@@ -16,7 +16,7 @@ The PEP 8 Style Guide provides guidelines for naming convent
 Naming conventions:
 ==================
 Variables, functions, and methods should be named in lowerca
-Class names should be written in CamelCase (starting with a
+Class names should be written in CamelCase (starting with a 
 Constants should be written in all capital letters with unde
 
 Indentation:
@@ -51,89 +51,83 @@ import MetaTrader5 as mt5
 #
 # section:params
 # \param  double svar;              -  value
-#--------------------------------------------------------------------
+#-------------------------------------------------------------------- 
 class CMqlinit:
-    def __init__(self,lp_path,lp_login,lp_password,lp_server,lp_timeout,lp_portable):
-        self._lp_path  =  lp_path
-        self._lp_login = lp_login
-        self._lp_password = lp_password
-        self._lp_server = lp_server
-        self._lp_timeout = lp_timeout
-        self._lp_portable = lp_portable
-
-    #Setter and Getter lp_path
+    def __init__(self,path,login,password,server,timeout,portable):
+        self._path  =  path
+        self._login = login
+        self._password = password
+        self._server = server
+        self._timeout = timeout
+        self._portable = portable
+    
+    #Setter and Getter path  
     @property
-    def lp_path(self):
-        return self.lp_path
+    def path(self):
+        return self.path
 
-    @lp_path.setter
-    def lp_path(self, value):
-        self._lp_path = value.encode("utf-8")
-
-    #Setter and Getter lp_login
+    @path.setter
+    def path(self, value):
+        self._path = value.encode("utf-8")
+        
+    #Setter and Getter login  
     @property
-    def lp_login(self):
-        return self.lp_login
-
-    @lp_login.setter
-    def lp_login(self, value):
-        self._lp_login = value
-
-    #Setter and Getter lp_password
+    def login(self):
+        return self.login
+    
+    @login.setter
+    def login(self, value):
+        self._login = value
+        
+    #Setter and Getter password
     @property
-    def lp_password(self):
-        return self.lp_password
-
-    @lp_password.setter
-    def lp_password(self, value):
-        self._lp_password = value
-
-    #Setter and Getter lp_server
+    def password(self):
+        return self.password
+    
+    @password.setter
+    def password(self, value):
+        self._password = value
+        
+    #Setter and Getter server
     @property
-    def lp_server(self):
-        return self.lp_server
-
-    @lp_server.setter
-    def lp_server(self,value):
-        self._lp_server = value
-
-    #Setter and Getter lp_timeout
+    def server(self):
+        return self.server
+    
+    @server.setter
+    def server(self,value):
+        self._server = value
+        
+    #Setter and Getter timeout
     @property
-    def lp_timeout(self):
-        return self.lp_timeout
-
-    @lp_timeout.setter
-    def lp_timeout(self,value):
-        self._lp_timeout = value
-
-    #Setter and Getter lp_portable
+    def timeout(self):
+        return self.timeout
+    
+    @timeout.setter
+    def timeout(self,value):
+        self._timeout = value 
+        
+    #Setter and Getter portable
     @property
-    def lp_portable(self):
-        return self.lp_portable
-
-    @lp_portable.setter
-    def lp_portable(self,value):
-        self._lp_portable = value
+    def portable(self):
+        return self.portable
+    
+    @portable.setter
+    def portable(self,value):
+        self._portable = value         
+        
 #--------------------------------------------------------------------
 # create method  "run_mql_login()".
-# class: cmqlinit
+# class: cmqlinit      
 # usage: login
-# \param cmqlinit    var
+# \param cmqlinit    var                          
 #--------------------------------------------------------------------
-    def run_mql_login(self, lp_login, lp_password, lp_server, lp_timeout, lp_portable):
-        if mt5.initialize(
-            path=self,
-            login=lp_login,
-            password=lp_password,
-            server=lp_server,
-            timeout=lp_timeout,
-            portable=lp_portable,
-        ):
+    def run_mql_login(path,login,password,server,timeout,portable):
+        if mt5.initialize(path=path,login=login,password=password,server=server,timeout=timeout,portable=portable):
             print("Platform mt5 launched correctly")
+            return=mt5.last_error()
         else:
             print(f"there has been a problem with initialization: {mt5.last_error()}")
-
-        lp_return=mt5.last_error()
+            return=mt5.last_error()
 
 #--------------------------------------------------------------------
 # create class  "CMqlinitdemo"
@@ -141,7 +135,7 @@ class CMqlinit:
 #
 # section:params
 # \param  double svar;              -  value
-#--------------------------------------------------------------------
+#-------------------------------------------------------------------- 
 class CMqlinitdemo(CMqlinit):
     pass
 
@@ -151,6 +145,6 @@ class CMqlinitdemo(CMqlinit):
 #
 # section:params
 # \param  double svar;              -  value
-#--------------------------------------------------------------------
+#-------------------------------------------------------------------- 
 class CMqlinitprod(CMqlinit):
     pass
