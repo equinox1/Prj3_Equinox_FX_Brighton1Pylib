@@ -40,11 +40,12 @@ Use whitespace around operators, but don’t use too much.
 Use whitespace to align code, but don’t use too much.
 """
 
-import MetaTrader5 as mt5
+
 #+-------------------------------------------------------------------
 # classes for mql
 #+-------------------------------------------------------------------
-
+import MetaTrader5 as mt5
+from MetaTrader5 import *
 #--------------------------------------------------------------------
 # create class  "CMqlinit"
 # usage: connect services mql api
@@ -121,13 +122,13 @@ class CMqlinit:
 # usage: login
 # \param cmqlinit    var                          
 #--------------------------------------------------------------------
-    def run_mql_login(path,login,password,server,timeout,portable):
-        if mt5.initialize(path=path,login=login,password=password,server=server,timeout=timeout,portable=portable):
+    def run_mql_login(lppath,lplogin,lppassword,lpserver,lptimeout,lpportable):
+        if mt5.initialize(path=lppath,login=lplogin,password=lppassword,server=lpserver,timeout=lptimeout,portable=lpportable):
             print("Platform mt5 launched correctly")
-            return=mt5.last_error()
+            return mt5.last_error()
         else:
             print(f"there has been a problem with initialization: {mt5.last_error()}")
-            return=mt5.last_error()
+            return mt5.last_error()
 
 #--------------------------------------------------------------------
 # create class  "CMqlinitdemo"

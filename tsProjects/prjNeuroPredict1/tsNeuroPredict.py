@@ -10,8 +10,9 @@
 # import standard python packages
 # +-------------------------------------------------------------------
 import sys
+import datetime
 from datetime import datetime
-
+import pytz
 import keyring as kr
 # +-------------------------------------------------------------------
 # import mql packages
@@ -74,14 +75,19 @@ mp_symbol_secondary = "GBPUSD"
 mp_year = 2024
 mp_month = 1
 mp_day = 1
-mp_timezone = 'Europe/London'
+mp_timezone = 'Etc/London'
 mp_rows = 10000
 mp_command = mt5.COPY_TICKS_ALL
 mp_dfName = "df_rates"
 # End Params
 
 d1 = CMqldatasetup
-mv_utc_from = d1.set_utc_timezone(mp_year, mp_month, mp_day, mp_timezone)
+#mv_utc_from = d1.set_mql_timezone(mp_year, mp_month, mp_day, mp_timezone)
+# set time zone to UTC
+timezone = pytz.timezone("Etc/UTC")
+# create 'datetime' object in UTC time zone to avoid the implementation of a local time zone offset
+mv_utc_from = datetime(2024, 1, 1, tzinfo=timezone)
+
 print("Timezone Set to : ", mv_utc_from)
 mv_ticks1 = pd.DataFrame(d1.run_load_from_mql(
     mv_debug, mp_dfName, mv_utc_from, mp_symbol_primary, mp_rows, mp_command))
