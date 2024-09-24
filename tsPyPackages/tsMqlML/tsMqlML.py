@@ -30,22 +30,10 @@ from sklearn.metrics import confusion_matrix, classification_report, accuracy_sc
 #======================================================
 # import ai packages tensorflow and keras libraries
 #======================================================
-import tensorflow as tf
-from tf.python.keras.engine import data_adapter 
 
-"""
+import tensorflow as tf; tf.keras
+ 
 
-from tensorflow import keras
-from tensorflow.keras.layers import Dense, Input
-from tensorflow.keras import Sequential
-from tensorflow.keras.activations import sigmoid
-from tensorflow.keras.regularizers import l2
-
-from tensorflow.python.keras import layers
-from tensorflow.python.keras.models import Sequential
-from tensorflow.python.keras.layers import Dense
-from tensorflow.python.keras.regularizers import l2
-"""
 #-----------------------------------------------
 # Class CMqlmlsetup
 #+--------------------------------------------------
@@ -134,8 +122,7 @@ class CMqlmlsetup:
     def y_test(self, value):
         self._y_test = value
     
-    def _is_distributed_dataset(ds):
-        return isinstance(ds, data_adapter.input_lib.DistributedDatasetSpec)
+
 #--------------------------------------------------------------------
 # create method  "dl_split_data_sets".
 # class:cmqlmlsetup
@@ -191,12 +178,12 @@ class CMqlmlsetup:
     def dl_build_neuro_network(self, p_k_reg, X_train=None, optimizer = 'adam', loss = 'mean_squared_error'):
         if X_train is None:
             X_train = []  
-         model = tf.keras.models.Sequential([  
-             tf.keras.layers.Dense(128,activation='relu',input_shape=(X_train.shape[1],),kernel_regularizer=l2(p_k_reg) ),
-             tf.keras.layers.Dense(256, activation='relu', kernel_regularizer=l2(p_k_reg)),
-             tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=l2(p_k_reg)),
-             tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=l2(p_k_reg)),
-             tf.keras.layers.Dense(1, activation='linear')
+        model = tf.keras.models.Sequential([  
+            tf.keras.layers.Dense(128,activation='relu',input_shape=(X_train.shape[1],),kernel_regularizer=l2(p_k_reg) ),
+            tf.keras.layers.Dense(256, activation='relu', kernel_regularizer=l2(p_k_reg)),
+            tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=l2(p_k_reg)),
+            tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=l2(p_k_reg)),
+            tf.keras.layers.Dense(1, activation='linear')
         ])
 
         model.compile(optimizer='adam',loss='mean_squared_error', metrics=['accuracy'])
