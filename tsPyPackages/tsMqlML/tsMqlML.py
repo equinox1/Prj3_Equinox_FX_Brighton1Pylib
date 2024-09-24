@@ -31,7 +31,7 @@ from sklearn.metrics import confusion_matrix, classification_report, accuracy_sc
 # import ai packages tensorflow and keras libraries
 #======================================================
 import tensorflow as tf
-mnist = tf.keras.datasets.mnist  
+from tf.python.keras.engine import data_adapter 
 
 """
 
@@ -133,19 +133,22 @@ class CMqlmlsetup:
     @y_test.setter
     def y_test(self, value):
         self._y_test = value
+    
+    def _is_distributed_dataset(ds):
+        return isinstance(ds, data_adapter.input_lib.DistributedDatasetSpec)
 #--------------------------------------------------------------------
 # create method  "dl_split_data_sets".
 # class:cmqlmlsetup
 # usage: mql data
 # \pdlsplit data
 #--------------------------------------------------------------------
-    def dl_split_data_sets(df2, X=None, y=None, test_size=0.2, shuffle = False, prog = 1):
+    def dl_split_data_sets(self,df, X=None, y=None, test_size=0.2, shuffle = False, prog = 1):
         if X is None:
             X = []
         if y is None:
             y = []
-        X = df2[['close']]
-        y = df2['target']
+        X = df[['close']]
+        y = df['target']
 
         X_train,y_train,X_test,y_test =  train_test_split(X, y, test_size=test_size, shuffle=shuffle)
         if prog == 1:
@@ -185,23 +188,15 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-#from tensorflow import keras
-#from tensorflow.keras.layers import Dense, Input
-#from tensorflow.keras import Sequential
-#from tensorflow.keras.activations import sigmoid
-#from tensorflow.keras.regularizers import l2
-    
-#import tensorflow as tf
-#mnist = tf.keras.datasets.mnist   
-   
-    def dl_build_neuro_network(X_train=[], optimizer = 'adam', loss = 'mean_squared_error'):
-        model=None
-        model = tf.keras.models.Sequential([  
-        model.add(Dense(128,activation='relu',input_shape=(X_train.shape[1],),kernel_regularizer=l2(k_reg))),
-        model.add(Dense(256, activation='relu', kernel_regularizer=l2(k_reg))),
-        model.add(Dense(128, activation='relu', kernel_regularizer=l2(k_reg))),
-        model.add(Dense(64, activation='relu', kernel_regularizer=l2(k_reg))),
-        model.add(Dense(1, activation='linear'))
+    def dl_build_neuro_network(self, p_k_reg, X_train=None, optimizer = 'adam', loss = 'mean_squared_error'):
+        if X_train is None:
+            X_train = []  
+         model = tf.keras.models.Sequential([  
+             tf.keras.layers.Dense(128,activation='relu',input_shape=(X_train.shape[1],),kernel_regularizer=l2(p_k_reg) ),
+             tf.keras.layers.Dense(256, activation='relu', kernel_regularizer=l2(p_k_reg)),
+             tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=l2(p_k_reg)),
+             tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=l2(p_k_reg)),
+             tf.keras.layers.Dense(1, activation='linear')
         ])
 
         model.compile(optimizer='adam',loss='mean_squared_error', metrics=['accuracy'])
@@ -213,22 +208,25 @@ class CMqlmlsetup:
 # \param  var
 #--------------------------------------------------------------------
 
-    def dl_train_model(X_train_scaled=None, y_train=None, epoch = 1, batch_size = 256, validation_split = 0.2, verbose =1):
+    def dl_train_model(self,lp_model = None,X_train_scaled=None, y_train=None, epoch = 1, batch_size = 256, validation_split = 0.2, verbose =1):
         if X_train_scaled is None:
             X_train_scaled = []
         if y_train is None:
             y_train = []
+        if lp_model is None:
+            lp_model =[]
         X_train_scaled = np.stack(X_train_scaled)
         y_train = np.stack(y_train)
-        self.fit(
+
+        lp_model.fit(
             X_train_scaled,
             y_train,
             epochs=epoch,
             batch_size=batch_size,
             validation_split=validation_split,
-            verbose=verbose,
+            verbose=verbose
         )
-        return self
+        return lp_model
 
 
 #--------------------------------------------------------------------
@@ -237,16 +235,15 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-    def dl_predict_values(self, model, seconds = 60):
+    def dl_predict_values(self,df, model, seconds = 60):
         # Use the model to predict the next N instances
         X_predict=[]
         X_predict_scaled=[]
-
         predictions = pd.DataFrame()
         predictions=[]
         scaler = StandardScaler()
         # Empty DataFrame
-        X_predict = self.tail(seconds)[['close']]
+        X_predict = df.tail(seconds)[['close']]
         X_predict_scaled = scaler.transform(X_predict)
         return model.predict(X_predict_scaled)
 
@@ -266,14 +263,14 @@ class CMqlmlsetup:
 # dependent variable that is predictable from the independent variable(s). An R2 score of 1 indicates
 # a perfect fit, while a score of 0 suggests that the model is no better than predicting the mean of the
 #target variable. Negative values indicate poor model performance.
-    def dl_model_performance(self, model, X_test_scaled):
+    def dl_model_performance(self,df, model, X_test_scaled):
         # Calculate and print mean squared error
-        mse = mean_squared_error(self, model.predict(X_test_scaled))
+        mse = mean_squared_error(df, model.predict(X_test_scaled))
         print(f"\nMean Squared Error: {mse}")
         # Calculate and print mean absolute error
-        mae = mean_absolute_error(self, model.predict(X_test_scaled))
+        mae = mean_absolute_error(df, model.predict(X_test_scaled))
         print(f"\nMean Absolute Error: {mae}")
         # Calculate and print R2 Score
-        r2 = r2_score(self, model.predict(X_test_scaled))
+        r2 = r2_score(df, model.predict(X_test_scaled))
         print(f"\nR2 Score: {r2}")
         return r2
