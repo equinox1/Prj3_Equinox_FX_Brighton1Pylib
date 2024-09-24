@@ -110,7 +110,7 @@ mp_unit = 's'
 
 mv_ticks3 = d1.run_shift_data1(mv_ticks2, mp_seconds, mp_unit)
 
-#print(tabulate(mv_ticks3, showindex=False, headers=mv_ticks1.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print(tabulate(mv_ticks3, showindex=False, headers=mv_ticks1.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 
 m1 = CMqlmlsetup
 
@@ -142,7 +142,6 @@ mp_loss = 'mean_squared_error'
 # End Params
 
 mv_model = m1.dl_build_neuro_network(mp_k_reg, mv_X_train, mp_optimizer, mp_loss)
-
 # +--------------------------------------------------------------------
 # Train the model
 # +--------------------------------------------------------------------
@@ -152,7 +151,7 @@ mp_batch_size = 256
 mp_validation_split = 0.2
 mp_verbose = 1
 # End Params
-mv_model = m1.dl_train_model(mv_model, mv_X_train_scaled, mv_y_train,mp_epoch, mp_batch_size, mp_validation_split, mp_verbose)
+#mv_model = m1.dl_train_model(mv_model, mv_X_train_scaled, mv_y_train,mp_epoch, mp_batch_size, mp_validation_split, mp_verbose)
 
 # +--------------------------------------------------------------------
 # Predict the model
