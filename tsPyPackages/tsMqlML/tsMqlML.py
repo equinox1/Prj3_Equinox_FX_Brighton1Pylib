@@ -10,29 +10,24 @@
 # Classes for MQL
 #+-------------------------------------------------------------------
 import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
 
 #+-------------------------------------------------------------------
 # import ai packages scikit-learns
 #+-------------------------------------------------------------------
-import scipy
-import sklearn
-from sklearn.preprocessing import LabelEncoder
 from sklearn.preprocessing import StandardScaler
 
 from sklearn.metrics import mean_squared_error,mean_absolute_error,r2_score
 
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.model_selection import  KFold
-from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
+from sklearn.model_selection import train_test_split
 
 #======================================================
 # import ai packages tensorflow and keras libraries
 #======================================================
 
 import tensorflow as tf; tf.keras
- 
+from tensorflow.keras.regularizers import l2
+
 
 #-----------------------------------------------
 # Class CMqlmlsetup
@@ -129,14 +124,19 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdlsplit data
 #--------------------------------------------------------------------
-    def dl_split_data_sets(self,df, X=None, y=None, test_size=0.2, shuffle = False, prog = 1):
+    def dl_split_data_sets(self, df , X=None, y=None, test_size=0.2, shuffle = False, prog = 1):
         if X is None:
             X = []
         if y is None:
             y = []
+        print("DFVAL:",df)   
         X = df[['close']]
         y = df['target']
-
+        # Split the data into training and testing sets
+        X_train=[]
+        X_test=[]
+        y_train=[]
+        y_test=[]
         X_train,y_train,X_test,y_test =  train_test_split(X, y, test_size=test_size, shuffle=shuffle)
         if prog == 1:
             return X_train
@@ -175,26 +175,25 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-    def dl_build_neuro_network(self, p_k_reg, X_train=None, optimizer = 'adam', loss = 'mean_squared_error'):
-        if X_train is None:
-            X_train = []  
-        model = tf.keras.models.Sequential([  
-            tf.keras.layers.Dense(128,activation='relu',input_shape=(X_train.shape[1],),kernel_regularizer=l2(p_k_reg) ),
-            tf.keras.layers.Dense(256, activation='relu', kernel_regularizer=l2(p_k_reg)),
-            tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=l2(p_k_reg)),
-            tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=l2(p_k_reg)),
-            tf.keras.layers.Dense(1, activation='linear')
-        ])
-
-        model.compile(optimizer='adam',loss='mean_squared_error', metrics=['accuracy'])
-        return model
+    def dl_build_neuro_network(self, p_k_reg, X_train=None, optimizer='adam', loss='mean_squared_error'):
+            if X_train is None:
+                    X_train = []
+            model = tf.keras.models.Sequential([
+                tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train.shape[1],), kernel_regularizer=l2(p_k_reg)),
+                tf.keras.layers.Dense(256, activation='relu', kernel_regularizer=l2(p_k_reg)),
+                tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=l2(p_k_reg)),
+                tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=l2(p_k_reg)),
+                tf.keras.layers.Dense(1, activation='linear')
+            ])
+            
+            model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
+            return model
 
 
 # create method  "dl_train_model".
 # class:cmqlmlsetup  usage: mql data
 # \param  var
 #--------------------------------------------------------------------
-
     def dl_train_model(self,lp_model = None,X_train_scaled=None, y_train=None, epoch = 1, batch_size = 256, validation_split = 0.2, verbose =1):
         if X_train_scaled is None:
             X_train_scaled = []
