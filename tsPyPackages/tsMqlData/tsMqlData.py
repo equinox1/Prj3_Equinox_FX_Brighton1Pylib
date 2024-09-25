@@ -179,11 +179,10 @@ class CMqldatasetup:
 # usage: mql data
 # \param  var                          
 #--------------------------------------------------------------------   
-    def set_mql_timezone(lp_year = 2024, lp_month = 1, lp_day =1 ,lp_timezone = "UTC"):
-        lv_timezone = pytz.timezone(lp_timezone) # set time zone to utc
-        # create 'datetime' object in utc time zone to avoid the implementation of a local time zone offset
-        lv_utc_from = datetime(lp_year, lp_month, lp_day, tzinfo=lv_timezone)
-        return lv_utc_from
+    def set_mql_timezone(self, lp_year=2024, lp_month=1, lp_day=1, lp_timezone="etc/UTC"):
+        lv_timezone = pytz.timezone(lp_timezone)  # Set the timezone
+        native_dt = datetime(lp_year, lp_month, lp_day)  # Create a native datetime object
+        return lv_timezone.localize(native_dt)
 
 #--------------------------------------------------------------------
 # create method  "run_load_from_mql()".
@@ -192,7 +191,7 @@ class CMqldatasetup:
 # \param  var                          
 #--------------------------------------------------------------------         
         
-    def run_load_from_mql(lp_debug,lp_rates1 = "rates",lp_utc_from = "2023-01-01 00:00:00+00:00",lp_symbol = "JPYUSD", lp_rows = 1000,lp_flag = mt5.COPY_TICKS_ALL ):
+    def run_load_from_mql(self,lp_debug,lp_rates1 = "rates",lp_utc_from = "2023-01-01 00:00:00+00:00",lp_symbol = "JPYUSD", lp_rows = 1000,lp_flag = mt5.COPY_TICKS_ALL ):
         # request 100 000 eurusd ticks starting from lp_year, lp_month, lp_day in utc time zone
         if lp_debug == 1:
             print("lp_rates1:",lp_rates1)
@@ -200,12 +199,9 @@ class CMqldatasetup:
             print("lp_symbol:",lp_symbol)
             print("lp_rows:",lp_rows)
             print("lp_flag:",lp_flag)
-        else:
-            pass
-                
         lp_rates1= pd.DataFrame()
         lp_rates1 = lp_rates1.drop(index=lp_rates1.index)
-    
+
         lp_rates1 = mt5.copy_ticks_from(lp_symbol, lp_utc_from, lp_rows, lp_flag )
         print("ticks received:",len(lp_rates1))
         return lp_rates1
@@ -216,27 +212,16 @@ class CMqldatasetup:
 # usage: mql data
 # \param  var                          
 #--------------------------------------------------------------------         
-
-    def run_shift_data1(lp_df = [], lp_seconds = 60 , lp_unit = 's'):
-        
-        lv_seconds =lp_seconds
-        lv_number_of_rows = lv_seconds 
-        #+-------------------------------------------------------------------  
-        # This code converts the 'time' column to datetime format using seconds as the unit
-        # and calculates the average of 'ask' and 'bid' values, assigning the result to a new
-        # column named 'close' in the rates_frame DataFrame. lp_unit 's' = seconds
-        #+------------------------------------------------------------------- 
-        # head time(datetime),bid(float5),ask(float5),last  volume(int),time_msc(datetime),flags(int),volume_real(int),close(float5),target(float5) 
+    def run_shift_data1(self,lp_df = [], lp_seconds = 60 , lp_unit = 's'):
+        lv_seconds = lp_seconds
+        lv_number_of_rows = lv_seconds
         lp_df.style.set_properties(**{'text-align': 'left'})
-        lp_df['time']=pd.to_datetime(lp_df['time'], unit=lp_unit)
-        #lp_df['time']= pd.to_datetime(lp_df.time, format='%Y%m%d%H%M%S', errors='coerce')
-        #lp_df['time_msc']= pd.to_datetime(lp_df.time_msc, format='%Y%m%d%H%M%S', errors='coerce')    
-        
-        lp_df['close']=(lp_df['ask']+lp_df['bid'])/2
-        
+        lp_df['time'] = pd.to_datetime(lp_df['time'], unit=lp_unit)
+        lp_df['close'] = (lp_df['ask'] + lp_df['bid']) / 2
         lv_empty_rows = pd.DataFrame(np.nan, index=range(lv_number_of_rows), columns=lp_df.columns)
         lp_df = lp_df._append(lv_empty_rows, ignore_index=True)
         lp_df['target'] = lp_df['close'].shift(-lv_seconds)
-        lp_df=lp_df.dropna()
+        lp_df = lp_df.dropna()
         lp_df.style.set_properties(**{'text-align': 'left'})
+        print("lpDf",lp_df.tail(10))
         return lp_df

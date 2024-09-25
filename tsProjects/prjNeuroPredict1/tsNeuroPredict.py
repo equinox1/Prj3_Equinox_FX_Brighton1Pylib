@@ -75,18 +75,15 @@ mp_symbol_secondary = "GBPUSD"
 mp_year = 2024
 mp_month = 1
 mp_day = 1
-mp_timezone = 'Etc/London'
+mp_timezone = 'etc/UTC'
 mp_rows = 10000
 mp_command = mt5.COPY_TICKS_ALL
 mp_dfName = "df_rates"
 # End Params
 
 d1 = CMqldatasetup
-#mv_utc_from = d1.set_mql_timezone(mp_year, mp_month, mp_day, mp_timezone)
-# set time zone to UTC
-timezone = pytz.timezone("Etc/UTC")
 # create 'datetime' object in UTC time zone to avoid the implementation of a local time zone offset
-mv_utc_from = datetime(2024, 1, 1, tzinfo=timezone)
+mv_utc_from = d1.set_mql_timezone(mp_year, mp_month, mp_day, mp_timezone)
 
 print("Timezone Set to : ", mv_utc_from)
 mv_ticks1 = pd.DataFrame(d1.run_load_from_mql(mv_debug, mp_dfName, mv_utc_from, mp_symbol_primary, mp_rows, mp_command))
@@ -102,7 +99,6 @@ mv_ticks2 = pd.DataFrame(mv_ticks1)
 # Shift Data
 # +-------------------------------------------------------------------
 # Tabulate formatting
-# Use seaborn to set the style
 # start Params
 mp_seconds = 60
 mp_unit = 's'
@@ -110,7 +106,14 @@ mp_unit = 's'
 
 mv_ticks3 = d1.run_shift_data1(mv_ticks2, mp_seconds, mp_unit)
 
-print(tabulate(mv_ticks3, showindex=False, headers=mv_ticks1.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print(tabulate(mv_ticks1.head(10), showindex=False, headers=mv_ticks1.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print(tabulate(mv_ticks2.head(10), showindex=False, headers=mv_ticks2.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print(tabulate(mv_ticks3.head(10), showindex=False, headers=mv_ticks3.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+
+print("mv_ticks3: ", len(mv_ticks3))
+print("mv_ticks3:close ", len(mv_ticks3[['close']]))
+print("mv_ticks3:target ", len(mv_ticks3[['target']]))
+
 
 m1 = CMqlmlsetup
 
@@ -121,6 +124,7 @@ mp_shuffle = False
 # End Params
 mv_X_train = []
 mv_y_train = []
+
 
 mv_X_train = m1.dl_split_data_sets(mv_ticks3, mp_test_size, mp_shuffle, 1)
 mv_y_train = m1.dl_split_data_sets(mv_ticks3, mp_test_size, mp_shuffle, 2)
@@ -140,7 +144,6 @@ mp_k_reg = 0.001
 mp_optimizer = 'adam'
 mp_loss = 'mean_squared_error'
 # End Params
-
 mv_model = m1.dl_build_neuro_network(mp_k_reg, mv_X_train, mp_optimizer, mp_loss)
 # +--------------------------------------------------------------------
 # Train the model
@@ -151,7 +154,15 @@ mp_batch_size = 256
 mp_validation_split = 0.2
 mp_verbose = 1
 # End Params
-#mv_model = m1.dl_train_model(mv_model, mv_X_train_scaled, mv_y_train,mp_epoch, mp_batch_size, mp_validation_split, mp_verbose)
+
+# Correct the size difference until reasoon known
+mv_y_train_index=len(mv_y_train)
+mv_y_train=mv_y_train.drop(mv_y_train_index)
+print("mv_X_train",len(mv_X_test))
+print("mv_y_train",len(mv_y_train))
+print("mv_X_train-scaled",len(mv_X_test_scaled))
+
+mv_model = m1.dl_train_model(mv_model, mv_X_train_scaled, mv_y_train,mp_epoch, mp_batch_size, mp_validation_split, mp_verbose)
 
 # +--------------------------------------------------------------------
 # Predict the model
