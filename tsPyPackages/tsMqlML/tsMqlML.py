@@ -220,7 +220,9 @@ class CMqlmlsetup:
         predictions=[]
         scaler = StandardScaler()
         # Empty DataFrame
-        X_predict = df.tail(seconds)[['close']]
+        print("dftail:",df.tail(seconds)[['close']].values)
+        X_predict = df.tail(seconds)[['close']].values
+        scaler.fit(X_predict)
         X_predict_scaled = scaler.transform(X_predict)
         return model.predict(X_predict_scaled)
 

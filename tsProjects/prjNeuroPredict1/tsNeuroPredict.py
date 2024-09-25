@@ -149,10 +149,10 @@ mv_model = m1.dl_build_neuro_network(mp_k_reg, mv_X_train, mp_optimizer, mp_loss
 # Train the model
 # +--------------------------------------------------------------------
 # start Params
-mp_epoch = 5
+mp_epoch = 100
 mp_batch_size = 256
 mp_validation_split = 0.2
-mp_verbose = 1
+mp_verbose = 0
 # End Params
 
 # Correct the size difference until reasoon known
@@ -168,14 +168,17 @@ mv_model = m1.dl_train_model(mv_model, mv_X_train_scaled, mv_y_train,mp_epoch, m
 # Predict the model
 # +--------------------------------------------------------------------
 # start Params
-# mp_seconds=60
+mp_seconds=60
 # End Params
-# mv_predictions=m1.dl_predict_values(mv_ticks3,mv_model,mp_seconds)
+#print("MvTick3Tail:",mv_ticks3.tail(mp_seconds)['close'].values)
+mv_predictions=m1.dl_predict_values(mv_ticks3,mv_model,mp_seconds)
 
+"""
 # Print actual and predicted values for the next  n  instances
-# print("Actual Value for the Last Instances:")
-# print(mv_ticks2.tail(1)['close'].values)
+print("Actual Value for the Last Instances:")
+print(mv_ticks2.tail(1)['close'].values)
 
-# print("\nPredicted Value for the Next Instances:")
-# print(mv_predictions[:, 0])
-# df_predictions=pd.DataFrame(mv_predictions)
+print("\nPredicted Value for the Next Instances:")
+print(mv_predictions[:, 0])
+df_predictions=pd.DataFrame(mv_predictions)
+"""
