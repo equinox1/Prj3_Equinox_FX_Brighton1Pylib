@@ -11,7 +11,7 @@
 #+-------------------------------------------------------------------
 import numpy as np
 import pandas as pd
-
+import tabulate
 #+-------------------------------------------------------------------
 # import ai packages scikit-learns
 #+-------------------------------------------------------------------
@@ -123,13 +123,10 @@ class CMqlmlsetup:
 # class:cmqlmlsetup
 # usage: mql data
 # \pdlsplit data
+
 #--------------------------------------------------------------------
-    def dl_split_data_sets(self, df , X=None, y=None, test_size=0.2, shuffle = False, prog = 1):
-        if X is None:
-            X = []
-        if y is None:
-            y = []
-        print("DFVAL:",df)   
+    def dl_split_data_sets(df, X, y, test_size=0.2, shuffle = False, prog = 1):
+        # sourcery skip: instance-method-first-arg-name
         X = df[['close']]
         y = df['target']
         # Split the data into training and testing sets
@@ -152,10 +149,11 @@ class CMqlmlsetup:
 # usage: mql data
 # \param  var
 #--------------------------------------------------------------------
-    def dl_train_model_scaled(self):
+    def dl_train_model_scaled(df):
+        # sourcery skip: instance-method-first-arg-name
         # meta names
         scaler = StandardScaler()
-        return scaler.fit_transform(self)
+        return scaler.fit_transform(df)
 
 #--------------------------------------------------------------------
 # create method  "dl_test_model_scaled".
@@ -163,10 +161,10 @@ class CMqlmlsetup:
 # usage: mql data
 # \param  var
 #----------test----------------------------------------------------
-    def dl_test_model_scaled(self):
-        # meta names
+    def dl_test_model_scaled(df):
+        # sourcery skip: instance-method-first-arg-name
         scaler = StandardScaler()
-        return scaler.fit_transform(self)
+        return scaler.fit_transform(df)
 
 
 #--------------------------------------------------------------------
@@ -175,9 +173,8 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-    def dl_build_neuro_network(self, p_k_reg, X_train=None, optimizer='adam', loss='mean_squared_error'):
-            if X_train is None:
-                    X_train = []
+    def dl_build_neuro_network(p_k_reg, X_train, optimizer='adam', loss='mean_squared_error'):
+        # sourcery skip: instance-method-first-arg-name
             model = tf.keras.models.Sequential([
                 tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train.shape[1],), kernel_regularizer=l2(p_k_reg)),
                 tf.keras.layers.Dense(256, activation='relu', kernel_regularizer=l2(p_k_reg)),
@@ -194,19 +191,12 @@ class CMqlmlsetup:
 # class:cmqlmlsetup  usage: mql data
 # \param  var
 #--------------------------------------------------------------------
-    def dl_train_model(self,lp_model = None,X_train_scaled=None, y_train=None, epoch = 1, batch_size = 256, validation_split = 0.2, verbose =1):
-        if X_train_scaled is None:
-            X_train_scaled = []
-        if y_train is None:
-            y_train = []
-        if lp_model is None:
-            lp_model =[]
-        X_train_scaled = np.stack(X_train_scaled)
-        y_train = np.stack(y_train)
-
+    def dl_train_model(lp_model,lp_X_train_scaled, lp_y_train, epoch = 1, batch_size = 256, validation_split = 0.2, verbose =1):
+        # sourcery skip: instance-method-first-arg-name
+        lp_X_train_scaled= lp_X_train_scaled[:len(lp_y_train)]  # Truncate 'x' to match 'y'
         lp_model.fit(
-            X_train_scaled,
-            y_train,
+            lp_X_train_scaled,
+            lp_y_train,
             epochs=epoch,
             batch_size=batch_size,
             validation_split=validation_split,
@@ -221,7 +211,8 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-    def dl_predict_values(self,df, model, seconds = 60):
+    def dl_predict_values(df, model, seconds = 60):
+        # sourcery skip: instance-method-first-arg-name
         # Use the model to predict the next N instances
         X_predict=[]
         X_predict_scaled=[]
@@ -249,7 +240,8 @@ class CMqlmlsetup:
 # dependent variable that is predictable from the independent variable(s). An R2 score of 1 indicates
 # a perfect fit, while a score of 0 suggests that the model is no better than predicting the mean of the
 #target variable. Negative values indicate poor model performance.
-    def dl_model_performance(self,df, model, X_test_scaled):
+    def dl_model_performance(df, model, X_test_scaled):
+        # sourcery skip: instance-method-first-arg-name
         # Calculate and print mean squared error
         mse = mean_squared_error(df, model.predict(X_test_scaled))
         print(f"\nMean Squared Error: {mse}")
