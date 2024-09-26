@@ -242,15 +242,16 @@ class CMqlmlsetup:
 # dependent variable that is predictable from the independent variable(s). An R2 score of 1 indicates
 # a perfect fit, while a score of 0 suggests that the model is no better than predicting the mean of the
 #target variable. Negative values indicate poor model performance.
-    def dl_model_performance(df, model, X_test_scaled):
+    def dl_model_performance(lp_model,lp_X_train_scaled ,lp_X_test_scaled):
         # sourcery skip: instance-method-first-arg-name
+        lp_X_train_scaled= lp_X_train_scaled[:len(lp_X_test_scaled)]  # Truncate 'x' to match 'y'
         # Calculate and print mean squared error
-        mse = mean_squared_error(df, model.predict(X_test_scaled))
+        mse = mean_squared_error(lp_X_train_scaled, lp_model.predict(lp_X_test_scaled))
         print(f"\nMean Squared Error: {mse}")
         # Calculate and print mean absolute error
-        mae = mean_absolute_error(df, model.predict(X_test_scaled))
+        mae = mean_absolute_error(lp_X_train_scaled, lp_model.predict(lp_X_test_scaled))
         print(f"\nMean Absolute Error: {mae}")
         # Calculate and print R2 Score
-        r2 = r2_score(df, model.predict(X_test_scaled))
+        r2 = r2_score(lp_X_train_scaled, lp_model.predict(lp_X_test_scaled))
         print(f"\nR2 Score: {r2}")
         return r2

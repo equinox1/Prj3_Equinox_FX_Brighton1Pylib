@@ -173,7 +173,7 @@ mp_seconds=60
 #print("MvTick3Tail:",mv_ticks3.tail(mp_seconds)['close'].values)
 mv_predictions=m1.dl_predict_values(mv_ticks3,mv_model,mp_seconds)
 
-"""
+
 # Print actual and predicted values for the next  n  instances
 print("Actual Value for the Last Instances:")
 print(mv_ticks2.tail(1)['close'].values)
@@ -181,4 +181,6 @@ print(mv_ticks2.tail(1)['close'].values)
 print("\nPredicted Value for the Next Instances:")
 print(mv_predictions[:, 0])
 df_predictions=pd.DataFrame(mv_predictions)
-"""
+
+# modelperformance
+m1.dl_model_performance(mv_model,mv_X_train_scaled, mv_X_test_scaled)
