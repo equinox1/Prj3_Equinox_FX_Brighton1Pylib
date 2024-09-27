@@ -16,10 +16,18 @@ import tabulate
 # import ai packages scikit-learns
 #+-------------------------------------------------------------------
 from sklearn.preprocessing import StandardScaler
-
 from sklearn.metrics import mean_squared_error,mean_absolute_error,r2_score
-
 from sklearn.model_selection import train_test_split
+
+
+#+-------------------------------------------------------------------
+# import keras package
+#+-------------------------------------------------------------------
+import keras
+from tensorflow.keras.optimizers import Adam
+from scikeras.wrappers import KerasRegressor
+from sklearn.model_selection import GridSearchCV
+
 
 #======================================================
 # import ai packages tensorflow and keras libraries
@@ -27,9 +35,12 @@ from sklearn.model_selection import train_test_split
 
 import tensorflow as tf; tf.keras
 from tensorflow.keras.regularizers import l2
+from tensorflow.keras.optimizers import Adam
+
+import keras_tuner as kt
 
 
-#-----------------------------------------------
+#-----------------------------------------------i
 # Class CMqlmlsetup
 #+--------------------------------------------------
 class CMqlmlsetup:
@@ -175,16 +186,16 @@ class CMqlmlsetup:
 #--------------------------------------------------------------------
     def dl_build_neuro_network(p_k_reg, X_train, optimizer='adam', loss='mean_squared_error'):
         # sourcery skip: instance-method-first-arg-name
-            model = tf.keras.models.Sequential([
-                tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train.shape[1],), kernel_regularizer=l2(p_k_reg)),
-                tf.keras.layers.Dense(256, activation='relu', kernel_regularizer=l2(p_k_reg)),
-                tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=l2(p_k_reg)),
-                tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=l2(p_k_reg)),
-                tf.keras.layers.Dense(1, activation='linear')
-            ])
+        model = tf.keras.models.Sequential([
+            tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train.shape[1],), kernel_regularizer=l2(p_k_reg)),
+            tf.keras.layers.Dense(256, activation='relu', kernel_regularizer=l2(p_k_reg)),
+            tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=l2(p_k_reg)),
+            tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=l2(p_k_reg)),
+            tf.keras.layers.Dense(1, activation='linear')
+           ])
             
-            model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
-            return model
+        model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
+        return model
 
 
 # create method  "dl_train_model".
@@ -255,3 +266,70 @@ class CMqlmlsetup:
         r2 = r2_score(lp_X_train_scaled, lp_model.predict(lp_X_test_scaled))
         print(f"\nR2 Score: {r2}")
         return r2
+
+#--------------------------------------------------------------------
+# create method  "dl_model_tune"
+# class:cmqlmlsetup
+# usage: mql data
+# \pdl_build_neuro_network
+#--------------------------------------------------------------------
+# Define a function to create a model, required for KerasRegressor
+    def dl_model_tune(hp,k_reg = 0.001, lp_X_train_scaled = [], lp_X_test_scaled = [],loss='mean_squared_error'):
+        # sourcery skip: instance-method-first-arg-name
+            tmodel = tf.keras.models.Sequential()
+            tmodel.add(keras.layers.Flatten(input_shape=(lp_X_train_scaled.shape[1],)))
+            hp = kt.HyperParameters
+            #Hidden 1
+            # Tune the number of units in the first Dense layer Choose an optimal value between 32-512
+            hp_units1 = hp.Int('hp_units1', min_value=32, max_value=512, step=32),
+            tmodel.add(keras.layers.Dense(units=hp_units1, activation='relu',kernel_regularizer=l2(k_reg)))
+                
+            #Hidden2
+            # Tune the number of units in the second Dense layer Choose an optimal value between 32-512
+            hp_units2 = hp.Int('hp_units2', min_value=32, max_value=512, step=32),
+            tmodel.add(keras.layers.Dense(units=hp_units2, activation='relu',kernel_regularizer=l2(k_reg)))
+                
+            #Outputlayer
+            tmodel.add(keras.layers.Dense(1, activation='linear'))
+        
+            # Tune the learning rate for the optimizer
+            hp_learning_rate = hp.Choice('k_reg', values=[1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1])
+                       
+            tmodel.compile(optimizer=keras.optimizers.Adam(learning_rate=hp_learning_rate),
+                           loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                           metrics=['accuracy'])        
+ 
+            tuner = kt.Hyperband(dl_model_tune,
+                objective='val_accuracy',
+                max_epochs=10,
+                factor=3,
+                directory='my_dir',
+                project_name='intro_to_kt')
+            
+            (lp_X_train_scaled, label_train)
+            (lp_X_test_scaled, label_test)
+
+            stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
+            tuner.search(lp_X_train_scaled, label_train, epochs=50, validation_split=0.2, callbacks=[stop_early])
+        
+            # Get the optimal hyperparameters
+            best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]
+
+            print(f"""
+            The hyperparameter search is complete. The optimal number of units in the first densely-connected
+            layer is {best_hps.get('units')} and the optimal learning rate for the optimizer
+            is {best_hps.get('learning_rate')}.
+             """)
+            # Build the model with the optimal hyperparameters and train it on the data for 50 epochs
+            model = tuner.hypermodel.build(best_hps)
+            history = model.fit(lp_X_train_scaled, label_train, epochs=50, validation_split=0.2)
+            val_acc_per_epoch = history.history['val_accuracy']
+            best_epoch = val_acc_per_epoch.index(max(val_acc_per_epoch)) + 1
+            print('Best epoch: %d' % (best_epoch,))
+            hypermodel = tuner.hypermodel.build(best_hps)
+
+            # Retrain the model
+            hypermodel.fit(lp_X_train_scaled, label_train, epochs=best_epoch, validation_split=0.2)
+            eval_result = hypermodel.evaluate(lp_X_test_scaled, label_test,)
+            print("[test loss, test accuracy]:", eval_result)
+            return eval_result
