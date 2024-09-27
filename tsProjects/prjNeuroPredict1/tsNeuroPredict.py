@@ -9,6 +9,19 @@
 # +-------------------------------------------------------------------
 # import standard python packages
 # +-------------------------------------------------------------------
+""" 
+The model is initialized as a sequential model, meaning it's a linear stack of layers.
+The Dense layers represent fully connected layers in the neural network. 
+The parameters include the number of neurons (units), activation function, 
+input shape (applicable only for the first layer), and kernel regularization 
+(in this case, L2 regularization with a strength specified by k_reg ).
+activation='relu' implies the Rectified Linear Unit (ReLU) activation function, commonly used in hidden layers.
+The last layer has one neuron with a linear activation function, indicating a regression output.
+If this were a classification task, a different activation function like 'sigmoid' or 'softmax' would be used.
+This architecture is a feedforward neural network with multiple hidden layers for regression purposes. 
+Adjust the parameters and layers based on your specific task and dataset characteristics.
+"""
+
 import sys
 import datetime
 from datetime import datetime
@@ -34,8 +47,6 @@ from tsMqlML import CMqlmlsetup
 # ======================================================
 # import local packages
 # ======================================================
-
-
 
 # User can use the alias if they want
 
@@ -76,7 +87,7 @@ mp_year = 2024
 mp_month = 1
 mp_day = 1
 mp_timezone = 'etc/UTC'
-mp_rows = 10000
+mp_rows = 100000
 mp_command = mt5.COPY_TICKS_ALL
 mp_dfName = "df_rates"
 # End Params
@@ -100,7 +111,7 @@ mv_ticks2 = pd.DataFrame(mv_ticks1)
 # +-------------------------------------------------------------------
 # Tabulate formatting
 # start Params
-mp_seconds = 60
+mp_seconds = 7200
 mp_unit = 's'
 # End Params
 
@@ -144,12 +155,24 @@ mp_k_reg = 0.001
 mp_optimizer = 'adam'
 mp_loss = 'mean_squared_error'
 # End Params
+mv_model = m1.dl_model_tune(mp_k_reg, mv_X_train_scaled,mv_X_test_scaled, mp_optimizer, mp_loss)
+
+print("Tune result:",mv_model)
+
+# +-------------------------------------------------------------------
+# Build a neural network model
+# +-------------------------------------------------------------------
+# start Params
+mp_k_reg = 0.01
+mp_optimizer = 'adam'
+mp_loss = 'mean_squared_error'
+# End Params
 mv_model = m1.dl_build_neuro_network(mp_k_reg, mv_X_train, mp_optimizer, mp_loss)
 # +--------------------------------------------------------------------
 # Train the model
 # +--------------------------------------------------------------------
 # start Params
-mp_epoch = 100
+mp_epoch = 5
 mp_batch_size = 256
 mp_validation_split = 0.2
 mp_verbose = 0
@@ -168,11 +191,10 @@ mv_model = m1.dl_train_model(mv_model, mv_X_train_scaled, mv_y_train,mp_epoch, m
 # Predict the model
 # +--------------------------------------------------------------------
 # start Params
-mp_seconds=60
+mp_seconds=6000
 # End Params
 #print("MvTick3Tail:",mv_ticks3.tail(mp_seconds)['close'].values)
 mv_predictions=m1.dl_predict_values(mv_ticks3,mv_model,mp_seconds)
-
 
 # Print actual and predicted values for the next  n  instances
 print("Actual Value for the Last Instances:")
@@ -182,5 +204,44 @@ print("\nPredicted Value for the Next Instances:")
 print(mv_predictions[:, 0])
 df_predictions=pd.DataFrame(mv_predictions)
 
+"""
+Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values. 
+The lower the MSE, the better the model.
+Mean Absolute Error (MAE): It measures the average absolute difference between the predicted and actual values.
+Like MSE, lower values indicate better model performance.
+
+R2 Score: Also known as the coefficient of determination, it measures the proportion of the variance in the 
+dependent variable that is predictable from the independent variable(s). An R2 score of 1 indicates a perfect
+fit, while a score of 0 suggests that the model is no better than predicting the mean of the target variable. 
+Negative values indicate poor model performance.  
+
+for example use 900 days of data and 1 epoch for EURUSD for a 2 hours time period
+
+R2 (R-squared):
+
+1: R2 is a statistical measure that represents the proportion of the variance in the dependent variable that is
+predictable from the independent variable(s).It is a scale from 0 to 1, where 0 indicates that the model does not
+explain the variability of the dependent variable, and 1 indicates perfect explanation.
+
+2:MSE (Mean Squared Error):MSE is a metric that calculates the average squared difference between the actual
+and predicted values.It penalizes larger errors more heavily than smaller ones, making it sensitive to outliers.
+Mathematically, it is the sum of the squared differences divided by the number of observations.
+MAE (Mean Absolute Error):
+
+3:MAE is a metric that calculates the average absolute difference between the actual and predicted values.
+Unlike MSE, it does not square the differences, making it less sensitive to outliers.
+It is the sum of the absolute differences divided by the number of observations.
+
+In general, a higher R2 value and lower MSE or MAE values indicate a better-performing model.
+
+
+"""
+
 # modelperformance
 m1.dl_model_performance(mv_model,mv_X_train_scaled, mv_X_test_scaled)
+
+
+
+# +-------------------------------------------------------------------
+# Tune a neural network model
+# +-------------------------------------------------------------------
