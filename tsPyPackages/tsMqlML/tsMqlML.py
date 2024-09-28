@@ -267,7 +267,7 @@ class CMqlmlsetup:
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
 # Define a function to create a model, required for KerasRegressor
-    def dl_model_tune_build(self,hp,  lp_X_train_scaled, lp_X_test_scaled, loss='mean_squared_error',k_reg = 0.001):
+    def dl_model_tune_build(hp,lp_X_train_scaled, lp_X_test_scaled, loss='mean_squared_error',k_reg = 0.001):
         hp = kt.HyperParameters
         tmodel = tf.keras.models.Sequential()
         tmodel.add(tf.keras.layers.Flatten(input_shape=(lp_X_train_scaled.shape[1],)))
@@ -303,7 +303,7 @@ class CMqlmlsetup:
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
 # Define a function to create a model, required for KerasRegressor
-    def dl_model_tune_run(self, lp_X_train_scaled, lp_X_test_scaled, loss='mean_squared_error', k_reg = 0.001):
+    def dl_model_tune_run(lp_X_train_scaled, lp_X_test_scaled, loss='mean_squared_error', k_reg = 0.001):
         
         tuner = kt.Hyperband(self.dl_model_tune_run,
             objective='val_accuracy',
@@ -312,11 +312,11 @@ class CMqlmlsetup:
             directory='my_dir',
             project_name='intro_to_kt')
 
-        (lp_X_train_scaled, self.label_train)
-        (lp_X_test_scaled, self.label_test)
+        (lp_X_train_scaled, label_train)
+        (lp_X_test_scaled, label_test)
 
         stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
-        tuner.search(self.lp_X_train_scaled, self.label_train, epochs=50, validation_split=0.2, callbacks=[stop_early])
+        tuner.search(lp_X_train_scaled, label_train, epochs=50, validation_split=0.2, callbacks=[stop_early])
 
         # Get the optimal hyperparameters
         best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]
@@ -328,14 +328,14 @@ class CMqlmlsetup:
              """)
         # Build the model with the optimal hyperparameters and train it on the data for 50 epochs
         model = tuner.hypermodel.build(best_hps)
-        history = model.fit(lp_X_train_scaled, self.label_train, epochs=50, validation_split=0.2)
+        history = model.fit(lp_X_train_scaled, label_train, epochs=50, validation_split=0.2)
         val_acc_per_epoch = history.history['val_accuracy']
         best_epoch = val_acc_per_epoch.index(max(val_acc_per_epoch)) + 1
         print('Best epoch: %d' % (best_epoch,))
         hypermodel = tuner.hypermodel.build(best_hps)
 
         # Retrain the model
-        hypermodel.fit(lp_X_train_scaled, self.label_train, epochs=best_epoch, validation_split=0.2)
-        eval_result = hypermodel.evaluate(lp_X_test_scaled, self.label_test,)
+        hypermodel.fit(lp_X_train_scaled, label_train, epochs=best_epoch, validation_split=0.2)
+        eval_result = hypermodel.evaluate(lp_X_test_scaled, label_test,)
         print("[test loss, test accuracy]:", eval_result)
         return eval_result 
