@@ -23,22 +23,15 @@ from sklearn.model_selection import train_test_split
 #+-------------------------------------------------------------------
 # import keras package
 #+-------------------------------------------------------------------
-import keras
-from tensorflow.keras.optimizers import Adam
+
 from scikeras.wrappers import KerasRegressor
 from sklearn.model_selection import GridSearchCV
-
 
 #======================================================
 # import ai packages tensorflow and keras libraries
 #======================================================
-
-import tensorflow as tf; tf.keras
-from tensorflow.keras.regularizers import l2
-from tensorflow.keras.optimizers import Adam
-
+import tensorflow as tf
 import keras_tuner as kt
-
 
 #-----------------------------------------------i
 # Class CMqlmlsetup
@@ -128,7 +121,7 @@ class CMqlmlsetup:
     def y_test(self, value):
         self._y_test = value
     
-    hp = kt.HyperParameters
+    
 #--------------------------------------------------------------------
 # create method  "dl_split_data_sets".
 # class:cmqlmlsetup
@@ -186,16 +179,16 @@ class CMqlmlsetup:
 #--------------------------------------------------------------------
     def dl_build_neuro_network(p_k_reg, X_train, optimizer='adam', loss='mean_squared_error'):
         # sourcery skip: instance-method-first-arg-name
-        model = tf.keras.models.Sequential([
-            tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train.shape[1],), kernel_regularizer=l2(p_k_reg)),
-            tf.keras.layers.Dense(256, activation='relu', kernel_regularizer=l2(p_k_reg)),
-            tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=l2(p_k_reg)),
-            tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=l2(p_k_reg)),
+        bmodel = tf.keras.models.Sequential([
+            tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train.shape[1],), kernel_regularizer=tf.l2(p_k_reg)),
+            tf.keras.layers.Dense(256, activation='relu', kernel_regularizer=tf.l2(p_k_reg)),
+            tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=tf.l2(p_k_reg)),
+            tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=tf.l2(p_k_reg)),
             tf.keras.layers.Dense(1, activation='linear')
            ])
             
-        model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
-        return model
+        bmodel.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
+        return bmodel
 
 
 # create method  "dl_train_model".
@@ -274,34 +267,30 @@ class CMqlmlsetup:
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
 # Define a function to create a model, required for KerasRegressor
-    def dl_model_tune_build(self, k_reg = 0.001, lp_X_train_scaled=None, lp_X_test_scaled=None, loss='mean_squared_error'):
-        if lp_X_train_scaled is None:
-            lp_X_train_scaled = []
-        if lp_X_test_scaled is None:
-            lp_X_test_scaled = []
-
-        hp=self.hp
+    def dl_model_tune_build(self,hp,  lp_X_train_scaled, lp_X_test_scaled, loss='mean_squared_error',k_reg = 0.001):
+        hp = kt.HyperParameters
         tmodel = tf.keras.models.Sequential()
-        tmodel.add(keras.layers.Flatten(input_shape=(lp_X_train_scaled.shape[1],)))
+        tmodel.add(tf.keras.layers.Flatten(input_shape=(lp_X_train_scaled.shape[1],)))
 
         #Hidden 1
         # Tune the number of units in the first Dense layer Choose an optimal value between 32-512
-        hp_units1 = hp.Int('hp_units1', min_value=32, max_value=512, step=32),
-        tmodel.add(keras.layers.Dense(units=hp_units1, activation='relu',kernel_regularizer=l2(k_reg)))
+        hpunits1 = hp.Int("hpunits1", min_value=32, max_value=512, step=32)    
+
+        tmodel.add(tf.keras.layers.Dense(units=hpunits1, activation='relu',kernel_regularizer=tf.addl2(k_reg)))
 
         #Hidden2
         # Tune the number of units in the second Dense layer Choose an optimal value between 32-512
-        hp_units2 = hp.Int('hp_units2', min_value=32, max_value=512, step=32),
-        tmodel.add(keras.layers.Dense(units=hp_units2, activation='relu',kernel_regularizer=l2(k_reg)))
+        hpunits2 = hp.Int('hpunits2', min_value=32, max_value=512, step=32)
+        tmodel.add(tf.keras.layers.Dense(units=hpunits2, activation='relu',kernel_regularizer=tf.l2(k_reg)))
 
         #Outputlayer
-        tmodel.add(keras.layers.Dense(1, activation='linear'))
+        tmodel.add(tf.keras.layers.Dense(1, activation='linear'))
 
         # Tune the learning rate for the optimizer
         hp_learning_rate = hp.Choice('k_reg', values=[1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1])
 
-        tmodel.compile(optimizer=keras.optimizers.Adam(learning_rate=hp_learning_rate),
-                       loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        tmodel.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=hp_learning_rate),
+                       loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
                        metrics=['accuracy'])   
 
         return tmodel     
@@ -314,13 +303,8 @@ class CMqlmlsetup:
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
 # Define a function to create a model, required for KerasRegressor
-    def dl_model_tune_run(self, k_reg = 0.001, lp_X_train_scaled=None, lp_X_test_scaled=None, loss='mean_squared_error'):
-        if lp_X_train_scaled is None:
-            lp_X_train_scaled = []
-        if lp_X_test_scaled is None:
-            lp_X_test_scaled = []
+    def dl_model_tune_run(self, lp_X_train_scaled, lp_X_test_scaled, loss='mean_squared_error', k_reg = 0.001):
         
-        hp=self.hp
         tuner = kt.Hyperband(self.dl_model_tune_run,
             objective='val_accuracy',
             max_epochs=10,
@@ -328,8 +312,8 @@ class CMqlmlsetup:
             directory='my_dir',
             project_name='intro_to_kt')
 
-        (self.lp_X_train_scaled, self.label_train)
-        (self.lp_X_test_scaled, self.label_test)
+        (lp_X_train_scaled, self.label_train)
+        (lp_X_test_scaled, self.label_test)
 
         stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
         tuner.search(self.lp_X_train_scaled, self.label_train, epochs=50, validation_split=0.2, callbacks=[stop_early])

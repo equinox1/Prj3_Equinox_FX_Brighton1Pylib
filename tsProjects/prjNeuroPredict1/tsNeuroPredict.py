@@ -148,8 +148,7 @@ mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
 
 
 # +-------------------------------------------------------------------
-# pre-tune a neural network model
-# pre-tune a neural network model
+# Pre-tune a neural network model
 # +-------------------------------------------------------------------
 # start Params
 mp_k_reg = 0.001
