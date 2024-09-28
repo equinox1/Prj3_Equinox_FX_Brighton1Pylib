@@ -18,21 +18,26 @@ import tabulate
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error,mean_absolute_error,r2_score
 from sklearn.model_selection import train_test_split
+
+
 #+-------------------------------------------------------------------
 # import keras package
 #+-------------------------------------------------------------------
+
 from scikeras.wrappers import KerasRegressor
 from sklearn.model_selection import GridSearchCV
+
 #======================================================
 # import ai packages tensorflow and keras libraries
 #======================================================
 import tensorflow as tf
 import keras_tuner as kt
+ 
 #-----------------------------------------------i
 # Class CMqlmlsetup
 #+--------------------------------------------------
 class CMqlmlsetup:
-    def __init__(self, hp ,df,X=None, y=None, X_train=None, X_train_scaled=None, X_test=None, X_test_scaled=None, y_train=None, y_test=None):
+    def __init__(self, hp ,df,shape, label_train, label_test, X=None, y=None, X_train=None, X_train_scaled=None, X_test=None, X_test_scaled=None, y_train=None, y_test=None):
         if X is None:
             X = []
         if y is None:
@@ -116,7 +121,9 @@ class CMqlmlsetup:
     def y_test(self, value):
         self._y_test = value
     
-
+    self.shape = shape
+        self.label_train = label_train
+        self.label_test = label_test
 #--------------------------------------------------------------------
 # create method  "dl_split_data_sets".
 # class:cmqlmlsetup
@@ -124,9 +131,8 @@ class CMqlmlsetup:
 # \pdlsplit data
 
 #--------------------------------------------------------------------
-    def dl_split_data_sets(self,df, X, y, test_size=0.2, shuffle = False, prog = 1):
+    def dl_split_data_sets(df, X, y, test_size=0.2, shuffle = False, prog = 1):
         # sourcery skip: instance-method-first-arg-name
-        
         X = df[['close']]
         y = df['target']
         # Split the data into training and testing sets
@@ -227,95 +233,6 @@ class CMqlmlsetup:
         return model.predict(X_predict_scaled)
 
 #--------------------------------------------------------------------
-# create method  "dl_model_tune_build"
-# class:cmqlmlsetup
-# usage: mql data
-# \pdl_build_neuro_network
-#--------------------------------------------------------------------
-# Method to build the model for Keras Tuner
-    def dl_model_tune_build(self,lp_X_train_scaled, lp_X_test_scaled, optimizer='adam', loss='mean_squared_error', k_reg=0.001):
-        tmodel = tf.keras.models.Sequential()
-
-        # Input layer
-        hp = kt.HyperParameters()
-
-        tmodel.add(tf.keras.layers.Flatten(input_shape=(lp_X_train_scaled.shape[1],)))
-        
-        # Hidden Layer 1: Tune the number of units between 32-512
-        hpunits1 = hp.Int('hpunits1', min_value=32, max_value=512, step=32)
-        tmodel.add(tf.keras.layers.Dense(units=hpunits1, activation='relu',
-                                         kernel_regularizer=tf.keras.regularizers.l2(k_reg)))
-
-        # Hidden Layer 2: Tune the number of units between 32-512
-        hpunits2 = hp.Int('hpunits2', min_value=32, max_value=512, step=32)
-        tmodel.add(tf.keras.layers.Dense(units=hpunits2, activation='relu',
-                                         kernel_regularizer=tf.keras.regularizers.l2(k_reg)))
-
-        # Output Layer: Linear activation for regression
-        tmodel.add(tf.keras.layers.Dense(1, activation='linear'))
-
-        # Learning rate tuning
-        hp_learning_rate = hp.Choice('learning_rate', values=[1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1])
-
-        tmodel.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=hp_learning_rate),
-                       loss=loss,
-                       metrics=['mean_squared_error'])  # For regression
-
-        return tmodel
-
-
-#--------------------------------------------------------------------
-# create method  "dl_model_tune_run"
-# class:cmqlmlsetup
-# usage: mql data
-# \pdl_build_neuro_network
-#--------------------------------------------------------------------           
-# Method to run the Keras Tuner
-    def dl_model_tune_run(self,lp_X_train_scaled, lp_X_test_scaled, optimizer='adam', loss='mean_squared_error', k_reg=0.001):
-        # Build tuner
-        
-        tuner = kt.Hyperband(self.dl_model_tune_build(self),
-                             objective='val_loss',  # Use 'val_loss' for regression
-                             max_epochs=10,
-                             factor=3,
-                             directory='my_dir',
-                             project_name='intro_to_kt')
-
-        # Early stopping to prevent overfitting
-        stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
-
-        # Perform the search for the best hyperparameters
-        tuner.search(lp_X_train_scaled, self.label_train, epochs=50, validation_split=0.2, callbacks=[stop_early])
-
-        # Get the optimal hyperparameters
-        best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
-
-        print(f"""
-            The hyperparameter search is complete. The optimal number of units in the first densely-connected
-            layer is {best_hps.get('hpunits1')} and the optimal learning rate for the optimizer
-            is {best_hps.get('learning_rate')}.
-        """)
-
-        # Build the model with the optimal hyperparameters and train it
-        model = tuner.hypermodel.build(best_hps)
-        history = model.fit(lp_X_train_scaled, self.label_train, epochs=50, validation_split=0.2)
-
-        # Get the best epoch based on validation loss
-        val_loss_per_epoch = history.history['val_loss']
-        best_epoch = val_loss_per_epoch.index(min(val_loss_per_epoch)) + 1
-        print('Best epoch: %d' % (best_epoch,))
-
-        # Rebuild the model and retrain it on the optimal number of epochs
-        hypermodel = tuner.hypermodel.build(best_hps)
-        hypermodel.fit(lp_X_train_scaled, self.label_train, epochs=best_epoch, validation_split=0.2)
-
-        # Evaluate the model on test data
-        eval_result = hypermodel.evaluate(lp_X_test_scaled, self.label_test)
-        print("[test loss, mean squared error]:", eval_result)
-        return eval_result
-    
-
-    #--------------------------------------------------------------------
 # create method  "dl_model_performance"
 # class:cmqlmlsetup
 # usage: mql data
@@ -344,3 +261,89 @@ class CMqlmlsetup:
         r2 = r2_score(lp_X_train_scaled, lp_model.predict(lp_X_test_scaled))
         print(f"\nR2 Score: {r2}")
         return r2
+
+#--------------------------------------------------------------------
+# create method  "dl_model_tune_build"
+# class:cmqlmlsetup
+# usage: mql data
+# \pdl_build_neuro_network
+#--------------------------------------------------------------------
+# Define a function to create a model, required for KerasRegressor
+    def dl_model_tune_build(self,hp,lp_X_test_scaled, optimizer='adam', loss='mean_squared_error', k_reg = 0.001):
+        from keras_tuner import HyperParameters
+        
+        tmodel = tf.keras.models.Sequential()
+        tmodel.add(tf.keras.layers.Flatten(input_shape=(self.shape[1], )))
+
+        #Hidden 1
+        #hp = kt.HyperParameters()
+        
+        # Tune the number of units in the first Dense layer Choose an optimal value between 32-512
+        hpunits1 = hp.Int("hpunits1", min_value=32, max_value=512, step=32)    
+
+        tmodel.add(tf.keras.layers.Dense(units=hpunits1, activation='relu',kernel_regularizer=tf.keras.regularizers.l2(k_reg)))
+
+        #Hidden2
+        # Tune the number of units in the second Dense layer Choose an optimal value between 32-512
+        hpunits2 = hp.Int('hpunits2', min_value=32, max_value=512, step=32)
+        tmodel.add(tf.keras.layers.Dense(units=hpunits2, activation='relu',kernel_regularizer=tf.keras.regularizers.l2(k_reg)))
+
+        #Outputlayer
+        tmodel.add(tf.keras.layers.Dense(1, activation='linear'))
+
+        # Tune the learning rate for the optimizer
+        hp_learning_rate = hp.Choice('learning_rate', values=[1e-06, 1e-05, 0.0001, 0.001, 0.01, 0.1, 1.0])
+
+        tmodel.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=hp_learning_rate),
+                       loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                       metrics=['accuracy'])   
+
+        return tmodel     
+ 
+           
+#--------------------------------------------------------------------
+# create method  "dl_model_tune_run"
+# class:cmqlmlsetup
+# usage: mql data
+# \pdl_build_neuro_network
+#--------------------------------------------------------------------
+# Define a function to create a model, required for KerasRegressor
+    def dl_model_tune_run(self,hp,lp_X_train_scaled,lp_X_test_scaled,optimizer='adam',  loss='mean_squared_error', k_reg = 0.001):     
+        # Assuming dl_model_tune_build is a method that builds the model
+        
+        tuner = kt.Hyperband(self.dl_model_tune_build,
+                             objective='val_accuracy',
+                             max_epochs=10,
+                             factor=3,
+                             directory='my_dir',
+                             project_name='intro_to_kt'
+                             )
+         
+        (lp_X_train_scaled, self.label_train)
+        (lp_X_test_scaled, self.label_test)
+
+
+        stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
+        tuner.search(lp_X_train_scaled, self.label_train, epochs=50, validation_split=0.2, callbacks=[stop_early])
+
+        # Get the optimal hyperparameters
+        best_hps=tuner.get_best_hyperparameters(num_trials=1)[0]
+
+        print(f"""
+            The hyperparameter search is complete. The optimal number of units in the first densely-connected
+            layer is {best_hps.get('units')} and the optimal learning rate for the optimizer
+            is {best_hps.get('learning_rate')}.
+             """)
+        # Build the model with the optimal hyperparameters and train it on the data for 50 epochs
+        model = tuner.hypermodel.build(best_hps)
+        history = model.fit(lp_X_train_scaled, self.label_train, epochs=50, validation_split=0.2)
+        val_acc_per_epoch = history.history['val_loss']
+        best_epoch = val_acc_per_epoch.index(max(val_acc_per_epoch)) + 1
+        print('Best epoch: %d' % (best_epoch,))
+        hypermodel = tuner.hypermodel.build(best_hps)
+
+        # Retrain the model
+        hypermodel.fit(lp_X_train_scaled, self.label_train, epochs=best_epoch, validation_split=0.2)
+        eval_result = hypermodel.evaluate(lp_X_test_scaled, self.label_test,)
+        print("[test loss, test accuracy]:", eval_result)
+        return eval_result 
