@@ -281,12 +281,12 @@ class CMqlmlsetup:
             hp = kt.HyperParameters
             #Hidden 1
             # Tune the number of units in the first Dense layer Choose an optimal value between 32-512
-            hp_units1 = hp.Int('hp_units1', min_value=32, max_value=512, step=32),
+            hp_units1 = hp.Int('k_reg', min_value=32, max_value=512, step=32),
             tmodel.add(keras.layers.Dense(units=hp_units1, activation='relu',kernel_regularizer=l2(k_reg)))
                 
             #Hidden2
             # Tune the number of units in the second Dense layer Choose an optimal value between 32-512
-            hp_units2 = hp.Int('hp_units2', min_value=32, max_value=512, step=32),
+            hp_units2 = hp.Int('k_reg', min_value=32, max_value=512, step=32),
             tmodel.add(keras.layers.Dense(units=hp_units2, activation='relu',kernel_regularizer=l2(k_reg)))
                 
             #Outputlayer
