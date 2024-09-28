@@ -148,16 +148,18 @@ mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
 
 
 # +-------------------------------------------------------------------
-# Build a neural network model
+# pre-tune a neural network model
+# pre-tune a neural network model
 # +-------------------------------------------------------------------
 # start Params
 mp_k_reg = 0.001
 mp_optimizer = 'adam'
 mp_loss = 'mean_squared_error'
 # End Params
-mv_model = m1.dl_model_tune(mp_k_reg, mv_X_train_scaled,mv_X_test_scaled, mp_optimizer, mp_loss)
+mv_model1 = m1.dl_model_tune_build(mp_k_reg, mv_X_train_scaled,mv_X_test_scaled, mp_optimizer, mp_loss)
+mv_model2 = m1.dl_model_tune_run(mp_k_reg, mv_X_train_scaled,mv_X_test_scaled, mp_optimizer, mp_loss)
 
-print("Tune result:",mv_model)
+print("Tune result:",mv_model2)
 
 # +-------------------------------------------------------------------
 # Build a neural network model
