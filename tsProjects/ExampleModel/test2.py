@@ -13,8 +13,8 @@ from tsMqlML import CMqlmlsetup
 img_train = img_train.astype('float32') / 255.0
 img_test = img_test.astype('float32') / 255.0
 
-"""
-def model_builder(hp):
+
+def lmodel_builder(hp):
   model = keras.Sequential()
   model.add(keras.layers.Flatten(input_shape=(28, 28)))
 
@@ -33,9 +33,10 @@ def model_builder(hp):
                 metrics=['accuracy'])
 
   return model
-"""
+
 m1 = CMqlmlsetup
 model_builder = m1.model_builder
+model_builder = lmodel_builder
 
 tuner = kt.Hyperband(model_builder,
                      objective='val_accuracy',
