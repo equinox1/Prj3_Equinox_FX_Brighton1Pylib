@@ -20,17 +20,24 @@ def lmodel_builder(hp):
 
   # Tune the number of units in the first Dense layer
   # Choose an optimal value between 32-512
-  hp_units = hp.Int('units', min_value=32, max_value=512, step=32)
-  model.add(keras.layers.Dense(units=hp_units, activation='relu'))
+  k_reg=0.01
+  hp_units1 = hp.Int('units1', min_value=32, max_value=512, step=32)
+  model.add(keras.layers.Dense(units=hp_units1, activation='relu',kernel_regularizer=tf.keras.regularizers.l2(k_reg)))
+
+  #hp_units2 = hp.Int('units2', min_value=32, max_value=512, step=32)
+  #model.add(keras.layers.Dense(units=hp_units2, activation='relu'))
+
   model.add(keras.layers.Dense(10))
 
   # Tune the learning rate for the optimizer
   # Choose an optimal value from 0.01, 0.001, or 0.0001
   hp_learning_rate = hp.Choice('learning_rate', values=[1e-2, 1e-3, 1e-4])
 
+  fn_loss ='mean_squared_error'
+
   model.compile(optimizer=keras.optimizers.Adam(learning_rate=hp_learning_rate),
-                loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-                metrics=['accuracy'])
+                loss=fn_loss,
+                metrics=['mean_squared_error'])  # For regression
 
   return model
 
@@ -39,7 +46,7 @@ model_builder = m1.model_builder
 model_builder = lmodel_builder
 
 tuner = kt.Hyperband(model_builder,
-                     objective='val_accuracy',
+                     objective='val_loss',  # Use 'val_loss' for regression
                      max_epochs=10,
                      factor=3,
                      directory='my_dir',

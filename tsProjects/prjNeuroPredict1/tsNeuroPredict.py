@@ -43,6 +43,7 @@ from tabulate import tabulate
 from tsMqlConnect import CMqlinitdemo
 from tsMqlData import CMqldatasetup
 from tsMqlML import CMqlmlsetup
+from tsMqlMLTune import CMqlmlsetuptune
 
 #======================================================
 # import ai packages tensorflow and keras libraries
@@ -156,16 +157,17 @@ mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
 # Pre-tune a neural network model
 # +-------------------------------------------------------------------
 # start Params
+mt = CMqlmlsetuptune
+
 mp_k_reg = 0.001
 mp_optimizer = 'adam'
 mp_loss = 'mean_squared_error'
 # End Params
 
+mv_model1=mt.run_model_tune(mv_X_train_scaled,mv_X_train_scaled, mv_y_train)
 
-mv_model1 = m1.dl_model_tune_build(mv_X_train_scaled,mv_X_test_scaled, mp_optimizer, mp_loss,mp_k_reg,)
-mv_model2 = m1.dl_model_tune_run(mv_X_train_scaled,mv_X_test_scaled, mp_optimizer, mp_loss,mp_k_reg,)
 
-print("Tune result:",mv_model2)
+print("Tune result:",mv_mode1)
 
 # +-------------------------------------------------------------------
 # Build a neural network model
@@ -246,14 +248,3 @@ In general, a higher R2 value and lower MSE or MAE values indicate a better-perf
 
 # modelperformance
 #m1.dl_model_performance(mv_model,mv_X_train_scaled, mv_X_test_scaled)
-
-#from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-
-#y_true = mv_ticks3[['target']].values
-#y_pred = mv_predictions[:, 0]
-
-#mse = mean_squared_error(y_true, y_pred)
-#mae = mean_absolute_error(y_true, y_pred)
-#r2 = r2_score(y_true, y_pred)
-
-#print(f"MSE: {mse}, MAE: {mae}, R²: {r2}"
