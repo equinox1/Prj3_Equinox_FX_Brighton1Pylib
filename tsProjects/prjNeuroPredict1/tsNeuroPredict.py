@@ -164,10 +164,13 @@ mp_optimizer = 'adam'
 mp_loss = 'mean_squared_error'
 # End Params
 
-mv_model1=mt.run_model_tune(mv_X_train_scaled,mv_X_train_scaled, mv_y_train)
+hp = kt.HyperParameters()
 
+mv_model1=mt.model_builder()
+mv_model2=mt.run_model_tune(mv_X_train_scaled,mv_X_train_scaled, mv_y_train)
 
-print("Tune result:",mv_mode1)
+print("Tune result:",mv_model1)
+print("Tune result:",mv_model2)
 
 # +-------------------------------------------------------------------
 # Build a neural network model
