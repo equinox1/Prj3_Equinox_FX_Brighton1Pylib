@@ -173,6 +173,31 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
+"""
+Key Parameters
+units: The number of neurons or units in the dense layer. This is the dimensionality of the output space.
+activation: The activation function to apply to the output. 
+
+Common activation functions include:
+====================================
+relu (Rectified Linear Unit)
+sigmoid
+softmax
+tanh
+linear (no activation)
+use_bias: Boolean, whether to include a bias term in the layer (default: True).
+
+kernel_initializer: Specifies the initializer for the kernel weights matrix, which
+determines how the weights are initialized before training.
+bias_initializer: Specifies the initializer for the bias vector.
+kernel_regularizer: Optional regularizer function applied to the kernel weights matrix 
+(for regularization like L1 or L2).
+bias_regularizer: Optional regularizer applied to the bias vector.
+activity_regularizer: Regularizer applied to the output (activation) of the layer.
+kernel_constraint: Constraint function applied to the kernel weights matrix.
+bias_constraint: Constraint function applied to the bias vector.
+"""
+
     def dl_build_neuro_network(self,lp_k_reg, X_train, y_train,optimizer='adam',lp_act1 = 'relu', lp_act2 = 'linear',lp_metric = 'accuracy', lp_loss='mean_squared_error',cells1=128,cells2=256, cells3=128,cells4=64,cells5=1):
         # sourcery skip: instance-method-first-arg-name
         bmodel = tf.keras.models.Sequential([
@@ -185,7 +210,29 @@ class CMqlmlsetup:
         bmodel.compile(optimizer=optimizer, loss=fn_loss, metrics=[lp_metric])
         return bmodel
 
+#--------------------------------------------------------------------
+# create method  "dl_lstm_model".
+# class:cmqlmlsetup  usage: mql data
+# \param  var
+#--------------------------------------------------------------------
+#model = tf.keras.models.Sequential([
+#  tf.keras.layers.Conv1D(filters=32, kernel_size=3,
+#                      strides=1, padding="causal",
+#                      activation="relu",
+#                      input_shape=[None, 1]),
+#  tf.keras.layers.LSTM(32, return_sequences=True),
+#  tf.keras.layers.LSTM(32, return_sequences=True),
+#  tf.keras.layers.Dense(1),
+#  tf.keras.layers.Lambda(lambda x: x * 200)
+#])
 
+optimizer = tf.keras.optimizers.SGD(lr=1e-5, momentum=0.9)
+model.compile(loss=tf.keras.losses.Huber(),
+              optimizer=optimizer,
+              metrics=["mae"])
+history = model.fit(dataset,epochs=500)
+
+#--------------------------------------------------------------------
 # create method  "dl_train_model".
 # class:cmqlmlsetup  usage: mql data
 # \param  var
