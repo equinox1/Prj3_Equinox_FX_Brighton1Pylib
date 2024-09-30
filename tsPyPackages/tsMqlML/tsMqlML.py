@@ -173,17 +173,16 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-    def dl_build_neuro_network(self,p_k_reg, X_train, optimizer='adam', loss='mean_squared_error'):
+    def dl_build_neuro_network(self,lp_k_reg, X_train, y_train,optimizer='adam',lp_act1 = 'relu', lp_act2 = 'linear',lp_metric = 'accuracy', lp_loss='mean_squared_error',cells1=128,cells2=256, cells3=128,cells4=64,cells5=1):
         # sourcery skip: instance-method-first-arg-name
         bmodel = tf.keras.models.Sequential([
-            tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train.shape[1],), kernel_regularizer=tf.l2(p_k_reg)),
-            tf.keras.layers.Dense(256, activation='relu', kernel_regularizer=tf.l2(p_k_reg)),
-            tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=tf.l2(p_k_reg)),
-            tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=tf.l2(p_k_reg)),
-            tf.keras.layers.Dense(1, activation='linear')
+            tf.keras.layers.Dense(cells1, activation=lp_act1, input_shape=(X_train.shape[1],), kernel_regularizer=tf.l2(lp_k_reg)),
+            tf.keras.layers.Dense(cells2, activation=lp_act1, kernel_regularizer=tf.l2(lp_k_reg)),
+            tf.keras.layers.Dense(cells3, activation=lp_act1, kernel_regularizer=tf.l2(lp_k_reg)),
+            tf.keras.layers.Dense(cells4, activation=lp_act1, kernel_regularizer=tf.l2(lp_k_reg)),
+            tf.keras.layers.Dense(cells5, activation=lp_act2)
            ])
-            
-        bmodel.compile(optimizer=optimizer, loss=loss, metrics=['accuracy'])
+        bmodel.compile(optimizer=optimizer, loss=fn_loss, metrics=[lp_metric])
         return bmodel
 
 
@@ -226,121 +225,3 @@ class CMqlmlsetup:
         X_predict_scaled = scaler.transform(X_predict)
         return model.predict(X_predict_scaled)
 
-#--------------------------------------------------------------------
-# create method  "dl_model_tune_build"
-# class:cmqlmlsetup
-# usage: mql data
-# \pdl_build_neuro_network
-#--------------------------------------------------------------------
-# Method to build the model for Keras Tuner
-    def dl_model_tune_build(self,lp_X_train_scaled, lp_X_test_scaled, optimizer='adam', loss='mean_squared_error', k_reg=0.001):
-        tmodel = tf.keras.models.Sequential()
-
-        # Input layer
-        hp = kt.HyperParameters()
-
-        tmodel.add(tf.keras.layers.Flatten(input_shape=(lp_X_train_scaled.shape[1],)))
-        
-        # Hidden Layer 1: Tune the number of units between 32-512
-        hpunits1 = hp.Int('hpunits1', min_value=32, max_value=512, step=32)
-        tmodel.add(tf.keras.layers.Dense(units=hpunits1, activation='relu',
-                                         kernel_regularizer=tf.keras.regularizers.l2(k_reg)))
-
-        # Hidden Layer 2: Tune the number of units between 32-512
-        hpunits2 = hp.Int('hpunits2', min_value=32, max_value=512, step=32)
-        tmodel.add(tf.keras.layers.Dense(units=hpunits2, activation='relu',
-                                         kernel_regularizer=tf.keras.regularizers.l2(k_reg)))
-
-        # Output Layer: Linear activation for regression
-        tmodel.add(tf.keras.layers.Dense(1, activation='linear'))
-
-        # Learning rate tuning
-        hp_learning_rate = hp.Choice('learning_rate', values=[1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1])
-
-        tmodel.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=hp_learning_rate),
-                       loss=loss,
-                       metrics=['mean_squared_error'])  # For regression
-
-        return tmodel
-
-
-#--------------------------------------------------------------------
-# create method  "dl_model_tune_run"
-# class:cmqlmlsetup
-# usage: mql data
-# \pdl_build_neuro_network
-#--------------------------------------------------------------------           
-# Method to run the Keras Tuner
-    def dl_model_tune_run(self,lp_X_train_scaled, lp_X_test_scaled, optimizer='adam', loss='mean_squared_error', k_reg=0.001):
-        # Build tuner
-        
-        tuner = kt.Hyperband(self.dl_model_tune_build(self),
-                             objective='val_loss',  # Use 'val_loss' for regression
-                             max_epochs=10,
-                             factor=3,
-                             directory='my_dir',
-                             project_name='intro_to_kt')
-
-        # Early stopping to prevent overfitting
-        stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
-
-        # Perform the search for the best hyperparameters
-        tuner.search(lp_X_train_scaled, self.label_train, epochs=50, validation_split=0.2, callbacks=[stop_early])
-
-        # Get the optimal hyperparameters
-        best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
-
-        print(f"""
-            The hyperparameter search is complete. The optimal number of units in the first densely-connected
-            layer is {best_hps.get('hpunits1')} and the optimal learning rate for the optimizer
-            is {best_hps.get('learning_rate')}.
-        """)
-
-        # Build the model with the optimal hyperparameters and train it
-        model = tuner.hypermodel.build(best_hps)
-        history = model.fit(lp_X_train_scaled, self.label_train, epochs=50, validation_split=0.2)
-
-        # Get the best epoch based on validation loss
-        val_loss_per_epoch = history.history['val_loss']
-        best_epoch = val_loss_per_epoch.index(min(val_loss_per_epoch)) + 1
-        print('Best epoch: %d' % (best_epoch,))
-
-        # Rebuild the model and retrain it on the optimal number of epochs
-        hypermodel = tuner.hypermodel.build(best_hps)
-        hypermodel.fit(lp_X_train_scaled, self.label_train, epochs=best_epoch, validation_split=0.2)
-
-        # Evaluate the model on test data
-        eval_result = hypermodel.evaluate(lp_X_test_scaled, self.label_test)
-        print("[test loss, mean squared error]:", eval_result)
-        return eval_result
-    
-
-    #--------------------------------------------------------------------
-# create method  "dl_model_performance"
-# class:cmqlmlsetup
-# usage: mql data
-# \pdl_build_neuro_network
-#--------------------------------------------------------------------
-#Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values.
-# The lower the MSE, the better the model.
-
-#Mean Absolute Error (MAE): It measures the average absolute difference between the predicted and actual values.
-# Like MSE, lower values indicate better model performance.
-
-#R2 Score: Also known as the coefficient of determination, it measures the proportion of the variance in the
-# dependent variable that is predictable from the independent variable(s). An R2 score of 1 indicates
-# a perfect fit, while a score of 0 suggests that the model is no better than predicting the mean of the
-#target variable. Negative values indicate poor model performance.
-    def dl_model_performance(self,lp_model,lp_X_train_scaled ,lp_X_test_scaled):
-        # sourcery skip: instance-method-first-arg-name
-        lp_X_train_scaled= lp_X_train_scaled[:len(lp_X_test_scaled)]  # Truncate 'x' to match 'y'
-        # Calculate and print mean squared error
-        mse = mean_squared_error(lp_X_train_scaled, lp_model.predict(lp_X_test_scaled))
-        print(f"\nMean Squared Error: {mse}")
-        # Calculate and print mean absolute error
-        mae = mean_absolute_error(lp_X_train_scaled, lp_model.predict(lp_X_test_scaled))
-        print(f"\nMean Absolute Error: {mae}")
-        # Calculate and print R2 Score
-        r2 = r2_score(lp_X_train_scaled, lp_model.predict(lp_X_test_scaled))
-        print(f"\nR2 Score: {r2}")
-        return r2

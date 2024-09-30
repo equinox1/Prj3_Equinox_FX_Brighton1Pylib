@@ -179,8 +179,18 @@ print("Tune result:",mv_model2)
 mp_k_reg = 0.01
 mp_optimizer = 'adam'
 mp_loss = 'mean_squared_error'
+mp_act1='relu'
+mp_act2='linear'
+mp_metric = 'accuracy'
+mp_loss = 'mean_squared_error'
+mp_cells1=128
+mp_cells2=256
+mp_cells3==128
+mp_cells4=64
+mp_cells5=1
 # End Params
-mv_model = m1.dl_build_neuro_network(mp_k_reg, mv_X_train, mp_optimizer, mp_loss)
+
+mv_model = m1.dl_build_neuro_network(mp_k_reg, mv_X_train,mv_y_train, mp_optimizer,mp_act1,mp_act2,mp_metric, mp_loss,mp_cells1,mp_cells2,mp_cells3,mp_cells4,mp_cells5)
 # +--------------------------------------------------------------------
 # Train the model
 # +--------------------------------------------------------------------
