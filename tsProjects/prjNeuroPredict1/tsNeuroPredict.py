@@ -156,36 +156,21 @@ mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
 # +-------------------------------------------------------------------
 # Pre-tune a neural network model
 # +-------------------------------------------------------------------
-# start Params
 mt = CMqlmlsetuptune
+# start Params
+
 
 mp_k_reg = 0.001
 mp_optimizer = 'adam'
 mp_loss = 'mean_squared_error'
-# End Params
-
-hp = kt.HyperParameters()
-
-mv_model1=mt.model_builder()
-mv_model2=mt.run_model_tune(mv_X_train_scaled,mv_X_train_scaled, mv_y_train)
-
-print("Tune result:",mv_model1)
-print("Tune result:",mv_model2)
-
-# +-------------------------------------------------------------------
-# Build a neural network model
-# +-------------------------------------------------------------------
-# start Params
 mp_seq=False
 mp_input_dim=1
 mp_output_dim=1
-
 mp_filt=64
 mp_ksize=3
 mp_k_reg = 0.01
 mp_pool=2
 mp_optimizer = 'adam'
-mp_loss = 'mean_squared_error'
 mp_act1='relu'
 mp_act2='linear'
 mp_act2='linear'
@@ -193,11 +178,39 @@ mp_act3='sigmoid'
 mp_metric = 'accuracy'
 mp_loss1 = 'mean_squared_error'
 mp_loss2 = 'binary_crossentropy'
-mp_cells1=128
-mp_cells2=256
-mp_cells3==128
-mp_cells4=64
-mp_cells5=1
+mp_objective='val_accuracy'
+
+mp_min=32
+mp_max=128
+mp_step=2
+mp_hmin=8
+mp_hmax=128
+mp_hstep=2
+mp_imin=64
+mp_imax=256
+mp_istep=64
+mp_jmin=0.5
+mp_jmax=0.2
+mp_jstep=0.1
+
+
+mp_validation_split=0.2
+mp_epochs=10,
+mp_batch_size=32,
+mp_num_trials=1
+mp_num_models=1
+# End Params
+input_shape, X_train, y_train,lp_objective,
+mv_modelparams=mt.run_tuner(mv_X_train.shape(1), mv_X_train, mv_y_train,mp_objective,mp_validation_split,mp_epochs,mp_batch_size,mp_num_trials,mp_num_models)
+
+print("Model Result:",mv_modelparams)
+
+"""
+# +-------------------------------------------------------------------
+# Build a neural network model
+# +-------------------------------------------------------------------
+# start Params
+
 # End Params
 
 mv_model = m1.dl_build_neuro_network(mp_k_reg, mv_X_train,mv_y_train, mp_optimizer,mp_act1,mp_act2,mp_act3, mp_metric, mp_loss1,mp_loss2,mp_cells1,mp_cells2,mp_cells3,mp_cells4,mp_cells5)
@@ -237,7 +250,7 @@ print("\nPredicted Value for the Next Instances:")
 print(mv_predictions[:, 0])
 df_predictions=pd.DataFrame(mv_predictions)
 
-"""
+
 Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values. 
 The lower the MSE, the better the model.
 Mean Absolute Error (MAE): It measures the average absolute difference between the predicted and actual values.
@@ -266,7 +279,6 @@ Unlike MSE, it does not square the differences, making it less sensitive to outl
 It is the sum of the absolute differences divided by the number of observations.
 
 In general, a higher R2 value and lower MSE or MAE values indicate a better-performing model.
-
 """
 
 # modelperformance
