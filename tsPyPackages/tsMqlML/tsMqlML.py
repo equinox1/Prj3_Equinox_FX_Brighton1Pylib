@@ -217,102 +217,98 @@ class CMqlmlsetup:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-"""
-Key Parameters
-units: The number of neurons or units in the dense layer. This is the dimensionality of the output space.
-activation: The activation function to apply to the output. 
 
-Common activation functions include:
-====================================
-relu (Rectified Linear Unit)
-sigmoid
-softmax
-tanh
-linear (no activation)
-use_bias: Boolean, whether to include a bias term in the layer (default: True).
+#Key Parameters
+#units: The number of neurons or units in the dense layer. This is the dimensionality of the output space.
+#activation: The activation function to apply to the output. 
 
-kernel_initializer: Specifies the initializer for the kernel weights matrix, which
-determines how the weights are initialized before training.
-bias_initializer: Specifies the initializer for the bias vector.
-kernel_regularizer: Optional regularizer function applied to the kernel weights matrix 
-(for regularization like L1 or L2).
-bias_regularizer: Optional regularizer applied to the bias vector.
-activity_regularizer: Regularizer applied to the output (activation) of the layer.
-kernel_constraint: Constraint function applied to the kernel weights matrix.
-bias_constraint: Constraint function applied to the bias vector.
-"""
+#Common activation functions include:
+#====================================
+#relu (Rectified Linear Unit)
+#sigmoid
+#softmax
+#tanh
+#linear (no activation)
+#use_bias: Boolean, whether to include a bias term in the layer (default: True).
 
-    def dl_build_neuro_network(self,lp_k_reg, X_train, y_train,optimizer='adam',lp_act1 = 'relu', lp_act2 = 'linear',lp_metric = 'accuracy', lp_loss='mean_squared_error',cells1=128,cells2=256, cells3=128,cells4=64,cells5=1):
-        # sourcery skip: instance-method-first-arg-name
+#kernel_initializer: Specifies the initializer for the kernel weights matrix, which
+#determines how the weights are initialized before training.
+#bias_initializer: Specifies the initializer for the bias vector.
+#kernel_regularizer: Optional regularizer function applied to the kernel weights matrix 
+#(for regularization like L1 or L2).
+#bias_regularizer: Optional regularizer applied to the bias vector.
+#activity_regularizer: Regularizer applied to the output (activation) of the layer.
+#kernel_constraint: Constraint function applied to the kernel weights matrix.
+#bias_constraint: Constraint function applied to the bias vector.
+
+    def dl_build_neuro_network(self, lp_k_reg, X_train, y_train, optimizer='adam', lp_act1='relu', lp_act2='linear', lp_metric='accuracy', lp_loss='mean_squared_error', cells1=128, cells2=256, cells3=128, cells4=64, cells5=1):
         bmodel = tf.keras.models.Sequential([
-            tf.keras.layers.Dense(cells1, activation=lp_act1, input_shape=(X_train.shape[1],), kernel_regularizer=tf.l2(lp_k_reg)),
-            tf.keras.layers.Dense(cells2, activation=lp_act1, kernel_regularizer=tf.l2(lp_k_reg)),
-            tf.keras.layers.Dense(cells3, activation=lp_act1, kernel_regularizer=tf.l2(lp_k_reg)),
-            tf.keras.layers.Dense(cells4, activation=lp_act1, kernel_regularizer=tf.l2(lp_k_reg)),
-            tf.keras.layers.Dense(cells5, activation=lp_act2)
-           ])
-        bmodel.compile(optimizer=optimizer, loss=fn_loss, metrics=[lp_metric])
+        tf.keras.layers.Dense(cells1, activation=lp_act1, input_shape=(X_train.shape[1],), kernel_regularizer=tf.l2(lp_k_reg)),
+        tf.keras.layers.Dense(cells2, activation=lp_act1, kernel_regularizer=tf.l2(lp_k_reg)),
+        tf.keras.layers.Dense(cells3, activation=lp_act1, kernel_regularizer=tf.l2(lp_k_reg)),
+        tf.keras.layers.Dense(cells4, activation=lp_act1, kernel_regularizer=tf.l2(lp_k_reg)),
+        tf.keras.layers.Dense(cells5, activation=lp_act2)
+        ])
+        bmodel.compile(optimizer=optimizer, loss=lp_loss, metrics=[lp_metric])
         return bmodel
 
 
-"""
-Key Parameters
-1. **LSTM (Long Short-Term Memory)**: LSTMs are particularly well-suited for time series forecasting due to their ability to remember long-term dependencies. They can capture patterns over time, making them a popular choice for forex prediction.
-2. **GRU (Gated Recurrent Unit)**: Similar to LSTMs but with a simpler structure, GRUs can also perform well in time series forecasting. They may train faster than LSTMs while still capturing the necessary temporal patterns.
-3. **CNN (Convolutional Neural Networks)**: While traditionally used for image data, CNNs can be effective for time series by treating the data as a one-dimensional image. They can capture local patterns in the data.
-4. **1D CNN-LSTM Hybrid**: Combining CNNs with LSTMs can leverage the strengths of both architectures, where CNN layers extract features from the time series data, and LSTM layers capture temporal dependencies.
-5. **Transformer Models**: Transformers have gained popularity in various fields, including time series forecasting. They can model relationships in sequential data without relying on recurrent connections, which can sometimes lead to better performance.
-6. **ARIMA (AutoRegressive Integrated Moving Average)**: While not a deep learning model, ARIMA is a classic statistical approach that can be effective for forecasting time series data, including forex.
-7. **Ensemble Models**: Combining predictions from multiple models can often yield better results. You can create an ensemble of different architectures to improve robustness and accuracy.
-"""
+#Key Parameters
+#1. **LSTM (Long Short-Term Memory)**: LSTMs are particularly well-suited for time series forecasting due to their ability to remember long-term dependencies. They can capture patterns over time, making them a popular choice for forex prediction.
+#2. **GRU (Gated Recurrent Unit)**: Similar to LSTMs but with a simpler structure, GRUs can also perform well in time series forecasting. They may train faster than LSTMs while still capturing the necessary temporal patterns.
+#3. **CNN (Convolutional Neural Networks)**: While traditionally used for image data, CNNs can be effective for time series by treating the data as a one-dimensional image. They can capture local patterns in the data.
+#4. **1D CNN-LSTM Hybrid**: Combining CNNs with LSTMs can leverage the strengths of both architectures, where CNN layers extract features from the time series data, and LSTM layers capture temporal dependencies.
+#5. **Transformer Models**: Transformers have gained popularity in various fields, including time series forecasting. They can model relationships in sequential data without relying on recurrent connections, which can sometimes lead to better performance.
+#6. **ARIMA (AutoRegressive Integrated Moving Average)**: While not a deep learning model, ARIMA is a classic statistical approach that can be effective for forecasting time series data, including forex.
+#7. **Ensemble Models**: Combining predictions from multiple models can often yield better results. You can create an ensemble of different architectures to improve robustness and accuracy.
+
 #--------------------------------------------------------------------
 # create method  "dl_build_neuro_ensemble".
 # class: cmqlmlsetup
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-"""
-Base Models:
+#Base Models:
 
-LSTM Model: Captures long-term temporal dependencies.
-1D CNN Model: Extracts local spatial features.
-GRU Model: Another RNN variant that captures temporal patterns.
-Transformer Model: Uses self-attention to capture global dependencies in the sequence.
+#LSTM Model: Captures long-term temporal dependencies.
+#1D CNN Model: Extracts local spatial features.
+#GRU Model: Another RNN variant that captures temporal patterns.
+#Transformer Model: Uses self-attention to capture global dependencies in the sequence.
 
-Transformer Block:
+#Transformer Block:
 
-This block consists of multi-head attention and feedforward layers wrapped with layer normalization 
-and residual connections. It is used inside the Transformer model to process the input sequences.
+#This block consists of multi-head attention and feedforward layers wrapped with layer normalization 
+#and residual connections. It is used inside the Transformer model to process the input sequences.
 
-Ensemble Process:
+#Ensemble Process:
 
-The outputs of all four base models (LSTM, CNN, GRU, Transformer) are concatenated using the concatenate() function.
-After concatenation, a fully connected (dense) layer learns from the combined features, followed by a dropout layer for
-regularization and an output layer with a sigmoid activation for binary classification.
-Input Shape:
+#The outputs of all four base models (LSTM, CNN, GRU, Transformer) are concatenated using the concatenate() function.
+#After concatenation, a fully connected (dense) layer learns from the combined features, followed by a dropout layer for
+#regularization and an output layer with a sigmoid activation for binary classification.
+#Input Shape:
 
-The input shape is defined as (100, 1), meaning 100 time steps with 1 feature per time step. Modify this based
-on your actual data.
+#The input shape is defined as (100, 1), meaning 100 time steps with 1 feature per time step. Modify this based
+#on your actual data.
 
-Training:
+#Training:
 
-During training, all models receive the same input X_train, which may be adjusted in real use cases if your 
-models expect different types of inputs.
+#During training, all models receive the same input X_train, which may be adjusted in real use cases if your 
+#models expect different types of inputs.
 
-Customization:
+#Customization:
 
-You can increase/decrease the number of units in the LSTM, GRU, CNN, or Transformer layers.
-Use a different loss function for multi-class classification, such as categorical_crossentropy.
-Add more models to the ensemble or adjust the dropout rates.
+#You can increase/decrease the number of units in the LSTM, GRU, CNN, or Transformer layers.
+#Use a different loss function for multi-class classification, such as categorical_crossentropy.
+#Add more models to the ensemble or adjust the dropout rates.
 
-Why Use an Ensemble?
-Combining different architectures allows the model to leverage the strengths of each type:
-LSTM: Handles sequential dependencies well.
-CNN: Good at feature extraction, even from time series.
-GRU: Efficient with fewer parameters than LSTM.
-Transformer: Captures long-range dependencies using attention mechanisms.
-This ensemble approach can help in complex sequence modeling tasks where combining models improves accuracy and generalization.
-"""
+#Why Use an Ensemble?
+#Combining different architectures allows the model to leverage the strengths of each type:
+#LSTM: Handles sequential dependencies well.
+#CNN: Good at feature extraction, even from time series.
+#GRU: Efficient with fewer parameters than LSTM.
+#Transformer: Captures long-range dependencies using attention mechanisms.
+#This ensemble approach can help in complex sequence modeling tasks where combining models improves accuracy and generalization.
+
     def dl_build_neuro_ensemble (self,lp_seq,lp_filt,lp_pool,lp_ksizelp_k_reg, X_train, y_train,optimizer='adam',lp_act1 = 'relu', lp_act2 = 'linear',lp_act3 = 'sigmoid',lp_metric = 'accuracy', lp_loss1='mean_squared_error',lp_loss2 = 'binary_crossentropy',cells1=128,cells2=256, cells3=128,cells4=64,cells5=1):
         # Generate some dummy data
         X_train = np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
@@ -398,13 +394,13 @@ class TransformerBlock(tf.keras.layers.Layer):
         return model
 
     # Create and compile the ensemble model
-    input_shape = (100, 1)  # Adjust based on your data shape
-    ensemble_model = create_ensemble_model(input_shape)
-    ensemble_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    #input_shape = (100, 1)  # Adjust based on your data shape
+    #ensemble_model = create_ensemble_model(input_shape)
+    #ensemble_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
     # Print model summary
-    ensemble_model.summary()
+    #ensemble_model.summary()
 
     # Train the ensemble model
-    ensemble_model.fit([X_train, X_train, X_train, X_train], y_train, epochs=10, batch_size=32)
-    return ensemble_model
+    #ensemble_model.fit([X_train, X_train, X_train, X_train], y_train, epochs=10, batch_size=32)
+    #return ensemble_model
