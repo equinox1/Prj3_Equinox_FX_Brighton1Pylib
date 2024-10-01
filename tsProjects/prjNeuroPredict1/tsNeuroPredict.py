@@ -244,7 +244,7 @@ mv_predictions=m1.dl_predict_values(mv_ticks3,mv_model,mp_seconds)
 
 # Print actual and predicted values for the next  n  instances
 print("Actual Value for the Last Instances:")
-print(mv_ticks2.tail(1)['close'].values)
+print(mv_ticks2.tail(1)['close'].values)cd 
 
 print("\nPredicted Value for the Next Instances:")
 print(mv_predictions[:, 0])
