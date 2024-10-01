@@ -141,19 +141,17 @@ class CMqlmlsetuptune:
         # Example data
         #X_train = np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
         #y_train = np.random.randint(2, size=(1000,))  # Binary target
-
         # Define input shape
         #input_shape = (100, 1)
 
         # Run the tuner
-        #best_model = run_tuner(input_shape, X_train, y_train)
-
+        # best_model = run_tuner(input_shape, X_train, y_train)
         # Print the summary of the best model
-        #best_model.summary()
+        # best_model.summary()
 
         # Optionally: train the best model on the full dataset
         # best_model.fit([X_train, X_train, X_train, X_train], y_train, epochs=10, batch_size=32)
-
+        return self
 
 #--------------------------------------------------------------------
 # create method  "dl_build_neuro_ensemble".
@@ -161,46 +159,42 @@ class CMqlmlsetuptune:
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-"""
-Base Models:
+#Base Models:
 
-LSTM Model: Captures long-term temporal dependencies.
-1D CNN Model: Extracts local spatial features.
-GRU Model: Another RNN variant that captures temporal patterns.
-Transformer Model: Uses self-attention to capture global dependencies in the sequence.
+#LSTM Model: Captures long-term temporal dependencies.
+#1D CNN Model: Extracts local spatial features.
+#GRU Model: Another RNN variant that captures temporal patterns.
+#Transformer Model: Uses self-attention to capture global dependencies in the sequence.
 
-Key Components:
-Base Models:
+#Key Components:
+#Base Models:
 
-LSTM: Captures temporal dependencies.
-1D CNN: Handles spatial dependencies.
-GRU: A recurrent network like LSTM but more computationally efficient.
-Transformer: Uses attention mechanisms to capture long-range dependencies.
-Keras Tuner:
+#LSTM: Captures temporal dependencies.
+#1D CNN: Handles spatial dependencies.
+#GRU: A recurrent network like LSTM but more computationally efficient.
+#Transformer: Uses attention mechanisms to capture long-range dependencies.
+#Keras Tuner:
 
-The EnsembleHyperModel class defines the structure of the ensemble model and uses hp (hyperparameters) to tune different aspects like the number of units, layers, and learning rate.
-RandomSearch is the Keras Tuner method used to try different sets of hyperparameters and find the optimal configuration.
-Hyperparameters:
+#The EnsembleHyperModel class defines the structure of the ensemble model and uses hp (hyperparameters) to tune different aspects like the number of units, layers, and learning rate.
+#RandomSearch is the Keras Tuner method used to try different sets of hyperparameters and find the optimal configuration.
+#Hyperparameters:
 
-For each model (LSTM, CNN, GRU, Transformer), we tune parameters such as the number of units, filter sizes, and dense layer configurations.
-We also tune hyperparameters for the final dense layers and the learning rate of the optimizer.
-Input Shape:
+#For each model (LSTM, CNN, GRU, Transformer), we tune parameters such as the number of units, filter sizes, and dense layer configurations.
+#We also tune hyperparameters for the final dense layers and the learning rate of the optimizer.
+#Input Shape:
 
-The input shape is (100, 1) for each model, meaning 100 time steps with 1 feature. This can be adjusted depending on your data.
-Training and Searching:
+#The input shape is (100, 1) for each model, meaning 100 time steps with 1 feature. This can be adjusted depending on your data.
+#Training and Searching:
 
-The tuner will search through different configurations, train the models, and evaluate them on validation data to find the best hyperparameters.
-You can modify max_trials and executions_per_trial to control the number of trials and model evaluations.
-Benefits of Using Keras Tuner:
-Automates hyperparameter tuning to find the best architecture and hyperparameters.
-Helps optimize the ensemble model to achieve better performance on your dataset.
-This ensemble setup provides a powerful method to capture complex relationships in sequence data and can be adapted to other types of problems with appropriate modifications.
-
-"""
+#The tuner will search through different configurations, train the models, and evaluate them on validation data to find the best hyperparameters.
+#You can modify max_trials and executions_per_trial to control the number of trials and model evaluations.
+#Benefits of Using Keras Tuner:
+#Automates hyperparameter tuning to find the best architecture and hyperparameters.
+#Helps optimize the ensemble model to achieve better performance on your dataset.
+#This ensemble setup provides a powerful method to capture complex relationships in sequence data and can be adapted to other types of problems with appropriate modifications.
  
 # Transformer Block definition (used later in the transformer model)
 class TransformerBlock(tf.keras.layers.Layer):
- 
     def __init__(self, embed_dim, num_heads, ff_dim):
         super(TransformerBlock, self).__init__()
         self.att = MultiHeadAttention(num_heads=num_heads, key_dim=embed_dim)
@@ -287,7 +281,7 @@ class EnsembleHyperModel(HyperModel):
         model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=hp.Float('learning_rate', min_value=1e-4, max_value=1e-2, sampling='LOG')),loss='binary_crossentropy', metrics=['accuracy'])    
         return model
 
-# Set up the Keras Tuner
+    # Set up the Keras Tuner
 def run_tuner(input_shape, X_train, y_train):
     tuner = RandomSearch(
         EnsembleHyperModel(input_shape=input_shape),
