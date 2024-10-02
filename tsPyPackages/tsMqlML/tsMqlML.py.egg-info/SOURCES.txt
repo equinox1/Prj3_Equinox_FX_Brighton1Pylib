@@ -1,0 +1,8 @@
+LICENSE
+README.md
+pyproject.toml
+tsMqlML.py
+tsMqlML.py.egg-info/PKG-INFO
+tsMqlML.py.egg-info/SOURCES.txt
+tsMqlML.py.egg-info/dependency_links.txt
+tsMqlML.py.egg-info/top_level.txt

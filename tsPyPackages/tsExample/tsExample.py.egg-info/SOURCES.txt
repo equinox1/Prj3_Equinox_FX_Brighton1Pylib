@@ -1,0 +1,8 @@
+LICENSE
+README.md
+pyproject.toml
+tsExample.py
+tsExample.py.egg-info/PKG-INFO
+tsExample.py.egg-info/SOURCES.txt
+tsExample.py.egg-info/dependency_links.txt
+tsExample.py.egg-info/top_level.txt

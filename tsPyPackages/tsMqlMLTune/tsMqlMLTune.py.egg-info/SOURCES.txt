@@ -1,0 +1,8 @@
+LICENSE
+README.md
+pyproject.toml
+tsMqlMLTune.py
+tsMqlMLTune.py.egg-info/PKG-INFO
+tsMqlMLTune.py.egg-info/SOURCES.txt
+tsMqlMLTune.py.egg-info/dependency_links.txt
+tsMqlMLTune.py.egg-info/top_level.txt
