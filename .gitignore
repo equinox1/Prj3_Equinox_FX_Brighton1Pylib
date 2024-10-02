@@ -200,3 +200,6 @@ cython_debug/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+
+tsEquinox1-env/Lib/site-packages/*
