@@ -37,9 +37,9 @@ from keras import ops
 import tensorflow as tf
 import keras_tuner as kt
 
-from tensorflow.keras.models import Model
-from tensorflow.python.keras.layers import Dense
-from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
+from keras._tf_keras.keras.models import Model
+from keras._tf_keras.keras.layers import LayerNormalization
+from keras._tf_keras.keras.layers import Input,LSTM,GRU,Conv1D, MaxPooling1D, Flatten, Dense,Dropout, concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
 from keras_tuner import HyperModel
 from keras_tuner import RandomSearch
 #-----------------------------------------------i
@@ -265,33 +265,19 @@ class CMqlmlsetuptune:
         self._optimizer = value
 
 #--------------------------------------------------------------------
-# create method  "dl_tune_neuro_ensemble".
+# create method  d1_tune_neuro".
 # class: cmqlmlsetup
 # usage: mql data
-# \pdl_tune_neuro_network
+# \pTransformerBlock
 #--------------------------------------------------------------------  
-    def dl_tune_neuro_ensemble(self):
-        # Example data
-        # X_train = np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
-        # y_train = np.random.randint(2, size=(1000,))  # Binary target
-        # Define input shape
-        # input_shape = (100, 1)
-
-        # Run the tuner
-        # best_model = run_tuner(input_shape, X_train, y_train)
-        # Print the summary of the best model
-        # best_model.summary()
-
-        # Optionally: train the best model on the full dataset
-        # best_model.fit([X_train, X_train, X_train, X_train], y_train, epochs=10, batch_size=32)
-        return self
-
+    
+   
 
 #--------------------------------------------------------------------
-# create method  "dl_build_neuro_ensemble".
+# create method  "TransformerBlock".
 # class: cmqlmlsetup
 # usage: mql data
-# \pdl_build_neuro_network
+# \pTransformerBlock
 #--------------------------------------------------------------------
 #Base Models:
 
@@ -354,45 +340,45 @@ class EnsembleHyperModel(HyperModel):
         self.input_shape = input_shape
     
     def build(self, hp):
-    
+        ct=CMqlmlsetuptune
     ### Base Models ###
         
     # LSTM Model
         def create_lstm_model():
             inputs = Input(shape=self.input_shape)
-            units = hp.Int('lstm_units',  min_values=self.lp_min, max_value=self.lp_max, step=self.lp_step)
+            units = hp.Int('lstm_units',  min_values=ct.lp_min, max_value=ct.lp_max, step=ct.lp_step)
             x = LSTM(units)(inputs)
-            x = Dense(hp.Int('lstm_dense_units', min_values=self.lp_min, max_value=self.lp_max, step=self.lp_step), activation=self.lp_act1)(x)
+            x = Dense(hp.Int('lstm_dense_units', min_values=ct.lp_min, max_value=ct.lp_max, step=ct.lp_step), activation=ct.lp_act1)(x)
             return Model(inputs, x)
         
         # 1D CNN Model
         def create_cnn_model():
             inputs = Input(shape=self.input_shape)
-            filters = hp.Int('cnn_filters',  min_values=self.lp_min, max_value=self.lp_max, step=self.lp_step)
+            filters = hp.Int('cnn_filters',  min_values=ct.lp_min, max_value=ct.lp_max, step=ct.lp_step)
             kernel_size = hp.Choice('cnn_kernel_size', values=[3, 5])
-            x = Conv1D(filters=filters, kernel_size=kernel_size, activation=self.lp_act1)(inputs)
+            x = Conv1D(filters=filters, kernel_size=kernel_size, activation=ct.lp_act1)(inputs)
             x = MaxPooling1D(pool_size=2)(x)
             x = Flatten()(x)
-            x = Dense(hp.Int('cnn_dense_units',  min_values=self.lp_min, max_value=self.lp_max, step=self.lp_step), activation=self.lp_act1)(x)
+            x = Dense(hp.Int('cnn_dense_units',  min_values=ct.lp_min, max_value=ct.lp_max, step=ct.lp_step), activation=ct.lp_act1)(x)
             return Model(inputs, x)
         
         # GRU Model
         def create_gru_model():
-            inputs = Input(shape=self.input_shape)
-            units = hp.Int('gru_units',  min_values=self.lp_min, max_value=self.lp_max, step=self.lp_step)
+            inputs = Input(shape=ct.input_shape)
+            units = hp.Int('gru_units',  min_values=ct.lp_min, max_value=ct.lp_max, step=ct.lp_step)
             x = GRU(units)(inputs)
-            x = Dense(hp.Int('gru_dense_units',  min_values=self.lp_min, max_value=self.lp_max, step=self.lp_step), activation=self.lp_act1)(x)
+            x = Dense(hp.Int('gru_dense_units',  min_values=ct.lp_min, max_value=ct.lp_max, step=ct.lp_step), activation=ct.lp_act1)(x)
             return Model(inputs, x)
         
         # Transformer Model
         def create_transformer_model():
-            inputs = Input(shape=self.input_shape)
-            embed_dim = hp.Int('transformer_embed_dim',  min_values=self.lp_min, max_value=self.lp_max, step=self.lp_step)
-            num_heads = hp.Int('transformer_num_heads', min_value=self.lp_hmin, max_value=self.lp_hmax, step=self.lp_hstep)
-            ff_dim = hp.Int('transformer_ff_dim',  min_values=self.lp_min, max_value=self.lp_max, step=self.lp_step)
+            inputs = Input(shape=ct.input_shape)
+            embed_dim = hp.Int('transformer_embed_dim',  min_values=ct.lp_min, max_value=ct.lp_max, step=ct.lp_step)
+            num_heads = hp.Int('transformer_num_heads', min_value=ct.lp_hmin, max_value=ct.lp_hmax, step=ct.lp_hstep)
+            ff_dim = hp.Int('transformer_ff_dim',  min_values=ct.lp_min, max_value=ct.lp_max, step=ct.lp_step)
             x = TransformerBlock(embed_dim=embed_dim, num_heads=num_heads, ff_dim=ff_dim)(inputs)
             x = GlobalAveragePooling1D()(x)
-            x = Dense(hp.Int('transformer_dense_units',  min_values=self.lp_min, max_value=self.lp_max, step=self.lp_step), activation=self.lp_act1)(x)
+            x = Dense(hp.Int('transformer_dense_units',  min_values=ct.lp_min, max_value=ct.lp_max, step=ct.lp_step), activation=ct.lp_act1)(x)
             return Model(inputs, x)
         
         ### Ensemble Model ###
@@ -406,35 +392,38 @@ class EnsembleHyperModel(HyperModel):
         combined_output = concatenate([lstm_model.output, cnn_model.output, gru_model.output, transformer_model.output])
         
         # Add Dense layers to learn from the combined outputs
-        x = Dense(hp.Int('ensemble_dense_units', min_value=self.lp_imin, max_value=self.lp_imax, step=self.lp_istep), activation='relu')(combined_output)
-        x = Dropout(hp.Float('dropout_rate', min_value=0.2, max_value=0.5, step=0.1))(x)
+        x = Dense(hp.Int('ensemble_dense_units', min_value=ct.lp_imin, max_value=ct.lp_imax, step=ct.lp_istep), activation=ct.lp_act1)(combined_output)
+        x = Dropout(hp.Float('dropout_rate', min_value=ct.lp_jmin, max_value=ct.lp_jmax, step=ct.lp_jstep))(x)
         output = Dense(1, activation=self.lp_act2)(x)
         
        # Create and compile the model
         model = Model(inputs=[lstm_model.input, cnn_model.input, gru_model.input, transformer_model.input], outputs=output)
-        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=hp.Float('learning_rate', min_value=1e-4, max_value=1e-2, sampling='LOG')),loss='binary_crossentropy', metrics=['accuracy'])    
+        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=hp.Float('learning_rate', min_value=1e-4, max_value=1e-2, sampling='LOG')),loss=ct.lp_loss2, metrics=[ct.lp_metric])    
         return model
+    
 
-    # Set up the Keras Tuner
-def run_tuner(input_shape, X_train, y_train,lp_objective,lp_validation_split=0.2, lp_epochs=10, lp_batch_size=32,lp_num_trials=1,lp_num_models=1):
+# Set up the Keras Tuner
+
+def run_tuner(input_shape, X_train, y_train):
     tuner = RandomSearch(
         EnsembleHyperModel(input_shape=input_shape),
-        objective=lp_objective,
+        objective='val_accuracy',
         max_trials=10,  # Number of hyperparameter sets to try
         executions_per_trial=1,  # Number of models to build and evaluate for each trial
-        directory='ensemble_tuning',
-        project_name='ensemble_model'
+        directory='hybrid_ensemble_tuning',
+        project_name='hybrid_ensemble_model'
     )
     
     # Train the tuner
-    tuner.search([X_train, X_train, X_train, X_train], y_train, lp_validation_split,lp_epochs, lp_batch_size,lp_num_trials)
+    tuner.search([X_train, X_train, X_train, X_train], y_train, validation_split=0.2, epochs=10, batch_size=32)
     
     # Get the best hyperparameters
-    best_hp = tuner.get_best_hyperparameters(lp_num_trials=1)[0]
+    best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
     
     # Print the best hyperparameters
     print(f"Best hyperparameters: {best_hp.values}")
     
     # Return the best model
-    return tuner.get_best_models(num_models=lp_num_models)[0]
+    return tuner.get_best_models(num_models=1)[0]
 
+    
