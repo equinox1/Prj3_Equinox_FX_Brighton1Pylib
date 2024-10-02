@@ -1,8 +1,0 @@
-LICENSE
-README.md
-pyproject.toml
-tsMqlConnect.py
-tsMqlConnect.py.egg-info/PKG-INFO
-tsMqlConnect.py.egg-info/SOURCES.txt
-tsMqlConnect.py.egg-info/dependency_links.txt
-tsMqlConnect.py.egg-info/top_level.txt
