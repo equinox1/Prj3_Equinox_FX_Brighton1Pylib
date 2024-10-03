@@ -12,3 +12,5 @@ tsEquinox1-env/Lib/site-packages/torch/lib/torch_cpu.dllgit filter=lfs diff=lfs 
 tsEquinox1-env/Lib/site-packages/tensorflow/python/_pywrap_tensorflow_internal.pydgit filter=lfs diff=lfs merge=lfs -text
 tsEquinox1-env/Lib/site-packages/clang/native/libclang.dllgit filter=lfs diff=lfs merge=lfs -text
 lfs filter=lfs diff=lfs merge=lfs -text
+.dll filter=lfs diff=lfs merge=lfs -text
+*.exe filter=lfs diff=lfs merge=lfs -text
