@@ -129,7 +129,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-tsEquinox1-env/
+tsEquinox1\\-env/
 
 
 # Spyder project settings
