@@ -1,15 +1,7 @@
 import tensorflow as tf
-#from tensorflow.keras.models import Model
-#from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
-
-from keras._tf_keras.keras.models import Model
-from keras._tf_keras.keras.layers import LayerNormalization
-from keras._tf_keras.keras.layers import Input,LSTM,GRU,Conv1D, MaxPooling1D, Flatten, Dense,Dropout, concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
-from keras_tuner import HyperModel
-from keras_tuner import RandomSearch
-
-from keras_tuner import HyperModel
-from keras_tuner import RandomSearch
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
+from keras_tuner import HyperModel, RandomSearch
 import numpy as np
 
 # Transformer Block definition (used later in the transformer model)
@@ -25,7 +17,7 @@ class TransformerBlock(tf.keras.layers.Layer):
         self.dropout1 = Dropout(0.1)
         self.dropout2 = Dropout(0.1)
 
-    def call(self, inputs, training):
+    def call(self, inputs, training=None):
         attn_output = self.att(inputs, inputs)
         attn_output = self.dropout1(attn_output, training=training)
         out1 = self.layernorm1(inputs + attn_output)
@@ -74,7 +66,7 @@ class HybridEnsembleHyperModel(HyperModel):
             embed_dim = hp.Int('transformer_embed_dim', min_value=32, max_value=128, step=32)
             num_heads = hp.Int('transformer_num_heads', min_value=2, max_value=8, step=2)
             ff_dim = hp.Int('transformer_ff_dim', min_value=32, max_value=128, step=32)
-            x = TransformerBlock(embed_dim=embed_dim, num_heads=num_heads, ff_dim=ff_dim)(inputs)
+            x = TransformerBlock(embed_dim=embed_dim, num_heads=num_heads, ff_dim=ff_dim)(inputs, training=True)
             x = GlobalAveragePooling1D()(x)
             x = Dense(hp.Int('transformer_dense_units', min_value=32, max_value=128, step=32), activation='relu')(x)
             return Model(inputs, x)
@@ -138,4 +130,4 @@ best_model = run_tuner(input_shape, X_train, y_train)
 best_model.summary()
 
 # Optionally: train the best model on the full dataset
-# best_model.fit([X_train, X_train, X_train, X_train], y_train, epochs=10, batch_size=32)
+best_model.fit([X_train, X_train, X_train, X_train], y_train, epochs=10, batch_size=32)
