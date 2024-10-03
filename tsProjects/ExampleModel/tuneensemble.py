@@ -1,16 +1,8 @@
 import tensorflow as tf
-#from tensorflow.keras.models import Model
-#from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
-
-from keras._tf_keras.keras.models import Model
-from keras._tf_keras.keras.layers import LayerNormalization
-from keras._tf_keras.keras.layers import Input,LSTM,GRU,Conv1D, MaxPooling1D, Flatten, Dense,Dropout, concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
 from keras_tuner import HyperModel
 from keras_tuner import RandomSearch
-
-from keras_tuner import HyperModel
-from keras_tuner import RandomSearch
-import numpy as np
 
 # Transformer Block definition (used later in the transformer model)
 class TransformerBlock(tf.keras.layers.Layer):

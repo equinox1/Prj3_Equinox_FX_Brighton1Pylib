@@ -35,22 +35,15 @@ import MetaTrader5 as mt5
 import numpy as np
 import pandas as pd
 import tabulate
-
-
 import tsMqlConnect
 import tsMqlData
 import tsMqlML
 
-import tsMqlMLTune
-
-
 from tabulate import tabulate
-
 from tsMqlConnect import CMqlinitdemo
 from tsMqlData import CMqldatasetup
 from tsMqlML import CMqlmlsetup
-from tsMqlMLTune import CMdtuner
-
+from tsMqlMLTune import CMqlmlsetuptune
 
 #======================================================
 # import ai packages tensorflow and keras libraries
@@ -163,7 +156,7 @@ mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
 # +-------------------------------------------------------------------
 # Pre-tune a neural network model
 # +-------------------------------------------------------------------
-mt = CMdtuner
+mt = CMqlmlsetuptune
 # start Params
 
 
@@ -207,37 +200,12 @@ mp_batch_size=32,
 mp_num_trials=1
 mp_num_models=1
 # End Params
+dfx=pd.DataFrame(mv_X_train)
+dfx.shape
 
+mv_modelparams=mt.run_tuner(dfx.shape, mv_X_train, mv_y_train,mp_objective,mp_validation_split,mp_epochs,mp_batch_size,mp_num_trials,mp_num_models)
 
-mt=CMdtuner
-# Run the tuner
-
-# Example data
-mv_X_train = np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
-mv_y_train = np.random.randint(2, size=(1000,))  # Binary target
-
-# Define input shape
-# Assuming 'pd' is a DataFrame
-#pd.shape  # This returns the shape as a tuple, e.g., (rows, columns)
-# If you want to access the number of rows or columns specifically:
-#pd.shape[0]  # This will give you the number of rows
-#pd.shape[1]  # This will give you the number of columns
-#dfx=pd.DataFrame(mv_X_train_scaled)
-#mp_input_shape=dfx.shape
-
-# Define input shape
-mp_input_shape = (100, 1)
-
-
-best_model = mt.run_tuner(mp_input_shape, mv_X_train, mv_y_train)
-
-# Print the summary of the best model
-#best_model.summary()
-
-# Optionally: train the best model on the full dataset
-# best_model.fit([X_train, X_train, X_train, X_train], y_train, epochs=10, batch_size=32)
-
-#print("Model Result:",results)
+print("Model Result:",mv_modelparams.results)
 
 """
 # +-------------------------------------------------------------------
