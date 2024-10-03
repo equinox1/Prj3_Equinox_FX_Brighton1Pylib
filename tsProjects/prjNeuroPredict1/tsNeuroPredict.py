@@ -49,7 +49,11 @@ from tabulate import tabulate
 from tsMqlConnect import CMqlinitdemo
 from tsMqlData import CMqldatasetup
 from tsMqlML import CMqlmlsetup
+<<<<<<< HEAD
 from tsMqlMLTune import CMdtuner
+=======
+from tsMqlMLTune import CMqlmltuner
+>>>>>>> icm
 
 
 #======================================================
@@ -110,8 +114,16 @@ d1 = CMqldatasetup
 mv_utc_from = d1.set_mql_timezone(mp_year, mp_month, mp_day, mp_timezone)
 
 print("Timezone Set to : ", mv_utc_from)
-mv_ticks1 = pd.DataFrame(d1.run_load_from_mql(mv_debug, mp_dfName, mv_utc_from, mp_symbol_primary, mp_rows, mp_command))
-
+mv_ticks1 = pd.DataFrame(
+    d1.run_load_from_mql(
+        mv_debug,
+        mp_dfName,
+        mv_utc_from,
+        mp_symbol_primary,
+        mp_rows,
+        mp_command
+    )
+)
 # +-------------------------------------------------------------------
 # Prepare Data
 # +-------------------------------------------------------------------
@@ -209,7 +221,11 @@ mp_num_models=1
 # End Params
 
 
+<<<<<<< HEAD
 mt=CMdtuner
+=======
+mt=CMqlmltuner
+>>>>>>> icm
 # Run the tuner
 
 # Example data
