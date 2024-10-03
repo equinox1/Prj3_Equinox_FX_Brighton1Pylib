@@ -40,6 +40,7 @@ Use whitespace to align code, but don’t use too much.
 """
 # packages dependencies for this module
 #
+
 import MetaTrader5 as mt5
 import pandas as pd
 import pytz
@@ -178,8 +179,8 @@ class CMqldatasetup:
 # class: cmqldatasetup      
 # usage: mql data
 # \param  var                          
-#--------------------------------------------------------------------   
-    def set_mql_timezone(self, lp_year=2024, lp_month=1, lp_day=1, lp_timezone="etc/UTC"):
+
+    def set_mql_timezone(lp_year=2024, lp_month=1, lp_day=1, lp_timezone="etc/UTC"):
         lv_timezone = pytz.timezone(lp_timezone)  # Set the timezone
         native_dt = datetime(lp_year, lp_month, lp_day)  # Create a native datetime object
         return lv_timezone.localize(native_dt)
@@ -201,7 +202,6 @@ class CMqldatasetup:
             print("lp_flag:",lp_flag)
         lp_rates1= pd.DataFrame()
         lp_rates1 = lp_rates1.drop(index=lp_rates1.index)
-
         lp_rates1 = mt5.copy_ticks_from(lp_symbol, lp_utc_from, lp_rows, lp_flag )
         print("ticks received:",len(lp_rates1))
         return lp_rates1
