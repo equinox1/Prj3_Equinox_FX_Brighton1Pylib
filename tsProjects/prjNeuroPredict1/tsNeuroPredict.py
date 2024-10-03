@@ -200,10 +200,12 @@ mp_batch_size=32,
 mp_num_trials=1
 mp_num_models=1
 # End Params
-input_shape, X_train, y_train,lp_objective,
-mv_modelparams=mt.run_tuner(mv_X_train.shape(1), mv_X_train, mv_y_train,mp_objective,mp_validation_split,mp_epochs,mp_batch_size,mp_num_trials,mp_num_models)
+dfx=pd.DataFrame(mv_X_train)
+dfx.shape
 
-print("Model Result:",mv_modelparams)
+mv_modelparams=mt.run_tuner(dfx.shape, mv_X_train, mv_y_train,mp_objective,mp_validation_split,mp_epochs,mp_batch_size,mp_num_trials,mp_num_models)
+
+print("Model Result:",mv_modelparams.results)
 
 """
 # +-------------------------------------------------------------------
@@ -244,7 +246,7 @@ mv_predictions=m1.dl_predict_values(mv_ticks3,mv_model,mp_seconds)
 
 # Print actual and predicted values for the next  n  instances
 print("Actual Value for the Last Instances:")
-print(mv_ticks2.tail(1)['close'].values)
+print(mv_ticks2.tail(1)['close'].values)cd 
 
 print("\nPredicted Value for the Next Instances:")
 print(mv_predictions[:, 0])
