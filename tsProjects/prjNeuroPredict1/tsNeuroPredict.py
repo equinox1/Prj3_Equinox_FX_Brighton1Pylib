@@ -36,14 +36,6 @@ import numpy as np
 import pandas as pd
 import tabulate
 
-
-import tsMqlConnect
-import tsMqlData
-import tsMqlML
-
-import tsMqlMLTune
-
-
 from tabulate import tabulate
 
 from tsMqlConnect import CMqlinitdemo
@@ -61,9 +53,7 @@ import keras_tuner as kt
 # import local packages
 # ======================================================
 
-# User can use the alias if they want
 
-mv_debug = 0
 
 # ======================================================
 # Start Login MQL Terminal
@@ -100,9 +90,14 @@ mp_year = 2024
 mp_month = 1
 mp_day = 1
 mp_timezone = 'etc/UTC'
-mp_rows = 100000
+mp_rows = 1000
 mp_command = mt5.COPY_TICKS_ALL
 mp_dfName = "df_rates"
+mv_manual = True
+mp_path = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\Mql5Data"
+
+lpfileid="tickdata1"
+mp_filename = mp_symbol_primary + "_" + lpfileid + ".csv"
 # End Params
 
 d1 = CMqldatasetup
@@ -110,16 +105,9 @@ d1 = CMqldatasetup
 mv_utc_from = d1.set_mql_timezone(mp_year, mp_month, mp_day, mp_timezone)
 
 print("Timezone Set to : ", mv_utc_from)
-mv_ticks1 = pd.DataFrame(
-    d1.run_load_from_mql(
-        mv_debug,
-        mp_dfName,
-        mv_utc_from,
-        mp_symbol_primary,
-        mp_rows,
-        mp_command
-    )
-)
+print("mp_path Set to : ", mp_path)
+print("mp_filename Set to : ", mp_filename)
+mv_ticks1 = pd.DataFrame(d1.run_load_from_mql(mv_manual,mp_dfName,mv_utc_from,mp_symbol_primary,mp_rows,mp_command,mp_path,mp_filename))
 # +-------------------------------------------------------------------
 # Prepare Data
 # +-------------------------------------------------------------------
@@ -132,12 +120,18 @@ mv_ticks2 = pd.DataFrame(mv_ticks1)
 # +-------------------------------------------------------------------
 # Tabulate formatting
 # start Params
-mp_seconds = 7200
+#no time                  bid      ask      last      volume      time_msc        flags       volume_real
+#0 2020-01-10 00:00:00  1.11051  1.11069   0.0       0           1578614400987    134          0.0
+#1 2020-01-10 00:00:02  1.11049  1.11067   0.0       0           1578614402025    134          0.0
+
+mp_seconds = 60
 mp_unit = 's'
 # End Params
+print("cols tick2:",mv_ticks2.columns)
 
 mv_ticks3 = d1.run_shift_data1(mv_ticks2, mp_seconds, mp_unit)
 
+"""
 print(tabulate(mv_ticks1.head(10), showindex=False, headers=mv_ticks1.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 print(tabulate(mv_ticks2.head(10), showindex=False, headers=mv_ticks2.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 print(tabulate(mv_ticks3.head(10), showindex=False, headers=mv_ticks3.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
@@ -247,7 +241,7 @@ best_model = mt.run_tuner(mp_input_shape, mv_X_train, mv_y_train)
 
 #print("Model Result:",results)
 
-"""
+
 # +-------------------------------------------------------------------
 # Build a neural network model
 # +-------------------------------------------------------------------
@@ -321,7 +315,8 @@ Unlike MSE, it does not square the differences, making it less sensitive to outl
 It is the sum of the absolute differences divided by the number of observations.
 
 In general, a higher R2 value and lower MSE or MAE values indicate a better-performing model.
-"""
+
 
 # modelperformance
 #m1.dl_model_performance(mv_model,mv_X_train_scaled, mv_X_test_scaled)
+"""

@@ -1,6 +1,6 @@
 [project]
 name = "tsMqlData.py"
-version = "1.2.11"
+version = "1.2.35"
 authors = [
   { name="Tony Shepherd", email="shep.antony@gmail.com" },
 ]
