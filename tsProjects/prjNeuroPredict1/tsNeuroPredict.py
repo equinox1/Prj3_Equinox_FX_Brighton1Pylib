@@ -41,11 +41,7 @@ from tabulate import tabulate
 from tsMqlConnect import CMqlinitdemo
 from tsMqlData import CMqldatasetup
 from tsMqlML import CMqlmlsetup
-<<<<<<< HEAD
 from tsMqlMLTune import CMdtuner
-=======
-from tsMqlMLTune import CMqlmltuner
->>>>>>> icm
 
 
 #======================================================
@@ -215,11 +211,7 @@ mp_num_models=1
 # End Params
 
 
-<<<<<<< HEAD
 mt=CMdtuner
-=======
-mt=CMqlmltuner
->>>>>>> icm
 # Run the tuner
 
 # Example data
