@@ -1,15 +1,7 @@
 import tensorflow as tf
-#from tensorflow.keras.models import Model
-#from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
-
-from keras._tf_keras.keras.models import Model
-from keras._tf_keras.keras.layers import LayerNormalization
-from keras._tf_keras.keras.layers import Input,LSTM,GRU,Conv1D, MaxPooling1D, Flatten, Dense,Dropout, concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
-from keras_tuner import HyperModel
-from keras_tuner import RandomSearch
-
-from keras_tuner import HyperModel
-from keras_tuner import RandomSearch
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
+from keras_tuner import HyperModel, RandomSearch
 import numpy as np
 
 # Transformer Block definition (used later in the transformer model)
@@ -25,7 +17,7 @@ class TransformerBlock(tf.keras.layers.Layer):
         self.dropout1 = Dropout(0.1)
         self.dropout2 = Dropout(0.1)
 
-    def call(self, inputs, training):
+    def call(self, inputs, training=None):
         attn_output = self.att(inputs, inputs)
         attn_output = self.dropout1(attn_output, training=training)
         out1 = self.layernorm1(inputs + attn_output)
@@ -74,7 +66,7 @@ class HybridEnsembleHyperModel(HyperModel):
             embed_dim = hp.Int('transformer_embed_dim', min_value=32, max_value=128, step=32)
             num_heads = hp.Int('transformer_num_heads', min_value=2, max_value=8, step=2)
             ff_dim = hp.Int('transformer_ff_dim', min_value=32, max_value=128, step=32)
-            x = TransformerBlock(embed_dim=embed_dim, num_heads=num_heads, ff_dim=ff_dim)(inputs)
+            x = TransformerBlock(embed_dim=embed_dim, num_heads=num_heads, ff_dim=ff_dim)(inputs, training=True)
             x = GlobalAveragePooling1D()(x)
             x = Dense(hp.Int('transformer_dense_units', min_value=32, max_value=128, step=32), activation='relu')(x)
             return Model(inputs, x)
@@ -100,42 +92,45 @@ class HybridEnsembleHyperModel(HyperModel):
                       loss='binary_crossentropy', metrics=['accuracy'])
         
         return model
-
-# Set up the Keras Tuner
-def run_tuner(input_shape, X_train, y_train):
-    tuner = RandomSearch(
+    
+class CMdtuner:
+    def __init__(self, input_shape):    
+        # Set up the Keras Tuner
+        return self
+    def run_tuner(input_shape, X_train, y_train):
+        tuner = RandomSearch(
         HybridEnsembleHyperModel(input_shape=input_shape),
         objective='val_accuracy',
         max_trials=10,  # Number of hyperparameter sets to try
         executions_per_trial=1,  # Number of models to build and evaluate for each trial
         directory='hybrid_ensemble_tuning',
         project_name='hybrid_ensemble_model'
-    )
+        )
     
-    # Train the tuner
-    tuner.search([X_train, X_train, X_train, X_train], y_train, validation_split=0.2, epochs=10, batch_size=32)
+        # Train the tuner
+        tuner.search([X_train, X_train, X_train, X_train], y_train, validation_split=0.2, epochs=10, batch_size=32)
     
-    # Get the best hyperparameters
-    best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
+        # Get the best hyperparameters
+        best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
     
-    # Print the best hyperparameters
-    print(f"Best hyperparameters: {best_hp.values}")
+        # Print the best hyperparameters
+        print(f"Best hyperparameters: {best_hp.values}")
     
-    # Return the best model
-    return tuner.get_best_models(num_models=1)[0]
+        # Return the best model
+        return tuner.get_best_models(num_models=1)[0]
 
 # Example data
-X_train = np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
-y_train = np.random.randint(2, size=(1000,))  # Binary target
+#X_train = np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
+#y_train = np.random.randint(2, size=(1000,))  # Binary target
 
 # Define input shape
-input_shape = (100, 1)
+#input_shape = (100, 1)
 
-# Run the tuner
-best_model = run_tuner(input_shape, X_train, y_train)
+# Run th#e tuner
+#best_model = run_tuner(input_shape, X_train, y_train)
 
 # Print the summary of the best model
-best_model.summary()
+#best_model.summary()
 
 # Optionally: train the best model on the full dataset
-# best_model.fit([X_train, X_train, X_train, X_train], y_train, epochs=10, batch_size=32)
+#best_model.fit([X_train, X_train, X_train, X_train], y_train, epochs=10, batch_size=32)
