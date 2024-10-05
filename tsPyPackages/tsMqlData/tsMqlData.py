@@ -206,6 +206,14 @@ class CMqldatasetup:
                 print("3:Manual load_filename:", lpmergepath)
                 lp_rates1 = pd.read_csv(lpmergepath, sep=',')
                 print("3:ticks received:", len(lp_rates1))
+                lp_rates1 = lp_rates1.rename(columns={'Date': 'time'})    
+                lp_rates1 = lp_rates1.rename(columns={'Timestamp': 'time_msc'})
+                lp_rates1 = lp_rates1.rename(columns={'Bid Price': 'bid'})
+                lp_rates1 = lp_rates1.rename(columns={'Ask Price': 'ask'})
+                lp_rates1 = lp_rates1.rename(columns={'Last Price': 'close'})
+                lp_rates1 = lp_rates1.rename(columns={'Volume': 'volume'})
+                lp_rates1 = lp_rates1 = lp_rates1[['time', 'bid', 'ask', 'close' ,'time_msc', 'volume']]
+                
         except Exception as e:
                 e = mt5.last_error()
                 print("Mt5 result: {e}")
@@ -219,11 +227,10 @@ class CMqldatasetup:
 #--------------------------------------------------------------------         
     def run_shift_data1(lp_df , lp_seconds = 60 , lp_unit = 's'):
         lv_seconds = lp_seconds
-        lv_number_of_rows = lv_secondsdir
+        lv_number_of_rows = lv_seconds
         lp_df.style.set_properties(**{'text-align': 'left'})
-        lp_df['Date'] = pd.to_datetime(lp_df['Date'], unit=lp_unit)
-        #lp_df['Time'] = pd.to_datetime(lp_df['Time'], unit=lp_unit)
-        lp_df['Close'] = (lp_df['ask'] + lp_df['bid']) / 2
+        lp_df['time'] = pd.to_datetime(lp_df['time'], unit=lp_unit)
+        lp_df['close'] = (lp_df['ask'] + lp_df['bid']) / 2
         lv_empty_rows = pd.DataFrame(np.nan, index=range(lv_number_of_rows), columns=lp_df.columns)
         lp_df = lp_df._append(lv_empty_rows, ignore_index=True)
         lp_df['target'] = lp_df['close'].shift(-lv_seconds)

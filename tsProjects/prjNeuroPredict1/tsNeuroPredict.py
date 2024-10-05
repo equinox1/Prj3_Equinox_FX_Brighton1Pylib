@@ -120,7 +120,7 @@ mv_ticks2 = pd.DataFrame(mv_ticks1)
 # +-------------------------------------------------------------------
 # Tabulate formatting
 # start Params
-#no time                  bid      ask      last      volume      time_msc        flags       volume_real
+#no time                  bid      ask     last      volume      time_msc        flags       volume_real
 #0 2020-01-10 00:00:00  1.11051  1.11069   0.0       0           1578614400987    134          0.0
 #1 2020-01-10 00:00:02  1.11049  1.11067   0.0       0           1578614402025    134          0.0
 
@@ -131,7 +131,7 @@ print("cols tick2:",mv_ticks2.columns)
 
 mv_ticks3 = d1.run_shift_data1(mv_ticks2, mp_seconds, mp_unit)
 
-"""
+
 print(tabulate(mv_ticks1.head(10), showindex=False, headers=mv_ticks1.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 print(tabulate(mv_ticks2.head(10), showindex=False, headers=mv_ticks2.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 print(tabulate(mv_ticks3.head(10), showindex=False, headers=mv_ticks3.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
@@ -165,7 +165,7 @@ mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
 # +-------------------------------------------------------------------
 # Pre-tune a neural network model
 # +-------------------------------------------------------------------
-mt = CMdtuner
+mt = CMqlmltuner
 # start Params
 
 
@@ -280,13 +280,13 @@ mv_predictions=m1.dl_predict_values(mv_ticks3,mv_model,mp_seconds)
 
 # Print actual and predicted values for the next  n  instances
 print("Actual Value for the Last Instances:")
-print(mv_ticks2.tail(1)['close'].values)cd 
+print(mv_ticks2.tail(1)['close'].values)
 
 print("\nPredicted Value for the Next Instances:")
 print(mv_predictions[:, 0])
 df_predictions=pd.DataFrame(mv_predictions)
 
-
+"""
 Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values. 
 The lower the MSE, the better the model.
 Mean Absolute Error (MAE): It measures the average absolute difference between the predicted and actual values.
@@ -315,8 +315,7 @@ Unlike MSE, it does not square the differences, making it less sensitive to outl
 It is the sum of the absolute differences divided by the number of observations.
 
 In general, a higher R2 value and lower MSE or MAE values indicate a better-performing model.
-
+"""
 
 # modelperformance
 #m1.dl_model_performance(mv_model,mv_X_train_scaled, mv_X_test_scaled)
-"""
