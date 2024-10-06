@@ -270,10 +270,13 @@ mp_batch_size = 256
 mp_validation_split = 0.2
 mp_verbose = 0
 # End Params
+#Correct the size difference until reason known
+#
 
-# Correct the size difference until reasoon known
 mv_y_train_index=len(mv_y_train)
 mv_y_train=mv_y_train.drop(mv_y_train_index)
+
+
 print("mv_X_train",len(mv_X_test))
 print("mv_y_train",len(mv_y_train))
 print("mv_X_train-scaled",len(mv_X_test_scaled))
