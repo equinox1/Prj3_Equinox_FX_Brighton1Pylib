@@ -40,13 +40,12 @@ class HybridEnsembleHyperModel(HyperModel):
             x = LSTM(units)(inputs)
             x = Dense(hp.Int('lstm_dense_units', min_value=32, max_value=128, step=32), activation='relu')(x)
             return Model(inputs, x)
-    
-    
+        
         # 1D CNN Model
         def create_cnn_model():
             inputs = Input(shape=self.input_shape)
             filters = hp.Int('cnn_filters', min_value=32, max_value=128, step=32)
-            kernel_size = hp.Choice('cnn_kernel_size', values=[1, 5])
+            kernel_size = hp.Choice('cnn_kernel_size', values=[3, 5])
             x = Conv1D(filters=filters, kernel_size=kernel_size, activation='relu')(inputs)
             x = MaxPooling1D(pool_size=2)(x)
             x = Flatten()(x)
@@ -95,21 +94,21 @@ class HybridEnsembleHyperModel(HyperModel):
         return model
     
 class CMdtuner:
-    def __init__(self, input_shape):    
+    def __init__(self, input_shape, X_train, y_train,lp_objective, lp_max_trials, lp_executions_per_trial, lp_directory, lp_project_name,lp_validation_split ,lp_epochs ,lp_batch_size):    
         # Set up the Keras Tuner
         return self
-    def run_tuner(input_shape, X_train, y_train,objective,max_trials,executions_per_trial,directory,project_name):
+    def run_tuner(input_shape, X_train, y_train,lp_objective, lp_max_trials, lp_executions_per_trial, lp_directory, lp_project_name,lp_validation_split ,lp_epochs ,lp_batch_size):
         tuner = RandomSearch(
         HybridEnsembleHyperModel(input_shape=input_shape),
-        objective='val_accuracy',
-        max_trials=10,  # Number of hyperparameter sets to try
-        executions_per_trial=1,  # Number of models to build and evaluate for each trial
-        directory=directory,
-        project_name=project_name
+        objective=lp_objective,  # Objective to optimizE
+        max_trials=lp_max_trials,  # Number of hyperparameter sets to try
+        executions_per_trial=lp_executions_per_trial,  # Number of models to build and evaluate for each trial
+        directory=lp_directory,
+        project_name=lp_project_name
         )
     
         # Train the tuner
-        tuner.search([X_train, X_train, X_train, X_train], y_train, validation_split=0.2, epochs=10, batch_size=32)
+        tuner.search([X_train, X_train, X_train, X_train], y_train, lp_validation_split=0.2, lp_epochs=10, lp_batch_size=32)
     
         # Get the best hyperparameters
         best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
@@ -120,18 +119,3 @@ class CMdtuner:
         # Return the best model
         return tuner.get_best_models(num_models=1)[0]
 
-# Example data
-#X_train = np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
-#y_train = np.random.randint(2, size=(1000,))  # Binary target
-
-# Define input shape
-#input_shape = (100, 1)
-
-# Run th#e tuner
-#best_model = run_tuner(input_shape, X_train, y_train)
-
-# Print the summary of the best model
-#best_model.summary()
-
-# Optionally: train the best model on the full dataset
-#best_model.fit([X_train, X_train, X_train, X_train], y_train, epochs=10, batch_size=32)
