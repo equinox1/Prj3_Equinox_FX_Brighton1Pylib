@@ -242,40 +242,24 @@ if gpus:
     except RuntimeError as e:
         print(e)
 
-#pd.shape  # This returns the shape as a tuple, e.g., (rows, columns)
-# If you want to access the number of rows or columns specifically:
-#pd.shape[0]  # This will give you the number of rows
-#pd.shape[1]  # This will give you the number of columns
-# Ensure mv_X_train and mv_y_train are correctly shaped
-
  # Truncate 'x' to match 'y'
 mv_X_train_scaled = mv_X_train_scaled[:len(mv_y_train)] 
+mp_input_shape = (mv_X_train_scaled.shape[1])
+mp_test=True
 
+if mp_test == True:
+    mv_X_train_scaled=np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
+    mv_y_train =y_train = np.random.randint(2, size=(1000,))  # Binary target")
+    mp_input_shape = (100, 1)
+  
 print(f"mv_X_train_scaled shape: {mv_X_train_scaled.shape}")
 print(f"mv_y_train shape: {mv_y_train.shape}")
 
 # Ensure mp_epochs and mp_batch_size are integers
 print(f"mp_epochs: {mp_epochs}, type: {type(mp_epochs)}")
 print(f"mp_batch_size: {mp_batch_size}, type: {type(mp_batch_size)}")
-objective='val_accuracy',
-# Example data
-#X_train = np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
-#y_train = np.random.randint(2, size=(1000,))  # Binary target
 
-# Define input shape
-#input_shape = (100, 1)
-
-# Run th#e tuner
-#best_model = run_tuner(input_shape, X_train, y_train)
-
-# Print the summary of the best model
-#best_model.summary()
-
-# Optionally: train the best model on the full dataset
-#best_model.fit([X_train, X_train, X_train, X_train], y_train, epochs=10, batch_size=32)
-
-
-best_model = mt.run_tuner(mv_X_train_scaled.shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name,mp_validation_split ,mp_epochs ,mp_batch_size)
+best_model = mt.run_tuner(mp_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size)
 
 # Print the summary of the best model
 best_model.summary()
@@ -283,15 +267,10 @@ best_model.summary()
 # Optionally: train the best model on the full dataset
 
 # Correct the call to best_model.fit
-results = best_model.fit(
-    mv_X_train_scaled,  # Assuming mv_X_train is already the correct input
-    mv_y_train,  # Assuming mv_y_train is already the correct output
-    epochs=mp_epochs,
-    batch_size=mp_batch_size
-)
+#results = best_model.fit(mv_X_train_scaled, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
 
+#print("Model Result:", results.history)
 
-print("Model Result:",results.history)
 
 
 """

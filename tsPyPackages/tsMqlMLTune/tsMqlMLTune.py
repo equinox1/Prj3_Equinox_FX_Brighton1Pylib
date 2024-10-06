@@ -108,7 +108,7 @@ class CMdtuner:
         )
     
         # Train the tuner
-        tuner.search([X_train, X_train, X_train, X_train], y_train, lp_validation_split=0.2, lp_epochs=10, lp_batch_size=32)
+        tuner.search([X_train, X_train, X_train, X_train], y_train, validation_split=lp_validation_split, epochs=lp_epochs, batch_size=lp_batch_size)
     
         # Get the best hyperparameters
         best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
