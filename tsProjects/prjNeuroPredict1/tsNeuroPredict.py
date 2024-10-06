@@ -254,6 +254,7 @@ if mp_test == True:
   
 print(f"mv_X_train_scaled shape: {mv_X_train_scaled.shape}")
 print(f"mv_y_train shape: {mv_y_train.shape}")
+print(f"mp_input_shape: {mp_input_shape}")
 
 # Ensure mp_epochs and mp_batch_size are integers
 print(f"mp_epochs: {mp_epochs}, type: {type(mp_epochs)}")
@@ -263,13 +264,6 @@ best_model = mt.run_tuner(mp_input_shape, mv_X_train_scaled, mv_y_train, mp_obje
 
 # Print the summary of the best model
 best_model.summary()
-
-# Optionally: train the best model on the full dataset
-
-# Correct the call to best_model.fit
-#results = best_model.fit(mv_X_train_scaled, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
-
-#print("Model Result:", results.history)
 
 
 
