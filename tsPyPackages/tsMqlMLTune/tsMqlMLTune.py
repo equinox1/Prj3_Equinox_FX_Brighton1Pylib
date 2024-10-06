@@ -40,12 +40,13 @@ class HybridEnsembleHyperModel(HyperModel):
             x = LSTM(units)(inputs)
             x = Dense(hp.Int('lstm_dense_units', min_value=32, max_value=128, step=32), activation='relu')(x)
             return Model(inputs, x)
-        
+    
+    
         # 1D CNN Model
         def create_cnn_model():
             inputs = Input(shape=self.input_shape)
             filters = hp.Int('cnn_filters', min_value=32, max_value=128, step=32)
-            kernel_size = hp.Choice('cnn_kernel_size', values=[3, 5])
+            kernel_size = hp.Choice('cnn_kernel_size', values=[1, 5])
             x = Conv1D(filters=filters, kernel_size=kernel_size, activation='relu')(inputs)
             x = MaxPooling1D(pool_size=2)(x)
             x = Flatten()(x)
@@ -97,14 +98,14 @@ class CMdtuner:
     def __init__(self, input_shape):    
         # Set up the Keras Tuner
         return self
-    def run_tuner(input_shape, X_train, y_train):
+    def run_tuner(input_shape, X_train, y_train,objective,max_trials,executions_per_trial,directory,project_name):
         tuner = RandomSearch(
         HybridEnsembleHyperModel(input_shape=input_shape),
         objective='val_accuracy',
         max_trials=10,  # Number of hyperparameter sets to try
         executions_per_trial=1,  # Number of models to build and evaluate for each trial
-        directory='hybrid_ensemble_tuning',
-        project_name='hybrid_ensemble_model'
+        directory=directory,
+        project_name=project_name
         )
     
         # Train the tuner

@@ -46,7 +46,6 @@ from tsMqlConnect import CMqlinitdemo
 from tsMqlData import CMqldatasetup
 from tsMqlML import CMqlmlsetup
 from tsMqlMLTune import CMdtuner
-from tsMqlMLTune import CMdtuner
 
 #======================================================
 # import ai packages tensorflow and keras libraries
@@ -95,6 +94,7 @@ mp_month = 1
 mp_day = 1
 mp_timezone = 'etc/UTC'
 mp_rows = 1000
+mp_rowcount = 1000
 mp_command = mt5.COPY_TICKS_ALL
 mp_dfName = "df_rates"
 mv_manual = True
@@ -111,7 +111,7 @@ mv_utc_from = d1.set_mql_timezone(mp_year, mp_month, mp_day, mp_timezone)
 print("Timezone Set to : ", mv_utc_from)
 print("mp_path Set to : ", mp_path)
 print("mp_filename Set to : ", mp_filename)
-mv_ticks1 = pd.DataFrame(d1.run_load_from_mql(mv_manual,mp_dfName,mv_utc_from,mp_symbol_primary,mp_rows,mp_command,mp_path,mp_filename))
+mv_ticks1 = pd.DataFrame(d1.run_load_from_mql(mv_manual,mp_dfName,mv_utc_from,mp_symbol_primary,mp_rows,mp_rowcount,mp_command,mp_path,mp_filename))
 # +-------------------------------------------------------------------
 # Prepare Data
 # +-------------------------------------------------------------------
@@ -199,7 +199,6 @@ mp_cells3=128
 mp_cells4=64
 mp_cells5=1
 
-
 mp_min=32
 mp_max=128
 mp_step=2
@@ -213,10 +212,9 @@ mp_jmin=0.5
 mp_jmax=0.2
 mp_jstep=0.1
 
-
 mp_validation_split=0.2
-mp_epochs=10,
-mp_batch_size=32,
+mp_epochs=10
+mp_batch_size=32
 mp_num_trials=1
 mp_num_models=1
 # End Params
@@ -224,65 +222,56 @@ mp_num_models=1
 
 mt=CMdtuner
 # Run the tuner
+# Start Params
+mv_objective='val_accuracy'
+mv_max_trials=10  # Number of hyperparameter sets to try
+mv_executions_per_trial=1  # Number of models to build and evaluate for each trial
+mv_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\Mql5Data\PythonLib\tsModelData"
+mv_directory=mv_modeldatapath + '\\' + 'tshybrid_ensemble_tuning'
+mv_project_name=mv_modeldatapath + '\\' + 'tshybrid_ensemble_model'
+print("mv_directory",mv_directory)     
+print("mv_project_name",mv_project_name)
+# End Params
 
-# Example data
-mv_X_train = np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
-mv_y_train = np.random.randint(2, size=(1000,))  # Binary target
-
-# Define input shape
-# Assuming 'pd' is a DataFrame
 #pd.shape  # This returns the shape as a tuple, e.g., (rows, columns)
 # If you want to access the number of rows or columns specifically:
 #pd.shape[0]  # This will give you the number of rows
 #pd.shape[1]  # This will give you the number of columns
-#dfx=pd.DataFrame(mv_X_train_scaled)
-#mp_input_shape=dfx.shape
+# Ensure mv_X_train and mv_y_train are correctly shaped
 
-# Define input shape
-mp_input_shape = (100, 1)
+ # Truncate 'x' to match 'y'
+mv_X_train_scaled = mv_X_train_scaled[:len(mv_y_train)] 
+
+print(f"mv_X_train_scaled shape: {mv_X_train_scaled.shape}")
+print(f"mv_y_train shape: {mv_y_train.shape}")
 
 
-best_model = mt.run_tuner(mp_input_shape, mv_X_train, mv_y_train)
+# Ensure mp_epochs and mp_batch_size are integers
+print(f"mp_epochs: {mp_epochs}, type: {type(mp_epochs)}")
+print(f"mp_batch_size: {mp_batch_size}, type: {type(mp_batch_size)}")
+objective='val_accuracy',
+
+
+best_model = mt.run_tuner(mv_X_train_scaled.shape, mv_X_train_scaled, mv_y_train, mv_objective, mv_max_trials, mv_executions_per_trial, mv_directory, mv_project_name)
 
 # Print the summary of the best model
-#best_model.summary()
+best_model.summary()
 
 # Optionally: train the best model on the full dataset
-# best_model.fit([X_train, X_train, X_train, X_train], y_train, epochs=10, batch_size=32)
 
-#print("Model Result:",results)
-
-
-# +-------------------------------------------------------------------
-# Build a neural network model
-# +-------------------------------------------------------------------
-# start Params
-
-# End Params
-
-mv_model = m1.dl_build_neuro_ensemble(mp_seq,mp_filt,mp_pool,mp_ksize,mp_k_reg, mv_X_train,mv_y_train, mp_optimizer,mp_act1,mp_act2,mp_act3, mp_metric, mp_loss1,mp_loss2,mp_cells1,mp_cells2,mp_cells3,mp_cells4,mp_cells5)
-# +--------------------------------------------------------------------
-# Train the model
-# +--------------------------------------------------------------------
-# start Params
-mp_epoch = 5
-mp_batch_size = 256
-mp_validation_split = 0.2
-mp_verbose = 0
-# End Params
-#Correct the size difference until reason known
-#
-
-mv_y_train_index=len(mv_y_train)
-mv_y_train=mv_y_train.drop(mv_y_train_index)
+# Correct the call to best_model.fit
+results = best_model.fit(
+    mv_X_train_scaled,  # Assuming mv_X_train is already the correct input
+    mv_y_train,  # Assuming mv_y_train is already the correct output
+    epochs=mp_epochs,
+    batch_size=mp_batch_size
+)
 
 
-print("mv_X_train",len(mv_X_test))
-print("mv_y_train",len(mv_y_train))
-print("mv_X_train-scaled",len(mv_X_test_scaled))
+print("Model Result:",results.history)
 
-mv_model = m1.dl_train_model(mv_model, mv_X_train_scaled, mv_y_train,mp_epoch, mp_batch_size, mp_validation_split, mp_verbose)
 
+"""
 # +--------------------------------------------------------------------
 # Predict the model
 # +--------------------------------------------------------------------
@@ -300,7 +289,6 @@ print("\nPredicted Value for the Next Instances:")
 print(mv_predictions[:, 0])
 df_predictions=pd.DataFrame(mv_predictions)
 
-"""
 Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values. 
 The lower the MSE, the better the model.
 Mean Absolute Error (MAE): It measures the average absolute difference between the predicted and actual values.
@@ -328,8 +316,8 @@ MAE (Mean Absolute Error):
 Unlike MSE, it does not square the differences, making it less sensitive to outliers.
 It is the sum of the absolute differences divided by the number of observations.
 
-In general, a higher R2 value and lower MSE or MAE values indicate a better-performing model.
-"""
+In ge
 
 # modelperformance
 #m1.dl_model_performance(mv_model,mv_X_train_scaled, mv_X_test_scaled)
+"""
