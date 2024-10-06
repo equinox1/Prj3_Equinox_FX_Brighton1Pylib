@@ -176,7 +176,7 @@ class CMqldatasetup:
 # \param  var                          
 #--------------------------------------------------------------------         
         
-    def run_load_from_mql(lp_manual,lp_rates1 = "rates",lp_utc_from = "2023-01-01 00:00:00+00:00",lp_symbol = "JPYUSD", lp_rows = 1000,lp_flag = mt5.COPY_TICKS_ALL,lp_path = ".\\" ,lp_filename = "tickdata" ):
+    def run_load_from_mql(lp_manual,lp_rates1 = "rates",lp_utc_from = "2023-01-01 00:00:00+00:00",lp_symbol = "JPYUSD", lp_rows = 1000,lp_rowcount = 1000,lp_flag = mt5.COPY_TICKS_ALL,lp_path = ".\\" ,lp_filename = "tickdata" ):
         # request 100 000 eurusd ticks starting from lp_year, lp_month, lp_day in utc time zone
         if lp_manual == True:
             print("lp_manual:",lp_manual)
@@ -204,7 +204,7 @@ class CMqldatasetup:
             else:
                 lpmergepath = lp_path + "\\" + lp_filename
                 print("3:Manual load_filename:", lpmergepath)
-                lp_rates1 = pd.read_csv(lpmergepath, sep=',')
+                lp_rates1 = pd.read_csv(lpmergepath, sep=',',nrows=lp_rowcount)
                 print("3:ticks received:", len(lp_rates1))
                 lp_rates1 = lp_rates1.rename(columns={'Date': 'time'})    
                 lp_rates1 = lp_rates1.rename(columns={'Timestamp': 'time_msc'})
