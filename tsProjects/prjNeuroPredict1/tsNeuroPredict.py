@@ -94,7 +94,7 @@ mp_month = 1
 mp_day = 1
 mp_timezone = 'etc/UTC'
 mp_rows = 1000
-mp_rowcount = 1000
+mp_rowcount = 100
 mp_command = mt5.COPY_TICKS_ALL
 mp_dfName = "df_rates"
 mv_manual = True
@@ -213,8 +213,8 @@ mp_jmax=0.2
 mp_jstep=0.1
 
 mp_validation_split=0.2
-mp_epochs=10
-mp_batch_size=32
+mp_epochs=1
+mp_batch_size=16
 mp_num_trials=1
 mp_num_models=1
 # End Params
@@ -223,15 +223,24 @@ mp_num_models=1
 mt=CMdtuner
 # Run the tuner
 # Start Params
-mv_objective='val_accuracy'
-mv_max_trials=10  # Number of hyperparameter sets to try
-mv_executions_per_trial=1  # Number of models to build and evaluate for each trial
-mv_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\Mql5Data\PythonLib\tsModelData"
-mv_directory=mv_modeldatapath + '\\' + 'tshybrid_ensemble_tuning'
-mv_project_name=mv_modeldatapath + '\\' + 'tshybrid_ensemble_model'
-print("mv_directory",mv_directory)     
-print("mv_project_name",mv_project_name)
+mp_objective='val_accuracy'
+mp_max_trials=10  # Number of hyperparameter sets to try
+mp_executions_per_trial=1  # Number of models to build and evaluate for each trial
+mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\Mql5Data\PythonLib\tsModelData"
+mp_directory=mp_modeldatapath + '\\' + 'tshybrid_ensemble_tuning'
+mp_project_name=mp_modeldatapath + '\\' + 'tshybrid_ensemble_model'
+print("mp_directory",mp_directory)     
+print("mp_project_name",mp_project_name)
 # End Params
+
+# Check if GPU is available and set memory growth
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except RuntimeError as e:
+        print(e)
 
 #pd.shape  # This returns the shape as a tuple, e.g., (rows, columns)
 # If you want to access the number of rows or columns specifically:
@@ -245,14 +254,28 @@ mv_X_train_scaled = mv_X_train_scaled[:len(mv_y_train)]
 print(f"mv_X_train_scaled shape: {mv_X_train_scaled.shape}")
 print(f"mv_y_train shape: {mv_y_train.shape}")
 
-
 # Ensure mp_epochs and mp_batch_size are integers
 print(f"mp_epochs: {mp_epochs}, type: {type(mp_epochs)}")
 print(f"mp_batch_size: {mp_batch_size}, type: {type(mp_batch_size)}")
 objective='val_accuracy',
+# Example data
+#X_train = np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
+#y_train = np.random.randint(2, size=(1000,))  # Binary target
+
+# Define input shape
+#input_shape = (100, 1)
+
+# Run th#e tuner
+#best_model = run_tuner(input_shape, X_train, y_train)
+
+# Print the summary of the best model
+#best_model.summary()
+
+# Optionally: train the best model on the full dataset
+#best_model.fit([X_train, X_train, X_train, X_train], y_train, epochs=10, batch_size=32)
 
 
-best_model = mt.run_tuner(mv_X_train_scaled.shape, mv_X_train_scaled, mv_y_train, mv_objective, mv_max_trials, mv_executions_per_trial, mv_directory, mv_project_name)
+best_model = mt.run_tuner(mv_X_train_scaled.shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name,mp_validation_split ,mp_epochs ,mp_batch_size)
 
 # Print the summary of the best model
 best_model.summary()
