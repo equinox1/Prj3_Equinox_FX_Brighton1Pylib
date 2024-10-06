@@ -42,7 +42,7 @@ from tsMqlConnect import CMqlinitdemo
 from tsMqlData import CMqldatasetup
 from tsMqlML import CMqlmlsetup
 from tsMqlMLTune import CMdtuner
-
+from tsMqlMLTune import CMdtuner
 
 #======================================================
 # import ai packages tensorflow and keras libraries
@@ -165,7 +165,7 @@ mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
 # +-------------------------------------------------------------------
 # Pre-tune a neural network model
 # +-------------------------------------------------------------------
-mt = CMqlmltuner
+mt = CMdtuner
 # start Params
 
 
