@@ -9,6 +9,10 @@
 # +-------------------------------------------------------------------
 # import standard python packages
 # +-------------------------------------------------------------------
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
+
 """ 
 The model is initialized as a sequential model, meaning it's a linear stack of layers.
 The Dense layers represent fully connected layers in the neural network. 
@@ -189,6 +193,13 @@ mp_loss1 = 'mean_squared_error'
 mp_loss2 = 'binary_crossentropy'
 mp_objective='val_accuracy'
 
+mp_cells1=128
+mp_cells2=256
+mp_cells3=128
+mp_cells4=64
+mp_cells5=1
+
+
 mp_min=32
 mp_max=128
 mp_step=2
@@ -249,7 +260,7 @@ best_model = mt.run_tuner(mp_input_shape, mv_X_train, mv_y_train)
 
 # End Params
 
-mv_model = m1.dl_build_neuro_network(mp_k_reg, mv_X_train,mv_y_train, mp_optimizer,mp_act1,mp_act2,mp_act3, mp_metric, mp_loss1,mp_loss2,mp_cells1,mp_cells2,mp_cells3,mp_cells4,mp_cells5)
+mv_model = m1.dl_build_neuro_ensemble(mp_seq,mp_filt,mp_pool,mp_ksize,mp_k_reg, mv_X_train,mv_y_train, mp_optimizer,mp_act1,mp_act2,mp_act3, mp_metric, mp_loss1,mp_loss2,mp_cells1,mp_cells2,mp_cells3,mp_cells4,mp_cells5)
 # +--------------------------------------------------------------------
 # Train the model
 # +--------------------------------------------------------------------
