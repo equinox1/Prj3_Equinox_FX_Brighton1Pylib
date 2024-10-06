@@ -308,7 +308,6 @@ class CMqlmlsetup:
 #GRU: Efficient with fewer parameters than LSTM.
 #Transformer: Captures long-range dependencies using attention mechanisms.
 #This ensemble approach can help in complex sequence modeling tasks where combining models improves accuracy and generalization.
-
     def dl_build_neuro_ensemble (self,lp_seq,lp_filt,lp_pool,lp_ksizelp_k_reg, X_train, y_train,optimizer='adam',lp_act1 = 'relu', lp_act2 = 'linear',lp_act3 = 'sigmoid',lp_metric = 'accuracy', lp_loss1='mean_squared_error',lp_loss2 = 'binary_crossentropy',cells1=128,cells2=256, cells3=128,cells4=64,cells5=1):
         # Generate some dummy data
         X_train = np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
