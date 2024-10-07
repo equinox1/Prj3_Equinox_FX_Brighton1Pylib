@@ -46,7 +46,7 @@ class HybridEnsembleHyperModel(HyperModel):
             inputs = Input(shape=self.input_shape)
             filters = hp.Int('cnn_filters', min_value=32, max_value=128, step=32)
             kernel_size = hp.Choice('cnn_kernel_size', values=[3, 5])
-            x = Conv1D(filters=filters, kernel_size=kernel_size, activation='relu')(inputs)
+            x = Conv1D(filters=filters, kernel_size=kernel_size, padding='same', activation='relu')(inputs)
             x = MaxPooling1D(pool_size=2)(x)
             x = Flatten()(x)
             x = Dense(hp.Int('cnn_dense_units', min_value=32, max_value=128, step=32), activation='relu')(x)
