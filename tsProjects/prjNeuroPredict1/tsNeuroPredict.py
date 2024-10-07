@@ -289,9 +289,6 @@ mv_X_train_list = [mv_X_train_scaled] * 4
 # Correct the call to best_model.fit
 mv_model = best_model.fit(mv_X_train_list, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
 
-# Ensure test data is in the correct shape
-mv_X_test_scaled = mv_X_test_scaled.reshape((-1, 100, 1))  # Reshape to match (100, 1)
-
 # Create a list of exactly 4 identical tensors
 mv_X_test_list = [mv_X_test_scaled] * 4
 
