@@ -55,8 +55,14 @@ import keras_tuner as kt
 # ======================================================
 # import local packages
 # ======================================================
-
-
+# Check if GPU is available and set memory growth
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except RuntimeError as e:
+        print(e)
 
 # ======================================================
 # Start Login MQL Terminal
@@ -233,87 +239,66 @@ print("mp_directory",mp_directory)
 print("mp_project_name",mp_project_name)
 # End Params
 
-# Check if GPU is available and set memory growth
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if gpus:
-    try:
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-    except RuntimeError as e:
-        print(e)
 
  # Truncate 'x' to match 'y'
 mv_X_train_scaled = mv_X_train_scaled[:len(mv_y_train)] 
-mp_input_shape = (mv_X_train_scaled.shape[1])
+mv_X_test_scaled = mv_X_test_scaled[:len(mv_y_test)] 
+mp_train_input_shape = (mv_X_train_scaled.shape)
+mp_test_input_shape = (mv_X_test_scaled.shape)
+
+# test mode to pass through litnus test data
 mp_test=True
+############################################
+# Start Test Load Data
+############################################
 
 if mp_test == True:
     mv_X_train_scaled=np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
-    mv_y_train =y_train = np.random.randint(2, size=(1000,))  # Binary target")
-    mp_input_shape = (100, 1)
-  
+    mv_X_test_scaled=np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
+
+    mv_y_train = np.random.randint(2, size=(1000,))  # Binary target
+    mv_y_test = np.random.randint(2, size=(1000,))  # Binary target
+    
+    mp_train_input_shape = shape=(100, 1)
+    mp_test_input_shape =  shape=(100, 1)
+############################################
+#End Test Load Data
+############################################
+
+# Print input shapes
 print(f"mv_X_train_scaled shape: {mv_X_train_scaled.shape}")
 print(f"mv_y_train shape: {mv_y_train.shape}")
-print(f"mp_input_shape: {mp_input_shape}")
+print(f"mp_train_input_shape: {mp_train_input_shape}")
+print(f"mp_test_input_shape: {mp_test_input_shape}")
 
 # Ensure mp_epochs and mp_batch_size are integers
 print(f"mp_epochs: {mp_epochs}, type: {type(mp_epochs)}")
 print(f"mp_batch_size: {mp_batch_size}, type: {type(mp_batch_size)}")
 
-best_model = mt.run_tuner(mp_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size)
+# Run tuner
+best_model = mt.run_tuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size)
+
+expected_input_shape = best_model.input_shape
+print("Expected Shape:",expected_input_shape)
 
 # Print the summary of the best model
 best_model.summary()
 
+# Create a list of exactly 4 identical tensors
+mv_X_train_list = [mv_X_train_scaled] * 4
+# Correct the call to best_model.fit
+mv_model = best_model.fit(mv_X_train_list, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
 
+# Ensure test data is in the correct shape
+mv_X_test_scaled = mv_X_test_scaled.reshape((-1, 100, 1))  # Reshape to match (100, 1)
 
-"""
-# +--------------------------------------------------------------------
+# Create a list of exactly 4 identical tensors
+mv_X_test_list = [mv_X_test_scaled] * 4
+
 # Predict the model
-# +--------------------------------------------------------------------
-# start Params
-mp_seconds=6000
-# End Params
-#print("MvTick3Tail:",mv_ticks3.tail(mp_seconds)['close'].values)
-mv_predictions=m1.dl_predict_values(mv_ticks3,mv_model,mp_seconds)
+predictions = best_model.predict(mv_X_test_list)
 
-# Print actual and predicted values for the next  n  instances
-print("Actual Value for the Last Instances:")
-print(mv_ticks2.tail(1)['close'].values)
+print("Predictions:", predictions)
 
-print("\nPredicted Value for the Next Instances:")
-print(mv_predictions[:, 0])
-df_predictions=pd.DataFrame(mv_predictions)
-
-Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values. 
-The lower the MSE, the better the model.
-Mean Absolute Error (MAE): It measures the average absolute difference between the predicted and actual values.
-Like MSE, lower values indicate better model performance.
-
-R2 Score: Also known as the coefficient of determination, it measures the proportion of the variance in the 
-dependent variable that is predictable from the independent variable(s). An R2 score of 1 indicates a perfect
-fit, while a score of 0 suggests that the model is no better than predicting the mean of the target variable. 
-Negative values indicate poor model performance.  
-
-for example use 900 days of data and 1 epoch for EURUSD for a 2 hours time period
-
-R2 (R-squared):
-
-1: R2 is a statistical measure that represents the proportion of the variance in the dependent variable that is
-predictable from the independent variable(s).It is a scale from 0 to 1, where 0 indicates that the model does not
-explain the variability of the dependent variable, and 1 indicates perfect explanation.
-
-2:MSE (Mean Squared Error):MSE is a metric that calculates the average squared difference between the actual
-and predicted values.It penalizes larger errors more heavily than smaller ones, making it sensitive to outliers.
-Mathematically, it is the sum of the squared differences divided by the number of observations.
-MAE (Mean Absolute Error):
-
-3:MAE is a metric that calculates the average absolute difference between the actual and predicted values.
-Unlike MSE, it does not square the differences, making it less sensitive to outliers.
-It is the sum of the absolute differences divided by the number of observations.
-
-In ge
-
-# modelperformance
-#m1.dl_model_performance(mv_model,mv_X_train_scaled, mv_X_test_scaled)
-"""
+# Model performance
+accuracy, precision, recall, f1 = m1.model_performance(best_model, mv_X_test_list, mv_y_test)

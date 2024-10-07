@@ -18,6 +18,8 @@ import tabulate
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error,mean_absolute_error,r2_score
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
 #+-------------------------------------------------------------------
 # import keras package
 #+-------------------------------------------------------------------
@@ -174,22 +176,30 @@ class CMqlmlsetup:
 
 
 #--------------------------------------------------------------------
-# create method  "dl_predict_network"
+# create method  "dl_model_performance"
 # class:cmqlmlsetup
 # usage: mql data
 # \pdl_build_neuro_network
 #--------------------------------------------------------------------
-    def dl_predict_values(self,df, model, seconds = 60):
-        # sourcery skip: instance-method-first-arg-name
-        # Use the model to predict the next N instances
-        X_predict=[]
-        X_predict_scaled=[]
-        predictions = pd.DataFrame()
-        predictions=[]
-        scaler = StandardScaler()
-        # Empty DataFrame
-        print("dftail:",df.tail(seconds)[['close']].values)
-        X_predict = df.tail(seconds)[['close']].values
-        scaler.fit(X_predict)
-        X_predict_scaled = scaler.transform(X_predict)
-        return model.predict(X_predict_scaled)
+
+    def model_performance(model, X_test, y_test):
+        # Predict the model
+        predictions = model.predict(X_test)
+    
+        # If predictions are probabilities, convert them to class labels
+        predictions = predictions.argmax(axis=1)
+    
+        # Calculate performance metrics
+        accuracy = accuracy_score(y_test, predictions)
+        precision = precision_score(y_test, predictions, average='weighted')
+        recall = recall_score(y_test, predictions, average='weighted')
+        f1 = f1_score(y_test, predictions, average='weighted')
+    
+        # Print performance metrics
+        print(f"Accuracy: {accuracy:.4f}")
+        print(f"Precision: {precision:.4f}")
+        print(f"Recall: {recall:.4f}")
+        print(f"F1 Score: {f1:.4f}")
+    
+        return accuracy, precision, recall, f1
+
