@@ -13,7 +13,7 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # test mode to pass through litnus test data
-mp_test=True
+mp_test=False
 """ 
 The model is initialized as a sequential model, meaning it's a linear stack of layers.
 The Dense layers represent fully connected layers in the neural network. 
@@ -247,9 +247,10 @@ print("mp_project_name",mp_project_name)
 mv_X_train_scaled = mv_X_train_scaled[:len(mv_y_train)] 
 mv_X_test_scaled = mv_X_test_scaled[:len(mv_y_test)] 
 
-mp_train_input_shape = (mv_X_train_scaled.shape)
-mp_test_input_shape = (mv_X_test_scaled.shape)
-
+mp_train_input_shape =shape=(mv_X_train_scaled.shape)
+mp_test_input_shape = shape=(mv_X_test_scaled.shape)
+print(f"mp_train_input_shape: {mp_train_input_shape}")
+print(f"mp_test_input_shape: {mp_test_input_shape}")
 
 ############################################
 # Start Test Load Data
@@ -285,8 +286,9 @@ best_model = mt.run_tuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, m
 best_model.summary()
 
 # Check the expected input shape
-expected_input_shape = best_model.input_shape
+expected_input_shape = [(mp_train_input_shape), (mp_train_input_shape), (mp_train_input_shape), (mp_train_input_shape)]
 print("Expected Shape full load:", expected_input_shape)
+
 
 if mp_test == True:
         # Check the expected input shape
