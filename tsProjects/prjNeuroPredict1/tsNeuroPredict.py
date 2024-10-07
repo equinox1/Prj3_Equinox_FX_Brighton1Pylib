@@ -12,7 +12,8 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-
+# test mode to pass through litnus test data
+mp_test=True
 """ 
 The model is initialized as a sequential model, meaning it's a linear stack of layers.
 The Dense layers represent fully connected layers in the neural network. 
@@ -52,6 +53,8 @@ from tsMqlMLTune import CMdtuner
 #======================================================
 import tensorflow as tf
 import keras_tuner as kt
+# Address TensorFlow warning
+tf.compat.v1.reset_default_graph()
 # ======================================================
 # import local packages
 # ======================================================
@@ -232,7 +235,7 @@ mt=CMdtuner
 mp_objective='val_accuracy'
 mp_max_trials=10  # Number of hyperparameter sets to try
 mp_executions_per_trial=1  # Number of models to build and evaluate for each trial
-mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\Mql5Data\PythonLib\tsModelData"
+mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
 mp_directory=mp_modeldatapath + '\\' + 'tshybrid_ensemble_tuning'
 mp_project_name=mp_modeldatapath + '\\' + 'tshybrid_ensemble_model'
 print("mp_directory",mp_directory)     
@@ -243,11 +246,11 @@ print("mp_project_name",mp_project_name)
  # Truncate 'x' to match 'y'
 mv_X_train_scaled = mv_X_train_scaled[:len(mv_y_train)] 
 mv_X_test_scaled = mv_X_test_scaled[:len(mv_y_test)] 
+
 mp_train_input_shape = (mv_X_train_scaled.shape)
 mp_test_input_shape = (mv_X_test_scaled.shape)
 
-# test mode to pass through litnus test data
-mp_test=True
+
 ############################################
 # Start Test Load Data
 ############################################
@@ -278,17 +281,42 @@ print(f"mp_batch_size: {mp_batch_size}, type: {type(mp_batch_size)}")
 # Run tuner
 best_model = mt.run_tuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size)
 
-expected_input_shape = best_model.input_shape
-print("Expected Shape:",expected_input_shape)
-
 # Print the summary of the best model
 best_model.summary()
 
+# Check the expected input shape
+expected_input_shape = best_model.input_shape
+print("Expected Shape full load:", expected_input_shape)
+
+if mp_test == True:
+        # Check the expected input shape
+        expected_input_shape = [(None, 100, 1), (None, 100, 1), (None, 100, 1), (None, 100, 1)]
+        print("Expected Shape Test mode:", expected_input_shape)
+
+# Verify the shape of your training data
+print("Original mv_X_train_scaled shape:", mv_X_train_scaled.shape)
+
+# Reshape the training data to match the expected input shape
+mv_X_train_scaled_list = [np.reshape(mv_X_train_scaled, (-1, shape[1], shape[2])) for shape in expected_input_shape]
+print("Reshaped mv_X_train_scaled shapes:", [x.shape for x in mv_X_train_scaled_list])
+
+# Verify the shape of your test data
+print("Original mv_X_test_scaled shape:", mv_X_test_scaled.shape)
+
+# Reshape the test data to match the expected input shape
+mv_X_test_scaled_list = [np.reshape(mv_X_test_scaled, (-1, shape[1], shape[2])) for shape in expected_input_shape]
+print("Reshaped mv_X_test_scaled shapes:", [x.shape for x in mv_X_test_scaled_list])
+
 # Create a list of exactly 4 identical tensors
 mv_X_train_list = [mv_X_train_scaled] * 4
+
 # Correct the call to best_model.fit
 mv_model = best_model.fit(mv_X_train_list, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
 
+# Create a list of exactly 4 identical tensors
+mv_X_test_list = [mv_X_test_scaled] * 4
+
+# Predict the model
 # Create a list of exactly 4 identical tensors
 mv_X_test_list = [mv_X_test_scaled] * 4
 
