@@ -13,7 +13,7 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # test mode to pass through litnus test data
-mp_test=True
+mp_test=False
 """ 
 The model is initialized as a sequential model, meaning it's a linear stack of layers.
 The Dense layers represent fully connected layers in the neural network. 
@@ -244,21 +244,21 @@ print("mp_project_name",mp_project_name)
 
 
  # Truncate 'x' to match 'y'
-mv_X_train_scaled = mv_X_train_scaled[:len(mv_y_train)] 
-mv_X_test_scaled = mv_X_test_scaled[:len(mv_y_test)] 
+mv_X_train = mv_X_train[:len(mv_y_train)] 
+mv_X_test = mv_X_test[:len(mv_y_test)] 
 
-mp_train_input_shape =shape=(mv_X_train_scaled.shape)
-mp_test_input_shape = shape=(mv_X_test_scaled.shape)
-print(f"mp_train_input_shape: {mp_train_input_shape}")
-print(f"mp_test_input_shape: {mp_test_input_shape}")
+mp_train_input_shape=(mv_X_train.shape)
+mp_test_input_shape=(mv_X_test.shape)
+print(f"Full set mp_train_input_shape: {mp_train_input_shape}")
+print(f"Full set mp_test_input_shape: {mp_test_input_shape}")
 
 ############################################
 # Start Test Load Data
 ############################################
 
 if mp_test == True:
-    mv_X_train_scaled=np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
-    mv_X_test_scaled=np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
+    mv_X_train=np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
+    mv_X_test=np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
 
     mv_y_train = np.random.randint(2, size=(1000,))  # Binary target
     mv_y_test = np.random.randint(2, size=(1000,))  # Binary target
@@ -270,7 +270,7 @@ if mp_test == True:
 ############################################
 
 # Print input shapes
-print(f"mv_X_train_scaled shape: {mv_X_train_scaled.shape}")
+print(f"mv_X_train shape: {mv_X_train.shape}")
 print(f"mv_y_train shape: {mv_y_train.shape}")
 print(f"mp_train_input_shape: {mp_train_input_shape}")
 print(f"mp_test_input_shape: {mp_test_input_shape}")
@@ -280,15 +280,15 @@ print(f"mp_epochs: {mp_epochs}, type: {type(mp_epochs)}")
 print(f"mp_batch_size: {mp_batch_size}, type: {type(mp_batch_size)}")
 
 # Run tuner
-best_model = mt.run_tuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size)
+best_model = mt.run_tuner(mp_train_input_shape, mv_X_train, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size)
 
 # Print the summary of the best model
 best_model.summary()
 
 # Check the expected input shape
-expected_input_shape = [(mp_train_input_shape), (mp_train_input_shape), (mp_train_input_shape), (mp_train_input_shape)]
+#expected_input_shape = [(mp_train_input_shape), (mp_train_input_shape), (mp_train_input_shape), (mp_train_input_shape)]
+expected_input_shape =  [(None, mp_rowcount, 1), (None, mp_rowcount, 1), (None, mp_rowcount, 1), (None, mp_rowcount, 1)]
 print("Expected Shape full load:", expected_input_shape)
-
 
 if mp_test == True:
         # Check the expected input shape
@@ -296,31 +296,31 @@ if mp_test == True:
         print("Expected Shape Test mode:", expected_input_shape)
 
 # Verify the shape of your training data
-print("Original mv_X_train_scaled shape:", mv_X_train_scaled.shape)
+print("Original mv_X_train shape:", mv_X_train.shape)
 
 # Reshape the training data to match the expected input shape
-mv_X_train_scaled_list = [np.reshape(mv_X_train_scaled, (-1, shape[1], shape[2])) for shape in expected_input_shape]
-print("Reshaped mv_X_train_scaled shapes:", [x.shape for x in mv_X_train_scaled_list])
+mv_X_train_scaled_list = [np.reshape(mv_X_train, (-1, shape[1], shape[2])) for shape in expected_input_shape]
+print("Reshaped mv_X_train shapes:", [x.shape for x in mv_X_train_list])
 
 # Verify the shape of your test data
-print("Original mv_X_test_scaled shape:", mv_X_test_scaled.shape)
+print("Original mv_X_test shape:", mv_X_test.shape)
 
 # Reshape the test data to match the expected input shape
-mv_X_test_scaled_list = [np.reshape(mv_X_test_scaled, (-1, shape[1], shape[2])) for shape in expected_input_shape]
-print("Reshaped mv_X_test_scaled shapes:", [x.shape for x in mv_X_test_scaled_list])
+mv_X_test_list = [np.reshape(mv_X_test, (-1, shape[1], shape[2])) for shape in expected_input_shape]
+print("Reshaped mv_X_test shapes:", [x.shape for x in mv_X_test_list])
 
 # Create a list of exactly 4 identical tensors
-mv_X_train_list = [mv_X_train_scaled] * 4
+mv_X_train_list = [mv_X_train] * 4
 
 # Correct the call to best_model.fit
 mv_model = best_model.fit(mv_X_train_list, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
 
 # Create a list of exactly 4 identical tensors
-mv_X_test_list = [mv_X_test_scaled] * 4
+mv_X_test_list = [mv_X_test] * 4
 
 # Predict the model
 # Create a list of exactly 4 identical tensors
-mv_X_test_list = [mv_X_test_scaled] * 4
+mv_X_test_list = [mv_X_test] * 4
 
 # Predict the model
 predictions = best_model.predict(mv_X_test_list)
