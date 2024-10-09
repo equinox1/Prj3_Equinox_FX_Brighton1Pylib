@@ -131,10 +131,10 @@ class CMqlmlsetup:
 # \pdlsplit data
 
 #--------------------------------------------------------------------
-    def dl_split_data_sets(self,df, X, y, test_size=0.2, shuffle = False, prog = 1):
+    def dl_split_data_sets(df,test_size=0.2, shuffle = False):
         # sourcery skip: instance-method-first-arg-name
         
-        X = df[['close']]
+        X = df['close']
         y = df['target']
         # Split the data into training and testing sets
         X_train=[]
@@ -142,14 +142,8 @@ class CMqlmlsetup:
         y_train=[]
         y_test=[]
         X_train,y_train,X_test,y_test =  train_test_split(X, y, test_size=test_size, shuffle=shuffle)
-        if prog == 1:
-            return X_train
-        if prog == 2:
-            return y_train
-        if prog == 3:
-            return X_test
-        if prog == 4:
-            return y_test
+        return pd.DataFrame(X_train), pd.DataFrame(y_train), pd.DataFrame(X_test), pd.DataFrame(y_test)
+  
 
 #--------------------------------------------------------------------
 # create method  "dl_train_model_scaled".
@@ -161,7 +155,7 @@ class CMqlmlsetup:
         # sourcery skip: instance-method-first-arg-name
         # meta names
         scaler = StandardScaler()
-        return scaler.fit_transform(df)
+        return pd.DataFrame(scaler.fit_transform(df))
 
 #--------------------------------------------------------------------
 # create method  "dl_test_model_scaled".
@@ -172,7 +166,7 @@ class CMqlmlsetup:
     def dl_test_model_scaled(df):
         # sourcery skip: instance-method-first-arg-name
         scaler = StandardScaler()
-        return scaler.fit_transform(df)
+        return pd.DataFrame(scaler.fit_transform(df))
 
 
 #--------------------------------------------------------------------
