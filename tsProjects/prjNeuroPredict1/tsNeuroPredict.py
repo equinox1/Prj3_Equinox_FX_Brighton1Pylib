@@ -13,7 +13,7 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # test mode to pass through litnus test data
-mp_test=False
+mp_test=True
 """ 
 The model is initialized as a sequential model, meaning it's a linear stack of layers.
 The Dense layers represent fully connected layers in the neural network. 
