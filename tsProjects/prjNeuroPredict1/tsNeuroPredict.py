@@ -161,19 +161,13 @@ mp_test_size = 0.2
 mp_shuffle = False
 
 # End Params
-mv_X_train = []
-mv_y_train = []
 
-
-mv_X_train = m1.dl_split_data_sets(mv_ticks3,mv_ticks3, mp_test_size, mp_shuffle, 1)
-mv_y_train = m1.dl_split_data_sets(mv_ticks3,mv_ticks3, mp_test_size, mp_shuffle, 2)
-
-mv_X_test = m1.dl_split_data_sets(mv_ticks3,mv_ticks3, mp_test_size, mp_shuffle, 3)
-mv_y_test = m1.dl_split_data_sets(mv_ticks3,mv_ticks3, mp_test_size, mp_shuffle, 4)
-
+mv_X_train,mv_y_train,mv_X_test,mv_y_test = m1.dl_split_data_sets(mv_ticks3, mp_test_size, mp_shuffle)
+print("DataChk1:",mv_X_train.head(10))
 mv_X_train_scaled = m1.dl_train_model_scaled(mv_X_train)
 mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
 
+print("DataChk2:",mv_X_train_scaled.head(10))
 
 # +-------------------------------------------------------------------
 # Pre-tune a neural network model
@@ -324,8 +318,8 @@ mv_X_test_list = [mv_X_test_scaled] * 4
 
 # Predict the model
 predictions = best_model.predict(mv_X_test_list)
-
-print("Predictions:", predictions)
+predictions=pd.DataFrame(predictions)
+print("Predictions:", predictions.head(10))
 
 # Model performance
 accuracy, precision, recall, f1 = m1.model_performance(best_model, mv_X_test_list, mv_y_test)

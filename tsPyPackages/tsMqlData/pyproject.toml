@@ -2,7 +2,7 @@
 name = "tsMqlData.py"
 version = "1.2.49"
 authors = [
-  { name="Tony Shepherd", email="shep.antony@gmail.com" },
+  { "name": "Tony Shepherd", "email": "shep.antony@gmail.com" },
 ]
 description = "MQL API Data setup for ML"
 readme = "README.md"
