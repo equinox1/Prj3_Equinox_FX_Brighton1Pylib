@@ -275,7 +275,7 @@ print(f"mp_train_input_shape: {mp_train_input_shape}")
 print(f"mp_test_input_shape: {mp_test_input_shape}")
 
 # Default expected input shape
-expected_input_shape = [(mp_train_input_shape)] #* 4
+expected_input_shape = [(mp_train_input_shape)] * 4
 print("Expected Shape full load:", expected_input_shape)
 
 # Ensure expected_input_shape is defined correctly
@@ -283,7 +283,7 @@ print("Expected Shape full load:", expected_input_shape)
 dim1=mp_batch_size
 dim2=mv_X_train_scaled.shape[0]
 dim3=mv_X_train_scaled.shape[1]
-expected_input_shape = (dim1, dim2,dim3) * 4
+expected_input_shape = (dim1, dim2,dim3) #* 4
 print("Expected Shape full load re-design :", expected_input_shape)
 
 if mp_test == True:
@@ -311,9 +311,10 @@ print("Reshaped mv_X_train_scaled shapes:",mv_X_train_scaled_list)
 mt = CMdtuner(mv_X_train_scaled_list,mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size)
 best_model = mt.run_tuner()
 
-
+best_model.hypermodel
+"""
 # Print the summary of the best model
-#best_model.summary()
+best_model.summary()
 
 # Verify the shape of your test data
 print("Original mv_X_test_scaled shape:", mv_X_test_scaled.shape)
@@ -331,7 +332,7 @@ mv_model = best_model.fit(mv_X_train_list, mv_y_train, validation_split=mp_valid
 
 # Predict the model
 # Create a list of exactly 4 identical tensors
-mv_X_test_list = [mv_X_test_scaled] * 4
+mv_X_test_list = [mv_X_test_scaled] #* 4
 
 # Predict the model
 predictions = best_model.predict(mv_X_test_list)
@@ -340,3 +341,4 @@ print("Predictions:", predictions.head(10))
 
 # Model performance
 accuracy, precision, recall, f1 = m1.model_performance(best_model, mv_X_test_list, mv_y_test)
+"""
