@@ -35,13 +35,6 @@ class HybridEnsembleHyperModel(HyperModel):
         
         # LSTM Model
         def create_lstm_model():
-            # Ensure input_shape is a tuple of integers
-            if isinstance(self.input_shape, tuple):
-                # Ensure all elements in the tuple are integers
-                self.input_shape = tuple(int(dim) for dim in self.input_shape)
-            else:
-                raise ValueError(f"input_shape must be a tuple, got {type(self.input_shape)}")
-            
             inputs = Input(shape=self.input_shape)
             units = hp.Int('lstm_units', min_value=32, max_value=128, step=32)
             x = LSTM(units)(inputs)
@@ -53,7 +46,7 @@ class HybridEnsembleHyperModel(HyperModel):
             inputs = Input(shape=self.input_shape)
             filters = hp.Int('cnn_filters', min_value=32, max_value=128, step=32)
             kernel_size = hp.Choice('cnn_kernel_size', values=[3, 5])
-            x = Conv1D(filters=filters, kernel_size=kernel_size, padding='same', activation='relu')(inputs)
+            x = Conv1D(filters=filters, kernel_size=kernel_size, activation='relu')(inputs)
             x = MaxPooling1D(pool_size=2)(x)
             x = Flatten()(x)
             x = Dense(hp.Int('cnn_dense_units', min_value=32, max_value=128, step=32), activation='relu')(x)
@@ -100,49 +93,29 @@ class HybridEnsembleHyperModel(HyperModel):
         
         return model
     
-
 class CMdtuner:
-    def __init__(self, input_shape, X_train, y_train, lp_objective, lp_max_trials, lp_executions_per_trial, lp_directory, lp_project_name, lp_validation_split, lp_epochs, lp_batch_size):
-        self.input_shape = input_shape
-        self.X_train = X_train
-        self.y_train = y_train
-        self.lp_objective = 'val_accuracy' #lp_objective
-        self.lp_max_trials = lp_max_trials
-        self.lp_executions_per_trial = lp_executions_per_trial
-        self.lp_directory = lp_directory
-        self.lp_project_name = lp_project_name
-        self.lp_validation_split = lp_validation_split
-        self.lp_epochs = lp_epochs
-        self.lp_batch_size = lp_batch_size
-        self.hypermodel = HybridEnsembleHyperModel(self.input_shape)  # Make sure to assign this later
-        print("init tuner class Input shape:", self.input_shape)
-        print("init tuner end!")
-    def run_tuner(self):
-        # Ensure lp_objective is correctly formatted
-        if isinstance(self.lp_objective, str):
-            objective = self.lp_objective
-        elif isinstance(self.lp_objective, Objective):
-            objective = self.lp_objective
-        else:
-            raise TypeError(f"Invalid type for lp_objective: expected str or Objective, got {type(self.lp_objective)}")
-
-        # Ensure hypermodel is defined
-        if not hasattr(self, 'hypermodel') or self.hypermodel is None:
-            raise ValueError("hypermodel must be defined before running the tuner.")
-
-        # Convert directory and project_name to strings to avoid the TypeError
-        directory = str(self.lp_directory)
-        project_name = str(self.lp_project_name)
-
-        # Initialize the tuner
+    def __init__(self, input_shape, X_train, y_train,lp_objective, lp_max_trials, lp_executions_per_trial, lp_directory, lp_project_name,lp_validation_split ,lp_epochs ,lp_batch_size):    
+        # Set up the Keras Tuner
+        return self
+    def run_tuner(input_shape, X_train, y_train,lp_objective, lp_max_trials, lp_executions_per_trial, lp_directory, lp_project_name,lp_validation_split ,lp_epochs ,lp_batch_size):
         tuner = RandomSearch(
-            hypermodel=self.hypermodel,  # Ensure hypermodel is passed
-            objective=objective,
-            max_trials=self.lp_max_trials,
-            executions_per_trial=self.lp_executions_per_trial,
-            directory=directory,  # Ensure this is a string
-            project_name=project_name  # Ensure this is a string
+        HybridEnsembleHyperModel(input_shape=input_shape),
+        objective=lp_objective,  # Objective to optimizE
+        max_trials=lp_max_trials,  # Number of hyperparameter sets to try
+        executions_per_trial=lp_executions_per_trial,  # Number of models to build and evaluate for each trial
+        directory=lp_directory,
+        project_name=lp_project_name
         )
-        return tuner
-
+    
+        # Train the tuner
+        tuner.search([X_train, X_train, X_train, X_train], y_train, validation_split=lp_validation_split, epochs=lp_epochs, batch_size=lp_batch_size)
+    
+        # Get the best hyperparameters
+        best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
+    
+        # Print the best hyperparameters
+        print(f"Best hyperparameters: {best_hp.values}")
+    
+        # Return the best model
+        return tuner.get_best_models(num_models=1)[0]
 
