@@ -233,7 +233,7 @@ mp_num_models=1
 # End Params
 
 
-mt=CMdtuner
+
 # Run the tuner
 # Start Params
 mp_objective='val_accuracy'
@@ -284,15 +284,16 @@ print(f"mv_y_train shape: {mv_y_train.shape}")
 print(f"mp_train_input_shape: {mp_train_input_shape}")
 print(f"mp_test_input_shape: {mp_test_input_shape}")
 
+
 # Ensure mp_epochs and mp_batch_size are integers
 print(f"mp_epochs: {mp_epochs}, type: {type(mp_epochs)}")
 print(f"mp_batch_size: {mp_batch_size}, type: {type(mp_batch_size)}")
 
 # Run tuner
-best_model = mt.run_tuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size)
+mt = CMdtuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size)
 
-expected_input_shape = best_model.input_shape
-print("Expected Shape:",expected_input_shape)
+best_model = mt.run_tuner()
+
 
 # Print the summary of the best model
 best_model.summary()
