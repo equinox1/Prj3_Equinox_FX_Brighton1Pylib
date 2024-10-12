@@ -3,7 +3,7 @@ import tensorflow as tf
 tf.compat.v1.reset_default_graph()
 
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
+from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout,Concatenate, concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
 from keras_tuner import HyperModel, RandomSearch
 import numpy as np
 
@@ -30,8 +30,12 @@ class TransformerBlock(tf.keras.layers.Layer):
 
 # Define a HyperModel class for the Keras Tuner
 class HybridEnsembleHyperModel(HyperModel):
-    def __init__(self, input_shape):
+    def __init__(self, input_shape, input_tensor1, input_tensor2, input_tensor3, input_tensor4):
         self.input_shape = input_shape
+        self.input_tensor1 = input_tensor1
+        self.input_tensor2 = input_tensor2
+        self.input_tensor3 = input_tensor3
+        self.input_tensor4 = input_tensor4
         
         if isinstance(self.input_shape, tuple):
             input_shape = self.input_shape
@@ -39,14 +43,14 @@ class HybridEnsembleHyperModel(HyperModel):
             raise ValueError(f"input_shape must be a tuple, got {type(self.input_shape)}")
 
         print("Hybrid init Input shape:",input_shape, "Init input:",self.input_shape)
+        
     def build(self, hp):
-        ### Base Models ###
-        
-        
+        ### Base Models ###       
         # LSTM Model
         def create_lstm_model():
             inputs = Input(shape=self.input_shape)
-            print("lstm Input shape:",inputs, "Init input:",self.input_shape)
+            input_tensor1=Input(shape=self.input_shape)
+            print("lstm inputs:",inputs, "input_tensor1:",input_tensor1)
             units = hp.Int('lstm_units', min_value=32, max_value=128, step=32)
             x = LSTM(units,return_sequences=True)(inputs)
             x = Dense(hp.Int('lstm_dense_units', min_value=32, max_value=128, step=32), activation='relu')(x)
@@ -55,7 +59,8 @@ class HybridEnsembleHyperModel(HyperModel):
         # 1D CNN Model
         def create_cnn_model():
             inputs = Input(shape=self.input_shape)
-            print("cnn Input shape:",inputs, "Init input:",self.input_shape)
+            input_tensor2=Input(shape=self.input_shape)
+            print("cnn Input shape:",inputs, "Init input:",input_tensor2)
             filters = hp.Int('cnn_filters', min_value=32, max_value=128, step=32)
             kernel_size = hp.Choice('cnn_kernel_size', values=[3, 5])
             x = Conv1D(filters=filters, kernel_size=kernel_size, padding='same', activation='relu')(inputs)
@@ -68,7 +73,8 @@ class HybridEnsembleHyperModel(HyperModel):
         # GRU Model
         def create_gru_model():
             inputs = Input(shape=self.input_shape)
-            print("gru Input shape:",inputs, "Init input:",self.input_shape)
+            input_tensor3=Input(shape=self.input_shape)
+            print("gru Input shape:",inputs, "Init input:",input_tensor3)
             units = hp.Int('gru_units', min_value=32, max_value=128, step=32)
             x = GRU(units)(inputs)
             x = Dense(hp.Int('gru_dense_units', min_value=32, max_value=128, step=32), activation='sigmoid')(x)
@@ -77,7 +83,6 @@ class HybridEnsembleHyperModel(HyperModel):
         # Transformer Model
         def create_transformer_model():
             inputs = Input(shape=self.input_shape)
-            print("trans Input shape:",inputs, "Init input:",self.input_shape)
             embed_dim = hp.Int('transformer_embed_dim', min_value=32, max_value=128, step=32)
             num_heads = hp.Int('transformer_num_heads', min_value=2, max_value=8, step=2)
             ff_dim = hp.Int('transformer_ff_dim', min_value=32, max_value=128, step=32)
@@ -104,25 +109,27 @@ class HybridEnsembleHyperModel(HyperModel):
         print("All the same: gru",  gru_output)
         print("All the same: tran", transformer_output)
         
-        output_shape = 100  # Example shape
-        lstm_output = Dense(output_shape)(lstm_output)
-        cnn_output = Dense(output_shape)(cnn_output)
-        gru_output = Dense(output_shape)(gru_output)
-        transformer_output = Dense(output_shape)(transformer_output)       
-        
         # Concatenate the outputs
         combined_output = concatenate([lstm_output, cnn_output, gru_output, transformer_output])
-        
+    
+    
+        # Assuming tensor_inputs is a list of tensors
+        tensor_inputs = [self.input_tensor1, self.input_tensor2, self.input_tensor3, self.input_tensor4]  # Example tensor inputs
+    
+        concatenated = Concatenate()(tensor_inputs)
+
+        # Reshape if needed
+        reshaped = Reshape((6400,))(concatenated)
+
         # Add Dense layers to learn from the combined outputs
-        x = Dense(hp.Int('ensemble_dense_units', min_value=64, max_value=256, step=64), activation='relu')(combined_output)
+        x = Dense(hp.Int('ensemble_dense_units', min_value=64, max_value=256, step=64), activation='relu')(reshaped)
         x = Dropout(hp.Float('dropout_rate', min_value=0.2, max_value=0.5, step=0.1))(x)
-        output = Dense(1, activation='sigmoid')(x)
-        
+        output = Dense(1, activation='sigmoid')(x) 
+
         # Create and compile the model
         model = Model(inputs=[lstm_model.input, cnn_model.input, gru_model.input, transformer_model.input], outputs=output)
         model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=hp.Float('learning_rate', min_value=1e-4, max_value=1e-2, sampling='LOG')),
-                      loss='binary_crossentropy', metrics=['accuracy'])
-        
+                loss='binary_crossentropy', metrics=['accuracy'])        
         return model
     
 class CMdtuner:
@@ -132,7 +139,7 @@ class CMdtuner:
     def run_tuner(input_shape, X_train, y_train,lp_objective, lp_max_trials, lp_executions_per_trial, lp_directory, lp_project_name,lp_validation_split ,lp_epochs ,lp_batch_size):
         tuner = RandomSearch(
         HybridEnsembleHyperModel(input_shape=input_shape),
-        objective=lp_objective,  # Objective to optimizE
+        objective=lp_objective,  # Objective to optimize
         max_trials=lp_max_trials,  # Number of hyperparameter sets to try
         executions_per_trial=lp_executions_per_trial,  # Number of models to build and evaluate for each trial
         directory=lp_directory,

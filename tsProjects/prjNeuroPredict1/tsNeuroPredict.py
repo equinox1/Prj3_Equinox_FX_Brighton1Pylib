@@ -12,7 +12,7 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 # test mode to pass through litnus test data
-mp_test=False
+mp_test=True
 
 """ 
 The model is initialized as a sequential model, meaning it's a linear stack of layers.
@@ -239,7 +239,7 @@ mt=CMdtuner
 mp_objective='val_accuracy'
 mp_max_trials=10  # Number of hyperparameter sets to try
 mp_executions_per_trial=1  # Number of models to build and evaluate for each trial
-mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\Mql5Data\PythonLib\tsModelData"
+mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
 
 mp_directory=mp_modeldatapath + '\\' + 'tshybrid_ensemble_tuning_prod'
 mp_project_name=mp_modeldatapath + '\\' + 'tshybrid_ensemble_model_prod'
@@ -249,6 +249,8 @@ if mp_test == True:
 
 print("mp_directory",mp_directory)     
 print("mp_project_name",mp_project_name)
+
+
 # End Params
 
 
