@@ -1,4 +1,7 @@
 import tensorflow as tf
+# Ensure compatibility with TensorFlow v1 functions
+tf.compat.v1.reset_default_graph()
+
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
 from keras_tuner import HyperModel, RandomSearch
@@ -29,40 +32,52 @@ class TransformerBlock(tf.keras.layers.Layer):
 class HybridEnsembleHyperModel(HyperModel):
     def __init__(self, input_shape):
         self.input_shape = input_shape
-    
+        
+        if isinstance(self.input_shape, tuple):
+            input_shape = self.input_shape
+        else:
+            raise ValueError(f"input_shape must be a tuple, got {type(self.input_shape)}")
+
+        print("Hybrid init Input shape:",input_shape, "Init input:",self.input_shape)
     def build(self, hp):
         ### Base Models ###
+        
         
         # LSTM Model
         def create_lstm_model():
             inputs = Input(shape=self.input_shape)
+            print("lstm Input shape:",inputs, "Init input:",self.input_shape)
             units = hp.Int('lstm_units', min_value=32, max_value=128, step=32)
-            x = LSTM(units)(inputs)
+            x = LSTM(units,return_sequences=True)(inputs)
             x = Dense(hp.Int('lstm_dense_units', min_value=32, max_value=128, step=32), activation='relu')(x)
-            return Model(inputs, x)
-        
+            return Model(inputs, x)    
+         
         # 1D CNN Model
         def create_cnn_model():
             inputs = Input(shape=self.input_shape)
+            print("cnn Input shape:",inputs, "Init input:",self.input_shape)
             filters = hp.Int('cnn_filters', min_value=32, max_value=128, step=32)
             kernel_size = hp.Choice('cnn_kernel_size', values=[3, 5])
-            x = Conv1D(filters=filters, kernel_size=kernel_size, activation='relu')(inputs)
-            x = MaxPooling1D(pool_size=2)(x)
+            x = Conv1D(filters=filters, kernel_size=kernel_size, padding='same', activation='relu')(inputs)
+            x = MaxPooling1D(pool_size=2, strides=1, padding='same')(x)
             x = Flatten()(x)
-            x = Dense(hp.Int('cnn_dense_units', min_value=32, max_value=128, step=32), activation='relu')(x)
+            x = Dense(hp.Int('cnn_dense_units', min_value=32, max_value=128, step=32), activation='sigmoid')(x)
             return Model(inputs, x)
+        
         
         # GRU Model
         def create_gru_model():
             inputs = Input(shape=self.input_shape)
+            print("gru Input shape:",inputs, "Init input:",self.input_shape)
             units = hp.Int('gru_units', min_value=32, max_value=128, step=32)
             x = GRU(units)(inputs)
-            x = Dense(hp.Int('gru_dense_units', min_value=32, max_value=128, step=32), activation='relu')(x)
+            x = Dense(hp.Int('gru_dense_units', min_value=32, max_value=128, step=32), activation='sigmoid')(x)
             return Model(inputs, x)
         
         # Transformer Model
         def create_transformer_model():
             inputs = Input(shape=self.input_shape)
+            print("trans Input shape:",inputs, "Init input:",self.input_shape)
             embed_dim = hp.Int('transformer_embed_dim', min_value=32, max_value=128, step=32)
             num_heads = hp.Int('transformer_num_heads', min_value=2, max_value=8, step=2)
             ff_dim = hp.Int('transformer_ff_dim', min_value=32, max_value=128, step=32)
@@ -78,8 +93,25 @@ class HybridEnsembleHyperModel(HyperModel):
         gru_model = create_gru_model()
         transformer_model = create_transformer_model()
         
-        # Concatenate the outputs from each base model
-        combined_output = concatenate([lstm_model.output, cnn_model.output, gru_model.output, transformer_model.output])
+        # Adjust the output shapes
+        lstm_output = Flatten()(lstm_model.output)
+        cnn_output = Flatten()(cnn_model.output)
+        gru_output = Flatten()(gru_model.output)
+        transformer_output = Flatten()(transformer_model.output)
+        
+        print("All the same: lstm", lstm_output)
+        print("All the same: cnn",  cnn_output)
+        print("All the same: gru",  gru_output)
+        print("All the same: tran", transformer_output)
+        
+        output_shape = 100  # Example shape
+        lstm_output = Dense(output_shape)(lstm_output)
+        cnn_output = Dense(output_shape)(cnn_output)
+        gru_output = Dense(output_shape)(gru_output)
+        transformer_output = Dense(output_shape)(transformer_output)       
+        
+        # Concatenate the outputs
+        combined_output = concatenate([lstm_output, cnn_output, gru_output, transformer_output])
         
         # Add Dense layers to learn from the combined outputs
         x = Dense(hp.Int('ensemble_dense_units', min_value=64, max_value=256, step=64), activation='relu')(combined_output)
