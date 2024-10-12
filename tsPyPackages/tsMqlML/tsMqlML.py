@@ -131,7 +131,7 @@ class CMqlmlsetup:
 # \pdlsplit data
 
 #--------------------------------------------------------------------
-    def dl_split_data_sets(df,test_size=0.2, shuffle = False):
+    def dl_split_data_sets(self,df, test_size=0.2, shuffle = False, prog = 1):
         # sourcery skip: instance-method-first-arg-name
         
         X = df['close']
@@ -142,8 +142,14 @@ class CMqlmlsetup:
         y_train=[]
         y_test=[]
         X_train,y_train,X_test,y_test =  train_test_split(X, y, test_size=test_size, shuffle=shuffle)
-        return pd.DataFrame(X_train), pd.DataFrame(y_train), pd.DataFrame(X_test), pd.DataFrame(y_test)
-  
+        if prog == 1:
+            return X_train
+        if prog == 2:
+            return y_train
+        if prog == 3:
+            return X_test
+        if prog == 4:
+            return y_test
 
 #--------------------------------------------------------------------
 # create method  "dl_train_model_scaled".
@@ -151,11 +157,11 @@ class CMqlmlsetup:
 # usage: mql data
 # \param  var
 #--------------------------------------------------------------------
-    def dl_train_model_scaled(df):
+    def dl_train_model_scaled(lpdf):
         # sourcery skip: instance-method-first-arg-name
         # meta names
         scaler = StandardScaler()
-        return pd.DataFrame(scaler.fit_transform(df))
+        return scaler.fit_transform(lpdf)
 
 #--------------------------------------------------------------------
 # create method  "dl_test_model_scaled".
@@ -163,10 +169,10 @@ class CMqlmlsetup:
 # usage: mql data
 # \param  var
 #----------test----------------------------------------------------
-    def dl_test_model_scaled(df):
+    def dl_test_model_scaled(lpdf):
         # sourcery skip: instance-method-first-arg-name
         scaler = StandardScaler()
-        return pd.DataFrame(scaler.fit_transform(df))
+        return scaler.fit_transform(lpdf)
 
 
 #--------------------------------------------------------------------
