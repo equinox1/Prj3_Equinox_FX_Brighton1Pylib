@@ -53,6 +53,9 @@ from tsMqlMLTune import CMdtuner
 #======================================================
 import tensorflow as tf
 import keras_tuner as kt
+
+# Ensure compatibility with TensorFlow v1 functions
+tf.compat.v1.reset_default_graph()
 # ======================================================
 # import local packages
 # ======================================================
