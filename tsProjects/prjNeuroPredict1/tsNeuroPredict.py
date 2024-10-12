@@ -29,6 +29,7 @@ Adjust the parameters and layers based on your specific task and dataset charact
 
 import sys
 import datetime
+import time
 from datetime import datetime
 import pytz
 import keyring as kr
@@ -103,7 +104,7 @@ mp_month = 1
 mp_day = 1
 mp_timezone = 'etc/UTC'
 mp_rows = 1000
-mp_rowcount = 100
+mp_rowcount = 1000
 mp_command = mt5.COPY_TICKS_ALL
 mp_dfName = "df_rates"
 mv_manual = True
@@ -172,7 +173,7 @@ print("DataChk2:",mv_X_train_scaled.head(10))
 # +-------------------------------------------------------------------
 # Pre-tune a neural network model
 # +-------------------------------------------------------------------
-mt = CMdtuner
+
 # start Params
 
 
@@ -223,94 +224,110 @@ mp_num_models=1
 # End Params
 
 
-mt=CMdtuner
+
 # Run the tuner
 # Start Params
 mp_objective='val_accuracy'
 mp_max_trials=10  # Number of hyperparameter sets to try
 mp_executions_per_trial=1  # Number of models to build and evaluate for each trial
 mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
-mp_directory=mp_modeldatapath + '\\' + 'tshybrid_ensemble_tuning'
-mp_project_name=mp_modeldatapath + '\\' + 'tshybrid_ensemble_model'
+mp_directory=mp_modeldatapath + '\\' + 'tshybrid_ensemble_tuning_prod'
+mp_project_name=mp_modeldatapath + '\\' + 'tshybrid_ensemble_model_prod'
+if mp_test == True:
+        mp_directory=mp_modeldatapath + '\\' + 'tshybrid_ensemble_tuning_test'
+        mp_project_name=mp_modeldatapath + '\\' + 'tshybrid_ensemble_model_test' 
+
 print("mp_directory",mp_directory)     
 print("mp_project_name",mp_project_name)
 # End Params
 
-
  # Truncate 'x' to match 'y'
 mv_X_train_scaled = mv_X_train_scaled[:len(mv_y_train)] 
 mv_X_test_scaled = mv_X_test_scaled[:len(mv_y_test)] 
-
-mp_train_input_shape =shape=(mv_X_train_scaled.shape)
-mp_test_input_shape = shape=(mv_X_test_scaled.shape)
-print(f"mp_train_input_shape: {mp_train_input_shape}")
-print(f"mp_test_input_shape: {mp_test_input_shape}")
 
 ############################################
 # Start Test Load Data
 ############################################
 
 if mp_test == True:
-    mv_X_train_scaled=np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
-    mv_X_test_scaled=np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
+    mv_X_train_scaled = np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
+    mv_X_test_scaled = np.random.rand(1000, 100, 1)  # 1000 samples, 100 time steps, 1 feature
 
     mv_y_train = np.random.randint(2, size=(1000,))  # Binary target
-    mv_y_test = np.random.randint(2, size=(1000,))  # Binary target
+    mv_y_test = np.random.randint(2, size=(1000,)) # Binary target
     
     mp_train_input_shape = shape=(100, 1)
     mp_test_input_shape =  shape=(100, 1)
+
+
 ############################################
 #End Test Load Data
 ############################################
-
-# Print input shapes
-print(f"mv_X_train_scaled shape: {mv_X_train_scaled.shape}")
-print(f"mv_y_train shape: {mv_y_train.shape}")
-print(f"mp_train_input_shape: {mp_train_input_shape}")
-print(f"mp_test_input_shape: {mp_test_input_shape}")
 
 # Ensure mp_epochs and mp_batch_size are integers
 print(f"mp_epochs: {mp_epochs}, type: {type(mp_epochs)}")
 print(f"mp_batch_size: {mp_batch_size}, type: {type(mp_batch_size)}")
 
-# Run tuner
-best_model = mt.run_tuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size)
+# show the shape of the incoming data
+mp_train_input_shape = mv_X_train_scaled.shape
+mp_test_input_shape = mv_X_test_scaled.shape
+print(f"mp_train_input_shape: {mp_train_input_shape}")
+print(f"mp_test_input_shape: {mp_test_input_shape}")
 
-# Print the summary of the best model
-best_model.summary()
-
-# Check the expected input shape
-expected_input_shape = [(mp_train_input_shape), (mp_train_input_shape), (mp_train_input_shape), (mp_train_input_shape)]
+# Default expected input shape
+expected_input_shape = [(mp_train_input_shape)] #* 4
 print("Expected Shape full load:", expected_input_shape)
 
+# Ensure expected_input_shape is defined correctly
+# Example: expected_input_shape = 3 dimensions (batch_size, height, width)
+dim1=mp_batch_size
+dim2=mv_X_train_scaled.shape[0]
+dim3=mv_X_train_scaled.shape[1]
+expected_input_shape = (dim1, dim2,dim3) * 4
+print("Expected Shape full load re-design :", expected_input_shape)
 
 if mp_test == True:
-        # Check the expected input shape
-        expected_input_shape = [(None, 100, 1), (None, 100, 1), (None, 100, 1), (None, 100, 1)]
-        print("Expected Shape Test mode:", expected_input_shape)
+    # Test mode shape expectation
+    expected_input_shape = (100, 1) #* 4
+    print("Expected Shape Test mode:", expected_input_shape)
 
-# Verify the shape of your training data
+# Print original shape
 print("Original mv_X_train_scaled shape:", mv_X_train_scaled.shape)
 
+# Check if expected_input_shape has the correct dimensions
+#if len(expected_input_shape[0]) != 3:
+#    raise ValueError("expected_input_shape should have 3 dimensions (batch_size, timesteps, features")
+
 # Reshape the training data to match the expected input shape
-mv_X_train_scaled_list = [np.reshape(mv_X_train_scaled, (-1, shape[1], shape[2])) for shape in expected_input_shape]
-print("Reshaped mv_X_train_scaled shapes:", [x.shape for x in mv_X_train_scaled_list])
+#mv_X_train_scaled_list = [np.reshape(mv_X_train_scaled, (-1, shape[1], shape[2])) for shape in expected_input_shape]
+#print("Reshaped mv_X_train_scaled shapes:", [x.shape for x in mv_X_train_scaled_list])
+
+mv_X_train_scaled_list=expected_input_shape
+mv_X_test_scaled_list=expected_input_shape
+
+print("Reshaped mv_X_train_scaled shapes:",mv_X_train_scaled_list)
+# Create a tuner object
+#mv_X_train_scaled_list=(1000,100,1)
+mt = CMdtuner(mv_X_train_scaled_list,mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size)
+best_model = mt.run_tuner()
+
+
+# Print the summary of the best model
+#best_model.summary()
 
 # Verify the shape of your test data
 print("Original mv_X_test_scaled shape:", mv_X_test_scaled.shape)
 
 # Reshape the test data to match the expected input shape
-mv_X_test_scaled_list = [np.reshape(mv_X_test_scaled, (-1, shape[1], shape[2])) for shape in expected_input_shape]
-print("Reshaped mv_X_test_scaled shapes:", [x.shape for x in mv_X_test_scaled_list])
+#mv_X_test_scaled_list = [np.reshape(mv_X_test_scaled, (-1, shape[1], shape[2])) for shape in expected_input_shape]
+#print("Reshaped mv_X_test_scaled shapes:", [x.shape for x in mv_X_test_scaled_list])
 
 # Create a list of exactly 4 identical tensors
-mv_X_train_list = [mv_X_train_scaled] * 4
+mv_X_train_list = [mv_X_train_scaled] #* 4
+
 
 # Correct the call to best_model.fit
 mv_model = best_model.fit(mv_X_train_list, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
-
-# Create a list of exactly 4 identical tensors
-mv_X_test_list = [mv_X_test_scaled] * 4
 
 # Predict the model
 # Create a list of exactly 4 identical tensors
