@@ -106,6 +106,8 @@ class CMdtuner:
         directory=lp_directory,
         project_name=lp_project_name
         )
+        print("init tuner class Input shape:", input_shape)
+        print("init tuner end!")
     
         # Train the tuner
         tuner.search([X_train, X_train, X_train, X_train], y_train, validation_split=lp_validation_split, epochs=lp_epochs, batch_size=lp_batch_size)

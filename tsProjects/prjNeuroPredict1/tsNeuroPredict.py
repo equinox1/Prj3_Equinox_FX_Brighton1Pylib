@@ -12,7 +12,7 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 # test mode to pass through litnus test data
-mp_test=True
+mp_test=False
 
 """ 
 The model is initialized as a sequential model, meaning it's a linear stack of layers.
@@ -101,7 +101,7 @@ mp_month = 1
 mp_day = 1
 mp_timezone = 'etc/UTC'
 mp_rows = 1000
-mp_rowcount = 100
+mp_rowcount = 560
 mp_command = mt5.COPY_TICKS_ALL
 mp_dfName = "df_rates"
 mv_manual = True
@@ -172,11 +172,14 @@ mv_y_test = pd.DataFrame(m1.dl_split_data_sets(mv_ticks3,mv_ticks3, mp_test_size
 mv_X_train_scaled = m1.dl_train_model_scaled(mv_X_train)
 mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
 
+# Print shapes after scaling
+print("mv_X_train_scaled shape:", mv_X_train_scaled.shape)
+print("mv_X_test_scaled shape:", mv_X_test_scaled.shape)
+
 
 # +-------------------------------------------------------------------
 # Pre-tune a neural network model
 # +-------------------------------------------------------------------
-mt = CMdtuner
 # start Params
 
 
@@ -234,8 +237,13 @@ mp_objective='val_accuracy'
 mp_max_trials=10  # Number of hyperparameter sets to try
 mp_executions_per_trial=1  # Number of models to build and evaluate for each trial
 mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\Mql5Data\PythonLib\tsModelData"
-mp_directory=mp_modeldatapath + '\\' + 'tshybrid_ensemble_tuning'
-mp_project_name=mp_modeldatapath + '\\' + 'tshybrid_ensemble_model'
+
+mp_directory=mp_modeldatapath + '\\' + 'tshybrid_ensemble_tuning_prod'
+mp_project_name=mp_modeldatapath + '\\' + 'tshybrid_ensemble_model_prod'
+if mp_test == True:
+        mp_directory=mp_modeldatapath + '\\' + 'tshybrid_ensemble_tuning_test'
+        mp_project_name=mp_modeldatapath + '\\' + 'tshybrid_ensemble_model_test' 
+
 print("mp_directory",mp_directory)     
 print("mp_project_name",mp_project_name)
 # End Params
@@ -289,6 +297,7 @@ mv_X_train_list = [mv_X_train_scaled] * 4
 # Correct the call to best_model.fit
 mv_model = best_model.fit(mv_X_train_list, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
 
+
 # Ensure test data is in the correct shape
 mv_X_test_scaled = mv_X_test_scaled.reshape((-1, 100, 1))  # Reshape to match (100, 1)
 
@@ -296,9 +305,9 @@ mv_X_test_scaled = mv_X_test_scaled.reshape((-1, 100, 1))  # Reshape to match (1
 mv_X_test_list = [mv_X_test_scaled] * 4
 
 # Predict the model
-predictions = best_model.predict(mv_X_test_list)
+predictions = pd.DataFrame(best_model.predict(mv_X_test_list))
 
-print("Predictions:", predictions)
+print("Predictions:", predictions.head(5))
 
 # Model performance
 accuracy, precision, recall, f1 = m1.model_performance(best_model, mv_X_test_list, mv_y_test)
