@@ -38,7 +38,7 @@ class HybridEnsembleHyperModel(HyperModel):
         self.input_tensor4 = input_tensor4
         
         if not isinstance(self.input_shape, tuple):
-            raise ValueError(f"input_shape must be a tuple, got {type(self.input_shape)}")
+            raise ValueError(f"tsmql: input_shape must be a tuple, got {type(self.input_shape)}")
 
         print("Hybrid init Input shape:", input_shape, "Init input:", self.input_shape)
         
@@ -49,6 +49,7 @@ class HybridEnsembleHyperModel(HyperModel):
             inputs = Input(shape=self.input_shape)
             units = hp.Int('lstm_units', min_value=32, max_value=128, step=32)
             x = LSTM(units, return_sequences=True)(inputs)
+            x = Flatten()(x)
             x = Dense(hp.Int('lstm_dense_units', min_value=32, max_value=128, step=32), activation='relu')(x)
             return Model(inputs, x)  
         
@@ -68,6 +69,7 @@ class HybridEnsembleHyperModel(HyperModel):
             inputs = Input(shape=self.input_shape)
             units = hp.Int('gru_units', min_value=32, max_value=128, step=32)
             x = GRU(units)(inputs)
+            x = Flatten()(x)
             x = Dense(hp.Int('gru_dense_units', min_value=32, max_value=128, step=32), activation='sigmoid')(x)
             return Model(inputs, x)
                
@@ -79,6 +81,7 @@ class HybridEnsembleHyperModel(HyperModel):
             ff_dim = hp.Int('transformer_ff_dim', min_value=32, max_value=128, step=32)
             x = TransformerBlock(embed_dim=embed_dim, num_heads=num_heads, ff_dim=ff_dim)(inputs, training=True)
             x = GlobalAveragePooling1D()(x)
+            x = Flatten()(x)
             x = Dense(hp.Int('transformer_dense_units', min_value=32, max_value=128, step=32), activation='relu')(x)
             return Model(inputs, x)
         
@@ -90,10 +93,10 @@ class HybridEnsembleHyperModel(HyperModel):
         transformer_model = create_transformer_model(hp)
         
         # Adjust the output shapes
-        lstm_output = Flatten()(lstm_model.output)
-        cnn_output = Flatten()(cnn_model.output)
-        gru_output = Flatten()(gru_model.output)
-        transformer_output = Flatten()(transformer_model.output)
+        lstm_output = lstm_model.output
+        cnn_output = cnn_model.output
+        gru_output = gru_model.output
+        transformer_output = transformer_model.output
         
         print("All the same: lstm", lstm_output)
         print("All the same: cnn",  cnn_output)
@@ -101,37 +104,35 @@ class HybridEnsembleHyperModel(HyperModel):
         print("All the same: tran", transformer_output)
         
         # Concatenate the outputs
-        combined_output = Concatenate([lstm_output, cnn_output, gru_output, transformer_output])
-    
-        # Assuming tensor_inputs is a list of tensors
         tensor_inputs = [lstm_output, cnn_output, gru_output, transformer_output]
 
-        # Ensure all elements in tensor_inputs are tensors
-        #tensor_inputs = [tensor for tensor in tensor_inputs if isinstance(tensor, tf.Tensor)]
-        
         # Debug prints to check the shapes and types of tensors
         for i, tensor in enumerate(tensor_inputs):
             if tensor is None:
                print(f"tensor_inputs[{i}] is None")
-        else:
+            else:
                print(f"tensor_inputs[{i}] shape: {tensor.shape}, type: {type(tensor)}")
 
         # Ensure all tensors are properly defined before concatenation
         if all(tensor is not None for tensor in tensor_inputs):
-            concatenated = Concatenate()(tensor_inputs)
+            combined_output = Concatenate()(tensor_inputs)
         else:
-            raise ValueError("One or more tensors in tensor_inputs are None")
+            raise ValueError("tsmql: One or more tensors in tensor_inputs are None")
         
+        # Concatenate tensors along the correct axis
+        try:
+           combined_output = Concatenate(axis=-1)(tensor_inputs)
+           print(f"combined_output shape: {combined_output.shape}")
+        except Exception as e:
+            print(f"Error during concatenation: {e}")
+
+        # Ensure the combined output shape matches the expected input shape for the dense layer
+        expected_shape = 13024  # Adjusted expected shape
+        if combined_output.shape[-1] != expected_shape:
+            print(f"Warning: combined_output shape {combined_output.shape[-1]} does not match expected shape {expected_shape}")    
         
-        # Concatenate the tensor inputs
-        concatenated = Concatenate()(tensor_inputs)
-  
-
-        # Reshape if needed
-        reshaped = Reshape((np.prod(concatenated.shape[1:]),))(concatenated)
-
         # Add Dense layers to learn from the combined outputs
-        x = Dense(hp.Int('ensemble_dense_units', min_value=64, max_value=256, step=64), activation='relu')(reshaped)
+        x = Dense(hp.Int('ensemble_dense_units', min_value=64, max_value=256, step=64), activation='relu')(combined_output)
         x = Dropout(hp.Float('dropout_rate', min_value=0.2, max_value=0.5, step=0.1))(x)
         output = Dense(1, activation='sigmoid')(x) 
 
@@ -142,7 +143,7 @@ class HybridEnsembleHyperModel(HyperModel):
         return model
     
 class CMdtuner:
-    def __init__(self, input_shape, X_train, y_train, lp_objective, lp_max_trials, lp_executions_per_trial, lp_directory, lp_project_name, lp_validation_split, lp_epochs, lp_batch_size):    
+    def __init__(self, input_shape, X_train, y_train, lp_objective, lp_max_trials, lp_executions_per_trial, lp_directory, lp_project_name, lp_validation_split, lp_epochs, lp_batch_size,lp_arraysize):    
         self.input_shape = input_shape
         self.X_train = X_train
         self.y_train = y_train
@@ -154,10 +155,9 @@ class CMdtuner:
         self.lp_validation_split = lp_validation_split
         self.lp_epochs = lp_epochs
         self.lp_batch_size = lp_batch_size
-
+        self.lp_arraysize = lp_arraysize
     def run_tuner(self):
         tuner = RandomSearch(
-           # HybridEnsembleHyperModel(input_shape=self.input_shape, input_tensor1=self.X_train, input_tensor2=self.X_train, input_tensor3=self.X_train, input_tensor4=self.X_train),
             HybridEnsembleHyperModel(input_shape=self.input_shape, input_tensor1=self.input_shape, input_tensor2=self.input_shape, input_tensor3=self.input_shape, input_tensor4=self.input_shape), 
             objective=self.lp_objective,  # Objective to optimize
             max_trials=self.lp_max_trials,  # Number of hyperparameter sets to try
@@ -167,13 +167,35 @@ class CMdtuner:
         )
         print("init tuner class Input shape:", self.input_shape)
         print("init tuner end!")
-    
+        
+        # Print current shape of X_train
+        print("Current shape of X_train:", self.X_train.shape)
+        
+        # Calculate new shape
+        # Original array with 7988 elements
+        data = np.arange(self.lp_arraysize)
+
+        # Reshaping to (100, 1) — a valid shape
+        new_shape = np.reshape(data, (self.lp_arraysize, 1))
+
+        total_elements = self.X_train.size
+        required_elements = self.X_train.shape[0] * self.lp_arraysize * 1
+        
+        # Ensure the array can be reshaped
+        print("New Shape params:", new_shape, "self.X_train.shape[0]", self.X_train.shape[0], "total_elements:", total_elements)
+        if total_elements != required_elements:
+            raise ValueError(f"tsmql:Cannot reshape array of size {total_elements} into shape {new_shape}")
+
+        # Reshape the input data
+        self.X_train = self.X_train.reshape(new_shape)
+        print("New shape of X_train:", self.X_train.shape)
+        
+        
         # Train the tuner
         tuner.search([self.X_train, self.X_train, self.X_train, self.X_train], self.y_train, validation_split=self.lp_validation_split, epochs=self.lp_epochs, batch_size=self.lp_batch_size)
-    
+
         # Get the best hyperparameters
         best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
-    
         # Print the best hyperparameters
         print(f"Best hyperparameters: {best_hp.values}")
     

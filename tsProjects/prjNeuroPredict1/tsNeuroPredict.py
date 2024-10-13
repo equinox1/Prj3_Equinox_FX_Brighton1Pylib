@@ -12,7 +12,7 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 # test mode to pass through litnus test data
-mp_test=True
+mp_test=False
 
 """ 
 The model is initialized as a sequential model, meaning it's a linear stack of layers.
@@ -103,8 +103,9 @@ mp_year = 2024
 mp_month = 1
 mp_day = 1
 mp_timezone = 'etc/UTC'
-mp_rows = 1000
-mp_rowcount = 560
+mp_rows = 1000000
+mp_rowcount = 560 #560 = 100
+
 mp_command = mt5.COPY_TICKS_ALL
 mp_dfName = "df_rates"
 mv_manual = True
@@ -227,11 +228,11 @@ mp_jstep=0.1
 
 mp_validation_split=0.2
 mp_epochs=1
-mp_batch_size=16
+mp_batch_size=100
 mp_num_trials=1
 mp_num_models=1
+mp_arraysize = 560 #560 = 100 set the size for the dense tensor array
 # End Params
-
 
 
 # Run the tuner
@@ -290,11 +291,11 @@ print(f"mp_epochs: {mp_epochs}, type: {type(mp_epochs)}")
 print(f"mp_batch_size: {mp_batch_size}, type: {type(mp_batch_size)}")
 
 # Run tuner
-mt = CMdtuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size)
+mt = CMdtuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size,mp_arraysize)
 
 best_model = mt.run_tuner()
 
-
+"""
 # Print the summary of the best model
 best_model.summary()
 
@@ -317,3 +318,4 @@ print("Predictions:", predictions.head(5))
 
 # Model performance
 accuracy, precision, recall, f1 = m1.model_performance(best_model, mv_X_test_list, mv_y_test)
+"""
