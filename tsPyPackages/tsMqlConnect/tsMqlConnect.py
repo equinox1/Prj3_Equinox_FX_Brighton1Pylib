@@ -40,7 +40,6 @@ Use whitespace around operators, but don’t use too much.
 Use whitespace to align code, but don’t use too much.
 """
 
-
 #+-------------------------------------------------------------------
 # classes for mql
 #+-------------------------------------------------------------------
@@ -54,76 +53,22 @@ from MetaTrader5 import *
 # \param  double svar;              -  value
 #-------------------------------------------------------------------- 
 class CMqlinit:
-    def __init__(self,path,login,password,server,timeout,portable):
-        self._path  =  path
-        self._login = login
-        self._password = password
-        self._server = server
-        self._timeout = timeout
-        self._portable = portable
-    
-    #Setter and Getter path  
-    @property
-    def path(self):
-        return self.path
+    def __init__(self, lppath, lplogin, lppassword, lpserver, lptimeout, lpportable):
+        self._lppath = lppath
+        self._lplogin = lplogin
+        self._lppassword = lppassword
+        self._lpserver = lpserver
+        self._lptimeout = lptimeout
+        self._lpportable = lpportable
 
-    @path.setter
-    def path(self, value):
-        self._path = value.encode("utf-8")
-        
-    #Setter and Getter login  
-    @property
-    def login(self):
-        return self.login
-    
-    @login.setter
-    def login(self, value):
-        self._login = value
-        
-    #Setter and Getter password
-    @property
-    def password(self):
-        return self.password
-    
-    @password.setter
-    def password(self, value):
-        self._password = value
-        
-    #Setter and Getter server
-    @property
-    def server(self):
-        return self.server
-    
-    @server.setter
-    def server(self,value):
-        self._server = value
-        
-    #Setter and Getter timeout
-    @property
-    def timeout(self):
-        return self.timeout
-    
-    @timeout.setter
-    def timeout(self,value):
-        self._timeout = value 
-        
-    #Setter and Getter portable
-    @property
-    def portable(self):
-        return self.portable
-    
-    @portable.setter
-    def portable(self,value):
-        self._portable = value         
-        
 #--------------------------------------------------------------------
 # create method  "run_mql_login()".
 # class: cmqlinit      
 # usage: login
 # \param cmqlinit    var                          
 #--------------------------------------------------------------------
-    def run_mql_login(lppath,lplogin,lppassword,lpserver,lptimeout,lpportable):
-        if mt5.initialize(path=lppath,login=lplogin,password=lppassword,server=lpserver,timeout=lptimeout,portable=lpportable):
+    def run_mql_login(self):
+        if mt5.initialize(path=self._lppath, login=self._lplogin, password=self._lppassword, server=self._lpserver, timeout=self._lptimeout, portable=self._lpportable):
             print("Platform mt5 launched correctly")
             return mt5.last_error()
         else:
