@@ -3,7 +3,24 @@ import tensorflow as tf
 tf.compat.v1.reset_default_graph()
 
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, Concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D, Reshape
+import tensorflow as tf
+# Ensure compatibility with TensorFlow v1 functions
+tf.compat.v1.reset_default_graph()
+
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, Concatenate, LayerNormalization, GlobalAveragePooling1D, Reshape, MultiHeadAttention
+from keras_tuner import HyperModel, RandomSearch
+import numpy as np
+
+
+# Transformer Block definition (used later in the transformer model)
+class TransformerBlock(tf.keras.layers.Layer):
+    def __init__(self, embed_dim, num_heads, ff_dim):
+        super(TransformerBlock, self).__init__()
+        self.att = MultiHeadAttention(num_heads=num_heads, key_dim=embed_dim)
+        self.ffn = tf.keras.Sequential(
+            [Dense(ff_dim, activation="relu"), Dense(embed_dim)]
+        )
 from keras_tuner import HyperModel, RandomSearch
 import numpy as np
 
@@ -26,7 +43,8 @@ class TransformerBlock(tf.keras.layers.Layer):
         out1 = self.layernorm1(inputs + attn_output)
         ffn_output = self.ffn(out1)
         ffn_output = self.dropout2(ffn_output, training=training)
-        return self.layernorm2(out1 + ffn_output)
+        out2 = self.layernorm2(out1 + ffn_output)
+        return out2
 
 # Define a HyperModel class for the Keras Tuner
 class HybridEnsembleHyperModel(HyperModel):
@@ -172,14 +190,9 @@ class CMdtuner:
         print("Current shape of X_train:", self.X_train.shape)
         
         # Calculate new shape
-        # Original array with 7988 elements
-        data = np.arange(self.lp_arraysize)
-
-        # Reshaping to (100, 1) — a valid shape
-        new_shape = np.reshape(data, (self.lp_arraysize, 1))
-
+        new_shape = (self.X_train.shape[0], self.lp_arraysize, 1)
         total_elements = self.X_train.size
-        required_elements = self.X_train.shape[0] * self.lp_arraysize * 1
+        required_elements = np.prod(new_shape)
         
         # Ensure the array can be reshaped
         print("New Shape params:", new_shape, "self.X_train.shape[0]", self.X_train.shape[0], "total_elements:", total_elements)
@@ -189,7 +202,6 @@ class CMdtuner:
         # Reshape the input data
         self.X_train = self.X_train.reshape(new_shape)
         print("New shape of X_train:", self.X_train.shape)
-        
         
         # Train the tuner
         tuner.search([self.X_train, self.X_train, self.X_train, self.X_train], self.y_train, validation_split=self.lp_validation_split, epochs=self.lp_epochs, batch_size=self.lp_batch_size)
