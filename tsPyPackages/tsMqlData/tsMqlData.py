@@ -67,16 +67,8 @@ import pytz
 # \param  double svar;              -  value
 #-------------------------------------------------------------------- 
 class CMqldatasetup:
-    def __init__(self, lp_target, lp_dfinit, lp_dfnew, lp_dfmql, lp_future=10, lp_seconds=60, lp_step=1, lp_train=0.7, lp_random_state=42):
-        self._lp_dfinit = lp_dfinit
-        self._lp_dfnew = lp_dfnew
-        self._lp_target = lp_target
-        self._lp_future = lp_future
-        self._lp_seconds = lp_seconds
-        self._lp_dfmql = lp_dfmql
-        self._lp_step = lp_step
-        self._lp_train = lp_train
-        self._lp_random_state = lp_random_state
+    def __init__(self):
+        pass
 
     # create method  "setmql_timezone()".
     # class: cmqldatasetup      
