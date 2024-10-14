@@ -39,7 +39,7 @@ from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense,
 # Class CMqlmlsetup
 #+--------------------------------------------------
 class CMqlmlsetup:
-    def __init__(self, df, X=None, y=None, X_train=None, X_train_scaled=None, X_test=None, X_test_scaled=None, y_train=None, y_test=None):
+    def __init__(self, X=None, y=None, X_train=None, X_train_scaled=None, X_test=None, X_test_scaled=None, y_train=None, y_test=None):
         if X is None:
             X = []
         if y is None:
@@ -56,7 +56,6 @@ class CMqlmlsetup:
             y_train = []
         if y_test is None:
             y_test = []
-        self._df = df
         self.X = X
         self.y = y
         self.X_train = X_train
@@ -72,13 +71,15 @@ class CMqlmlsetup:
     # usage: mql data
     # \pdlsplit data
     #--------------------------------------------------------------------
-    def dl_split_data_sets(self, df, test_size=0.2, shuffle=False, prog=1):
-        X = df['close']
-        y = df['target']
+    def dl_split_data_sets(self, df, test_size=0.2, shuffle=False):
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("Input df must be a pandas DataFrame")
+        df=pd.DataFrame(df)
+        X = df[['close']]  # Ensure X is a DataFrame
+        y = df['target']   # Ensure y is a Series
         # Split the data into training and testing sets
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, shuffle=shuffle)
         return X_train, X_test, y_train, y_test
-
     #--------------------------------------------------------------------
     # create method  "dl_train_model_scaled".
     # class:cmqlmlsetup
