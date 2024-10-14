@@ -14,21 +14,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 # test mode to pass through litnus test data
 mp_test=True
 
-""" 
-The model is initialized as a sequential model, meaning it's a linear stack of layers.
-The Dense layers represent fully connected layers in the neural network. 
-The parameters include the number of neurons (units), activation function, 
-input shape (applicable only for the first layer), and kernel regularization 
-(in this case, L2 regularization with a strength specified by k_reg ).
-activation='relu' implies the Rectified Linear Unit (ReLU) activation function, commonly used in hidden layers.
-The last layer has one neuron with a linear activation function, indicating a regression output.
-If this were a classification task, a different activation function like 'sigmoid' or 'softmax' would be used.
-This architecture is a feedforward neural network with multiple hidden layers for regression purposes. 
-Adjust the parameters and layers based on your specific task and dataset characteristics.
-"""
-
 import sys
-import datetime
 from datetime import datetime
 import pytz
 import keyring as kr
@@ -60,7 +46,7 @@ tf.compat.v1.reset_default_graph()
 # import local packages
 # ======================================================
 # Check if GPU is available and set memory growth
-gpus = tf.config.experimental.list_physical_devices('GPU')
+gpus = tf.config.list_physical_devices('GPU')
 if gpus:
     try:
         for gpu in gpus:
@@ -180,7 +166,6 @@ print("mv_X_test_scaled shape:", mv_X_test_scaled.shape)
 # +-------------------------------------------------------------------
 # start Params
 
-
 mp_k_reg = 0.001
 mp_optimizer = 'adam'
 mp_loss = 'mean_squared_error'
@@ -193,7 +178,6 @@ mp_k_reg = 0.01
 mp_pool=2
 mp_optimizer = 'adam'
 mp_act1='relu'
-mp_act2='linear'
 mp_act2='linear'
 mp_act3='sigmoid'
 mp_metric = 'accuracy'
@@ -267,8 +251,8 @@ if mp_test == True:
     mv_y_train = np.random.randint(2, size=(1000,))  # Binary target
     mv_y_test = np.random.randint(2, size=(1000,))  # Binary target
     
-    mp_train_input_shape = shape=(100, 1)
-    mp_test_input_shape =  shape=(100, 1)
+    mp_train_input_shape = (100, 1)
+    mp_test_input_shape = (100, 1)
 ############################################
 #End Test Load Data
 ############################################
@@ -289,7 +273,6 @@ mt = CMdtuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective,
 
 best_model = mt.run_tuner()
 
-"""
 # Print the summary of the best model
 best_model.summary()
 
@@ -297,7 +280,6 @@ best_model.summary()
 mv_X_train_list = [mv_X_train_scaled] * 4
 # Correct the call to best_model.fit
 mv_model = best_model.fit(mv_X_train_list, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
-
 
 # Ensure test data is in the correct shape
 mv_X_test_scaled = mv_X_test_scaled.reshape((-1, 100, 1))  # Reshape to match (100, 1)
@@ -312,4 +294,3 @@ print("Predictions:", predictions.head(5))
 
 # Model performance
 accuracy, precision, recall, f1 = m1.model_performance(best_model, mv_X_test_list, mv_y_test)
-"""
