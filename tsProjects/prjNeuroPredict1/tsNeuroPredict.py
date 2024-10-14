@@ -211,7 +211,7 @@ mp_epochs=1
 mp_batch_size=100
 mp_num_trials=1
 mp_num_models=1
-mp_arraysize = 560 #560 = 100 set the size for the dense tensor array
+mp_arraysize = 100 #560 = 100 set the size for the dense tensor array
 # End Params
 
 
