@@ -1,26 +1,6 @@
 import tensorflow as tf
-# Ensure compatibility with TensorFlow v1 functions
-tf.compat.v1.reset_default_graph()
-
-from tensorflow.keras.models import Model
-import tensorflow as tf
-# Ensure compatibility with TensorFlow v1 functions
-tf.compat.v1.reset_default_graph()
-
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, Concatenate, LayerNormalization, GlobalAveragePooling1D, Reshape, MultiHeadAttention
-from keras_tuner import HyperModel, RandomSearch
-import numpy as np
-
-
-# Transformer Block definition (used later in the transformer model)
-class TransformerBlock(tf.keras.layers.Layer):
-    def __init__(self, embed_dim, num_heads, ff_dim):
-        super(TransformerBlock, self).__init__()
-        self.att = MultiHeadAttention(num_heads=num_heads, key_dim=embed_dim)
-        self.ffn = tf.keras.Sequential(
-            [Dense(ff_dim, activation="relu"), Dense(embed_dim)]
-        )
 from keras_tuner import HyperModel, RandomSearch
 import numpy as np
 
@@ -145,7 +125,7 @@ class HybridEnsembleHyperModel(HyperModel):
             print(f"Error during concatenation: {e}")
 
         # Ensure the combined output shape matches the expected input shape for the dense layer
-        expected_shape = 13024  # Adjusted expected shape
+        expected_shape = 512  # Adjusted expected shape
         if combined_output.shape[-1] != expected_shape:
             print(f"Warning: combined_output shape {combined_output.shape[-1]} does not match expected shape {expected_shape}")    
         
