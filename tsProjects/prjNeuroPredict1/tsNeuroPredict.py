@@ -11,8 +11,9 @@
 # +-------------------------------------------------------------------
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-import sys
-from datetime import datetime
+import keyring as kr
+from tabulate import tabulate
+
 
 # import mql packages
 # +-------------------------------------------------------------------
@@ -20,8 +21,6 @@ import MetaTrader5 as mt5
 # numpy is widely used for numerical operations in python.
 import numpy as np
 import pandas as pd
-from tabulate import tabulate
-import tabulate
 
 from tsMqlConnect import CMqlinitdemo
 from tsMqlData import CMqldatasetup
@@ -32,7 +31,6 @@ from tsMqlMLTune import CMdtuner
 # import ai packages tensorflow and keras libraries
 #======================================================
 import tensorflow as tf
-import keras_tuner as kt
 
 # test mode to pass through litnus test data
 mp_test=True
@@ -40,8 +38,6 @@ mp_test=True
 # Ensure compatibility with TensorFlow v1 functions
 tf.compat.v1.reset_default_graph()
 
-# Ensure compatibility with TensorFlow v1 functions
-tf.compat.v1.reset_default_graph()
 # ======================================================
 # import local packages
 # ======================================================
@@ -63,11 +59,15 @@ cred = kr.get_credential("xercesdemo", "")
 
 # start Params
 MPPATH = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
-MPLOGIN = int(cred.username)
+MPLOGIN = int(cred.username) # Ensure username is treated as a string
 MPPASS = str(cred.password)
 MPSERVER = r"ICMarketsSC-Demo"
 MPTIMEOUT = 60000
 MPPORTABLE = True
+
+
+# Create an instance of the class
+
 c1 = CMqlinitdemo(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
 # End Params
 
@@ -128,19 +128,21 @@ mv_ticks2 = pd.DataFrame(mv_ticks1)
 mp_seconds = 60
 mp_unit = 's'
 # End Params
-print("cols tick2:",mv_ticks2.columns)
+print("cols tick2:", mv_ticks2.columns)
 
 mv_ticks3 = d1.run_shift_data1(mv_ticks2, mp_seconds, mp_unit)
 
-
-print(tabulate(mv_ticks1.head(10), showindex=False, headers=mv_ticks1.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print(tabulate(mv_ticks2.head(10), showindex=False, headers=mv_ticks2.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print(tabulate(mv_ticks3.head(10), showindex=False, headers=mv_ticks3.columns,tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print(tabulate(mv_ticks1.head(10), showindex=False, headers=mv_ticks1.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print(tabulate(mv_ticks2.head(10), showindex=False, headers=mv_ticks2.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print(tabulate(mv_ticks3.head(10), showindex=False, headers=mv_ticks3.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 
 print("mv_ticks3: ", len(mv_ticks3))
 print("mv_ticks3:close ", len(mv_ticks3[['close']]))
-print("mv_ticks3:target ", len(mv_ticks3[['target']]))
 
+if 'target' in mv_ticks3.columns:
+    print("mv_ticks3:target ", len(mv_ticks3[['target']]))
+else:
+    print("mv_ticks3: 'target' column not found")
 
 m1 = CMqlmlsetup()
 
