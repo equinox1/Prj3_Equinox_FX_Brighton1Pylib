@@ -115,7 +115,7 @@ lpfileid="tickdata1"
 mp_filename = mp_symbol_primary + "_" + lpfileid + ".csv"
 # End Params
 
-d1 = CMqldatasetup
+d1 = CMqldatasetup()
 # create 'datetime' object in UTC time zone to avoid the implementation of a local time zone offset
 mv_utc_from = d1.set_mql_timezone(mp_year, mp_month, mp_day, mp_timezone)
 
@@ -165,13 +165,12 @@ mp_shuffle = False
 # End Params
 mv_X_train = []
 mv_y_train = []
+mv_X_test = []
+mv_y_test = []
 
 
-mv_X_train = pd.DataFrame(m1.dl_split_data_sets(mv_ticks3,mv_ticks3, mp_test_size, mp_shuffle, 1))
-mv_y_train = pd.DataFrame(m1.dl_split_data_sets(mv_ticks3,mv_ticks3, mp_test_size, mp_shuffle, 2))
+mv_X_train,mv_X_test,mv_y_train,mv_y_test = pd.DataFrame(m1.dl_split_data_sets(mv_ticks3, mp_test_size, mp_shuffle))
 
-mv_X_test = pd.DataFrame(m1.dl_split_data_sets(mv_ticks3,mv_ticks3, mp_test_size, mp_shuffle, 3))
-mv_y_test = pd.DataFrame(m1.dl_split_data_sets(mv_ticks3,mv_ticks3, mp_test_size, mp_shuffle, 4))
 
 mv_X_train_scaled = m1.dl_train_model_scaled(mv_X_train)
 mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
