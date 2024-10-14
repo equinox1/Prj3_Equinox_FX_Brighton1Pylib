@@ -67,7 +67,8 @@ class CMqlinit:
 # usage: login
 # \param cmqlinit    var                          
 #--------------------------------------------------------------------
-    def run_mql_login(self,lppath, lplogin, lppassword, lpserver, lptimeout, lpportable):
+
+    def run_mql_login(self, lppath, lplogin, lppassword, lpserver, lptimeout, lpportable):
         if mt5.initialize(path=self._lppath, login=self._lplogin, password=self._lppassword, server=self._lpserver, timeout=self._lptimeout, portable=self._lpportable):
             print("Platform mt5 launched correctly")
             return mt5.last_error()
