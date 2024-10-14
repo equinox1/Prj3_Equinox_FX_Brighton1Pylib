@@ -11,23 +11,17 @@
 # +-------------------------------------------------------------------
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-# test mode to pass through litnus test data
-mp_test=True
-
 import sys
 from datetime import datetime
-import pytz
-import keyring as kr
-# +-------------------------------------------------------------------
+
 # import mql packages
 # +-------------------------------------------------------------------
 import MetaTrader5 as mt5
 # numpy is widely used for numerical operations in python.
 import numpy as np
 import pandas as pd
-import tabulate
-
 from tabulate import tabulate
+import tabulate
 
 from tsMqlConnect import CMqlinitdemo
 from tsMqlData import CMqldatasetup
@@ -39,6 +33,12 @@ from tsMqlMLTune import CMdtuner
 #======================================================
 import tensorflow as tf
 import keras_tuner as kt
+
+# test mode to pass through litnus test data
+mp_test=True
+
+# Ensure compatibility with TensorFlow v1 functions
+tf.compat.v1.reset_default_graph()
 
 # Ensure compatibility with TensorFlow v1 functions
 tf.compat.v1.reset_default_graph()
@@ -89,8 +89,8 @@ mp_year = 2024
 mp_month = 1
 mp_day = 1
 mp_timezone = 'etc/UTC'
-mp_rows = 1000000
-mp_rowcount = 560 #560 = 100
+mp_rows = 100000
+mp_rowcount = 100 #560 
 
 mp_command = mt5.COPY_TICKS_ALL
 mp_dfName = "df_rates"
