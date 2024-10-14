@@ -12,7 +12,7 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 # test mode to pass through litnus test data
-mp_test=False
+mp_test=True
 
 """ 
 The model is initialized as a sequential model, meaning it's a linear stack of layers.
@@ -74,21 +74,21 @@ if gpus:
 # Add to hash Vault keyring externally via CLI
 
 cred = kr.get_credential("xercesdemo", "")
-c1 = CMqlinitdemo
+
 # start Params
-c1.path = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
-c1.login = int(cred.username)
-c1.password = str(cred.password)
-c1.server = r"ICMarketsSC-Demo"
-c1.timeout = 60000
-c1.portable = True
+MPPATH = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
+MPLOGIN = int(cred.username)
+MPPASS = str(cred.password)
+MPSERVER = r"ICMarketsSC-Demo"
+MPTIMEOUT = 60000
+MPPORTABLE = True
+c1 = CMqlinitdemo(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
 # End Params
 
 # =================
 # Login Metatrader
 # ======================================================
-c1.run_mql_login(c1.path, c1.login, c1.password,
-                 c1.server, c1.timeout, c1.portable)
+c1.run_mql_login(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
 # ======================================================
 # End Login MQL Terminal
 # ======================================================
@@ -156,21 +156,16 @@ print("mv_ticks3:close ", len(mv_ticks3[['close']]))
 print("mv_ticks3:target ", len(mv_ticks3[['target']]))
 
 
-m1 = CMqlmlsetup
+m1 = CMqlmlsetup()
 
 # Start Params
 mp_test_size = 0.2
 mp_shuffle = False
 
 # End Params
-mv_X_train = []
-mv_y_train = []
-mv_X_test = []
-mv_y_test = []
-
-
-mv_X_train,mv_X_test,mv_y_train,mv_y_test = pd.DataFrame(m1.dl_split_data_sets(mv_ticks3, mp_test_size, mp_shuffle))
-
+mv_ticks3=pd.DataFrame(mv_ticks3)
+print("Tick3 pd before split:",mv_ticks3.head(5))
+mv_X_train,mv_X_test,mv_y_train,mv_y_test = m1.dl_split_data_sets(mv_ticks3, mp_test_size, mp_shuffle)
 
 mv_X_train_scaled = m1.dl_train_model_scaled(mv_X_train)
 mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
