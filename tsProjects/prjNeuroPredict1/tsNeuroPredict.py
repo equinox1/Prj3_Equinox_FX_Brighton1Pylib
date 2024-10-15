@@ -6,6 +6,9 @@
 # property copyright "tony shepherd"
 # property link      "www.equinox.com"
 # property version   "1.01"
+# test mode to pass through litnus test data
+mp_test=True
+
 # +-------------------------------------------------------------------
 # import standard python packages
 # +-------------------------------------------------------------------
@@ -31,9 +34,6 @@ from tsMqlMLTune import CMdtuner
 # import ai packages tensorflow and keras libraries
 #======================================================
 import tensorflow as tf
-
-# test mode to pass through litnus test data
-mp_test=True
 
 # Ensure compatibility with TensorFlow v1 functions
 tf.compat.v1.reset_default_graph()
@@ -190,26 +190,26 @@ mp_objective='val_accuracy'
 mp_cells1=128
 mp_cells2=256
 mp_cells3=128
-mp_cells4=64
-mp_cells5=1
+mp_cells4 = 64
+mp_cells5 = 1
 
-mp_min=32
-mp_max=128
-mp_step=2
-mp_hmin=8
-mp_hmax=128
-mp_hstep=2
-mp_imin=64
-mp_imax=256
-mp_istep=64
-mp_jmin=0.5
-mp_jmax=0.2
-mp_jstep=0.1
+mp_min = 32
+mp_max = 128
+mp_step = 2
+mp_hmin = 8
+mp_hmax = 128
+mp_hstep = 2
+mp_imin = 64
+mp_imax = 256
+mp_istep = 64
+mp_jmin = 0.2  # Corrected value
+mp_jmax = 0.5  # Corrected value
+mp_jstep = 0.1
 
-mp_validation_split=0.2
-mp_epochs=1
-mp_batch_size=100
-mp_num_trials=1
+mp_validation_split = 0.2
+mp_epochs = 1
+mp_batch_size = 100
+mp_num_trials = 1
 mp_num_models=1
 mp_arraysize = 100 #560 = 100 set the size for the dense tensor array
 # End Params
@@ -272,11 +272,19 @@ print(f"mp_batch_size: {mp_batch_size}, type: {type(mp_batch_size)}")
 
 # Run tuner
 mt = CMdtuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size,mp_arraysize)
+#mt = CMdtuner(mp_train_input_shape, mv_X_train, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size,mp_arraysize)
 
 best_model = mt.run_tuner()
 
 # Print the summary of the best model
 best_model.summary()
+
+
+# Plot the model
+#import graphviz , pydot
+#from tensorflow.keras.utils import plot_model
+#modelView = plot_model(best_model, to_file='SummaryModel.png', show_shapes=True, show_layer_names=True, rankdir='TB', expand_nested=False, dpi=96)
+
 
 # Create a list of exactly 4 identical tensors
 mv_X_train_list = [mv_X_train_scaled] * 4
