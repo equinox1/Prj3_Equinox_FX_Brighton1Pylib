@@ -41,7 +41,10 @@ gpus = tf.config.list_physical_devices('GPU')
 if gpus:
     try:
         for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
+            tf.config.set_logical_device_configuration(
+                gpu,
+                [tf.config.LogicalDeviceConfiguration(memory_limit=1024)]
+            )
     except RuntimeError as e:
         print(e)
 
@@ -49,20 +52,18 @@ if gpus:
 # Start MetaTrader 5 (MQL) terminal login
 # +-------------------------------------------------------------------
 # Fetch credentials from keyring
-cred = kr.get_credential("xercesdemo", "")
-
-
-# Fetch username and password from keyring
-#username = kr.get_password("xercesdemo", "username")
-#password = kr.get_password("xercesdemo", "password")
-
-username=cred.username
-password=cred.password
+username = kr.get_password("xercesdemo", "username")
+password = kr.get_password("xercesdemo", "password")
 
 # Check if the credentials are fetched successfully
-if username == None or password == None:
-    print("Username or password not found in keyring")
-    exit()
+if not username or not password:
+    raise ValueError("Username or password not found in keyring")
+
+# Ensure username is a valid integer
+try:
+    MPLOGIN = int(username)
+except ValueError:
+    raise ValueError("Username is not a valid integer")
 
 # Display the fetched credentials
 print("username:", username)
@@ -70,7 +71,6 @@ print("password:", password)
 
 # Parameters for connecting to MT5 terminal
 MPPATH = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
-MPLOGIN = int(username)
 MPPASS = str(password)
 MPSERVER = r"ICMarketsSC-Demo"
 MPTIMEOUT = 60000
@@ -78,7 +78,9 @@ MPPORTABLE = True
 
 # Initialize and login to the MT5 terminal
 c1 = CMqlinitdemo(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
-c1.run_mql_login(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
+login_success = c1.run_mql_login()
+if not login_success:
+    raise ConnectionError("Failed to login to MT5 terminal")
 
 # +-------------------------------------------------------------------
 # Import data from MQL
@@ -108,17 +110,21 @@ print(f"mp_path Set to: {mp_path}")
 print(f"mp_filename Set to: {mp_filename}")
 
 # Load tick data from MQL
-mv_ticks1 = pd.DataFrame(d1.run_load_from_mql(mv_manual, mp_dfName, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename))
+mv_ticks1 = d1.run_load_from_mql(mv_manual, mp_dfName, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename)
+if not isinstance(mv_ticks1, pd.DataFrame) or mv_ticks1.empty:
+    raise ValueError("Failed to load tick data from MQL")
 
 # +-------------------------------------------------------------------
 # Prepare and process the data
 # +-------------------------------------------------------------------
-mv_ticks2 = pd.DataFrame(mv_ticks1)  # Copy the tick data for further processing
+mv_ticks2 = mv_ticks1.copy()  # Copy the tick data for further processing
 
 # Shift the data by a specified time interval (e.g., 60 seconds)
 mp_seconds = 60
 mp_unit = 's'
-mv_ticks3 = d1.run_shift_data1(mv_ticks2, mp_seconds, mp_unit)
+mv_ticks3 = d1.run_shift_data(mv_ticks2, mp_seconds, mp_unit)  # Ensure the method name is correct
+if not isinstance(mv_ticks3, pd.DataFrame) or mv_ticks3.empty:
+    raise ValueError("Failed to shift tick data")
 
 # Display the first few rows of the data for verification
 print(tabulate(mv_ticks1.head(10), showindex=False, headers=mv_ticks1.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
@@ -139,10 +145,14 @@ mp_test_size = 0.2
 mp_shuffle = False
 
 mv_X_train, mv_X_test, mv_y_train, mv_y_test = m1.dl_split_data_sets(mv_ticks3, mp_test_size, mp_shuffle)
+if mv_X_train.empty or mv_X_test.empty or mv_y_train.empty or mv_y_test.empty:
+    raise ValueError("Failed to split data into training and test sets")
 
 # Scale the training and test data
 mv_X_train_scaled = m1.dl_train_model_scaled(mv_X_train)
 mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
+if mv_X_train_scaled.empty or mv_X_test_scaled.empty:
+    raise ValueError("Failed to scale training and test data")
 
 # Ensure the scaled data shapes match the original labels
 mv_X_train_scaled = mv_X_train_scaled[:len(mv_y_train)]
@@ -175,6 +185,8 @@ if mp_test:
 mt = CMdtuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size, mp_arraysize)
 
 best_model = mt.run_tuner()
+if best_model is None:
+    raise ValueError("Failed to find the best model configuration")
 
 # Display the best model's summary
 best_model.summary()
@@ -185,13 +197,18 @@ best_model.summary()
 # Train the model using the scaled data
 mv_X_train_list = [mv_X_train_scaled] * 4  # Create 4 identical tensors for the ensemble
 mv_model = best_model.fit(mv_X_train_list, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
+if mv_model is None:
+    raise ValueError("Failed to train the model")
 
 # Reshape the test data to match the model input requirements
 mv_X_test_list = [mv_X_test_scaled] * 4
 
 # Make predictions using the trained model
 predictions = pd.DataFrame(best_model.predict(mv_X_test_list))
+if predictions.empty:
+    raise ValueError("Failed to make predictions")
 print("Predictions:", predictions.head(5))
 
 # Evaluate model performance (accuracy, precision, recall, etc.)
 accuracy, precision, recall, f1 = m1.model_performance(best_model, mv_X_test_list, mv_y_test)
+print(f"Accuracy: {accuracy}, Precision: {precision}, Recall: {recall}, F1 Score: {f1}")
