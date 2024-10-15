@@ -7,7 +7,7 @@
 # property link      "www.equinox.com"
 # property version   "1.01"
 # test mode to pass through litnus test data
-mp_test=True
+mp_test=False
 
 # +-------------------------------------------------------------------
 # import standard python packages
@@ -208,10 +208,10 @@ mp_jstep = 0.1
 
 mp_validation_split = 0.2
 mp_epochs = 1
-mp_batch_size = 100
+mp_batch_size = 16
 mp_num_trials = 1
 mp_num_models=1
-mp_arraysize = 100 #560 = 100 set the size for the dense tensor array
+mp_arraysize = 100000 #560 = 100 set the size for the dense tensor array
 # End Params
 
 
@@ -272,7 +272,6 @@ print(f"mp_batch_size: {mp_batch_size}, type: {type(mp_batch_size)}")
 
 # Run tuner
 mt = CMdtuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size,mp_arraysize)
-#mt = CMdtuner(mp_train_input_shape, mv_X_train, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size,mp_arraysize)
 
 best_model = mt.run_tuner()
 
