@@ -31,6 +31,9 @@ class TransformerBlock(tf.keras.layers.Layer):
         ffn_output = self.dropout2(ffn_output, training=training)
         return self.layernorm2(out1 + ffn_output)
 
+    def build(self, input_shape):
+        super(TransformerBlock, self).build(input_shape)
+
 # Define a HyperModel class for Keras Tuner
 class HybridEnsembleHyperModel(kt.HyperModel):
     def __init__(self, input_shape):
