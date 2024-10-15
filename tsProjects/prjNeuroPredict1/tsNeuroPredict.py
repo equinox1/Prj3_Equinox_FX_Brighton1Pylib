@@ -7,7 +7,7 @@
 # property link      "www.equinox.com"
 # property version   "1.01"
 # Test mode to pass through Litmus test data
-mp_test = False
+mp_test = True
 
 # +-------------------------------------------------------------------
 # Import standard Python packages
@@ -51,10 +51,27 @@ if gpus:
 # Fetch credentials from keyring
 cred = kr.get_credential("xercesdemo", "")
 
+
+# Fetch username and password from keyring
+#username = kr.get_password("xercesdemo", "username")
+#password = kr.get_password("xercesdemo", "password")
+
+username=cred.username
+password=cred.password
+
+# Check if the credentials are fetched successfully
+if username == None or password == None:
+    print("Username or password not found in keyring")
+    exit()
+
+# Display the fetched credentials
+print("username:", username)
+print("password:", password)
+
 # Parameters for connecting to MT5 terminal
 MPPATH = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
-MPLOGIN = int(cred.username)
-MPPASS = str(cred.password)
+MPLOGIN = int(username)
+MPPASS = str(password)
 MPSERVER = r"ICMarketsSC-Demo"
 MPTIMEOUT = 60000
 MPPORTABLE = True
@@ -139,11 +156,12 @@ mp_test_input_shape = mv_X_test_scaled.shape
 # Define parameters for the model tuning process
 mp_epochs = 1
 mp_batch_size = 16
-mp_objective = 'val_accuracy'
+mp_objective = str('val_accuracy')
+print("mp_objective:", mp_objective)
 mp_max_trials = 10
 mp_executions_per_trial = 1
 mp_validation_split = 0.2
-mp_arraysize = 100
+mp_arraysize = 1
 mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
 mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_prod"
 mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_prod"
@@ -155,6 +173,7 @@ if mp_test:
 
 # Run the tuner to find the best model configuration
 mt = CMdtuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size, mp_arraysize)
+
 best_model = mt.run_tuner()
 
 # Display the best model's summary
@@ -168,7 +187,6 @@ mv_X_train_list = [mv_X_train_scaled] * 4  # Create 4 identical tensors for the 
 mv_model = best_model.fit(mv_X_train_list, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
 
 # Reshape the test data to match the model input requirements
-mv_X_test_scaled = mv_X_test_scaled.reshape((-1, 100, 1))
 mv_X_test_list = [mv_X_test_scaled] * 4
 
 # Make predictions using the trained model
