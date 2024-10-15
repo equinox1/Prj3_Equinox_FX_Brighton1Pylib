@@ -52,9 +52,11 @@ if gpus:
 # Start MetaTrader 5 (MQL) terminal login
 # +-------------------------------------------------------------------
 # Fetch credentials from keyring
+cred = kr.get_credential("xercesdemo", "")
 username = kr.get_password("xercesdemo", "username")
 password = kr.get_password("xercesdemo", "password")
-
+username = cred.username
+password = cred.password
 # Check if the credentials are fetched successfully
 if not username or not password:
     raise ValueError("Username or password not found in keyring")
@@ -78,7 +80,7 @@ MPPORTABLE = True
 
 # Initialize and login to the MT5 terminal
 c1 = CMqlinitdemo(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
-login_success = c1.run_mql_login()
+login_success = c1.run_mql_login(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
 if not login_success:
     raise ConnectionError("Failed to login to MT5 terminal")
 
@@ -122,7 +124,8 @@ mv_ticks2 = mv_ticks1.copy()  # Copy the tick data for further processing
 # Shift the data by a specified time interval (e.g., 60 seconds)
 mp_seconds = 60
 mp_unit = 's'
-mv_ticks3 = d1.run_shift_data(mv_ticks2, mp_seconds, mp_unit)  # Ensure the method name is correct
+
+mv_ticks3 = d1.run_shift_data1(mv_ticks2, mp_seconds, mp_unit)  # Ensure the method name is correct
 if not isinstance(mv_ticks3, pd.DataFrame) or mv_ticks3.empty:
     raise ValueError("Failed to shift tick data")
 
@@ -149,10 +152,9 @@ if mv_X_train.empty or mv_X_test.empty or mv_y_train.empty or mv_y_test.empty:
     raise ValueError("Failed to split data into training and test sets")
 
 # Scale the training and test data
+mv_X_train.head(5)
 mv_X_train_scaled = m1.dl_train_model_scaled(mv_X_train)
 mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
-if mv_X_train_scaled.empty or mv_X_test_scaled.empty:
-    raise ValueError("Failed to scale training and test data")
 
 # Ensure the scaled data shapes match the original labels
 mv_X_train_scaled = mv_X_train_scaled[:len(mv_y_train)]
