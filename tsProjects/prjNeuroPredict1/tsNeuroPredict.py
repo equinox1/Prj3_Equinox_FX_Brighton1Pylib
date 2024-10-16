@@ -166,22 +166,22 @@ print(f"mv_y_train: {mv_y_train.shape}")
 print(f"mv_y_test: {mv_y_test.shape}")
 print("2:End Shapes of split data DataFrames:")
 
-mv_X_train_scaled = m1.dl_train_model_scaled(mv_X_train)
-mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
+mv_X_train_scaled = pd.DataFrame(m1.dl_train_model_scaled(mv_X_train))
+mv_X_test_scaled = pd.DataFrame(m1.dl_test_model_scaled(mv_X_test))
 
 print("3:Start Shapes of scaled split data DataFrames:")
 print(f"mv_X_train_scaled shape:", mv_X_train_scaled.shape)
-print(f"mv_X_train_scaled head:" ,mv_X_train_scaled.head(5))
+print(f"mv_X_train_scaled head:" ,mv_X_train_scaled.head(len(mv_X_train_scaled)))
+
 print(f"mv_X_test_scaled:", mv_X_test_scaled.shape)
-print(f"mv_X_test_scaled head:", mv_X_test_scaled.head(5))
+print(f"mv_X_test_scaled head:", mv_X_test_scaled.head(len(mv_X_test_scaled)))
 print("3:End Shapes of scaled split data DataFrames:")
 
 # Ensure the scaled data shapes match the original labels
 mp_X_train_input_shape = mv_X_train_scaled.shape
 mp_X_test_input_shape = mv_X_test_scaled.shape
 
-mp_y_train_input_shape = mv_y_train_scaled.shape
-mp_y_test_input_shape = mv_y_test_scaled.shape
+
 # +-------------------------------------------------------------------
 # Hyperparameter tuning and model setup
 # +-------------------------------------------------------------------
@@ -204,14 +204,15 @@ if mp_test:
     mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_test"
 
 # Run the tuner to find the best model configuration
-print("Running tuner with input shape:", mp_X_train_input_shape)
-mt = CMdtuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size, mp_arraysize)
+print("Running tuner with mp_X_train_input_scaled input shape:",mv_X_train_scaled.shape)
+print("Running tuner with mp_X_train_input_scaled scaled data: Rows:", mv_X_train_scaled.shape[0], "Columns:", mv_X_train_scaled.shape[1])
+mt = CMdtuner(mp_X_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size, mp_arraysize)
 
-"""
+# Run the tuner to find the best model configuration
 best_model = mt.run_tuner()
 if best_model is None:
     raise ValueError("Failed to find the best model configuration")
-
+"""
 # Display the best model's summary
 best_model.summary()
 
