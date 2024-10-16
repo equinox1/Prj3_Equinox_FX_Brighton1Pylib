@@ -134,6 +134,11 @@ print(tabulate(mv_ticks1.head(10), showindex=False, headers=mv_ticks1.columns, t
 print(tabulate(mv_ticks2.head(10), showindex=False, headers=mv_ticks2.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 print(tabulate(mv_ticks3.head(10), showindex=False, headers=mv_ticks3.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 
+print("1:Start Shapes of DataFrames:")
+print(f"mv_ticks1: {mv_ticks1.shape}")
+print(f"mv_ticks2: {mv_ticks2.shape}")
+print(f"mv_ticks3: {mv_ticks3.shape}")
+print("1:End Shapes of DataFrames:")
 # Check for the presence of a 'target' column
 if 'target' in mv_ticks3.columns:
     print(f"mv_ticks3: target column found with length {len(mv_ticks3['target'])}")
@@ -153,15 +158,30 @@ if mv_X_train.empty or mv_X_test.empty or mv_y_train.empty or mv_y_test.empty:
 
 # Scale the training and test data
 mv_X_train.head(5)
+
+print("2:Start Shapes of split data DataFrames:")
+print(f"mv_X_train: {mv_X_train.shape}")
+print(f"mv_X_test: {mv_X_test.shape}")
+print(f"mv_y_train: {mv_y_train.shape}")
+print(f"mv_y_test: {mv_y_test.shape}")
+print("2:End Shapes of split data DataFrames:")
+
 mv_X_train_scaled = m1.dl_train_model_scaled(mv_X_train)
 mv_X_test_scaled = m1.dl_test_model_scaled(mv_X_test)
 
-# Ensure the scaled data shapes match the original labels
-mv_X_train_scaled = mv_X_train_scaled[:len(mv_y_train)]
-mv_X_test_scaled = mv_X_test_scaled[:len(mv_y_test)]
-mp_train_input_shape = mv_X_train_scaled.shape
-mp_test_input_shape = mv_X_test_scaled.shape
+print("3:Start Shapes of scaled split data DataFrames:")
+print(f"mv_X_train_scaled shape:", mv_X_train_scaled.shape)
+print(f"mv_X_train_scaled head:" ,mv_X_train_scaled.head(5))
+print(f"mv_X_test_scaled:", mv_X_test_scaled.shape)
+print(f"mv_X_test_scaled head:", mv_X_test_scaled.head(5))
+print("3:End Shapes of scaled split data DataFrames:")
 
+# Ensure the scaled data shapes match the original labels
+mp_X_train_input_shape = mv_X_train_scaled.shape
+mp_X_test_input_shape = mv_X_test_scaled.shape
+
+mp_y_train_input_shape = mv_y_train_scaled.shape
+mp_y_test_input_shape = mv_y_test_scaled.shape
 # +-------------------------------------------------------------------
 # Hyperparameter tuning and model setup
 # +-------------------------------------------------------------------
@@ -184,8 +204,10 @@ if mp_test:
     mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_test"
 
 # Run the tuner to find the best model configuration
+print("Running tuner with input shape:", mp_X_train_input_shape)
 mt = CMdtuner(mp_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size, mp_arraysize)
 
+"""
 best_model = mt.run_tuner()
 if best_model is None:
     raise ValueError("Failed to find the best model configuration")
@@ -214,3 +236,4 @@ print("Predictions:", predictions.head(5))
 # Evaluate model performance (accuracy, precision, recall, etc.)
 accuracy, precision, recall, f1 = m1.model_performance(best_model, mv_X_test_list, mv_y_test)
 print(f"Accuracy: {accuracy}, Precision: {precision}, Recall: {recall}, F1 Score: {f1}")
+"""
