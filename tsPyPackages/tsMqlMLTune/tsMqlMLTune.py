@@ -129,7 +129,19 @@ class CMdtuner:
         self.epochs = epochs
         self.batch_size = batch_size
         self.arraysize = arraysize
+        print("init input_shape:", self.input_shape, " param:", input_shape)
+        print("init X_train:", self.X_train, " param:", X_train)
+        print("init y_train:", self.y_train, " param:", y_train)
+        print("init max_trials:", self.max_trials, " param:", max_trials)
+        print("init executions_per_trial:", self.executions_per_trial, " param:", executions_per_trial)
         print("init objective:", self.objective, " param:", objective)
+        print("init directory:", self.directory, " param:", directory)
+        print("init project_name:", self.project_name, " param:", project_name)
+        print("init validation_data:", self.validation_data, " param:", validation_data)
+        print("init epochs:", self.epochs, " param:", epochs)
+        print("init batch_size:", self.batch_size, " param:", batch_size)
+        print("init arraysize:", self.arraysize, " param:", arraysize)
+        
 
     def run_tuner(self):
         tuner = kt.RandomSearch(
@@ -142,12 +154,21 @@ class CMdtuner:
         )
 
         # Reshape input data
+        print("tuner: input X_train shape:", self.X_train.shape)
+        print("tuner: input X_train shape:length:",  len(self.X_train.shape))
         if len(self.X_train.shape) == 2:
             new_shape = (self.X_train.shape[0],) + self.input_shape
         elif len(self.X_train.shape) == 3:
             new_shape = self.X_train.shape
         else:
             raise ValueError(f"Unsupported input shape: {self.X_train.shape}")
+
+        print("The input shape required by the lstm model is:", lstm_shape)
+        print("The input shape required by the cnn model is:", cnn_shape)
+        print("The input shape required by the gru model is:", gru_shape)
+        print("The input shape required by the transformer model is:", transformer_shape)
+        print("The Incoming shape is:", self.X_train.shape)
+        print("The Incoming new shape is:", new_shape)
 
         # Reshape the input data if necessary
         if np.prod(new_shape) == self.X_train.size:
