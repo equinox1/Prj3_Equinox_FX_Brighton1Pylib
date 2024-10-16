@@ -194,6 +194,14 @@ mp_max_trials = 10
 mp_executions_per_trial = 1
 mp_validation_split = 0.2
 mp_arraysize = 1
+mp_lstm_shape = None
+mp_cnn_shape = None
+mp_gru_shape = None
+mp_transformer_shape = None
+mp_channels=1
+
+
+
 mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
 mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_prod"
 mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_prod"
@@ -206,7 +214,26 @@ if mp_test:
 # Run the tuner to find the best model configuration
 print("Running tuner with mp_X_train_input_scaled input shape:",mv_X_train_scaled.shape)
 print("Running tuner with mp_X_train_input_scaled scaled data: Rows:", mv_X_train_scaled.shape[0], "Columns:", mv_X_train_scaled.shape[1])
-mt = CMdtuner(mp_X_train_input_shape, mv_X_train_scaled, mv_y_train, mp_objective, mp_max_trials, mp_executions_per_trial, mp_directory, mp_project_name, mp_validation_split, mp_epochs, mp_batch_size, mp_arraysize)
+
+# Run the tuner to find the best model configuration
+mt = CMdtuner(mp_X_train_input_shape,
+               mv_X_train_scaled,
+               mv_y_train,
+               mp_objective,
+               mp_max_trials,
+               mp_executions_per_trial, 
+               mp_directory, 
+               mp_project_name,
+               mp_validation_split, 
+               mp_epochs,
+               mp_batch_size,
+               mp_arraysize,
+               mp_lstm_shape,
+               mp_cnn_shape,
+               mp_gru_shape,
+               mp_transformer_shape,
+               mp_channels
+               )
 
 # Run the tuner to find the best model configuration
 best_model = mt.run_tuner()
