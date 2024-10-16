@@ -226,11 +226,7 @@ mt = CMdtuner(mp_X_train_input_shape,
                mp_epochs,
                mp_batch_size,
                mp_arraysize,
-               mp_lstm_shape,
-               mp_cnn_shape,
-               mp_gru_shape,
-               mp_transformer_shape,
-               mp_channels)
+               )
 
 # Run the tuner to find the best model configuration
 best_model = mt.run_tuner()
