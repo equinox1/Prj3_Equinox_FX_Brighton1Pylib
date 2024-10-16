@@ -225,27 +225,27 @@ class CMdtuner:
         """
         #LSTM
         batch_size=self.batch_size
-        timesteps=X_train.shape[0]
-        features=X_train.shape[1]
+        timesteps=self.X_train.shape[0]
+        features=self.X_train.shape[1]
         lstm_input_layer = keras.Input(shape=(batch_size, timesteps, features))
         self.lstm_shape=lstm_input_layer
 
         #CNN
-        height=X_train.shape[0]
-        width=X_train.shape[1]
+        height=self.X_train.shape[0]
+        width=self.X_train.shape[1]
         channels=self.channels
         cnn_input_layer = keras.Input(shape=(height, width, channels))
         self.cnn_shape=cnn_input_layer
         
         #GRU
-        timesteps=X_train.shape[0]
-        features=X_train.shape[1]
+        timesteps=self.X_train.shape[0]
+        features=self.X_train.shape[1]
         gru_input_layer = keras.Input(shape=(timesteps, features))
         self.gru_shape=gru_input_layer
         
         #Transformer
         batch_size=self.batch_size
-        sequence_length=X_train.shape[0]
+        sequence_length=self.X_train.shape[0]
         d_model=X_train.shape[1]
         transformer_input_layer = keras.Input(shape=(sequence_length, d_model))
         self.transformer_layer = transformer_input_layer
