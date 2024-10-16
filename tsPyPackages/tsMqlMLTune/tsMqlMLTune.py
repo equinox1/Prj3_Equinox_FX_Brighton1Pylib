@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras.layers import (
     Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, 
-    Concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D, TimeDistributed
+    Concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D, Reshape
 )
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
@@ -36,55 +36,47 @@ class TransformerBlock(tf.keras.layers.Layer):
 
 # Define a HyperModel class for Keras Tuner
 class HybridEnsembleHyperModel(kt.HyperModel):
-    def __init__(self, input_shape, lstm_shape, cnn_shape, gru_shape, transformer_shape):
+    def __init__(self, input_shape):
         super(HybridEnsembleHyperModel, self).__init__()
         if not isinstance(input_shape, tuple):
             raise ValueError(f"Input shape must be a tuple, got {type(input_shape)}")
         self.input_shape = input_shape
-        self.lstm_shape = lstm_shape
-        self.cnn_shape = cnn_shape
-        self.gru_shape = gru_shape
-        self.transformer_shape = transformer_shape
 
     def build(self, hp):
         inputs = Input(shape=self.input_shape)
-        lstm_shape = self.lstm_shape
-        cnn_shape = self.cnn_shape
-        gru_shape = self.gru_shape
-        transformer_shape = self.transformer_shape
 
         # Ensure inputs have the correct shape for TimeDistributed layer
         reshaped_inputs = tf.expand_dims(inputs, axis=-1) if len(self.input_shape) == 2 else inputs
 
         ### Base Models ###       
         # LSTM Model
-        def build_lstm(hp):
-            x = LSTM(hp.Int('lstm_units', 32, 128, step=32), return_sequences=True)(lstm_shape)
+        def build_lstm(hp, inputs):
+            x = LSTM(hp.Int('lstm_units', 32, 128, step=32), return_sequences=True)(inputs)
             x = Flatten()(x)
             x = Dense(hp.Int('lstm_dense_units', 32, 128, step=32), activation='relu')(x)
             return x
 
         # 1D CNN Model
-        def build_cnn(hp):
+        def build_cnn(hp, inputs):
             x = Conv1D(filters=hp.Int('cnn_filters', 32, 128, step=32), 
                        kernel_size=hp.Choice('cnn_kernel_size', [3, 5]), 
-                       padding='same', activation='relu')(cnn_shape)
+                       padding='same', activation='relu')(inputs)
             x = MaxPooling1D(pool_size=2, strides=1, padding='same')(x)
             x = Flatten()(x)
             x = Dense(hp.Int('cnn_dense_units', 32, 128, step=32), activation='sigmoid')(x)
             return x
 
         # GRU Model
-        def build_gru(hp):
-            x = GRU(hp.Int('gru_units', 32, 128, step=32), return_sequences=True)(gru_shape)
+        def build_gru(hp, inputs):
+            x = GRU(hp.Int('gru_units', 32, 128, step=32), return_sequences=True)(inputs)
             x = Flatten()(x)
             x = Dense(hp.Int('gru_dense_units', 32, 128, step=32), activation='sigmoid')(x)
             return x
 
         # Transformer Model
-        def build_transformer(hp):
+        def build_transformer(hp, inputs):
             embed_dim = hp.Int('transformer_embed_dim', 32, 128, step=32)
-            reshaped_transformer_inputs = tf.reshape(transformer_shape, (-1, transformer_shape[-1]))
+            reshaped_transformer_inputs = Reshape((-1, inputs.shape[-1]))(inputs)
             x = Dense(embed_dim, activation='relu')(reshaped_transformer_inputs)  # Project input to the required embedding dimension
             x = TransformerBlock(
                 embed_dim=embed_dim,
@@ -97,10 +89,10 @@ class HybridEnsembleHyperModel(kt.HyperModel):
             return x
 
         ### Hybrid Ensemble Model ###
-        lstm_output = build_lstm(hp)
-        cnn_output = build_cnn(hp)
-        gru_output = build_gru(hp)
-        transformer_output = build_transformer(hp)
+        lstm_output = build_lstm(hp, reshaped_inputs)
+        cnn_output = build_cnn(hp, reshaped_inputs)
+        gru_output = build_gru(hp, reshaped_inputs)
+        transformer_output = build_transformer(hp, reshaped_inputs)
 
         combined = Concatenate()([
             lstm_output, cnn_output, 
@@ -124,8 +116,8 @@ class HybridEnsembleHyperModel(kt.HyperModel):
 # Class for running the tuner
 class CMdtuner:
     def __init__(self, input_shape, X_train, y_train, objective, max_trials, executions_per_trial, 
-                 directory, project_name, validation_data, epochs, batch_size, arraysize, lstm_shape,
-                 cnn_shape, gru_shape, transformer_shape, channels):    
+                 directory, project_name, validation_data, epochs, batch_size,arraysize, lstm_shape,cnn_shape,
+                 gru_shape,transformer_shape,channels):    
         self.input_shape = input_shape
         self.X_train = X_train
         self.y_train = y_train
@@ -138,7 +130,6 @@ class CMdtuner:
         self.epochs = epochs
         self.batch_size = batch_size
         self.arraysize = arraysize
-
         self.lstm_shape = lstm_shape
         self.cnn_shape = cnn_shape
         self.gru_shape = gru_shape
@@ -157,12 +148,16 @@ class CMdtuner:
         print("init epochs:", self.epochs, " param:", epochs)
         print("init batch_size:", self.batch_size, " param:", batch_size)
         print("init arraysize:", self.arraysize, " param:", arraysize)
-        
+        print("init lstm_shape:", self.lstm_shape, " param:", lstm_shape)
+        print("init cnn_shape:", self.cnn_shape, " param:", cnn_shape)
+        print("init gru_shape:", self.gru_shape, " param:", gru_shape)
+        print("init transformer_shape:", self.transformer_shape, " param:", transformer_shape)
+        print("init channels:", self.channels, " param:", channels)
+
 
     def run_tuner(self):
         tuner = kt.RandomSearch(
-            HybridEnsembleHyperModel(input_shape=self.input_shape, lstm_shape=self.lstm_shape, 
-            cnn_shape=self.cnn_shape, gru_shape=self.gru_shape, transformer_shape=self.transformer_shape), 
+            HybridEnsembleHyperModel(input_shape=self.input_shape), 
             objective=self.objective,  
             max_trials=self.max_trials,
             executions_per_trial=self.executions_per_trial,  
@@ -224,43 +219,16 @@ class CMdtuner:
         infer it automatically during training.
 
         """
-        #LSTM
-        batch_size=self.batch_size
-        timesteps=self.X_train.shape[1]
-        features=self.X_train.shape[2]
-        lstm_input_layer = Input(shape=(timesteps, features))
-        self.lstm_shape=lstm_input_layer
-        
-        #CNN
-        height=self.X_train.shape[1]
-        width=self.X_train.shape[2]
-        channels=self.channels
-        cnn_input_layer = Input(shape=(height, width, channels))
-        self.cnn_shape=cnn_input_layer
-        
-        #GRU
-        timesteps=self.X_train.shape[1]
-        features=self.X_train.shape[2]
-        gru_input_layer = Input(shape=(timesteps, features))
-        self.gru_shape=gru_input_layer
-        
-        #Transformer
-        sequence_length=self.X_train.shape[1]
-        d_model=self.X_train.shape[2]
-        transformer_input_layer = Input(shape=(sequence_length, d_model))
-        self.transformer_shape = transformer_input_layer
-
         # Reshape input data
         print("tuner: input X_train shape:", self.X_train.shape)
         print("tuner: input X_train shape:length:",  len(self.X_train.shape))
         
-        print("The input shape required by the lstm model is:", self.lstm_shape)
-        print("The input shape required by the cnn model is:", self.cnn_shape)
-        print("The input shape required by the gru model is:", self.gru_shape)
-        print("The input shape required by the transformer model is:", self.transformer_shape)
+        print("The input shape required by the lstm model is:", self.input_shape)
+        print("The input shape required by the cnn model is:", self.input_shape)
+        print("The input shape required by the gru model is:", self.input_shape)
+        print("The input shape required by the transformer model is:", self.input_shape)
         print("The Incoming shape is:", self.X_train.shape)
         
-
         # Search for best hyperparameters
         tuner.search(self.X_train, self.y_train, validation_data=self.validation_data, 
                      epochs=self.epochs, batch_size=self.batch_size)
