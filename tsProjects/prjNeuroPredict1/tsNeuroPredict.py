@@ -200,8 +200,6 @@ mp_gru_shape = None
 mp_transformer_shape = None
 mp_channels=1
 
-
-
 mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
 mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_prod"
 mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_prod"

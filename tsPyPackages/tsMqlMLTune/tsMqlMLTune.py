@@ -36,7 +36,7 @@ class TransformerBlock(tf.keras.layers.Layer):
 
 # Define a HyperModel class for Keras Tuner
 class HybridEnsembleHyperModel(kt.HyperModel):
-    def __init__(self, input_shapem, lstm_shape, cnn_shape, gru_shape, transformer_shape):
+    def __init__(self, input_shape, lstm_shape, cnn_shape, gru_shape, transformer_shape):
         super(HybridEnsembleHyperModel, self).__init__()
         if not isinstance(input_shape, tuple):
             raise ValueError(f"Input shape must be a tuple, got {type(input_shape)}")
@@ -163,7 +163,8 @@ class CMdtuner:
 
     def run_tuner(self):
         tuner = kt.RandomSearch(
-            HybridEnsembleHyperModel(input_shape=self.input_shape), 
+            HybridEnsembleHyperModel(input_shape=self.input_shape, lstm_shape=self.lstm_shape, 
+            cnn_shape=self.cnn_shape, gru_shape = self.gru_shape, transformer_shape=self.transformer_shape), 
             objective=self.objective,  
             max_trials=self.max_trials,
             executions_per_trial=self.executions_per_trial,  
