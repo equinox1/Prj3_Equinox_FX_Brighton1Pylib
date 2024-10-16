@@ -227,27 +227,27 @@ class CMdtuner:
         batch_size=self.batch_size
         timesteps=self.X_train.shape[0]
         features=self.X_train.shape[1]
-        lstm_input_layer = kt.Input(shape=(batch_size, timesteps, features))
+        lstm_input_layer = Input(shape=(batch_size, timesteps, features))
         self.lstm_shape=lstm_input_layer
-
+        
         #CNN
         height=self.X_train.shape[0]
         width=self.X_train.shape[1]
         channels=self.channels
-        cnn_input_layer = kt.Input(shape=(height, width, channels))
+        cnn_input_layer = Input(shape=(height, width, channels))
         self.cnn_shape=cnn_input_layer
         
         #GRU
         timesteps=self.X_train.shape[0]
         features=self.X_train.shape[1]
-        gru_input_layer = kt.Input(shape=(timesteps, features))
+        gru_input_layer = Input(shape=(timesteps, features))
         self.gru_shape=gru_input_layer
         
         #Transformer
         batch_size=self.batch_size
         sequence_length=self.X_train.shape[0]
         d_model=X_train.shape[1]
-        transformer_input_layer = kt.Input(shape=(sequence_length, d_model))
+        transformer_input_layer = Input(shape=(sequence_length, d_model))
         self.transformer_layer = transformer_input_layer
 
         # Reshape input data
