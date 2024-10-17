@@ -241,8 +241,8 @@ mt = CMdtuner(mp_X_train_input_shape,
       
 # Run the tuner to find the best model configuration
 best_model = mt.run_tuner()
-if best_model is None:
-    raise ValueError("Failed to find the best model configuration")
+
+
 """
 # Display the best model's summary
 best_model.summary()
