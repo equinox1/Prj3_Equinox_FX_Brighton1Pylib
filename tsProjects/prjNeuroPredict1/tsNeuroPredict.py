@@ -219,24 +219,26 @@ print("Running tuner with mp_X_train_input_scaled scaled data: Rows:", mv_X_trai
 
 # Run the tuner to find the best model configuration
 mt = CMdtuner(mp_X_train_input_shape,
-               mp_lstm_shape,
-               mp_cnn_shape,
-               mp_gru_shape,
-               mp_transformer_shape,     
-               mv_X_train_scaled,
-               mv_y_train,
-               mp_objective,
-               mp_max_trials,
-               mp_executions_per_trial, 
-               mp_directory, 
-               mp_project_name,
-               mp_validation_split, 
-               mp_epochs,
-               mp_batch_size,
-               mp_arraysize,
-               mp_channels
-               )
+              mv_X_train_scaled,
+              mv_y_train,
+              mp_lstm_shape,
+              mp_cnn_shape,
+              mp_gru_shape,
+              mp_transformer_shape,     
+              mp_objective,
+              mp_max_trials,
+              mp_executions_per_trial, 
+              mp_directory, 
+              mp_project_name,
+              mp_validation_split, 
+              mp_epochs,
+              mp_batch_size,
+              mp_arraysize,
+              mp_channels)
+         
 
+
+        
 # Run the tuner to find the best model configuration
 best_model = mt.run_tuner()
 if best_model is None:
