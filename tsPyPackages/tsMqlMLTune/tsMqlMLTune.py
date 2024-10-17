@@ -64,6 +64,47 @@ class HybridEnsembleHyperModel(kt.HyperModel):
         print("The build input shape required by the transformer model is:", transformer_input.shape)
         print("The build Incoming shape is:", inputs.shape)
 
+        # Define the base models
+        
+        #LSTM
+        batch_size=self.batch_size
+        timesteps=self.X_train.shape[0]
+        features=self.X_train.shape[1]
+        lstm_input_layer = Input(shape=(batch_size, timesteps, features))
+        self.lstm_shape=lstm_input_layer
+
+        #CNN
+        height=self.X_train.shape[0]
+        width=self.X_train.shape[1]
+        channels=self.channels
+        cnn_input_layer = Input(shape=(height, width, channels))
+        self.cnn_shape=cnn_input_layer
+        
+        #GRU
+        timesteps=self.X_train.shape[0]
+        features=self.X_train.shape[1]
+        gru_input_layer = Input(shape=(timesteps, features))
+        self.gru_shape=gru_input_layer
+        
+        #Transformer
+        batch_size=self.batch_size
+        sequence_length=self.X_train.shape[0]
+        d_model=self.X_train.shape[1]
+        transformer_input_layer = Input(shape=(sequence_length, d_model))
+        self.transformer_layer = transformer_input_layer
+
+        #Required input data
+        print("tuner: input X_train shape:", self.X_train.shape)
+        print("tuner: input X_train shape:length:",  len(self.X_train.shape))
+        
+        print("The input shape required by the lstm model is:", self.lstm_shape)
+        print("The input shape required by the cnn model is:", self.cnn_shape)
+        print("The input shape required by the gru model is:", self.gru_shape)
+        print("The input shape required by the transformer model is:", self.transformer_shape)
+        print("The Incoming shape is:", self.X_train.shape)
+        
+
+        
         # Base Models Definition
         # LSTM Model
         def build_lstm():
