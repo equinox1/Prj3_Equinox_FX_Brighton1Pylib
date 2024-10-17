@@ -58,53 +58,6 @@ class HybridEnsembleHyperModel(kt.HyperModel):
         gru_input = Input(shape=self.gru_shape)
         transformer_input = Input(shape=self.transformer_shape)
 
-        print("The build input shape required by the lstm model is:", lstm_input.shape)
-        print("The build input shape required by the cnn model is:", cnn_input.shape)
-        print("The build input shape required by the gru model is:", gru_input.shape)
-        print("The build input shape required by the transformer model is:", transformer_input.shape)
-        print("The build Incoming shape is:", inputs.shape)
-
-        # Define the base models
-        
-        #LSTM
-        batch_size=self.batch_size
-        timesteps=self.X_train.shape[0]
-        features=self.X_train.shape[1]
-        lstm_input_layer = Input(shape=(batch_size, timesteps, features))
-        self.lstm_shape=lstm_input_layer
-
-        #CNN
-        height=self.X_train.shape[0]
-        width=self.X_train.shape[1]
-        channels=self.channels
-        cnn_input_layer = Input(shape=(height, width, channels))
-        self.cnn_shape=cnn_input_layer
-        
-        #GRU
-        timesteps=self.X_train.shape[0]
-        features=self.X_train.shape[1]
-        gru_input_layer = Input(shape=(timesteps, features))
-        self.gru_shape=gru_input_layer
-        
-        #Transformer
-        batch_size=self.batch_size
-        sequence_length=self.X_train.shape[0]
-        d_model=self.X_train.shape[1]
-        transformer_input_layer = Input(shape=(sequence_length, d_model))
-        self.transformer_layer = transformer_input_layer
-
-        #Required input data
-        print("tuner: input X_train shape:", self.X_train.shape)
-        print("tuner: input X_train shape:length:",  len(self.X_train.shape))
-        
-        print("The input shape required by the lstm model is:", self.lstm_shape)
-        print("The input shape required by the cnn model is:", self.cnn_shape)
-        print("The input shape required by the gru model is:", self.gru_shape)
-        print("The input shape required by the transformer model is:", self.transformer_shape)
-        print("The Incoming shape is:", self.X_train.shape)
-        
-
-        
         # Base Models Definition
         # LSTM Model
         def build_lstm():
@@ -150,7 +103,7 @@ class HybridEnsembleHyperModel(kt.HyperModel):
         gru_output = build_gru()
         transformer_output = build_transformer()
 
-         # Combine all the outputs
+        # Combine all the outputs
         combined = Concatenate()([lstm_output, cnn_output, gru_output, transformer_output])
 
         # Dense layers for final prediction
@@ -189,10 +142,48 @@ class CMdtuner:
         self.batch_size = batch_size
         self.arraysize = arraysize
         self.channels = channels
-                
+        
+        # Define the base models target shape
+        
+        #LSTM
+        batch_size=self.batch_size
+        timesteps = self.X_train.shape[0]
+        features = self.X_train.shape[1]
+        self.lstm_shape = (timesteps, features)
+        print("1:lstm: batchsize:", batch_size, "timesteps:", timesteps, "features:", features)
+        print("1:The input shape required by the lstm model is:", self.lstm_shape)
+        print("1:The Incoming shape is:", self.X_train.shape)
+        
+        # CNN
+        height = self.X_train.shape[0]
+        width = self.X_train.shape[1]
+        channels = self.channels
+        self.cnn_shape = (height, width, channels)
+        print("1:cnn: height:", height, "width:", width, "channels:", channels)
+        print("1:The input shape required by the cnn model is:", self.cnn_shape)
+        print("1:The Incoming shape is:", self.X_train.shape)
+
+        # GRU
+        timesteps = self.X_train.shape[0]
+        features = self.X_train.shape[1]
+        self.gru_shape = (timesteps, features)
+        print("1:gru: timesteps:", timesteps, "features:", features)
+        print("The input shape required by the gru model is:", self.gru_shape)
+        print("The Incoming shape is:", self.X_train.shape)
+
+        # Transformer
+        sequence_length = self.X_train.shape[0]
+        d_model = self.X_train.shape[1]
+        self.transformer_shape = (sequence_length, d_model)
+        print("1:transformer: batchsize:", batch_size, "sequence_length:", sequence_length, "d_model:", d_model)
+        print("1:The input shape required by the transformer model is:", self.transformer_shape)
+        print("1:The Incoming shape is:", self.X_train.shape)
+
+
     def run_tuner(self):
         # Define the tuner
-        tuner = kt.RandomSearch(hypermodel=HybridEnsembleHyperModel( 
+        tuner = kt.RandomSearch(
+            HybridEnsembleHyperModel( 
                 input_shape=self.input_shape,
                 lstm_shape=self.lstm_shape,
                 cnn_shape=self.cnn_shape,
@@ -202,40 +193,23 @@ class CMdtuner:
                 max_trials=self.max_trials,
                 executions_per_trial=self.executions_per_trial,
                 directory=self.directory,
-                 project_name=self.project_name,
+                project_name=self.project_name,
                 validation_split=self.validation_split,
                 epochs=self.epochs,
                 batch_size=self.batch_size,
                 arraysize=self.arraysize,
                 channels=self.channels
-            ),
-        objective=self.objective,
-        max_trials=self.max_trials,
-        executions_per_trial=self.executions_per_trial,
-        directory=self.directory,
-        project_name=self.project_name
+            )
         )
-
-
-        # Reshape input data
-        print("tuner: input X_train shape:", self.X_train.shape)
-        print("tuner: input X_train shape:length:",  len(self.X_train.shape))
         
-        print("The input shape required by the lstm model is:", self.lstm_shape)
-        print("The input shape required by the cnn model is:", self.cnn_shape)
-        print("The input shape required by the gru model is:", self.gru_shape)
-        print("The input shape required by the transformer model is:", self.transformer_shape)
-        print("The Incoming shape is:", self.X_train.shape)
+        # Train the tuner
+        tuner.search([self.X_train, self.X_train, self.X_train, self.X_train], self.y_train, validation_split=0.2, epochs=10, batch_size=32)
         
-        # Run tuner search
-        tuner.search(self.X_train, self.y_train, 
-                     epochs=self.epochs, 
-                     batch_size=self.batch_size,
-                     validation_split=self.validation_split)
-
-        # Get the best model
-        best_model = tuner.get_best_models(num_models=1)[0]
+        # Get the best hyperparameters
         best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
         
-        print(f"Best Hyperparameters: {best_hp.values}")
-        return best_model
+        # Print the best hyperparameters
+        print(f"Best hyperparameters: {best_hp.values}")
+        
+        # Return the best model
+        return tuner.get_best_models(num_models=1)[0]
