@@ -25,10 +25,12 @@ import numpy as np
 import pandas as pd
 
 # Import custom modules for MT5 and AI-related functionality
+
 from tsMqlConnect import CMqlinitdemo
 from tsMqlData import CMqldatasetup
 from tsMqlML import CMqlmlsetup
 from tsMqlMLTune import CMdtuner
+
 
 # +-------------------------------------------------------------------
 # Import TensorFlow for machine learning
@@ -218,6 +220,7 @@ print("Running tuner with mp_X_train_input_scaled input shape:",mv_X_train_scale
 print("Running tuner with mp_X_train_input_scaled scaled data: Rows:", mv_X_train_scaled.shape[0], "Columns:", mv_X_train_scaled.shape[1])
 
 # Run the tuner to find the best model configuration
+
 mt = CMdtuner(mp_X_train_input_shape,
               mv_X_train_scaled,
               mv_y_train,
@@ -235,10 +238,7 @@ mt = CMdtuner(mp_X_train_input_shape,
               mp_batch_size,
               mp_arraysize,
               mp_channels)
-         
-
-
-        
+      
 # Run the tuner to find the best model configuration
 best_model = mt.run_tuner()
 if best_model is None:
