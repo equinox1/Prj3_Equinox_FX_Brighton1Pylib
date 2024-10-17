@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras.layers import (
     Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, 
-    Concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D, TimeDistributed
+    Concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
 )
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
@@ -27,24 +27,29 @@ class TransformerBlock(tf.keras.layers.Layer):
         attn_output = self.att(inputs, inputs, training=training)
         attn_output = self.dropout1(attn_output, training=training)
         out1 = self.layernorm1(inputs + attn_output)
-        
         ffn_output = self.ffn(out1)
         ffn_output = self.dropout2(ffn_output, training=training)
         return self.layernorm2(out1 + ffn_output)
 
-    def build(self, input_shape):
-        super(TransformerBlock, self).build(input_shape)
-
 # Define a HyperModel class for Keras Tuner
-class HybridEnsembleHyperModel(kt.HyperModel):   
-    def __init__(self, input_shape, lstm_shape, cnn_shape, gru_shape, transformer_shape):
-        super(HybridEnsembleHyperModel, self).__init__()
-        self.input_shape = input_shape
-        self.lstm_shape = lstm_shape  # e.g. (timesteps, features)
-        self.cnn_shape = cnn_shape    # e.g. (height, width, channels)
-        self.gru_shape = gru_shape    # e.g. (timesteps, features)
-        self.transformer_shape = transformer_shape  # e.g. (sequence_length, d_model)
- 
+class HybridEnsembleHyperModel(kt.HyperModel):
+    def __init__(self, input_shape, lstm_shape, cnn_shape, gru_shape, transformer_shape, objective, max_trials, executions_per_trial, directory, project_name, validation_split, epochs, batch_size, arraysize, channels):
+        super(kt.HyperModel, self).__init__()
+        input_shape,
+        lstm_shape,  # (timesteps, features)
+        cnn_shape,    # (height, width, channels)
+        gru_shape,    # (timesteps, features)
+        transformer_shape,  # (sequence_length, d_model)
+        objective,
+        max_trials,
+        executions_per_trial,
+        directory,
+        project_name,
+        validation_split,
+        epochs,
+        batch_size,
+        arraysize,
+        channels
 
     def build(self, hp):
         inputs = Input(shape=self.input_shape)
@@ -53,45 +58,41 @@ class HybridEnsembleHyperModel(kt.HyperModel):
         gru_shape = Input(shape=self.gru_shape)
         transformer_shape = Input(shape=self.transformer_shape)
 
-        print("The build input shape required by the lstm model is:", self.lstm_shape)
-        print("The build input shape required by the cnn model is:", self.cnn_shape)
-        print("The build input shape required by the gru model is:", self.gru_shape)
-        print("The build input shape required by the transformer model is:", self.transformer_shape)
-        print("The build Incoming shape is:", self.X_train.shape)
+        print("The build input shape required by the lstm model is:", lstm_shape)
+        print("The build input shape required by the cnn model is:", cnn_shape)
+        print("The build input shape required by the gru model is:", gru_shape)
+        print("The build input shape required by the transformer model is:", transformer_shape)
+        print("The build Incoming shape is:", inputs)
 
-        # Ensure inputs have the correct shape for TimeDistributed layer
-        #reshaped_inputs = tf.expand_dims(inputs, axis=-1) if len(self.input_shape) == 2 else inputs
-
-        ### Base Models ###       
+        # Base Models Definition
         # LSTM Model
-        def build_lstm(hp):
+        def build_lstm():
             x = LSTM(hp.Int('lstm_units', 32, 128, step=32), return_sequences=True)(lstm_shape)
             x = Flatten()(x)
             x = Dense(hp.Int('lstm_dense_units', 32, 128, step=32), activation='relu')(x)
             return x
 
         # 1D CNN Model
-        def build_cnn(hp):
+        def build_cnn():
             x = Conv1D(filters=hp.Int('cnn_filters', 32, 128, step=32), 
                        kernel_size=hp.Choice('cnn_kernel_size', [3, 5]), 
                        padding='same', activation='relu')(cnn_shape)
-            x = MaxPooling1D(pool_size=2, strides=1, padding='same')(x)
+            x = MaxPooling1D(pool_size=2, padding='same')(x)
             x = Flatten()(x)
             x = Dense(hp.Int('cnn_dense_units', 32, 128, step=32), activation='sigmoid')(x)
             return x
 
         # GRU Model
-        def build_gru(hp):
+        def build_gru():
             x = GRU(hp.Int('gru_units', 32, 128, step=32), return_sequences=True)(gru_shape)
             x = Flatten()(x)
             x = Dense(hp.Int('gru_dense_units', 32, 128, step=32), activation='sigmoid')(x)
             return x
 
         # Transformer Model
-        def build_transformer(hp):
+        def build_transformer():
             embed_dim = hp.Int('transformer_embed_dim', 32, 128, step=32)
-            reshaped_transformer_inputs = tf.reshape(transformer_shape, [-1, sequence_length, d_model])
-            x = Dense(embed_dim, activation='relu')(reshaped_transformer_inputs)  # Project input to the required embedding dimension
+            x = Dense(embed_dim, activation='relu')(transformer_shape)  # Project input to the required embedding dimension
             x = TransformerBlock(
                 embed_dim=embed_dim,
                 num_heads=hp.Int('transformer_num_heads', 2, 8, step=2),
@@ -102,22 +103,23 @@ class HybridEnsembleHyperModel(kt.HyperModel):
             x = Dense(hp.Int('transformer_dense_units', 32, 128, step=32), activation='relu')(x)
             return x
 
-        ### Hybrid Ensemble Model ###
-        lstm_output = build_lstm(hp)
-        cnn_output = build_cnn(hp)
-        gru_output = build_gru(hp)
-        transformer_output = build_transformer(hp)
+        # Build the base models
+        lstm_output = build_lstm()
+        cnn_output = build_cnn()
+        gru_output = build_gru()
+        transformer_output = build_transformer()
 
+         # Combine all the outputs
         combined = Concatenate()([lstm_output, cnn_output, gru_output, transformer_output])
 
-        final_inputs = Concatenate()([lstm_shape, cnn_shape, gru_shape, transformer_shape])
-
+        # Dense layers for final prediction
         x = Dense(hp.Int('ensemble_dense_units', 64, 256, step=64), activation='relu')(combined)
         x = Dropout(hp.Float('dropout_rate', 0.2, 0.5, step=0.1))(x)
         output = Dense(1, activation='sigmoid')(x)
 
-        model = Model(inputs=final_inputs, outputs=output)
-        
+        # Define the model
+        model = Model(inputs=[lstm_shape, cnn_shape, gru_shape, transformer_shape], outputs=output)
+
         model.compile(
             optimizer=Adam(learning_rate=hp.Float('learning_rate', 1e-4, 1e-2, sampling='LOG')),
             loss='binary_crossentropy',
@@ -128,54 +130,42 @@ class HybridEnsembleHyperModel(kt.HyperModel):
 
 # Class for running the tuner
 class CMdtuner:
-    def __init__(self, input_shape, X_train, y_train, objective, max_trials, executions_per_trial, 
-                 directory, project_name, validation_data, epochs, batch_size, arraysize,channels, lstm_shape,
-                 cnn_shape, gru_shape, transformer_shape):    
-        self.input_shape = input_shape
+    def __init__(self, X_train_input_shape,X_train, y_train, lstm_shape, cnn_shape, gru_shape, transformer_shape,objective, max_trials, executions_per_trial, directory, project_name, tuner_params):
         self.X_train = X_train
         self.y_train = y_train
+        self.lstm_shape = lstm_shape
+        self.cnn_shape = cnn_shape
+        self.gru_shape = gru_shape
+        self.transformer_shape = transformer_shape
+        self.objective = objective
         self.max_trials = max_trials
         self.executions_per_trial = executions_per_trial
-        self.objective = objective
         self.directory = directory
         self.project_name = project_name
-        self.validation_data = validation_data
-        self.epochs = epochs
-        self.batch_size = batch_size
-        self.arraysize = arraysize
-        self.channels = channels
-        self.lstm_shape = None
-        self.cnn_shape = None
-        self.gru_shape = None
-        self.transformer_shape = None
-       
-
-        print("init input_shape:", self.input_shape, " param:", input_shape)
-        print("init X_train:", self.X_train, " param:", X_train)
-        print("init y_train:", self.y_train, " param:", y_train)
-        print("init max_trials:", self.max_trials, " param:", max_trials)
-        print("init executions_per_trial:", self.executions_per_trial, " param:", executions_per_trial)
-        print("init objective:", self.objective, " param:", objective)
-        print("init directory:", self.directory, " param:", directory)
-        print("init project_name:", self.project_name, " param:", project_name)
-        print("init validation_data:", self.validation_data, " param:", validation_data)
-        print("init epochs:", self.epochs, " param:", epochs)
-        print("init batch_size:", self.batch_size, " param:", batch_size)
-        print("init arraysize:", self.arraysize, " param:", arraysize)
-        
-
+        self.tuner_params = tuner_params
+            
     def run_tuner(self):
         tuner = kt.RandomSearch(
-            HybridEnsembleHyperModel(input_shape=self.input_shape, lstm_shape=self.lstm_shape,cnn_shape=self.cnn_shape,gru_shape=self.gru_shape,transformer_shape=self.transformer_shape), 
-            objective=self.objective,  
-            max_trials=self.max_trials,
-            executions_per_trial=self.executions_per_trial,  
-            directory=self.directory,
-            project_name=self.project_name
+            HybridEnsembleHyperModel(
+                input_shape=self.input_shape,
+                lstm_shape=self.lstm_shape,  # (timesteps, features)
+                cnn_shape=self.cnn_shape,    # (height, width, channels)
+                gru_shape=self.gru_shape,    # (timesteps, features)
+                transformer_shape=self.transformer_shape,  # (sequence_length, d_model)
+                objective=self.objective,
+                max_trials=self.max_trials,
+                executions_per_trial=self.executions_per_trial,
+                directory=self.directory,
+                project_name=self.project_name,
+                validation_split=self.validation_split,
+                epochs=self.epochs,
+                batch_size=self.batch_size,
+                arraysize=self.arraysize,
+                channels=self.channels
+            ),
+            **self.tuner_params
         )
 
-               
-        
         """
         LSTMs ((Long Short-Term Memory)) are commonly used for sequential data, like time series or text.
         ====================================================================
@@ -268,21 +258,14 @@ class CMdtuner:
         print("The Incoming shape is:", self.X_train.shape)
         
 
-        # Search for best hyperparameters
-        tuner.search(self.X_train, self.y_train, validation_data=self.validation_data, 
-                     epochs=self.epochs, batch_size=self.batch_size)
+        # Run tuner search
+        tuner.search(self.X_train, self.y_train, 
+                     epochs=self.tuner_params['epochs'], 
+                     batch_size=self.tuner_params['batch_size'])
 
-        # Get the best hyperparameters
-        best_hp = tuner.get_best_hyperparameters(num_trials=self.max_trials)
-        if not best_hp:
-            raise ValueError("No hyperparameters found. Ensure that the tuner has completed trials.")
-
-        best_hp = best_hp[0]
-        print(f"Best hyperparameters: {best_hp.values}")
-
-        # Return the best model
-        best_models = tuner.get_best_models(num_models=1)
-        if not best_models:
-            raise ValueError("No models found. Ensure that the tuner has completed trials.")
-
-        return best_models[0]
+        # Get the best model
+        best_model = tuner.get_best_models(num_models=1)[0]
+        best_hp = tuner.get_best_hyperparameters(num_trials=1)[0]
+        
+        print(f"Best Hyperparameters: {best_hp.values}")
+        return best_model

@@ -181,6 +181,10 @@ print("3:End Shapes of scaled split data DataFrames:")
 mp_X_train_input_shape = mv_X_train_scaled.shape
 mp_X_test_input_shape = mv_X_test_scaled.shape
 
+mp_lstm_input_shape = mp_X_train_input_shape
+mp_cnn_input_shape = mp_X_train_input_shape
+mp_gru_input_shape = mp_X_train_input_shape
+mp_transformer_input_shape = mp_X_train_input_shape
 
 # +-------------------------------------------------------------------
 # Hyperparameter tuning and model setup
@@ -215,6 +219,10 @@ print("Running tuner with mp_X_train_input_scaled scaled data: Rows:", mv_X_trai
 
 # Run the tuner to find the best model configuration
 mt = CMdtuner(mp_X_train_input_shape,
+               mp_lstm_shape,
+               mp_cnn_shape,
+               mp_gru_shape,
+               mp_transformer_shape,     
                mv_X_train_scaled,
                mv_y_train,
                mp_objective,
@@ -226,11 +234,7 @@ mt = CMdtuner(mp_X_train_input_shape,
                mp_epochs,
                mp_batch_size,
                mp_arraysize,
-               mp_channels,
-               mp_lstm_shape,
-               mp_cnn_shape,
-               mp_gru_shape,
-               mp_transformer_shape,
+               mp_channels
                )
 
 # Run the tuner to find the best model configuration
