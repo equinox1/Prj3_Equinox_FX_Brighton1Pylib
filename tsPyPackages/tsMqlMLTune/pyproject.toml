@@ -1,6 +1,6 @@
 [project]
 name = "tsMqlMLTune.py"
-version = "1.4.71"
+version = "1.4.78"
 authors = [
   { name="Tony Shepherd", email="shep.antony@gmail.com" },
 ]
@@ -15,3 +15,4 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlMLTune"
+

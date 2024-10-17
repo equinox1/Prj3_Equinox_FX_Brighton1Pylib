@@ -150,8 +150,8 @@ class CMdtuner:
         self.channels = channels
                 
     def run_tuner(self):
-        tuner = kt.RandomSearch(
-            HybridEnsembleHyperModel(
+        # Define the tuner
+        tuner = kt.RandomSearch(hypermodel=HybridEnsembleHyperModel( 
                 input_shape=self.input_shape,
                 lstm_shape=self.lstm_shape,
                 cnn_shape=self.cnn_shape,
@@ -161,19 +161,20 @@ class CMdtuner:
                 max_trials=self.max_trials,
                 executions_per_trial=self.executions_per_trial,
                 directory=self.directory,
-                project_name=self.project_name,
+                 project_name=self.project_name,
                 validation_split=self.validation_split,
                 epochs=self.epochs,
                 batch_size=self.batch_size,
                 arraysize=self.arraysize,
                 channels=self.channels
             ),
-            objective=self.objective,
-            max_trials=self.max_trials,
-            executions_per_trial=self.executions_per_trial,
-            directory=self.directory,
-            project_name=self.project_name
+        objective=self.objective,
+        max_trials=self.max_trials,
+        executions_per_trial=self.executions_per_trial,
+        directory=self.directory,
+        project_name=self.project_name
         )
+
 
         # Reshape input data
         print("tuner: input X_train shape:", self.X_train.shape)
@@ -188,7 +189,8 @@ class CMdtuner:
         # Run tuner search
         tuner.search(self.X_train, self.y_train, 
                      epochs=self.epochs, 
-                     batch_size=self.batch_size)
+                     batch_size=self.batch_size,
+                     validation_split=self.validation_split)
 
         # Get the best model
         best_model = tuner.get_best_models(num_models=1)[0]
