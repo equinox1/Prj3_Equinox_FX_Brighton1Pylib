@@ -204,12 +204,20 @@ class CMdtuner:
         )
        
         # Reshape input data for each model
-        # Convert DataFrame to NumPy array using to_numpy()
-        X_train_lstm = self.X_train.to_numpy().reshape(-1, *self.lstm_shape)   # for LSTM
-        X_train_cnn = self.X_train.to_numpy().reshape(-1, *self.cnn_shape)     # for CNN (1D)
-        X_train_gru = self.X_train.to_numpy().reshape(-1, *self.gru_shape)     # for GRU
-        X_train_transformer = self.X_train.to_numpy().reshape(-1, *self.transformer_shape)  # for Transformer
 
+        # Convert DataFrame to NumPy array using to_numpy()
+        #X_train_lstm = self.X_train.to_numpy().reshape(-1, *self.lstm_shape)   # for LSTM
+        #X_train_cnn = self.X_train.to_numpy().reshape(-1, *self.cnn_shape)     # for CNN (1D)
+        #X_train_gru = self.X_train.to_numpy().reshape(-1, *self.gru_shape)     # for GRU
+        #X_train_transformer = self.X_train.to_numpy().reshape(-1, *self.transformer_shape)  # for Transformer
+
+        # pd Reshape input data for each model
+        
+        # Convert DataFrame to NumPy array using to_numpy()
+        X_train_lstm = self.X_train.values.reshape(-1, *self.lstm_shape)  # for LSTM
+        X_train_cnn =  self.X_train.values.reshape(-1, *self.cnn_shape)     # for CNN (1D)
+        X_train_gru = self.X_train.values.reshape(-1, *self.gru_shape)     # for GRU
+        X_train_transformer = self.X_train.values.reshape(-1, *self.transformer_shape)  # for Transformer
 
         # Train the tuner
         tuner.search([X_train_lstm, X_train_cnn, X_train_gru, X_train_transformer], self.y_train, validation_split=0.2, epochs=10, batch_size=32)
