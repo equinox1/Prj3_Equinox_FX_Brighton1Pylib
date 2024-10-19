@@ -5,19 +5,13 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.losses import BinaryCrossentropy
 from tensorflow.keras.metrics import AUC
-from tensorflow.keras.utils import to_categorical
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score
 import keras_tuner as kt
-from keras_tuner import HyperModel
+from keras_tuner import Hyperband
+from ml_dtypes import float8_e5m2
 
 # Class for running the tuner
 class CMdtuner:
-    def __init__(self, X_train, y_train, cnn_model, lstm_model, gru_model, transformer_model, lstm_shape, lstm_features, cnn_shape, cnn_features, gru_shape, gru_features, transformer_shape, transformer_features, objective, max_trials, executions_per_trial, directory, project_name, validation_split, epochs, batch_size, factor, channels):
+    def __init__(self, X_train, y_train, cnn_model, lstm_model, gru_model, transformer_model, lstm_shape, lstm_features, cnn_shape, cnn_features, gru_shape, gru_features, transformer_shape, transformer_features, objective, max_trials, executions_per_trial, directory, project_name, validation_split, epochs, batch_size, factor, channels, dropout):
         self.X_train = X_train
         self.y_train = y_train
         self.cnn_model = cnn_model
@@ -42,12 +36,13 @@ class CMdtuner:
         self.batch_size = batch_size
         self.factor = factor
         self.channels = channels
+        self.dropout = dropout
         
-        # Define the base models target shape
-        self.tuner = kt.Hyperband(
+        # Initialize the Keras Tuner
+        self.tuner = Hyperband(
             self.build_model,
             objective=self.objective,
-            max_epochs=self.epochs,
+            max_trials=self.max_trials,  # Fixed the bug here
             executions_per_trial=self.executions_per_trial,
             directory=self.directory,
             project_name=self.project_name,
@@ -58,34 +53,29 @@ class CMdtuner:
     def build_model(self, hp):
         print("Building model with hp:", hp)
 
-        x_cnn = None
-        x_lstm = None
-        x_gru = None
-        x_transformer = None
+        # Initialize all to None
+        x_cnn = x_lstm = x_gru = x_transformer = None
+        cnninputs = lstminputs = gruinputs = transformerinputs = None
 
-        cnninputs = None
-        lstminputs = None
-        gruinputs = None
-        transformerinputs = None
-
-        # Define the input shapes
+        # Define input shapes for the models
         if self.cnn_model:
-            cnninputs = Input(shape=(self.cnn_shape[1], 1))  # Define the input shape explicitly
+            cnninputs = Input(shape=(self.cnn_shape[1], self.cnn_features))  # Modify shape to allow for dynamic channels
             print("Set cnninputs shape:", cnninputs.shape)
         
         if self.lstm_model:
-            lstminputs = Input(shape=(self.lstm_shape[1], 1))  # Define the input shape explicitly
+            lstminputs = Input(shape=(self.lstm_shape[1], self.lstm_features))  # Modify for channels
             print("Set lstminputs shape:", lstminputs.shape)
         
         if self.gru_model:
-            gruinputs = Input(shape=(self.gru_shape[1], 1))
+            gruinputs = Input(shape=(self.gru_shape[1], self.gru_features))  # Modify for channels
             print("Set gruinputs shape:", gruinputs.shape)
         
         if self.transformer_model:
-            transformerinputs = Input(shape=(self.transformer_shape[1], 1))  # Define the input shape explicitly
+            transformerinputs = Input(shape=(self.transformer_shape[1], self.transformer_features))  # Modify for channels
             print("Set transformerinputs shape:", transformerinputs.shape)
-        
-        # Convolutional layers (search space example)
+
+
+        # CNN Layers
         if self.cnn_model:
             x_cnn = Conv1D(filters=hp.Int('conv_filters', min_value=32, max_value=128, step=32),
                           kernel_size=hp.Int('conv_kernel_size', min_value=3, max_value=7, step=2),
@@ -93,29 +83,29 @@ class CMdtuner:
             x_cnn = MaxPooling1D(pool_size=2)(x_cnn)
             x_cnn = Dropout(0.2)(x_cnn)
             x_cnn = Flatten()(x_cnn)
-        
-        # LSTM Recurrent layers to capture temporal dependencies
+
+        # LSTM Layers
         if self.lstm_model: 
             x_lstm = LSTM(hp.Int('lstm_units_1', min_value=32, max_value=128, step=32), return_sequences=True)(lstminputs)
             x_lstm = LSTM(hp.Int('lstm_units_2', min_value=32, max_value=128, step=32))(x_lstm)
             x_lstm = Dropout(0.2)(x_lstm)
             x_lstm = Flatten()(x_lstm)
-        
-        # GRU layers
+
+        # GRU Layers
         if self.gru_model:
             x_gru = GRU(hp.Int('gru_units_1', min_value=32, max_value=128, step=32), return_sequences=True)(gruinputs)
             x_gru = GRU(hp.Int('gru_units_2', min_value=32, max_value=128, step=32))(x_gru)
             x_gru = Dropout(0.2)(x_gru)
             x_gru = Flatten()(x_gru)
-        
-        # Transformer layers
+
+        # Transformer Layers
         if self.transformer_model:
             x_transformer = MultiHeadAttention(num_heads=hp.Int('num_heads', min_value=2, max_value=4, step=1), key_dim=hp.Int('key_dim', min_value=32, max_value=128, step=32))(transformerinputs)
             x_transformer = LayerNormalization(epsilon=1e-6)(x_transformer)
             x_transformer = Dropout(0.2)(x_transformer)
-            x_transformer = GlobalAveragePooling1D()(x_transformer)    
-        
-        # Concatenate all the layers
+            x_transformer = GlobalAveragePooling1D()(x_transformer)
+
+        # Concatenate Layers if multiple models are enabled
         concat_layers = [layer for layer in [x_cnn, x_lstm, x_gru, x_transformer] if layer is not None]
         if len(concat_layers) > 1:
             x = Concatenate()(concat_layers)
@@ -131,11 +121,13 @@ class CMdtuner:
         model = Model(inputs=[input for input in [cnninputs, lstminputs, gruinputs, transformerinputs] if input is not None], outputs=x)
 
         # Compile the model
-        model.compile(optimizer=Adam(), loss=BinaryCrossentropy(), metrics=['accuracy'])
-                
+        model.compile(optimizer=Adam(), loss=BinaryCrossentropy(), metrics=['accuracy', AUC()])
+
         return model
 
     def run_tuner(self):
+        # Run the tuner search
         self.tuner.search(self.X_train, self.y_train, validation_split=self.validation_split, epochs=self.epochs, batch_size=self.batch_size)
+        # Get the best model
         best_model = self.tuner.get_best_models()[0]
         return best_model

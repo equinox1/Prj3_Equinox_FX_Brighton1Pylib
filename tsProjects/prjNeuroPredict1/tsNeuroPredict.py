@@ -195,7 +195,7 @@ mp_y_test_input_shape = mv_y_test.shape
 # Hyperparameter tuning and model setup
 # +-------------------------------------------------------------------
 # Define parameters for the model tuning process
-mp_epochs = 10
+mp_epochs = 1
 mp_batch_size = 16
 mp_objective = str('val_loss')
 mp_max_trials = 1
@@ -206,6 +206,7 @@ mp_channels=1
 mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
 mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_prod"
 mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_prod"
+mp_dropout = 0.2
 
 mp_lstm_features = 1
 mp_cnn_features = 1
@@ -229,10 +230,10 @@ mp_gru_input_shape = mp_X_train_input_shape
 mp_transformer_input_shape = mp_X_train_input_shape
 
 # hybrid model elements
-mp_cnn_model = True
-mp_lstm_model = True
+mp_cnn_model = False
+mp_lstm_model = False
 mp_gru_model = False
-mp_transformer_model = False
+mp_transformer_model = True
 
 # Create an instance of the tuner class
 print("Creating an instance of the tuner class")
@@ -259,7 +260,8 @@ mt = CMdtuner(mv_X_train,
               mp_epochs,
               mp_batch_size,
               mp_factor,
-              mp_channels
+              mp_channels,
+              mp_dropout
         )
       
 # Run the tuner to find the best model configuration
