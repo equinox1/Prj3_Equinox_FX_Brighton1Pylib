@@ -231,7 +231,7 @@ mp_transformer_input_shape = mp_X_train_input_shape
 
 # hybrid model elements
 mp_cnn_model = True
-mp_lstm_model = False
+mp_lstm_model = True
 mp_gru_model = False
 mp_transformer_model = False
 
