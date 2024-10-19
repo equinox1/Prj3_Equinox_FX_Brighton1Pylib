@@ -228,8 +228,20 @@ mp_cnn_input_shape = mp_X_train_input_shape
 mp_gru_input_shape = mp_X_train_input_shape
 mp_transformer_input_shape = mp_X_train_input_shape
 
+# hybrid model elements
+mp_cnn_model = True
+mp_lstm_model = True
+mp_gru_model = False
+mp_transformer_model = False
+
+# Create an instance of the tuner class
+print("Creating an instance of the tuner class")
 mt = CMdtuner(mv_X_train,
               mv_y_train,
+              mp_cnn_model,
+              mp_lstm_model,
+              mp_gru_model,
+              mp_transformer_model,
               mp_lstm_input_shape,
               mp_lstm_features,
               mp_cnn_input_shape, 
@@ -247,14 +259,14 @@ mt = CMdtuner(mv_X_train,
               mp_epochs,
               mp_batch_size,
               mp_factor,
-              mp_channels)
+              mp_channels
+        )
       
 # Run the tuner to find the best model configuration
 best_model = mt.run_tuner()
 
 # Display the best model's summary
 best_model.summary()
-
 
 # +-------------------------------------------------------------------
 # Train and evaluate the model
@@ -278,7 +290,6 @@ predicted_fx_price = scaler.inverse_transform(predicted_fx_price.reshape(-1, 1))
 mv_y_test_reshaped = mv_y_test.values.reshape(-1, 1)  # Convert to NumPy array and reshape
 real_fx_price = scaler.inverse_transform(mv_y_test_reshaped)
 
-
 # Visualizing the results
 plt.plot(real_fx_price, color='red', label='Real FX Price')
 plt.plot(predicted_fx_price, color='blue', label='Predicted FX Price')
@@ -286,7 +297,11 @@ plt.title('FX Price Prediction')
 plt.xlabel('Time')
 plt.ylabel('FX Price')
 plt.legend()
-plt.show()
+# Save the plot to a file
+mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_prod"
+
+plt.savefig(mp_project_name + '\\'+ 'plot.png')
+#plt.show()dir
 
 
 # Evaluate model performance (accuracy, precision, recall, etc.)
