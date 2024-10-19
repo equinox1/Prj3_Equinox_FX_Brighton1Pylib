@@ -23,7 +23,11 @@ from tabulate import tabulate
 import MetaTrader5 as mt5
 import numpy as np
 import pandas as pd
-
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+import seaborn as sns
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
 # Import custom modules for MT5 and AI-related functionality
 
 from tsMqlConnect import CMqlinitdemo
@@ -256,14 +260,36 @@ best_model.summary()
 # Train and evaluate the model
 # +-------------------------------------------------------------------
 # Train the model using the scaled data
-mv_model = best_model.fit(mv_X_train, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
+# Fit the scaler to the training data
+# Assuming mv_y_train is a DataFrame
+mv_y_train_reshaped = mv_y_train.values.reshape(-1, 1)  # Convert to NumPy array and reshape
+scaler.fit(mv_y_train_reshaped)  # Use the reshaped array for fitting
+mv_model = best_model.fit(mv_X_train, mv_y_train_reshaped, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
+
+# +-------------------------------------------------------------------
+# Predict the test data using the trained model
+# +-------------------------------------------------------------------
+
+# Making predictions
+predicted_fx_price = best_model.predict(mv_X_test)
+predicted_fx_price = scaler.inverse_transform(predicted_fx_price.reshape(-1, 1))
+
+# Inverse transform to get actual prices
+mv_y_test_reshaped = mv_y_test.values.reshape(-1, 1)  # Convert to NumPy array and reshape
+real_fx_price = scaler.inverse_transform(mv_y_test_reshaped)
 
 
-# Make predictions using the trained model
-#predictions = pd.DataFrame(best_model.predict(mv_X_test ))
+# Visualizing the results
+plt.plot(real_fx_price, color='red', label='Real FX Price')
+plt.plot(predicted_fx_price, color='blue', label='Predicted FX Price')
+plt.title('FX Price Prediction')
+plt.xlabel('Time')
+plt.ylabel('FX Price')
+plt.legend()
+plt.show()
 
-#print("Predictions:", predictions.head(5))
 
 # Evaluate model performance (accuracy, precision, recall, etc.)
 #accuracy, precision, recall, f1 = m1.model_performance(best_model, mv_X_test, mv_y_test)
 #print(f"Accuracy: {accuracy}, Precision: {precision}, Recall: {recall}, F1 Score: {f1}")
+
