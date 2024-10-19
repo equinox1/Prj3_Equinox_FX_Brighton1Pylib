@@ -57,6 +57,12 @@ class CMdtuner:
 
     def build_model(self, hp):
         print("Building model with hp:", hp)
+
+        x_cnn = None
+        x_lstm = None
+        x_gru = None
+        x_transformer = None
+
         cnninputs = None
         lstminputs = None
         gruinputs = None
@@ -65,20 +71,19 @@ class CMdtuner:
         # Define the input shapes
         if self.cnn_model:
             cnninputs = Input(shape=(self.cnn_shape[1], 1))  # Define the input shape explicitly
+            print("Set cnninputs shape:", cnninputs.shape)
         
         if self.lstm_model:
             lstminputs = Input(shape=(self.lstm_shape[1], 1))  # Define the input shape explicitly
+            print("Set lstminputs shape:", lstminputs.shape)
         
         if self.gru_model:
             gruinputs = Input(shape=(self.gru_shape[1], 1))
+            print("Set gruinputs shape:", gruinputs.shape)
         
         if self.transformer_model:
             transformerinputs = Input(shape=(self.transformer_shape[1], 1))  # Define the input shape explicitly
-        
-        x_cnn = None
-        x_lstm = None
-        x_gru = None
-        x_transformer = None
+            print("Set transformerinputs shape:", transformerinputs.shape)
         
         # Convolutional layers (search space example)
         if self.cnn_model:
@@ -117,7 +122,7 @@ class CMdtuner:
         elif len(concat_layers) == 1:
             x = concat_layers[0]
         else:
-            x = None
+            raise ValueError("At least one model (cnn_model, lstm_model, gru_model, transformer_model) must be enabled.")
 
         # Dense layer for final prediction
         x = Dense(1, activation='sigmoid')(x)
