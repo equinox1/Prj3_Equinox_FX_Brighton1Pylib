@@ -41,7 +41,7 @@ from tsMqlMLTune import CMdtuner
 # +-------------------------------------------------------------------
 import tensorflow as tf
 tf.compat.v1.reset_default_graph()  # Ensure compatibility with TensorFlow v1 functions
-
+print("Tensorflow Version",tf.__version__)
 # Check GPU availability and configure memory growth if a GPU is available
 gpus = tf.config.list_physical_devices('GPU')
 if gpus:
@@ -195,7 +195,7 @@ mp_y_test_input_shape = mv_y_test.shape
 # Hyperparameter tuning and model setup
 # +-------------------------------------------------------------------
 # Define parameters for the model tuning process
-mp_epochs = 1
+mp_epochs = 10
 mp_batch_size = 16
 mp_objective = str('val_loss')
 mp_max_trials = 1
