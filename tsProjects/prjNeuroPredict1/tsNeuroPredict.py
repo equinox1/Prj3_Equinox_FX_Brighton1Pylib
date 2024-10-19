@@ -251,26 +251,19 @@ best_model = mt.run_tuner()
 # Display the best model's summary
 best_model.summary()
 
-"""
+
 # +-------------------------------------------------------------------
 # Train and evaluate the model
 # +-------------------------------------------------------------------
 # Train the model using the scaled data
-mv_X_train_list = [mv_X_train_scaled] * 4  # Create 4 identical tensors for the ensemble
-mv_model = best_model.fit(mv_X_train_list, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
-if mv_model is None:
-    raise ValueError("Failed to train the model")
+mv_model = best_model.fit(mv_X_train, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
 
-# Reshape the test data to match the model input requirements
-mv_X_test_list = [mv_X_test_scaled] * 4
 
 # Make predictions using the trained model
-predictions = pd.DataFrame(best_model.predict(mv_X_test_list))
-if predictions.empty:
-    raise ValueError("Failed to make predictions")
-print("Predictions:", predictions.head(5))
+#predictions = pd.DataFrame(best_model.predict(mv_X_test ))
+
+#print("Predictions:", predictions.head(5))
 
 # Evaluate model performance (accuracy, precision, recall, etc.)
-accuracy, precision, recall, f1 = m1.model_performance(best_model, mv_X_test_list, mv_y_test)
-print(f"Accuracy: {accuracy}, Precision: {precision}, Recall: {recall}, F1 Score: {f1}")
-"""
+#accuracy, precision, recall, f1 = m1.model_performance(best_model, mv_X_test, mv_y_test)
+#print(f"Accuracy: {accuracy}, Precision: {precision}, Recall: {recall}, F1 Score: {f1}")
