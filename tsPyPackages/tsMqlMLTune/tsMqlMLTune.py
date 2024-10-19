@@ -38,11 +38,25 @@ class CMdtuner:
         self.channels = channels
         self.dropout = dropout
         
+        """
+        PARAMS
+        hypermodel=None,
+        objective=None,
+        max_epochs=100,
+        factor=3,
+        hyperband_iterations=1,
+        seed=None,
+        hyperparameters=None,
+        tune_new_entries=True,
+        allow_new_entries=True,
+        max_retries_per_trial=0,
+        max_consecutive_failed_trials=3
+        """
         # Initialize the Keras Tuner
         self.tuner = Hyperband(
             self.build_model,
             objective=self.objective,
-            max_trials=self.max_trials,  # Fixed the bug here
+            max_consecutive_failed_trials=self.max_trials,  # Fixed the bug here
             executions_per_trial=self.executions_per_trial,
             directory=self.directory,
             project_name=self.project_name,
@@ -100,7 +114,7 @@ class CMdtuner:
 
         # Transformer Layers
         if self.transformer_model:
-            x_transformer = MultiHeadAttention(num_heads=hp.Int('num_heads', min_value=2, max_value=4, step=1), key_dim=hp.Int('key_dim', min_value=32, max_value=128, step=32))(transformerinputs)
+            x_transformer = MultiHeadAttention(num_heads=hp.Int('num_heads', min_value=2, max_value=4, step=1), key_dim=hp.Int('key_dim', min_value=32, max_value=128, step=32))(transformerinputs, transformerinputs)
             x_transformer = LayerNormalization(epsilon=1e-6)(x_transformer)
             x_transformer = Dropout(0.2)(x_transformer)
             x_transformer = GlobalAveragePooling1D()(x_transformer)
