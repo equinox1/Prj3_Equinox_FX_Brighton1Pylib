@@ -7,7 +7,7 @@ from tensorflow.keras.losses import BinaryCrossentropy
 from tensorflow.keras.metrics import AUC
 import keras_tuner as kt
 from keras_tuner import Hyperband
-from ml_dtypes import float8_e5m2
+import numpy as np  # Use this for float types if needed
 
 # Class for running the tuner
 class CMdtuner:
@@ -77,8 +77,8 @@ class CMdtuner:
         # CNN Layers
         if self.cnn_model:
             x_cnn = Conv1D(filters=hp.Int('conv_filters', min_value=32, max_value=128, step=32),
-                          kernel_size=hp.Int('conv_kernel_size', min_value=3, max_value=7, step=2),
-                          activation='relu')(cnninputs)
+                           kernel_size=hp.Choice('conv_kernel_size', values=[1, 2, 3]),  # Adjusted kernel size
+                           activation='relu')(cnninputs)
             x_cnn = MaxPooling1D(pool_size=2)(x_cnn)
             x_cnn = Dropout(0.2)(x_cnn)
             x_cnn = Flatten()(x_cnn)
@@ -124,30 +124,27 @@ class CMdtuner:
 
         return model
 
+  
+
     def run_tuner(self):
-        # Prepare the input data based on the enabled models
-        # Assuming self.X_train has two dimensions (rows, columns)
-        #inputs.append(self.X_train[:, :self.cnn_shape[1]])
+        # Ensure inputs are valid numpy arrays before slicing
+        if not isinstance(self.X_train, np.ndarray):
+            self.X_train = np.array(self.X_train)
 
-
+        # Adjust the slicing to match the dimensions of your array
         inputs = []
         if self.cnn_model:
-            inputs.append(self.X_train[:, :self.cnn_shape[1], :self.cnn_features])
+            inputs.append(self.X_train.reshape(-1, self.cnn_shape[1], self.cnn_features))
         if self.lstm_model:
-            inputs.append(self.X_train[:, :self.lstm_shape[1], :self.lstm_features])
+            inputs.append(self.X_train.reshape(-1, self.lstm_shape[1], self.lstm_features))
         if self.gru_model:
-            inputs.append(self.X_train[:, :self.gru_shape[1], :self.gru_features])
+            inputs.append(self.X_train.reshape(-1, self.gru_shape[1], self.gru_features))
         if self.transformer_model:
-            inputs.append(self.X_train[:, :self.transformer_shape[1], :self.transformer_features])
-    
-        print("Inputs shape:", [input_data.shape for input_data in inputs])
+            inputs.append(self.X_train.reshape(-1, self.transformer_shape[1], self.transformer_features))
 
-        # Ensure inputs are correctly shaped
-        inputs = [input_data for input_data in inputs if input_data.shape[1] > 0 and input_data.shape[2] > 0]
+        if len(inputs) == 1:
+            inputs = inputs[0]
 
-        # Run the tuner search
-        self.tuner.search(inputs, self.y_train, validation_split=self.validation_split, epochs=self.epochs, batch_size=self.batch_size)
-    
-        # Get the best model
+        self.tuner.search(inputs, self.y_train, epochs=self.epochs, validation_split=self.validation_split)
         best_model = self.tuner.get_best_models()[0]
         return best_model
