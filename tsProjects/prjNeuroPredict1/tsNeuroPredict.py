@@ -230,10 +230,10 @@ mp_gru_input_shape = mp_X_train_input_shape
 mp_transformer_input_shape = mp_X_train_input_shape
 
 # hybrid model elements
-mp_cnn_model = False
-mp_lstm_model = False
+mp_cnn_model = True
+mp_lstm_model = True
 mp_gru_model = False
-mp_transformer_model = True
+mp_transformer_model = False
 
 # Create an instance of the tuner class
 print("Creating an instance of the tuner class")
