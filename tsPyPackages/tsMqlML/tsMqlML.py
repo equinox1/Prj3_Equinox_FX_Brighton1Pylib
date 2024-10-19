@@ -39,31 +39,8 @@ from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense,
 # Class CMqlmlsetup
 #+--------------------------------------------------
 class CMqlmlsetup:
-    def __init__(self, X=None, y=None, X_train=None, X_train_scaled=None, X_test=None, X_test_scaled=None, y_train=None, y_test=None):
-        if X is None:
-            X = []
-        if y is None:
-            y = []
-        if X_train is None:
-            X_train = []
-        if X_train_scaled is None:
-            X_train_scaled = []
-        if X_test is None:
-            X_test = []
-        if X_test_scaled is None:
-            X_test_scaled = []
-        if y_train is None:
-            y_train = []
-        if y_test is None:
-            y_test = []
-        self.X = X
-        self.y = y
-        self.X_train = X_train
-        self.X_train_scaled = X_train_scaled
-        self.X_test = X_test
-        self.X_test_scaled = X_test_scaled
-        self.y_train = y_train
-        self.y_test = y_test
+    def __init__(self):
+        pass
 
     #--------------------------------------------------------------------
     # create method  "dl_split_data_sets".
@@ -71,15 +48,14 @@ class CMqlmlsetup:
     # usage: mql data
     # \pdlsplit data
     #--------------------------------------------------------------------
-    def dl_split_data_sets(self, df, test_size=0.2, shuffle=False):
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError("Input df must be a pandas DataFrame")
-        df=pd.DataFrame(df)
-        X = df[['close']]  # Ensure X is a DataFrame
-        y = df['target']   # Ensure y is a Series
-        # Split the data into training and testing sets
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, shuffle=shuffle)
+    def dl_split_data_sets(self, X,y, train_split= 0.8,test_split= 0.2, shuffle=False):
+        # Splitting data into training and testing sets
+        train_size = int(len(X) * train_split)
+        test_size = len(X) - train_size
+        X_train, X_test = X[0:train_size], X[train_size:len(X)] 
+        y_train, y_test = y[0:train_size], y[train_size:len(y)]
         return X_train, X_test, y_train, y_test
+    
     #--------------------------------------------------------------------
     # create method  "dl_train_model_scaled".
     # class:cmqlmlsetup

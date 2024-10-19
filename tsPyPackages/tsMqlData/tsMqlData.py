@@ -7,37 +7,7 @@
 #property link      "www.equinox.com"
 #property version   "1.01"
 #+-------------------------------------------------------------------
-"""
-Basic conventions
-=================
-The PEP 8 Style Guide provides guidelines for naming conventions, indentation, and spacing. Here are some of the most important basic conventions:
 
-Naming conventions:
-==================
-Variables, functions, and methods should be named in lowercase with underscores between words (snake_case).
-Class names should be written in CamelCase (starting with a capital letter).
-Constants should be written in all capital letters with underscores between words.
-
-Indentation:
-====================
-Use 4 spaces for indentation.
-Don’t use tabs.
-
-Spacing:
-====================
-Use spaces around operators and after commas.
-Don’t use spaces inside parentheses, brackets, or braces.
-Whitespace
-===========
-Whitespace is an important aspect of code readability.
-
-The PEP 8 Style Guide recommends using whitespace to make code more readable. 
-
-Use a single blank line to separate logical sections of code.
-Don’t use multiple blank lines in a row.
-Use whitespace around operators, but don’t use too much.
-Use whitespace to align code, but don’t use too much.
-"""
 # packages dependencies for this module
 #
 from datetime import datetime
@@ -46,18 +16,7 @@ import MetaTrader5 as mt5
 import numpy as np
 import pandas as pd
 import pytz
-
-#+-------------------------------------------------------------------
-# import ai packages scikit learns
-#+-------------------------------------------------------------------
-#sklearn library. it includes utilities for data preprocessing, model evaluation, and model
-#This line imports the KFold class from scikit-learn, which is often used for cross-validat
-#======================================================
-# import ai packages tensorflow and keras libraries
-#======================================================
-#+-------------------------------------------------------------------
-# classes for mql
-#+-------------------------------------------------------------------
+from sklearn.preprocessing import MinMaxScaler
 
 #--------------------------------------------------------------------
 # create class  "CMqldatasetup"
@@ -143,3 +102,33 @@ class CMqldatasetup:
         lp_df.style.set_properties(**{'text-align': 'left'})
         print("lpDf", lp_df.tail(10))
         return lp_df
+
+    # create method  "create_dataset()".
+    # class: cmqldatasetup      
+    # usage: # Creating time steps for LSTM input
+    # \param  var
+    def create_dataset(self, data, lp_seconds=60):
+        X_data, y_data = [], []
+        for i in range(len(data) - lp_seconds - 1):
+            X_data.append(data[i:(i + lp_seconds), 0])
+            y_data.append(data[i + lp_seconds, 0])
+        return np.array(X_data), np.array(y_data)
+
+   
+    # create method  "run_shift_data2()".
+    # class: cmqldatasetup      
+    # usage: mql data
+    # \param  var                          
+    def run_shift_data2(self, df, lp_seconds=60, lp_unit='s'):
+        # Selecting the 'Close' column for prediction
+        close_prices = df['close'].values.reshape(-1, 1)
+        #Normalize the data
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        scaled_data = scaler.fit_transform(close_prices)
+        X, y = self.create_dataset(scaled_data, lp_seconds)
+        # Reshaping data to the format required by LSTM
+        X = np.reshape(X, (X.shape[0], X.shape[1], 1))
+        return X, y
+        
+   
+    

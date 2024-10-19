@@ -7,7 +7,7 @@
 # property link      "www.equinox.com"
 # property version   "1.01"
 # Test mode to pass through Litmus test data
-mp_test = True
+mp_test = False
 
 # +-------------------------------------------------------------------
 # Import standard Python packages
@@ -69,9 +69,6 @@ try:
 except ValueError:
     raise ValueError("Username is not a valid integer")
 
-# Display the fetched credentials
-print("username:", username)
-print("password:", password)
 
 # Parameters for connecting to MT5 terminal
 MPPATH = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
@@ -127,66 +124,68 @@ mv_ticks2 = mv_ticks1.copy()  # Copy the tick data for further processing
 mp_seconds = 60
 mp_unit = 's'
 
-mv_ticks3 = d1.run_shift_data1(mv_ticks2, mp_seconds, mp_unit)  # Ensure the method name is correct
-if not isinstance(mv_ticks3, pd.DataFrame) or mv_ticks3.empty:
-    raise ValueError("Failed to shift tick data")
+mv_X_ticks3, mv_y_ticks3 = d1.run_shift_data2(mv_ticks2, mp_seconds, mp_unit)  # Ensure the method name is correct
+
+
+# Check if the data is a pandas DataFrame or a NumPy array
+df = mv_X_ticks3
+# Check if df is a pandas DataFrame
+if isinstance(df, pd.DataFrame):
+    print("df is a pandas DataFrame")
+# Check if df is a NumPy array
+elif isinstance(df, np.ndarray):
+    print("df is a NumPy array")
+    mv_X_ticks3_2d = mv_X_ticks3[:, :, 0]  # Select the first element from each row/column pair
+    df = pd.DataFrame(mv_X_ticks3_2d)   # Convert the NumPy array to a DataFrame
+    mv_X_ticks3 = pd.DataFrame(df)
+else:
+    print("df is neither a pandas DataFrame nor a NumPy array")
+
+mv_X_ticks3 = pd.DataFrame(mv_X_ticks3)
+mv_y_ticks3 = pd.DataFrame(mv_y_ticks3)
 
 # Display the first few rows of the data for verification
 print(tabulate(mv_ticks1.head(10), showindex=False, headers=mv_ticks1.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 print(tabulate(mv_ticks2.head(10), showindex=False, headers=mv_ticks2.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print(tabulate(mv_ticks3.head(10), showindex=False, headers=mv_ticks3.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print(tabulate(mv_X_ticks3.head(10), showindex=False, headers=mv_X_ticks3.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print(tabulate(mv_y_ticks3.head(10), showindex=False, headers=mv_y_ticks3.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+
 
 print("1:Start Shapes of DataFrames:")
-print(f"mv_ticks1: {mv_ticks1.shape}")
-print(f"mv_ticks2: {mv_ticks2.shape}")
-print(f"mv_ticks3: {mv_ticks3.shape}")
+#print(f"mv_ticks1: {mv_ticks1.shape}")
+#print(f"mv_ticks2: {mv_ticks2.shape}")
+print(f"mv_ticks3: {mv_X_ticks3.shape}")
+print(f"mv_ticks3: {mv_y_ticks3.shape}")
 print("1:End Shapes of DataFrames:")
-# Check for the presence of a 'target' column
-if 'target' in mv_ticks3.columns:
-    print(f"mv_ticks3: target column found with length {len(mv_ticks3['target'])}")
-else:
-    print("mv_ticks3: 'target' column not found")
+
 
 # +-------------------------------------------------------------------
 # Split the data into training and test sets
 # +-------------------------------------------------------------------
 m1 = CMqlmlsetup()
-mp_test_size = 0.2
+mp_train_split = 0.8
+mp_test_split = 0.2
 mp_shuffle = False
 
-mv_X_train, mv_X_test, mv_y_train, mv_y_test = m1.dl_split_data_sets(mv_ticks3, mp_test_size, mp_shuffle)
+mv_X_train, mv_X_test, mv_y_train, mv_y_test = m1.dl_split_data_sets(mv_X_ticks3, mv_y_ticks3, mp_train_split,mp_test_split, mp_shuffle)
 if mv_X_train.empty or mv_X_test.empty or mv_y_train.empty or mv_y_test.empty:
     raise ValueError("Failed to split data into training and test sets")
 
-# Scale the training and test data
-mv_X_train.head(5)
 
 print("2:Start Shapes of split data DataFrames:")
-print(f"mv_X_train: {mv_X_train.shape}")
-print(f"mv_X_test: {mv_X_test.shape}")
-print(f"mv_y_train: {mv_y_train.shape}")
-print(f"mv_y_test: {mv_y_test.shape}")
+print(f"mv_X_train shape: {mv_X_train.shape}")
+print(f"mv_X_test shape: {mv_X_test.shape}")
+print(f"mv_y_train shape: {mv_y_train.shape}")
+print(f"mv_y_test shape: {mv_y_test.shape}")
 print("2:End Shapes of split data DataFrames:")
 
-mv_X_train_scaled = pd.DataFrame(m1.dl_train_model_scaled(mv_X_train))
-mv_X_test_scaled = pd.DataFrame(m1.dl_test_model_scaled(mv_X_test))
 
-print("3:Start Shapes of scaled split data DataFrames:")
-print(f"mv_X_train_scaled shape:", mv_X_train_scaled.shape)
-print(f"mv_X_train_scaled head:" ,mv_X_train_scaled.head(len(mv_X_train_scaled)))
+# define the input shape for the model
+mp_X_train_input_shape = mv_X_train.shape
+mp_X_test_input_shape = mv_X_test.shape
+mp_y_train_input_shape = mv_y_train.shape
+mp_y_test_input_shape = mv_y_test.shape
 
-print(f"mv_X_test_scaled:", mv_X_test_scaled.shape)
-print(f"mv_X_test_scaled head:", mv_X_test_scaled.head(len(mv_X_test_scaled)))
-print("3:End Shapes of scaled split data DataFrames:")
-
-# Ensure the scaled data shapes match the original labels
-mp_X_train_input_shape = mv_X_train_scaled.shape
-mp_X_test_input_shape = mv_X_test_scaled.shape
-
-mp_lstm_input_shape = mp_X_train_input_shape
-mp_cnn_input_shape = mp_X_train_input_shape
-mp_gru_input_shape = mp_X_train_input_shape
-mp_transformer_input_shape = mp_X_train_input_shape
 
 # +-------------------------------------------------------------------
 # Hyperparameter tuning and model setup
@@ -194,18 +193,12 @@ mp_transformer_input_shape = mp_X_train_input_shape
 # Define parameters for the model tuning process
 mp_epochs = 1
 mp_batch_size = 16
-mp_objective = str('val_accuracy')
-print("mp_objective:", mp_objective)
+mp_objective = str('val_loss')
 mp_max_trials = 1
 mp_executions_per_trial = 1
 mp_validation_split = 0.2
-mp_arraysize = 1
-mp_lstm_shape = None
-mp_cnn_shape = None
-mp_gru_shape = None
-mp_transformer_shape = None
+mp_factor = 3
 mp_channels=1
-
 mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
 mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_prod"
 mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_prod"
@@ -216,18 +209,21 @@ if mp_test:
     mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_test"
 
 # Run the tuner to find the best model configuration
-print("Running tuner with mp_X_train_input_scaled input shape:",mv_X_train_scaled.shape)
-print("Running tuner with mp_X_train_input_scaled scaled data: Rows:", mv_X_train_scaled.shape[0], "Columns:", mv_X_train_scaled.shape[1])
+print("Running tuner with mp_X_train_input_scaled input shape:",mv_X_train.shape)
+print("Running tuner with mp_X_train_input_scaled scaled data: Rows:", mv_X_train.shape[0], "Columns:", mv_X_train.shape[1])
 
 # Run the tuner to find the best model configuration
+mp_lstm_input_shape = mp_X_train_input_shape
+mp_cnn_input_shape = mp_X_train_input_shape
+mp_gru_input_shape = mp_X_train_input_shape
+mp_transformer_input_shape = mp_X_train_input_shape
 
-mt = CMdtuner(mp_X_train_input_shape,
-              mv_X_train_scaled,
+mt = CMdtuner(mv_X_train,
               mv_y_train,
-              mp_lstm_shape,
-              mp_cnn_shape,
-              mp_gru_shape,
-              mp_transformer_shape,     
+              mp_lstm_input_shape,
+              mp_cnn_input_shape,
+              mp_gru_input_shape,
+              mp_transformer_input_shape,     
               mp_objective,
               mp_max_trials,
               mp_executions_per_trial, 
@@ -236,17 +232,16 @@ mt = CMdtuner(mp_X_train_input_shape,
               mp_validation_split, 
               mp_epochs,
               mp_batch_size,
-              mp_arraysize,
+              mp_factor,
               mp_channels)
       
 # Run the tuner to find the best model configuration
 best_model = mt.run_tuner()
 
-
-"""
 # Display the best model's summary
 best_model.summary()
 
+"""
 # +-------------------------------------------------------------------
 # Train and evaluate the model
 # +-------------------------------------------------------------------
