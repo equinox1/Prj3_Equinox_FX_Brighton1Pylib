@@ -19,13 +19,17 @@ from keras_tuner import HyperModel
 
 # Class for running the tuner
 class CMdtuner:
-    def __init__(self, X_train, y_train, lstm_shape, cnn_shape, gru_shape, transformer_shape, objective, max_trials, executions_per_trial, directory, project_name, validation_split, epochs, batch_size, factor, channels):
+    def __init__(self, X_train, y_train, lstm_shape,lstm_features, cnn_shape,cnn_features, gru_shape,gru_features, transformer_shape,transformer_features, objective, max_trials, executions_per_trial, directory, project_name, validation_split, epochs, batch_size, factor, channels):
         self.X_train = X_train
         self.y_train = y_train
         self.lstm_shape = lstm_shape
+        self.lstm_features = lstm_features
         self.cnn_shape = cnn_shape
+        self.cnn_features = cnn_features
         self.gru_shape = gru_shape
+        self.gru_features = gru_features
         self.transformer_shape = transformer_shape
+        self.transformer_features = transformer_features
         self.objective = objective
         self.max_trials = max_trials
         self.executions_per_trial = executions_per_trial
@@ -54,10 +58,11 @@ class CMdtuner:
         model = Sequential()
         print("Building model with hp:", hp)
         print("Model lstm_input:", self.lstm_shape)
-               
-        lstminputs = Input(shape=self.lstm_shape)  # Define the input shape explicitly
-        lstminputs = Input(shape=(60,1))
 
+        #lstm shape lstminputs = Input(shape=(60,1))
+   
+        lstminputs = Input(shape=(self.lstm_shape[1],1))  # Define the input shape explicitly
+        
         # Convolutional layers (search space example)
         x = Conv1D(filters=hp.Int('conv_filters', min_value=32, max_value=128, step=32),
                kernel_size=hp.Int('conv_kernel_size', min_value=3, max_value=7, step=2),

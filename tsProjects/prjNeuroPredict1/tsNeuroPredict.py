@@ -203,6 +203,12 @@ mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequin
 mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_prod"
 mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_prod"
 
+mp_lstm_features = 1
+mp_cnn_features = 1
+mp_gru_features = 1
+mp_transformer_features = 1
+
+
 # Switch directories for testing if in test mode
 if mp_test:
     mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_test"
@@ -221,9 +227,13 @@ mp_transformer_input_shape = mp_X_train_input_shape
 mt = CMdtuner(mv_X_train,
               mv_y_train,
               mp_lstm_input_shape,
-              mp_cnn_input_shape,
+              mp_lstm_features,
+              mp_cnn_input_shape, 
+              mp_cnn_features,
               mp_gru_input_shape,
-              mp_transformer_input_shape,     
+              mp_gru_features,
+              mp_transformer_input_shape,
+              mp_transformer_features,    
               mp_objective,
               mp_max_trials,
               mp_executions_per_trial, 
