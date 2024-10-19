@@ -38,25 +38,11 @@ class CMdtuner:
         self.channels = channels
         self.dropout = dropout
         
-        """
-        PARAMS
-        hypermodel=None,
-        objective=None,
-        max_epochs=100,
-        factor=3,
-        hyperband_iterations=1,
-        seed=None,
-        hyperparameters=None,
-        tune_new_entries=True,
-        allow_new_entries=True,
-        max_retries_per_trial=0,
-        max_consecutive_failed_trials=3
-        """
         # Initialize the Keras Tuner
         self.tuner = Hyperband(
             self.build_model,
             objective=self.objective,
-            max_consecutive_failed_trials=self.max_trials,  # Fixed the bug here
+            max_epochs=self.epochs,
             executions_per_trial=self.executions_per_trial,
             directory=self.directory,
             project_name=self.project_name,
@@ -73,21 +59,20 @@ class CMdtuner:
 
         # Define input shapes for the models
         if self.cnn_model:
-            cnninputs = Input(shape=(self.cnn_shape[1], self.cnn_features))  # Modify shape to allow for dynamic channels
+            cnninputs = Input(shape=(self.cnn_shape[1], self.cnn_features))
             print("Set cnninputs shape:", cnninputs.shape)
         
         if self.lstm_model:
-            lstminputs = Input(shape=(self.lstm_shape[1], self.lstm_features))  # Modify for channels
+            lstminputs = Input(shape=(self.lstm_shape[1], self.lstm_features))
             print("Set lstminputs shape:", lstminputs.shape)
         
         if self.gru_model:
-            gruinputs = Input(shape=(self.gru_shape[1], self.gru_features))  # Modify for channels
+            gruinputs = Input(shape=(self.gru_shape[1], self.gru_features))
             print("Set gruinputs shape:", gruinputs.shape)
         
         if self.transformer_model:
-            transformerinputs = Input(shape=(self.transformer_shape[1], self.transformer_features))  # Modify for channels
+            transformerinputs = Input(shape=(self.transformer_shape[1], self.transformer_features))
             print("Set transformerinputs shape:", transformerinputs.shape)
-
 
         # CNN Layers
         if self.cnn_model:
@@ -140,8 +125,29 @@ class CMdtuner:
         return model
 
     def run_tuner(self):
+        # Prepare the input data based on the enabled models
+        # Assuming self.X_train has two dimensions (rows, columns)
+        #inputs.append(self.X_train[:, :self.cnn_shape[1]])
+
+
+        inputs = []
+        if self.cnn_model:
+            inputs.append(self.X_train[:, :self.cnn_shape[1], :self.cnn_features])
+        if self.lstm_model:
+            inputs.append(self.X_train[:, :self.lstm_shape[1], :self.lstm_features])
+        if self.gru_model:
+            inputs.append(self.X_train[:, :self.gru_shape[1], :self.gru_features])
+        if self.transformer_model:
+            inputs.append(self.X_train[:, :self.transformer_shape[1], :self.transformer_features])
+    
+        print("Inputs shape:", [input_data.shape for input_data in inputs])
+
+        # Ensure inputs are correctly shaped
+        inputs = [input_data for input_data in inputs if input_data.shape[1] > 0 and input_data.shape[2] > 0]
+
         # Run the tuner search
-        self.tuner.search(self.X_train, self.y_train, validation_split=self.validation_split, epochs=self.epochs, batch_size=self.batch_size)
+        self.tuner.search(inputs, self.y_train, validation_split=self.validation_split, epochs=self.epochs, batch_size=self.batch_size)
+    
         # Get the best model
         best_model = self.tuner.get_best_models()[0]
         return best_model
