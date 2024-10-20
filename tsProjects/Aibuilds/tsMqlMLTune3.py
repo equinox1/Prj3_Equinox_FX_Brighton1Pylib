@@ -1,5 +1,9 @@
 import tensorflow as tf
-from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, Concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
+from tensorflow.keras.layers import (
+    Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM,
+    GRU, Dropout, Concatenate, LayerNormalization,
+    MultiHeadAttention, GlobalAveragePooling1D
+)
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
@@ -7,17 +11,27 @@ from tensorflow.keras.losses import BinaryCrossentropy
 from tensorflow.keras.metrics import AUC
 import keras_tuner as kt
 from keras_tuner import Hyperband
-import numpy as np  # Use this for float types if needed
+import numpy as np
+
+# Set a random seed for reproducibility
+np.random.seed(42)
+tf.random.set_seed(42)
 
 # Class for running the tuner
 class CMdtuner:
-    def __init__(self, mv_X_train, mv_y_train, mp_cnn_model, mp_lstm_model, mp_gru_model, mp_transformer_model, 
-                 mp_lstm_input_shape, mp_lstm_features, mp_cnn_input_shape, mp_cnn_features, 
-                 mp_gru_input_shape, mp_gru_features, mp_transformer_input_shape, mp_transformer_features, 
-                 mp_objective, mp_max_epochs, mp_factor, mp_seed, mp_hyperband_iterations, 
-                 mp_tune_new_entries, mp_allow_new_entries, mp_max_retries_per_trial, mp_max_consecutive_failed_trials, 
-                 mp_validation_split, mp_epochs, mp_batch_size, mp_dropout, mp_oracle, mp_hypermodel, mp_max_model_size, 
-                 mp_optimizer, mp_loss, mp_metrics, mp_distribution_strategy, mp_directory, mp_project_name, mp_logger, 
+    def __init__(self, mv_X_train, mv_y_train, mp_cnn_model, mp_lstm_model, mp_gru_model,
+                 mp_transformer_model, mp_lstm_input_shape, mp_lstm_features, 
+                 mp_cnn_input_shape, mp_cnn_features, mp_gru_input_shape, 
+                 mp_gru_features, mp_transformer_input_shape, 
+                 mp_transformer_features, mp_objective, mp_max_epochs, 
+                 mp_factor, mp_seed, mp_hyperband_iterations, 
+                 mp_tune_new_entries, mp_allow_new_entries, 
+                 mp_max_retries_per_trial, mp_max_consecutive_failed_trials, 
+                 mp_validation_split, mp_epochs, mp_batch_size, 
+                 mp_dropout, mp_oracle, mp_hypermodel, 
+                 mp_max_model_size, mp_optimizer, mp_loss, 
+                 mp_metrics, mp_distribution_strategy, 
+                 mp_directory, mp_project_name, mp_logger, 
                  mp_tuner_id, mp_overwrite, mp_executions_per_trial):
         
         # Initialize all parameters
@@ -71,12 +85,13 @@ class CMdtuner:
             directory=self.directory,
             project_name=self.project_name,
             overwrite=self.overwrite,
-            factor=self.factor
+            factor=self.factor,
+            verbose=1  # Set verbosity for better monitoring
         )
 
     def build_model(self, hp):
+        """Builds the model using hyperparameters from the tuner."""
         print("Building model with hp:", hp)
-        x_cnn = x_lstm = x_gru = x_transformer = None
         cnninputs = lstminputs = gruinputs = transformerinputs = None
 
         # Ensure at least one model is enabled
@@ -98,6 +113,7 @@ class CMdtuner:
             print("Set transformerinputs shape:", transformerinputs.shape)
 
         # CNN Layers
+        x_cnn = None
         if self.cnn_model:
             x_cnn = Conv1D(filters=hp.Int('conv_filters', min_value=32, max_value=128, step=32),
                           kernel_size=hp.Choice('conv_kernel_size', values=[1, 2, 3]),
@@ -107,6 +123,7 @@ class CMdtuner:
             x_cnn = Flatten()(x_cnn)
 
         # LSTM Layers
+        x_lstm = None
         if self.lstm_model:
             x_lstm = LSTM(hp.Int('lstm_units_1', min_value=32, max_value=128, step=32), return_sequences=True)(lstminputs)
             x_lstm = LSTM(hp.Int('lstm_units_2', min_value=32, max_value=128, step=32))(x_lstm)
@@ -114,6 +131,7 @@ class CMdtuner:
             x_lstm = Flatten()(x_lstm)
 
         # GRU Layers
+        x_gru = None
         if self.gru_model:
             x_gru = GRU(hp.Int('gru_units_1', min_value=32, max_value=128, step=32), return_sequences=True)(gruinputs)
             x_gru = GRU(hp.Int('gru_units_2', min_value=32, max_value=128, step=32))(x_gru)
@@ -121,9 +139,12 @@ class CMdtuner:
             x_gru = Flatten()(x_gru)
 
         # Transformer Layers
+        x_transformer = None
         if self.transformer_model:
-            x_transformer = MultiHeadAttention(num_heads=hp.Int('num_heads', min_value=2, max_value=4, step=1), 
-                                               key_dim=hp.Int('key_dim', min_value=32, max_value=128, step=32))(transformerinputs, transformerinputs)
+            x_transformer = MultiHeadAttention(
+                num_heads=hp.Int('num_heads', min_value=2, max_value=4, step=1), 
+                key_dim=hp.Int('key_dim', min_value=32, max_value=128, step=32)
+            )(transformerinputs, transformerinputs)
             x_transformer = LayerNormalization(epsilon=1e-6)(x_transformer)
             x_transformer = Dropout(self.dropout)(x_transformer)
             x_transformer = GlobalAveragePooling1D()(x_transformer)
@@ -149,10 +170,12 @@ class CMdtuner:
         return model
 
     def run_tuner(self):
+        """Executes the tuning process and returns the best model."""
         self.tuner.search(self.X_train, self.y_train, 
                           validation_split=self.validation_split, 
                           epochs=self.epochs, 
                           batch_size=self.batch_size, 
                           callbacks=[EarlyStopping(monitor='val_loss', patience=3)])
-        best_model = self.tuner.get_best_models()[0]
+        
+        best_model = self.tuner.get_best_models(num_models=1)[0]
         return best_model
