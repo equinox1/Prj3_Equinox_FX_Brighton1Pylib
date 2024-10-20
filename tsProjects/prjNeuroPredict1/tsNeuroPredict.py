@@ -193,10 +193,10 @@ mp_y_test_input_shape = mv_y_test.shape
 mv_X_train = mv_X_train
 mv_y_train = mv_y_train
 # Select Model
-mp_cnn_model=True
-mp_lstm_model=True
+mp_cnn_model=False
+mp_lstm_model=False
 mp_gru_model=False
-mp_transformer_model=False
+mp_transformer_model=True
 # define inputshapes
 mp_lstm_input_shape=mp_X_train_input_shape
 mp_cnn_input_shape=mp_X_train_input_shape
@@ -209,14 +209,14 @@ mp_transformer_features=1
 # Hypermodel parameters
 mp_Hypermodel = 'HyperModel'
 mp_objective = 'val_loss'
-mp_max_epochs = 100
+mp_max_epochs = 2
 mp_factor = 3
 mp_seed=42
 mp_hyperband_iterations = 1
 mp_tune_new_entries = False
 mp_allow_new_entries = False
 mp_max_retries_per_trial = 3
-mp_max_consecutive_failed_trials = 3
+mp_max_consecutive_failed_trials = 1
 # base tuner parameters
 mp_validation_split = 0.2
 mp_epochs = 1
@@ -230,13 +230,13 @@ mp_loss = 'mean_squared_error'
 mp_metrics = ['mean_squared_error']
 mp_distribution_strategy = None
 
-mp_modeldatapath = os.path.join(r"c:", "users", "shepa", "onedrive", "8.0 projects", "8.3 projectmodelsequinox", "equinrun", "PythonLib", "tsModelData")
-mp_directory = os.path.join(mp_modeldatapath, "tshybrid_ensemble_tuning_prod")
-mp_project_name = os.path.join(mp_modeldatapath, "tshybrid_ensemble_model_prod")
+mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
+mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_prod"
+mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_prod"
 
 mp_logger = None
 mp_tuner_id = None
-mp_overwrite = False
+mp_overwrite = True
 mp_executions_per_trial= 1
 
 # Switch directories for testing if in test mode
@@ -249,22 +249,23 @@ print("Running tuner with mp_X_train_input_scaled input shape:",mv_X_train.shape
 print("Running tuner with mp_X_train_input_scaled scaled data: Rows:", mv_X_train.shape[0], "Columns:", mv_X_train.shape[1])
 
 
+shapes_and_features = {
+    'cnn': (mp_cnn_input_shape, mp_cnn_features),
+    'lstm': (mp_lstm_input_shape, mp_lstm_features),
+    'gru': (mp_gru_input_shape, mp_gru_features),
+    'transformer': (mp_transformer_input_shape, mp_transformer_features),
+}
+
 # Create an instance of the tuner class
 print("Creating an instance of the tuner class")
+
 mt = CMdtuner(mv_X_train,
               mv_y_train,
               mp_cnn_model,
               mp_lstm_model,
               mp_gru_model,
               mp_transformer_model,
-              mp_lstm_input_shape,
-              mp_lstm_features,
-              mp_cnn_input_shape, 
-              mp_cnn_features,
-              mp_gru_input_shape,
-              mp_gru_features,
-              mp_transformer_input_shape,
-              mp_transformer_features,    
+              shapes_and_features, 
               mp_objective,
               mp_max_epochs,
               mp_factor,
@@ -294,12 +295,8 @@ mt = CMdtuner(mv_X_train,
         )
       
 # Run the tuner to find the best model configuration
-try:
-    best_model = mt.run_tuner()
-except Exception as e:
-    print(f"Tuning failed: {e}")
-
-
+print("Running tuner")
+best_model = mt.run_tuner()
 # Display the best model's summary
 best_model.summary()
 
@@ -319,7 +316,7 @@ mv_model = best_model.fit(mv_X_train, mv_y_train_reshaped, validation_split=mp_v
 
 # Making predictions
 predicted_fx_price = best_model.predict(mv_X_test)
-predicted_fx_price = scaler.inverse_transform(predicted_fx_price.reshape(-1, 1))
+predicted_fx_price = scaler.inverse_transform(predicted_fx_price)  # No need to reshape
 
 # Inverse transform to get actual prices
 mv_y_test_reshaped = mv_y_test.values.reshape(-1, 1)  # Convert to NumPy array and reshape
@@ -341,6 +338,6 @@ plt.savefig(mp_project_name + '\\'+ 'plot.png')
 
 # Evaluate model performance (accuracy, precision, recall, etc.)
 # Uncomment and adjust model evaluation metrics for regression
-mse = m1.model_performance(best_model, mv_X_test, mv_y_test)
-print(f"Mean Squared Error: {mse}")
 
+#mse = m1.model_performance(best_model, mv_X_test, mv_y_test)
+#print(f"Mean Squared Error: {mse}")
