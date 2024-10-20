@@ -156,8 +156,8 @@ print(tabulate(mv_y_ticks3.head(10), showindex=False, headers=mv_y_ticks3.column
 
 
 print("1:Start Shapes of DataFrames:")
-#print(f"mv_ticks1: {mv_ticks1.shape}")
-#print(f"mv_ticks2: {mv_ticks2.shape}")
+print(f"mv_ticks1: {mv_ticks1.shape}")
+print(f"mv_ticks2: {mv_ticks2.shape}")
 print(f"mv_ticks3: {mv_X_ticks3.shape}")
 print(f"mv_ticks3: {mv_y_ticks3.shape}")
 print("1:End Shapes of DataFrames:")
@@ -190,29 +190,57 @@ mp_X_test_input_shape = mv_X_test.shape
 mp_y_train_input_shape = mv_y_train.shape
 mp_y_test_input_shape = mv_y_test.shape
 
-
 # +-------------------------------------------------------------------
 # Hyperparameter tuning and model setup
 # +-------------------------------------------------------------------
 # Define parameters for the model tuning process
-mp_epochs = 1
-mp_batch_size = 16
-mp_objective = str('val_loss')
-mp_max_trials = 1
-mp_executions_per_trial = 1
-mp_validation_split = 0.2
+# Data sources
+mv_X_train = mv_X_train
+mv_y_train = mv_y_train
+# Select Model
+mp_cnn_model=True
+mp_lstm_model=False
+mp_gru_model=False
+mp_transformer_model=False
+# define inputshapes
+mp_lstm_input_shape=mp_X_train_input_shape
+mp_cnn_input_shape=mp_X_train_input_shape
+mp_gru_input_shape=mp_X_train_input_shape
+mp_transformer_input_shape=mp_X_train_input_shape
+mp_lstm_features=1
+mp_cnn_features=1
+mp_gru_features=1
+mp_transformer_features=1
+# Hypermodel parameters
+mp_Hypermodel = 'HyperModel'
+mp_objective = 'val_loss'
+mp_max_epochs = 100
 mp_factor = 3
-mp_channels=1
+mp_seed=42
+mp_hyperband_iterations = 1
+mp_tune_new_entries = False
+mp_allow_new_entries = False
+mp_max_retries_per_trial = 3
+mp_max_consecutive_failed_trials = 3
+# base tuner parameters
+mp_validation_split = 0.2
+mp_epochs = 1
+mp_batch_size = 16    
+mp_dropout = 0.2
+mp_oracle = None
+mp_hypermodel = None
+mp_max_model_size = 1
+mp_optimizer =  'adam'
+mp_loss = 'mean_squared_error'
+mp_metrics = ['mean_squared_error']
+mp_distribution_strategy = None
 mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
 mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_prod"
 mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_prod"
-mp_dropout = 0.2
-
-mp_lstm_features = 1
-mp_cnn_features = 1
-mp_gru_features = 1
-mp_transformer_features = 1
-
+mp_logger = None
+mp_tuner_id = None
+mp_overwrite = False
+mp_executions_per_trial= 1
 
 # Switch directories for testing if in test mode
 if mp_test:
@@ -223,17 +251,6 @@ if mp_test:
 print("Running tuner with mp_X_train_input_scaled input shape:",mv_X_train.shape)
 print("Running tuner with mp_X_train_input_scaled scaled data: Rows:", mv_X_train.shape[0], "Columns:", mv_X_train.shape[1])
 
-# Run the tuner to find the best model configuration
-mp_lstm_input_shape = mp_X_train_input_shape
-mp_cnn_input_shape = mp_X_train_input_shape
-mp_gru_input_shape = mp_X_train_input_shape
-mp_transformer_input_shape = mp_X_train_input_shape
-
-# hybrid model elements
-mp_cnn_model = True
-mp_lstm_model = True
-mp_gru_model = False
-mp_transformer_model = False
 
 # Create an instance of the tuner class
 print("Creating an instance of the tuner class")
@@ -252,16 +269,31 @@ mt = CMdtuner(mv_X_train,
               mp_transformer_input_shape,
               mp_transformer_features,    
               mp_objective,
-              mp_max_trials,
-              mp_executions_per_trial, 
-              mp_directory, 
-              mp_project_name,
+              mp_max_epochs,
+              mp_factor,
+              mp_seed,
+              mp_hyperband_iterations,
+              mp_tune_new_entries,
+              mp_allow_new_entries,
+              mp_max_retries_per_trial,
+              mp_max_consecutive_failed_trials,
               mp_validation_split, 
               mp_epochs,
-              mp_batch_size,
-              mp_factor,
-              mp_channels,
-              mp_dropout
+              mp_batch_size,    
+              mp_dropout,
+              mp_oracle,
+              mp_hypermodel,
+              mp_max_model_size,
+              mp_optimizer,
+              mp_loss,
+              mp_metrics,
+              mp_distribution_strategy,
+              mp_directory, 
+              mp_project_name,
+              mp_logger,
+              mp_tuner_id,
+              mp_overwrite,
+              mp_executions_per_trial
         )
       
 # Run the tuner to find the best model configuration
