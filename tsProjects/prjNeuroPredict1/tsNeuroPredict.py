@@ -47,20 +47,16 @@ gpus = tf.config.list_physical_devices('GPU')
 if gpus:
     try:
         for gpu in gpus:
-            tf.config.set_logical_device_configuration(
-                gpu,
-                [tf.config.LogicalDeviceConfiguration(memory_limit=1024)]
-            )
+            tf.config.experimental.set_memory_growth(gpu, True)
     except RuntimeError as e:
         print(e)
+
 
 # +-------------------------------------------------------------------
 # Start MetaTrader 5 (MQL) terminal login
 # +-------------------------------------------------------------------
 # Fetch credentials from keyring
 cred = kr.get_credential("xercesdemo", "")
-username = kr.get_password("xercesdemo", "username")
-password = kr.get_password("xercesdemo", "password")
 username = cred.username
 password = cred.password
 # Check if the credentials are fetched successfully
@@ -129,7 +125,8 @@ mp_seconds = 60
 mp_unit = 's'
 
 mv_X_ticks3, mv_y_ticks3 = d1.run_shift_data2(mv_ticks2, mp_seconds, mp_unit)  # Ensure the method name is correct
-
+if mv_X_ticks3 is None or mv_y_ticks3 is None:
+    raise ValueError("Shifted data is invalid. Check the `run_shift_data2` method.")
 
 # Check if the data is a pandas DataFrame or a NumPy array
 df = mv_X_ticks3
@@ -138,9 +135,7 @@ if isinstance(df, pd.DataFrame):
     print("df is a pandas DataFrame")
 # Check if df is a NumPy array
 elif isinstance(df, np.ndarray):
-    print("df is a NumPy array")
-    mv_X_ticks3_2d = mv_X_ticks3[:, :, 0]  # Select the first element from each row/column pair
-    df = pd.DataFrame(mv_X_ticks3_2d)   # Convert the NumPy array to a DataFrame
+    df = pd.DataFrame(df[:, :, 0])  # Assuming the first element is required
     mv_X_ticks3 = pd.DataFrame(df)
 else:
     print("df is neither a pandas DataFrame nor a NumPy array")
@@ -234,9 +229,11 @@ mp_optimizer =  'adam'
 mp_loss = 'mean_squared_error'
 mp_metrics = ['mean_squared_error']
 mp_distribution_strategy = None
-mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
-mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_prod"
-mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_prod"
+
+mp_modeldatapath = os.path.join(r"c:", "users", "shepa", "onedrive", "8.0 projects", "8.3 projectmodelsequinox", "equinrun", "PythonLib", "tsModelData")
+mp_directory = os.path.join(mp_modeldatapath, "tshybrid_ensemble_tuning_prod")
+mp_project_name = os.path.join(mp_modeldatapath, "tshybrid_ensemble_model_prod")
+
 mp_logger = None
 mp_tuner_id = None
 mp_overwrite = False
@@ -297,7 +294,11 @@ mt = CMdtuner(mv_X_train,
         )
       
 # Run the tuner to find the best model configuration
-best_model = mt.run_tuner()
+try:
+    best_model = mt.run_tuner()
+except Exception as e:
+    print(f"Tuning failed: {e}")
+
 
 # Display the best model's summary
 best_model.summary()
@@ -339,6 +340,7 @@ plt.savefig(mp_project_name + '\\'+ 'plot.png')
 
 
 # Evaluate model performance (accuracy, precision, recall, etc.)
-#accuracy, precision, recall, f1 = m1.model_performance(best_model, mv_X_test, mv_y_test)
-#print(f"Accuracy: {accuracy}, Precision: {precision}, Recall: {recall}, F1 Score: {f1}")
+# Uncomment and adjust model evaluation metrics for regression
+mse = m1.model_performance(best_model, mv_X_test, mv_y_test)
+print(f"Mean Squared Error: {mse}")
 
