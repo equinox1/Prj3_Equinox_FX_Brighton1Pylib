@@ -56,13 +56,13 @@ class CMdtuner:
         
         # Initialize the Keras Tuner
         self.tuner = Hyperband(
-            self.build_model,
+            hypermodel=self.build_model,
             objective=self.objective,
             max_epochs=self.max_epochs,
             executions_per_trial=self.executions_per_trial,
             directory=self.directory,
             project_name=self.project_name,
-            overwrite=True,
+            overwrite=self.overwrite,
             factor=self.factor
         )
 
@@ -70,6 +70,10 @@ class CMdtuner:
         print("Building model with hp:", hp)
         x_cnn = x_lstm = x_gru = x_transformer = None
         cnninputs = lstminputs = gruinputs = transformerinputs = None
+
+        # Ensure at least one model is enabled
+        if not (self.cnn_model or self.lstm_model or self.gru_model or self.transformer_model):
+            raise ValueError("At least one model (cnn_model, lstm_model, gru_model, transformer_model) must be enabled.")
 
         # Define input shapes for the models
         if self.cnn_model:

@@ -199,7 +199,7 @@ mv_X_train = mv_X_train
 mv_y_train = mv_y_train
 # Select Model
 mp_cnn_model=True
-mp_lstm_model=False
+mp_lstm_model=True
 mp_gru_model=False
 mp_transformer_model=False
 # define inputshapes
