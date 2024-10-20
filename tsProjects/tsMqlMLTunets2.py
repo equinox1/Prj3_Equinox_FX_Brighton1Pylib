@@ -11,54 +11,38 @@ import numpy as np  # Use this for float types if needed
 
 # Class for running the tuner
 class CMdtuner:
-    def __init__(self, mv_X_train, mv_y_train, mp_cnn_model, mp_lstm_model, mp_gru_model, mp_transformer_model, mp_lstm_input_shape, mp_lstm_features, mp_cnn_input_shape, mp_cnn_features, mp_gru_input_shape, mp_gru_features, mp_transformer_input_shape, mp_transformer_features, mp_objective, mp_max_epochs, mp_factor, mp_seed, mp_hyperband_iterations, mp_tune_new_entries, mp_allow_new_entries, mp_max_retries_per_trial, mp_max_consecutive_failed_trials, mp_validation_split, mp_epochs, mp_batch_size, mp_dropout, mp_oracle, mp_hypermodel, mp_max_model_size, mp_optimizer, mp_loss, mp_metrics, mp_distribution_strategy, mp_directory, mp_project_name, mp_logger, mp_tuner_id, mp_overwrite, mp_executions_per_trial):
-        # Set the input data
-        self.X_train = mv_X_train
-        self.y_train = mv_y_train
-        self.cnn_model = mp_cnn_model
-        self.lstm_model = mp_lstm_model
-        self.gru_model = mp_gru_model
-        self.transformer_model = mp_transformer_model
-        self.lstm_shape = mp_lstm_input_shape
-        self.lstm_features = mp_lstm_features
-        self.cnn_shape = mp_cnn_input_shape
-        self.cnn_features = mp_cnn_features
-        self.gru_shape = mp_gru_input_shape
-        self.gru_features = mp_gru_features
-        self.transformer_shape = mp_transformer_input_shape
-        self.transformer_features = mp_transformer_features
-        self.objective = mp_objective
-        self.max_epochs = mp_max_epochs
-        self.factor = mp_factor
-        self.seed = mp_seed
-        self.hyperband_iterations = mp_hyperband_iterations
-        self.tune_new_entries = mp_tune_new_entries
-        self.allow_new_entries = mp_allow_new_entries
-        self.max_retries_per_trial = mp_max_retries_per_trial
-        self.max_consecutive_failed_trials = mp_max_consecutive_failed_trials
-        self.validation_split = mp_validation_split 
-        self.epochs = mp_epochs
-        self.batch_size = mp_batch_size
-        self.dropout = mp_dropout   
-        self.oracle = mp_oracle
-        self.hypermodel = mp_hypermodel
-        self.max_model_size = mp_max_model_size
-        self.optimizer = mp_optimizer   
-        self.loss = mp_loss
-        self.metrics = mp_metrics
-        self.distribution_strategy = mp_distribution_strategy                   
-        self.directory = mp_directory
-        self.project_name = mp_project_name
-        self.logger = mp_logger
-        self.tuner_id = mp_tuner_id
-        self.overwrite = mp_overwrite
-        self.executions_per_trial = mp_executions_per_trial
-        
+    def __init__(self, X_train, y_train, cnn_model, lstm_model, gru_model, transformer_model, lstm_shape, lstm_features, cnn_shape, cnn_features, gru_shape, gru_features, transformer_shape, transformer_features, objective, max_trials, executions_per_trial, directory, project_name, validation_split, epochs, batch_size, factor, channels, dropout):
+        self.X_train = X_train
+        self.y_train = y_train
+        self.cnn_model = cnn_model
+        self.lstm_model = lstm_model
+        self.gru_model = gru_model
+        self.transformer_model = transformer_model
+        self.lstm_shape = lstm_shape
+        self.lstm_features = lstm_features
+        self.cnn_shape = cnn_shape
+        self.cnn_features = cnn_features
+        self.gru_shape = gru_shape
+        self.gru_features = gru_features
+        self.transformer_shape = transformer_shape
+        self.transformer_features = transformer_features
+        self.objective = objective
+        self.max_trials = max_trials
+        self.executions_per_trial = executions_per_trial
+        self.directory = directory
+        self.project_name = project_name
+        self.validation_split = validation_split
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.factor = factor
+        self.channels = channels
+        self.dropout = dropout
+
         # Initialize the Keras Tuner
         self.tuner = Hyperband(
             self.build_model,
             objective=self.objective,
-            max_epochs=self.max_epochs,
+            max_epochs=self.epochs,
             executions_per_trial=self.executions_per_trial,
             directory=self.directory,
             project_name=self.project_name,
@@ -139,6 +123,36 @@ class CMdtuner:
         return model
 
     def run_tuner(self):
-        self.tuner.search(self.X_train, self.y_train, validation_split=self.validation_split, epochs=self.epochs, batch_size=self.batch_size, callbacks=[EarlyStopping('val_loss', patience=3)])
+        # Ensure inputs are valid numpy arrays before slicing
+        if not isinstance(self.X_train, np.ndarray):
+            self.X_train = np.array(self.X_train)
+
+        # Adjust the slicing to match the dimensions of your array
+        inputs = []
+        if self.cnn_model:
+            # Assuming self.X_train is 2D, reshape it to match (batch_size, cnn_shape[1], cnn_features)
+            cnn_input_data = self.X_train[:, :self.cnn_shape[1]]
+            cnn_input_data = cnn_input_data.reshape(-1, self.cnn_shape[1], self.cnn_features)  # Reshape to 3D
+            inputs.append(cnn_input_data)
+
+        if self.lstm_model:
+            # Reshape LSTM input to (batch_size, lstm_shape[1], lstm_features)
+            lstm_input_data = self.X_train[:, :self.lstm_shape[1]]
+            lstm_input_data = lstm_input_data.reshape(-1, self.lstm_shape[1], self.lstm_features)
+            inputs.append(lstm_input_data)
+
+        if self.gru_model:
+            # Reshape GRU input to (batch_size, gru_shape[1], gru_features)
+            gru_input_data = self.X_train[:, :self.gru_shape[1]]
+            gru_input_data = gru_input_data.reshape(-1, self.gru_shape[1], self.gru_features)
+            inputs.append(gru_input_data)
+
+        if self.transformer_model:
+            # Reshape Transformer input to (batch_size, transformer_shape[1], transformer_features)
+            transformer_input_data = self.X_train[:, :self.transformer_shape[1]]
+            transformer_input_data = transformer_input_data.reshape(-1, self.transformer_shape[1], self.transformer_features)
+            inputs.append(transformer_input_data)
+
+        self.tuner.search(inputs, self.y_train, epochs=self.epochs, validation_split=self.validation_split)
         best_model = self.tuner.get_best_models()[0]
         return best_model
