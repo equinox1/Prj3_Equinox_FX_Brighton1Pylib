@@ -41,7 +41,7 @@ from tsMqlMLTune import CMdtuner
 # +-------------------------------------------------------------------
 import tensorflow as tf
 tf.compat.v1.reset_default_graph()  # Ensure compatibility with TensorFlow v1 functions
-print("Tensorflow Version",tf.__version__)
+print("Tensorflow Version", tf.__version__)
 # Check GPU availability and configure memory growth if a GPU is available
 gpus = tf.config.list_physical_devices('GPU')
 if gpus:
@@ -57,6 +57,9 @@ if gpus:
 # +-------------------------------------------------------------------
 # Fetch credentials from keyring
 cred = kr.get_credential("xercesdemo", "")
+if cred is None:
+    raise ValueError("Credentials not found in keyring")
+
 username = cred.username
 password = cred.password
 # Check if the credentials are fetched successfully
@@ -166,7 +169,7 @@ mp_train_split = 0.8
 mp_test_split = 0.2
 mp_shuffle = False
 
-mv_X_train, mv_X_test, mv_y_train, mv_y_test = m1.dl_split_data_sets(mv_X_ticks3, mv_y_ticks3, mp_train_split,mp_test_split, mp_shuffle)
+mv_X_train, mv_X_test, mv_y_train, mv_y_test = m1.dl_split_data_sets(mv_X_ticks3, mv_y_ticks3, mp_train_split, mp_test_split, mp_shuffle)
 if mv_X_train.empty or mv_X_test.empty or mv_y_train.empty or mv_y_test.empty:
     raise ValueError("Failed to split data into training and test sets")
 
@@ -192,59 +195,59 @@ mp_y_test_input_shape = mv_y_test.shape
 # Data sources
 mv_X_train = mv_X_train
 mv_y_train = mv_y_train
-# Select Model
-mp_cnn_model=True
-mp_lstm_model=True
-mp_gru_model=False
-mp_transformer_model=False
+# Select Model 
+mp_cnn_model = True
+mp_lstm_model = True    
+mp_gru_model = False
+mp_transformer_model = False
 mp_run_single_input_model = True
-mp_run_single_input_submodels = True        
+mp_run_single_input_submodels = False       
 # define inputshapes
-mp_lstm_input_shape=mp_X_train_input_shape
-mp_cnn_input_shape=mp_X_train_input_shape
-mp_gru_input_shape=mp_X_train_input_shape
-mp_transformer_input_shape=mp_X_train_input_shape
-mp_lstm_features=1
-mp_cnn_features=1
-mp_gru_features=1
-mp_transformer_features=1
+mp_lstm_input_shape = mp_X_train_input_shape
+mp_cnn_input_shape = mp_X_train_input_shape
+mp_gru_input_shape = mp_X_train_input_shape
+mp_transformer_input_shape = mp_X_train_input_shape
+mp_lstm_features = 1
+mp_cnn_features = 1
+mp_gru_features = 1
+mp_transformer_features = 1
 # Hypermodel parameters
 mp_Hypermodel = 'HyperModel'
 mp_objective = 'val_loss'
-mp_max_epochs = 2
+mp_max_epochs = 1
 mp_factor = 3
-mp_seed=42
+mp_seed = 42
 mp_hyperband_iterations = 1
 mp_tune_new_entries = False
 mp_allow_new_entries = False
-mp_max_retries_per_trial = 3
+mp_max_retries_per_trial = 1
 mp_max_consecutive_failed_trials = 1
 # base tuner parameters
 mp_validation_split = 0.2
 mp_epochs = 1
-mp_batch_size = 16    
+mp_batch_size = 100    
 mp_dropout = 0.2
 mp_oracle = None
 mp_hypermodel = None
 mp_max_model_size = 1
-mp_optimizer =  'adam'
+mp_optimizer = 'adam'
 mp_loss = 'mean_squared_error'
 mp_metrics = ['mean_squared_error']
 mp_distribution_strategy = None
 
 mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
 mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_prod"
-mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_prod"
+mp_project_name = f"{mp_directory}\\prjEquinox1_prod"
 
 mp_logger = None
 mp_tuner_id = None
-mp_overwrite = True
-mp_executions_per_trial= 1
+mp_overwrite = False
+mp_executions_per_trial = 1
 
 mp_chk_fullmodel = True
 
-#Checkpoint parameters
-mp_chk_verbosity = 2    # 0, 1, 2
+# Checkpoint parameters
+mp_chk_verbosity = 1    # 0, 1mp_chk_mode = 'min' # 'min' or 'max'
 mp_chk_mode = 'min' # 'min' or 'max'
 mp_chk_monitor = 'val_loss' # 'val_loss' or 'val_mean_squared_error'
 mp_chk_sav_freq = 'epoch' # 'epoch' or 'batch'
@@ -256,7 +259,7 @@ if mp_test:
     mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_test"
 
 # Run the tuner to find the best model configuration
-print("Running tuner with mp_X_train_input_scaled input shape:",mv_X_train.shape)
+print("Running tuner with mp_X_train_input_scaled input shape:", mv_X_train.shape)
 print("Running tuner with mp_X_train_input_scaled scaled data: Rows:", mv_X_train.shape[0], "Columns:", mv_X_train.shape[1])
 
 
@@ -348,11 +351,10 @@ plt.xlabel('Time')
 plt.ylabel('FX Price')
 plt.legend()
 # Save the plot to a file
-mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_prod"
 
-plt.savefig(mp_project_name + '\\'+ 'plot.png')
+
+plt.savefig(mp_directory + '\\' + 'plot.png')
 #plt.show()dir
-
 
 # Evaluate model performance (accuracy, precision, recall, etc.)
 # Uncomment and adjust model evaluation metrics for regression
