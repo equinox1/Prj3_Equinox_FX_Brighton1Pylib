@@ -1,0 +1,18 @@
+{
+    "configurations": [
+        {
+            "type": "debugpy",
+            "request": "launch",
+            "name": "Launch Program",
+            "program": "${workspaceFolder}/${input:programPath}",
+            "console": "integratedTerminal"
+        }
+    ],
+    "inputs": [
+        {
+            "type": "promptString",
+            "id": "programPath",
+            "description": "Enter the relative path to your Python script"
+        }
+    ]
+}

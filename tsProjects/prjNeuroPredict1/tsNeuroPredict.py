@@ -193,10 +193,12 @@ mp_y_test_input_shape = mv_y_test.shape
 mv_X_train = mv_X_train
 mv_y_train = mv_y_train
 # Select Model
-mp_cnn_model=False
-mp_lstm_model=False
+mp_cnn_model=True
+mp_lstm_model=True
 mp_gru_model=False
-mp_transformer_model=True
+mp_transformer_model=False
+mp_run_single_input_model = True
+mp_run_single_input_submodels = True        
 # define inputshapes
 mp_lstm_input_shape=mp_X_train_input_shape
 mp_cnn_input_shape=mp_X_train_input_shape
@@ -239,6 +241,15 @@ mp_tuner_id = None
 mp_overwrite = True
 mp_executions_per_trial= 1
 
+mp_chk_fullmodel = True
+
+#Checkpoint parameters
+mp_chk_verbosity = 2    # 0, 1, 2
+mp_chk_mode = 'min' # 'min' or 'max'
+mp_chk_monitor = 'val_loss' # 'val_loss' or 'val_mean_squared_error'
+mp_chk_sav_freq = 'epoch' # 'epoch' or 'batch'
+
+
 # Switch directories for testing if in test mode
 if mp_test:
     mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_test"
@@ -265,6 +276,8 @@ mt = CMdtuner(mv_X_train,
               mp_lstm_model,
               mp_gru_model,
               mp_transformer_model,
+              mp_run_single_input_model,
+              mp_run_single_input_submodels,
               shapes_and_features, 
               mp_objective,
               mp_max_epochs,
@@ -291,7 +304,12 @@ mt = CMdtuner(mv_X_train,
               mp_logger,
               mp_tuner_id,
               mp_overwrite,
-              mp_executions_per_trial
+              mp_executions_per_trial,
+              mp_chk_fullmodel,
+              mp_chk_verbosity,
+              mp_chk_mode,
+              mp_chk_monitor,
+              mp_chk_sav_freq
         )
       
 # Run the tuner to find the best model configuration
