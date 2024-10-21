@@ -77,15 +77,23 @@ class CMdtuner:
         single_input = []
 
         
+        print("Single Input Shape:", single_input)
         # Define input shapes for the models
         for model_type, (input_shape, features) in self.shapes_and_features.items():
             if model_type == 'cnn' and self.cnn_model:
                 input_tensor = Input(shape=(input_shape[1], features))
                 inputs.append(input_tensor)
-
-                if self.run_single_input_models:
-                    single_input.append(input_tensor)
+                single_input.append(input_tensor)
+                print("Initial Input Shape:", input_tensor.shape)
                 
+                if self.run_single_input_submodels:
+                    inputs=single_input
+                    print("Initial Input CNN Shape from run single input submodels:", input_tensor.shape)
+                else:
+                    inputs.append(input_tensor)
+                    print("Initial Input CNN Shape from run multi input submodels:", input_tensor.shape)
+
+
                 # CNN Layers
                 x = Conv1D(filters=hp.Int('conv_filters', min_value=32, max_value=128, step=32),
                            kernel_size=hp.Choice('conv_kernel_size', values=[1, 2, 3]),
@@ -99,9 +107,11 @@ class CMdtuner:
                 input_tensor = Input(shape=(input_shape[1], features))
 
                 if self.run_single_input_submodels:
-                    inputs=input_tensor
+                    inputs=single_input
+                    print("Initial Input LSTM Shape from run single input submodels:", input_tensor.shape)
                 else:
                     inputs.append(input_tensor)
+                    print("Initial Input LSTM Shape from run multi input submodels:", input_tensor.shape)
 
                 # LSTM Layers
                 x = LSTM(hp.Int('lstm_units_1', min_value=32, max_value=128, step=32), return_sequences=True)(input_tensor)
@@ -112,11 +122,13 @@ class CMdtuner:
 
             elif model_type == 'gru' and self.gru_model:
                 input_tensor = Input(shape=(input_shape[1], features))
-
+ 
                 if self.run_single_input_submodels:
-                    inputs=input_tensor
+                    inputs=single_input
+                    print("Initial Input GRU Shape from run single input submodels:", input_tensor.shape)
                 else:
                     inputs.append(input_tensor)
+                    print("Initial Input GRU Shape from run multi input submodels:", input_tensor.shape)
 
                 # GRU Layers
                 x = GRU(hp.Int('gru_units_1', min_value=32, max_value=128, step=32), return_sequences=True)(input_tensor)
@@ -128,10 +140,12 @@ class CMdtuner:
             elif model_type == 'transformer' and self.transformer_model:
                 input_tensor = Input(shape=(input_shape[1], features))
                 
-                if self.run_single_input_submodel:
+                if self.run_single_input_submodels:
                     inputs=input_tensor
+                    print("Initial Input TRAN Shape from run single input submodels:", input_tensor.shape)
                 else:
                     inputs.append(input_tensor)
+                    print("Initial Input TRAN Shape from run multi input submodels:", input_tensor.shape)
 
                 # Transformer Layers
                 x = MultiHeadAttention(num_heads=hp.Int('num_heads', min_value=2, max_value=4, step=1),
@@ -142,7 +156,6 @@ class CMdtuner:
                 layers.append(x)
 
             # Print the input and output shapes of the model
-            print("Checker Model Input Shapes:", [input.shape for input in inputs])
             print("Checker Model Output Shape:", x.shape)
             print("Checker Model types:", model_type)
 
@@ -158,6 +171,7 @@ class CMdtuner:
         x = Dense(1, activation='sigmoid')(x)
 
         # Compile the model with learning rate tuning
+        
         learning_rate = hp.Float('learning_rate', min_value=1e-5, max_value=1e-2, sampling='LOG', default=1e-3)
         
         #Input is created from the concat of each input append and output x from each layers append 
@@ -181,7 +195,7 @@ class CMdtuner:
             fp_save_freq = self.chk_sav_freq
             fp_initial_value_threshold = None
         else:
-            checkpoint_filepath = os.path.join(self.directory.project_name, 'Eq_checkpoint.weights.h5')
+            checkpoint_filepath = os.path.join(self.project_name, 'Eq_checkpoint.weights.h5')
             fp_save_best_only = True
             fp_save_weights_only = True
             fp_save_freq = self.chk_sav_freq
@@ -204,7 +218,7 @@ class CMdtuner:
                           validation_split=self.validation_split,
                           epochs=self.epochs,
                           batch_size=self.batch_size,
-                          callbacks=[EarlyStopping(monitor='val_loss', patience=3), checkpoint_callback])
+                          callbacks=[EarlyStopping(monitor=self.chk_monitor, patience=3), checkpoint_callback])
         
         # Get the best model
         best_models = self.tuner.get_best_models()
