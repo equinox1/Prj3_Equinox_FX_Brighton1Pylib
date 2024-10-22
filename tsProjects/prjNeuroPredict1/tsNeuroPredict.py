@@ -24,8 +24,9 @@ import MetaTrader5 as mt5
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import MinMaxScaler
 import seaborn as sns
+from sklearn.preprocessing import MinMaxScaler
+
 from sklearn.preprocessing import StandardScaler
 scaler = StandardScaler()
 # Import custom modules for MT5 and AI-related functionality
@@ -197,7 +198,7 @@ mv_X_train = mv_X_train
 mv_y_train = mv_y_train
 # Select Model 
 mp_cnn_model = True
-mp_lstm_model = True    
+mp_lstm_model = False   
 mp_gru_model = False
 mp_transformer_model = False
 mp_run_single_input_model = True
