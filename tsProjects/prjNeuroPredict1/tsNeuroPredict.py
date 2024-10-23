@@ -43,6 +43,8 @@ from tsMqlMLTune import CMdtuner
 import tensorflow as tf
 tf.compat.v1.reset_default_graph()  # Ensure compatibility with TensorFlow v1 functions
 print("Tensorflow Version", tf.__version__)
+
+from tensorflow.keras.layers import Input
 # Check GPU availability and configure memory growth if a GPU is available
 gpus = tf.config.list_physical_devices('GPU')
 if gpus:
@@ -215,17 +217,25 @@ mp_lstm_model = True
 mp_gru_model = True
 mp_transformer_model = True
 mp_run_single_input_model = True
-mp_run_single_input_submodels = False      
+mp_run_single_input_submodels = False # not implemeneted yet     
 # define inputshapes
+#mp_X_train_input_shape = Input(shape=(60, 1))  # input shape as (None, 60, 1)
+mp_single_input_shape = mp_X_train_input_shape
 mp_lstm_input_shape = mp_X_train_input_shape
 mp_cnn_input_shape = mp_X_train_input_shape
 mp_gru_input_shape = mp_X_train_input_shape
 mp_transformer_input_shape = mp_X_train_input_shape
+# define features
+mp_single_features = 1
 mp_lstm_features = 1
 mp_cnn_features = 1
 mp_gru_features = 1
 mp_transformer_features = 1
 # Hypermodel parameters
+mp_activation1= 'relu'     
+mp_activation2 = 'linear'
+mp_activation3 = 'softmax'
+mp_activation4 = 'sigmoid'     
 mp_Hypermodel = 'HyperModel'
 mp_objective = 'val_loss'
 mp_max_epochs = 1
@@ -261,6 +271,7 @@ mp_chk_verbosity = 1    # 0, 1mp_chk_mode = 'min' # 'min' or 'max'
 mp_chk_mode = 'min' # 'min' or 'max'
 mp_chk_monitor = 'val_loss' # 'val_loss' or 'val_mean_squared_error'
 mp_chk_sav_freq = 'epoch' # 'epoch' or 'batch'
+mp_chk_patience = 3
 
 mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
 mp_directory = f"tshybrid_ensemble_tuning_prod"
@@ -279,6 +290,7 @@ print("Running tuner with mp_X_train_input_scaled scaled data: Rows:", mv_X_trai
 
 
 shapes_and_features = {
+    'single_input':(mp_single_input_shape, mp_single_features),
     'cnn': (mp_cnn_input_shape, mp_cnn_features),
     'lstm': (mp_lstm_input_shape, mp_lstm_features),
     'gru': (mp_gru_input_shape, mp_gru_features),
@@ -313,6 +325,10 @@ mt = CMdtuner(mv_X_train,
               mp_batch_size,    
               mp_dropout,
               mp_oracle,
+              mp_activation1,
+              mp_activation2,
+              mp_activation3,
+              mp_activation4,
               mp_hypermodel,
               mp_max_model_size,
               mp_optimizer,
@@ -331,15 +347,16 @@ mt = CMdtuner(mv_X_train,
               mp_chk_mode,
               mp_chk_monitor,
               mp_chk_sav_freq,
+              mp_chk_patience,
               mp_checkpoint_filepath,
               mp_modeldatapath
         )
       
 # Run the tuner to find the best model configuration
-print("Running tuner")
+print("Running Main call to tuner")
 best_model = mt.tuner.get_best_models()
-best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
-best_model[0].summary()
+#best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
+#best_model[0].summary()
  
 # Display the best model's summary
 
