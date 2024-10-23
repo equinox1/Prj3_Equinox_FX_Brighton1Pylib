@@ -1,12 +1,22 @@
 import tensorflow as tf
+
 from tensorflow.keras.layers import Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout, Concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.losses import BinaryCrossentropy
 from tensorflow.keras.metrics import AUC
+from tensorflow.keras.losses import MeanSquaredError
+from tensorflow.keras.metrics import MeanAbsoluteError
+
 import keras_tuner as kt
 from keras_tuner import Hyperband
+
+import pandas as pd
+import numpy as np
+from tabulate import tabulate
+import matplotlib.pyplot as plt
+import seaborn as sns
 import os  # Import the os module
 
 class CMdtuner:
@@ -15,7 +25,7 @@ class CMdtuner:
                  lp_tune_new_entries, lp_allow_new_entries, lp_max_retries_per_trial, lp_max_consecutive_failed_trials,
                  lp_validation_split, lp_epochs, lp_batch_size, lp_dropout, lp_oracle, lp_hypermodel, lp_max_model_size, lp_optimizer,
                  lp_loss, lp_metrics, lp_distribution_strategy, lp_directory, lp_project_name, lp_logger, lp_tuner_id,
-                 lp_overwrite, lp_executions_per_trial, lp_chk_fullmodel,lp_chk_verbosity,lp_chk_mode,lp_chk_monitor,lp_chk_sav_freq):
+                 lp_overwrite, lp_executions_per_trial, lp_chk_fullmodel,lp_chk_verbosity,lp_chk_mode,lp_chk_monitor,lp_chk_sav_freq,lp_checkpoint_filepath,lp_modeldatapath):
         # Set the input data
         self.X_train = lv_X_train
         self.y_train = lv_y_train
@@ -57,14 +67,18 @@ class CMdtuner:
         self.chk_mode = lp_chk_mode
         self.chk_monitor = lp_chk_monitor
         self.chk_sav_freq = lp_chk_sav_freq
-
+        self.checkpoint_filepath = lp_checkpoint_filepath
+        self.callback_checkpoint_filepath=None
+        self.modeldatapath = lp_modeldatapath
+        self.tunefilename=os.path.join(self.modeldatapath,self.directory)
         # Initialize the Keras Tuner
-        self.tuner = Hyperband(
+        
+        self.tuner = kt.Hyperband(
             hypermodel=self.build_model,
             objective=self.objective,
             max_epochs=self.max_epochs,
             executions_per_trial=self.executions_per_trial,
-            directory=self.directory,
+            directory=self.tunefilename,
             project_name=self.project_name,
             overwrite=self.overwrite,
             factor=self.factor
@@ -76,7 +90,7 @@ class CMdtuner:
         layers = []
         single_input = []
 
-        
+        # example working shape inputs = Input(shape=(60, 1))  # input shape as (None, 60, 1)
         print("Single Input Shape:", single_input)
         # Define input shapes for the models
         for model_type, (input_shape, features) in self.shapes_and_features.items():
@@ -93,15 +107,18 @@ class CMdtuner:
                     inputs.append(input_tensor)
                     print("Initial Input CNN Shape from run multi input submodels:", input_tensor.shape)
 
+                 #override
+                inputs = Input(shape=(60, 1))  # input shape as (None, 60, 1)
 
-                # CNN Layers
-                x = Conv1D(filters=hp.Int('conv_filters', min_value=32, max_value=128, step=32),
-                           kernel_size=hp.Choice('conv_kernel_size', values=[1, 2, 3]),
-                           activation='relu')(input_tensor)
-                x = MaxPooling1D(pool_size=2)(x)
-                x = Dropout(self.dropout)(x)
-                x = Flatten()(x)
-                layers.append(x)
+                # CNN branch
+                x_cnn = Conv1D(filters=hp.Int('cnn_filters', min_value=32, max_value=128, step=32),
+                             kernel_size=hp.Int('cnn_kernel_size', min_value=2, max_value=5, step=1), 
+                             activation='relu')(input_tensor)
+                x_cnn = MaxPooling1D(pool_size=2)(x_cnn)
+                x_cnn = Flatten()(x_cnn)
+                #x_cnn = Dropout(self.dropout)(x_cnn)
+                layers.append(x_cnn)
+                
 
             elif model_type == 'lstm' and self.lstm_model:
                 input_tensor = Input(shape=(input_shape[1], features))
@@ -110,15 +127,17 @@ class CMdtuner:
                     inputs=single_input
                     print("Initial Input LSTM Shape from run single input submodels:", input_tensor.shape)
                 else:
-                    inputs.append(input_tensor)
+                    #inputs.append(input_tensor)
                     print("Initial Input LSTM Shape from run multi input submodels:", input_tensor.shape)
 
+                #override
+                inputs = Input(shape=(60, 1))  # input shape as (None, 60, 1)
                 # LSTM Layers
-                x = LSTM(hp.Int('lstm_units_1', min_value=32, max_value=128, step=32), return_sequences=True)(input_tensor)
-                x = LSTM(hp.Int('lstm_units_2', min_value=32, max_value=128, step=32))(x)
-                x = Dropout(self.dropout)(x)
-                x = Flatten()(x)
-                layers.append(x)
+                x_lstm = LSTM(hp.Int('lstm_units_1', min_value=32, max_value=128, step=32), return_sequences=True)(input_tensor)
+                x_lstm = LSTM(hp.Int('lstm_units_2', min_value=32, max_value=128, step=32))(x_lstm)
+                #x_lstm = Flatten()(x_lstm)
+                #x_lstm = Dropout(self.dropout)(x_lstm)
+                layers.append(x_lstm)
 
             elif model_type == 'gru' and self.gru_model:
                 input_tensor = Input(shape=(input_shape[1], features))
@@ -127,15 +146,17 @@ class CMdtuner:
                     inputs=single_input
                     print("Initial Input GRU Shape from run single input submodels:", input_tensor.shape)
                 else:
-                    inputs.append(input_tensor)
+                   # inputs.append(input_tensor)
                     print("Initial Input GRU Shape from run multi input submodels:", input_tensor.shape)
 
+                 #override
+                inputs = Input(shape=(60, 1))  # input shape as (None, 60, 1)
                 # GRU Layers
-                x = GRU(hp.Int('gru_units_1', min_value=32, max_value=128, step=32), return_sequences=True)(input_tensor)
-                x = GRU(hp.Int('gru_units_2', min_value=32, max_value=128, step=32))(x)
-                x = Dropout(self.dropout)(x)
-                x = Flatten()(x)
-                layers.append(x)
+                x_gru = GRU(hp.Int('gru_units_1', min_value=32, max_value=128, step=32), return_sequences=True)(input_tensor)
+                x_gru = GRU(hp.Int('gru_units_2', min_value=32, max_value=128, step=32))(x_gru)
+                x_gru = Flatten()(x_gru)
+                #x_gru = Dropout(self.dropout)(x_gru)
+                layers.append(x_gru)
 
             elif model_type == 'transformer' and self.transformer_model:
                 input_tensor = Input(shape=(input_shape[1], features))
@@ -144,19 +165,20 @@ class CMdtuner:
                     inputs=input_tensor
                     print("Initial Input TRAN Shape from run single input submodels:", input_tensor.shape)
                 else:
-                    inputs.append(input_tensor)
+                    #inputs.append(input_tensor)
                     print("Initial Input TRAN Shape from run multi input submodels:", input_tensor.shape)
 
+                 #override
+                inputs = Input(shape=(60, 1))  # input shape as (None, 60, 1)
                 # Transformer Layers
-                x = MultiHeadAttention(num_heads=hp.Int('num_heads', min_value=2, max_value=4, step=1),
+                x_trans = MultiHeadAttention(num_heads=hp.Int('num_heads', min_value=2, max_value=4, step=1),
                                         key_dim=hp.Int('key_dim', min_value=32, max_value=128, step=32))(input_tensor, input_tensor)
-                x = LayerNormalization(epsilon=1e-6)(x)
-                x = Dropout(self.dropout)(x)
-                x = GlobalAveragePooling1D()(x)
-                layers.append(x)
+                x_trans = LayerNormalization(epsilon=1e-6)(x_trans)
+                x_trans = GlobalAveragePooling1D()(x_trans)
+                #x_trans = Dropout(self.dropout)(x_trans)
+                layers.append(x_trans)
 
-            # Print the input and output shapes of the model
-            print("Checker Model Output Shape:", x.shape)
+
             print("Checker Model types:", model_type)
 
         # Concatenate Layers if multiple models are enabled
@@ -167,35 +189,54 @@ class CMdtuner:
         else:
             raise ValueError("At least one model (cnn_model, lstm_model, gru_model, transformer_model) must be enabled.")
 
-        # Dense layer for final prediction
-        x = Dense(1, activation='sigmoid')(x)
-
-        # Compile the model with learning rate tuning
-        
-        learning_rate = hp.Float('learning_rate', min_value=1e-5, max_value=1e-2, sampling='LOG', default=1e-3)
+    
+        # Concatenate the outputs of the branches
+        combined = Concatenate()([x_cnn, x_lstm, x_gru, x_trans])
+        x = Dense(50, activation='relu')(combined)
+        x = Dropout(0.3)(x)
+        output = Dense(1, activation='linear')(x)
         
         #Input is created from the concat of each input append and output x from each layers append 
         if self.run_single_input_model:
-                model = Model(inputs=single_input, outputs=x)
+                model = Model(inputs=single_input, outputs=output)
                 print("Running single input model",inputs)
         else:
-                model = Model(inputs=inputs, outputs=x)
+                model = Model(inputs=inputs, outputs=output)
                 print("Running multi input model",inputs)
-        
-        model.compile(optimizer=Adam(learning_rate=learning_rate), loss=BinaryCrossentropy(), metrics=['accuracy', AUC()])
 
+        print("Layer Output Shape:", layers)
+        print ("Combined Output Shape:", combined.shape)  
+        print("Input Shape:", inputs) 
+        print("Output Shape:", output.shape)
+        
+        #override
+        inputs = Input(shape=(60, 1))  # input shape as (None, 60, 1)
+
+        # Define model building function
+        model = Model(inputs=inputs, outputs=output)
+        # Compile the model with learning rate tuning
+        learning_rate = hp.Float('learning_rate', min_value=1e-5, max_value=1e-2, sampling='LOG', default=1e-3)
+        #model.compile(optimizer=Adam(learning_rate=learning_rate),loss=MeanSquaredError(), metrics=[MeanAbsoluteError()])
+        model.compile(optimizer=Adam(learning_rate=hp.Float('lr', min_value=1e-4, max_value=1e-2, sampling='LOG')),
+                  loss=MeanSquaredError(), 
+                  metrics=[MeanAbsoluteError()])
+        #model.compile(optimizer=Adam(learning_rate=learning_rate), loss=BinaryCrossentropy(), metrics=['accuracy', AUC()])
         return model
 
     def run_tuner(self):
         # Define a ModelCheckpoint callback
         if self.chk_fullmodel:
-            checkpoint_filepath = os.path.join(self.project_name, 'Eq_best_model.keras')
+            self.callback_checkpoint_filepath= os.path.join(self.checkpoint_filepath, 'Eq_best_model.keras')
+            print("Checkpoint Filepath:", self.callback_checkpoint_filepath)
+            print("Callback Checkpoint Filepath:", self.callback_checkpoint_filepath)
             fp_save_best_only = True
             fp_save_weights_only = False
             fp_save_freq = self.chk_sav_freq
             fp_initial_value_threshold = None
         else:
-            checkpoint_filepath = os.path.join(self.project_name, 'Eq_checkpoint.weights.h5')
+            self.callback_checkpoint_filepath = os.path.join(self.checkpoint_filepath, 'Eq_checkpoint.weights.h5')
+            print("Checkpoint Filepath:", self.checkpoint_filepath)
+            print("Callback Checkpoint Filepath:", self.callback_checkpoint_filepath)
             fp_save_best_only = True
             fp_save_weights_only = True
             fp_save_freq = self.chk_sav_freq
@@ -204,7 +245,7 @@ class CMdtuner:
         # Define a ModelCheckpoint callback
 
         checkpoint_callback = ModelCheckpoint(
-            filepath=checkpoint_filepath,
+            filepath=self.callback_checkpoint_filepath,
             monitor=self.chk_monitor,
             verbose=self.chk_verbosity,          
             save_best_only=fp_save_best_only,
@@ -213,16 +254,18 @@ class CMdtuner:
             save_freq=fp_save_freq,
             initial_value_threshold=fp_initial_value_threshold)
         
+        self.tuner.search_space_summary()
         # Run the hyperparameter tuning
         self.tuner.search(self.X_train, self.y_train,
                           validation_split=self.validation_split,
                           epochs=self.epochs,
                           batch_size=self.batch_size,
-                          callbacks=[EarlyStopping(monitor=self.chk_monitor, patience=3), checkpoint_callback])
+                          callbacks=[tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)])
+                          #callbacks=[EarlyStopping(monitor=self.chk_monitor, patience=3), checkpoint_callback])
         
+
         # Get the best model
-        best_models = self.tuner.get_best_models()
-        if not best_models:
-            raise ValueError("No best models found. Please check the tuning process.")
-        best_model = best_models[0]
+        best_model = self.tuner.get_best_models()
+        #best_params = self.tuner.get_best_hyperparameters(num_trials=1)[0]
+        # best_model[0].summary()
         return best_model
