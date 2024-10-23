@@ -195,14 +195,27 @@ mp_y_test_input_shape = mv_y_test.shape
 # Define parameters for the model tuning process
 # Data sources
 mv_X_train = mv_X_train
+#Shaping the data
+#=====================
+mv_X_train  = mv_X_train[:1048500]  # Trim to nearest number divisible by 60
+mv_X_train_numpy = mv_X_train.values
+# Reshape the array (-1, 60, 1)
+reshaped_array = mv_X_train_numpy.reshape(-1, 60, 1)
+# If you want to convert it back to a DataFrame:
+reshaped_df = pd.DataFrame(reshaped_array.reshape(-1, reshaped_array.shape[1]))
+mv_X_train = reshaped_df
+# End of reshaping
+#=====================
+
+#=======================
 mv_y_train = mv_y_train
 # Select Model 
 mp_cnn_model = True
-mp_lstm_model = False   
-mp_gru_model = False
-mp_transformer_model = False
+mp_lstm_model = True   
+mp_gru_model = True
+mp_transformer_model = True
 mp_run_single_input_model = True
-mp_run_single_input_submodels = False       
+mp_run_single_input_submodels = False      
 # define inputshapes
 mp_lstm_input_shape = mp_X_train_input_shape
 mp_cnn_input_shape = mp_X_train_input_shape
@@ -226,7 +239,7 @@ mp_max_consecutive_failed_trials = 1
 # base tuner parameters
 mp_validation_split = 0.2
 mp_epochs = 1
-mp_batch_size = 100    
+mp_batch_size = 16   
 mp_dropout = 0.2
 mp_oracle = None
 mp_hypermodel = None
@@ -236,15 +249,11 @@ mp_loss = 'mean_squared_error'
 mp_metrics = ['mean_squared_error']
 mp_distribution_strategy = None
 
-mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
-mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_prod"
-mp_project_name = f"{mp_directory}\\prjEquinox1_prod"
 
 mp_logger = None
 mp_tuner_id = None
 mp_overwrite = False
 mp_executions_per_trial = 1
-
 mp_chk_fullmodel = True
 
 # Checkpoint parameters
@@ -253,11 +262,15 @@ mp_chk_mode = 'min' # 'min' or 'max'
 mp_chk_monitor = 'val_loss' # 'val_loss' or 'val_mean_squared_error'
 mp_chk_sav_freq = 'epoch' # 'epoch' or 'batch'
 
-
+mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
+mp_directory = f"tshybrid_ensemble_tuning_prod"
+mp_project_name = "prjEquinox1_prod"
+mp_checkpoint_filepath = os.path.join(mp_modeldatapath,mp_directory, mp_project_name)
+print("mp_checkpoint_filepath:", mp_checkpoint_filepath)
 # Switch directories for testing if in test mode
 if mp_test:
     mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_test"
-    mp_project_name = f"{mp_modeldatapath}\\tshybrid_ensemble_model_test"
+    mp_project_name = f"\\tshybrid_ensemble_model_test"
 
 # Run the tuner to find the best model configuration
 print("Running tuner with mp_X_train_input_scaled input shape:", mv_X_train.shape)
@@ -313,7 +326,9 @@ mt = CMdtuner(mv_X_train,
               mp_chk_verbosity,
               mp_chk_mode,
               mp_chk_monitor,
-              mp_chk_sav_freq
+              mp_chk_sav_freq,
+              mp_checkpoint_filepath,
+              mp_modeldatapath
         )
       
 # Run the tuner to find the best model configuration
