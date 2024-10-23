@@ -289,6 +289,8 @@ print("Creating an instance of the tuner class")
 
 mt = CMdtuner(mv_X_train,
               mv_y_train,
+              mv_X_test,
+              mv_y_test,
               mp_cnn_model,
               mp_lstm_model,
               mp_gru_model,
@@ -333,10 +335,13 @@ mt = CMdtuner(mv_X_train,
       
 # Run the tuner to find the best model configuration
 print("Running tuner")
-best_model = mt.run_tuner()
+best_model = mt.tuner.get_best_models()
+best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
+best_model[0].summary()
+ 
 # Display the best model's summary
-best_model.summary()
 
+"""
 # +-------------------------------------------------------------------
 # Train and evaluate the model
 # +-------------------------------------------------------------------
@@ -377,3 +382,4 @@ plt.savefig(mp_directory + '\\' + 'plot.png')
 
 #mse = m1.model_performance(best_model, mv_X_test, mv_y_test)
 #print(f"Mean Squared Error: {mse}")
+"""
