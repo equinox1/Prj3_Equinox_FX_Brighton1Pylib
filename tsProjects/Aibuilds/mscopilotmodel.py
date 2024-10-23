@@ -100,8 +100,6 @@ tuner.search(X_train, y_train,
              validation_data=(X_val, y_val),
              callbacks=[tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)])
 
-best_model = tuner.get_best_models()
+best_model = tuner.get_best_models(num_models=1)[0]
 best_params = tuner.get_best_hyperparameters(num_trials=1)[0]
-best_model[0].summary()
-
-
+best_model.summary()
