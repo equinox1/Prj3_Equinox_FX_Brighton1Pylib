@@ -12,6 +12,7 @@ from tabulate import tabulate
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+
 # Assuming your data is in a CSV file
 file = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\Mql5Data\EURUSD_tickdata1.csv"
 
