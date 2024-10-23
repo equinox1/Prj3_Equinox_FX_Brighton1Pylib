@@ -18,7 +18,7 @@ class CMdtuner:
                  lp_shapes_and_features, lp_objective, lp_max_epochs, lp_factor, lp_seed, lp_hyperband_iterations,
                  lp_tune_new_entries, lp_allow_new_entries, lp_max_retries_per_trial, lp_max_consecutive_failed_trials,
                  lp_validation_split, lp_epochs, lp_batch_size, lp_dropout, lp_oracle, lp_hypermodel, lp_max_model_size, lp_optimizer,
-                 lp_loss, lp_metrics, lp_distribution_strategy, lp_directory, lp_project_name, lp_logger, lp_tuner_id,
+                 lp_loss, lp_metrics, lp_distribution_strategy, lp_directory,lp_basepath, lp_project_name, lp_logger, lp_tuner_id,
                  lp_overwrite, lp_executions_per_trial, lp_chk_fullmodel, lp_chk_verbosity, lp_chk_mode, lp_chk_monitor, lp_chk_sav_freq, lp_checkpoint_filepath, lp_modeldatapath):
         # Set the input data
         self.X_train = lv_X_train
@@ -53,6 +53,7 @@ class CMdtuner:
         self.metrics = lp_metrics
         self.distribution_strategy = lp_distribution_strategy
         self.directory = lp_directory
+        self.basepath = lp_basepath
         self.project_name = lp_project_name
         self.logger = lp_logger
         self.tuner_id = lp_tuner_id
@@ -72,8 +73,8 @@ class CMdtuner:
                      objective='val_mean_absolute_error',
                      max_epochs=2,
                      factor=3,
-                     directory='c:\\tmp\\keras_tuner_dir',
-                     project_name='forex_price_forecasting')
+                     directory=self.basepath,
+                     project_name=self.project_name)
       
 
         self.tuner.search_space_summary()
