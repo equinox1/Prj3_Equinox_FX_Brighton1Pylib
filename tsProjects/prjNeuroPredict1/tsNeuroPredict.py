@@ -265,12 +265,13 @@ mp_chk_sav_freq = 'epoch' # 'epoch' or 'batch'
 mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
 mp_directory = f"tshybrid_ensemble_tuning_prod"
 mp_project_name = "prjEquinox1_prod"
+mp_basepath = os.path.join(mp_modeldatapath, mp_directory)
 mp_checkpoint_filepath = os.path.join(mp_modeldatapath,mp_directory, mp_project_name)
 print("mp_checkpoint_filepath:", mp_checkpoint_filepath)
 # Switch directories for testing if in test mode
 if mp_test:
-    mp_directory = f"{mp_modeldatapath}\\tshybrid_ensemble_tuning_test"
-    mp_project_name = f"\\tshybrid_ensemble_model_test"
+    mp_directory = f"tshybrid_ensemble_tuning_test"
+    mp_project_name = "prjEquinox1_test"
 
 # Run the tuner to find the best model configuration
 print("Running tuner with mp_X_train_input_scaled input shape:", mv_X_train.shape)
@@ -319,6 +320,7 @@ mt = CMdtuner(mv_X_train,
               mp_metrics,
               mp_distribution_strategy,
               mp_directory, 
+              mp_basepath,
               mp_project_name,
               mp_logger,
               mp_tuner_id,
