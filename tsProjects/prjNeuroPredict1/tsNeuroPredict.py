@@ -26,8 +26,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import mean_squared_error
-
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 from sklearn.preprocessing import StandardScaler
 scaler = StandardScaler()
 # Import custom modules for MT5 and AI-related functionality
@@ -246,10 +245,10 @@ mp_hyperband_iterations = 1
 mp_tune_new_entries = False
 mp_allow_new_entries = False
 mp_max_retries_per_trial = 1
-mp_max_consecutive_failed_trials = 1
+mp_max_consecutive_failed_trials = 3
 # base tuner parameters
 mp_validation_split = 0.2
-mp_epochs = 1
+mp_epochs = 1000
 mp_batch_size = 16   
 mp_dropout = 0.2
 mp_oracle = None
@@ -410,14 +409,25 @@ plt.ylabel('FX Price')
 plt.legend()
 # Save the plot to a file
 plt.savefig(mp_basepath + '\\' + 'plot.png')
-#plt.show()
 
 # Evaluate model performance (accuracy, precision, recall, etc.)
 # Uncomment and adjust model evaluation metrics for regression
 # Assuming best_model is trained and mv_X_test, mv_y_test are your test data
-#predicted_fx_price = best_model[0].predict(mv_X_test)  # Predict on the test data
 
-# Calculate MSE
+
+"""
+The R² score ranges from 0 to 1, where:
+
+1 means the predictions perfectly fit the data.
+0 means the model explains none of the variance.
+Negative values suggest that the model performs worse than a horizontal line (i.e., mean prediction).
+"""
+# Evaluate using sklearn's metrics
 mse = mean_squared_error(mv_y_test, predicted_fx_price)
+mae = mean_absolute_error(mv_y_test, predicted_fx_price)
+r2 = r2_score(mv_y_test, predicted_fx_price)
 
-print(f"Mean Squared Error: {mse}")
+print(f"Mean Squared Error (sklearn): {mse}")
+print(f"Mean Absolute Error (sklearn): {mae}")
+print(f"R² Score (sklearn): {r2}")
+#plt.show()
