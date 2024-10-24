@@ -77,7 +77,8 @@ class CMdtuner:
         self.callback_checkpoint_filepath = None
         self.modeldatapath = lp_modeldatapath
         self.tunefilename = os.path.join(self.modeldatapath, self.directory)
-
+        
+        
         self.tuner = kt.Hyperband(
                      hypermodel=self.build_model,
                      objective=self.objective,
@@ -88,7 +89,9 @@ class CMdtuner:
                      overwrite=self.overwrite,
                      factor=self.factor
                      )
-      
+
+
+
         self.tuner.search_space_summary()
 
         self.tuner.search(self.X_train, self.y_train,
@@ -98,28 +101,30 @@ class CMdtuner:
 
     def build_model(self, hp):
         
-  
+        cnn_inputs, lstm_inputs, gru_inputs, transformer_inputs, single_inputs = None, None, None, None, None
+        x_cnn, x_lstm, x_gru,x_trans = None, None, None, None
+
         for model_type, (input_shape, features) in self.shapes_and_features.items():
             if model_type == 'cnn':
                 features_tuple = (features,)
-                cnn_inputs = Input(shape=input_shape + features_tuple)
+                cnn_inputs = Input(shape=(input_shape,) + features_tuple)
                 print("model cnn_inputs:", cnn_inputs)
             elif model_type == 'lstm':
                 features_tuple = (features,)
-                lstm_inputs = Input(shape=input_shape + features_tuple)
+                lstm_inputs = Input(shape=(input_shape,) + features_tuple)
                 print("model lstm_inputs:", lstm_inputs)
             elif model_type == 'gru':
                 features_tuple = (features,)
-                gru_inputs = Input(shape=input_shape + features_tuple)
+                gru_inputs = Input(shape=(input_shape,) + features_tuple)
                 print("model gru_inputs:", gru_inputs)
             elif model_type == 'transformer':
                 features_tuple = (features,)
-                transformer_inputs = Input(shape=input_shape + features_tuple)
+                transformer_inputs = Input(shape=(input_shape,) + features_tuple)
                 print("model transformer_inputs:", transformer_inputs)
             elif model_type == 'single_input':
                 features_tuple = (features,)
-                single_inputs = Input(shape=input_shape + features_tuple)
-                print("model inputs:", inputs)
+                single_inputs = Input(shape=(input_shape,) + features_tuple)
+                print("model inputs:", single_inputs)
 
         # CNN branch
         x_cnn = Conv1D(filters=hp.Int('cnn_filters', min_value=32, max_value=128, step=32), 
@@ -149,7 +154,6 @@ class CMdtuner:
         output = Dense(1, activation=self.activation2)(x)
         
         if self.run_single_input_model:
-            single_inputs = Input(shape=input_shape)
             model = Model(inputs=single_inputs, outputs=output)
             print("Running single input model", single_inputs)
         else:
@@ -157,7 +161,8 @@ class CMdtuner:
             model = Model(inputs=inputs, outputs=output)
             print("Running multi input model", inputs)
         
-        print("Model Parameters: inputs: ", inputs, "outputs: ", output)
+       # print("Model Parameters: inputs: ", inputs., "outputs: ", output)
+
         model.compile(optimizer=Adam(learning_rate=hp.Float('lr', min_value=1e-4, max_value=1e-2, sampling='LOG')),
                       loss=MeanSquaredError(), 
                       metrics=[MeanAbsoluteError()])
