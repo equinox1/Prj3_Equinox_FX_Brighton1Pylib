@@ -290,17 +290,11 @@ if mp_test:
     mp_project_name = "prjEquinox1_test"
 
 # Run the tuner to find the best model configuration
-print("Running tuner with mp_X_train_input_scaled input shape:", mv_X_train.shape)
-print("Running tuner with mp_X_train_input_scaled scaled data: Rows:", mv_X_train.shape[0], "Columns:", mv_X_train.shape[1])
-
-
-shapes_and_features = {
-    'single_input':(mp_single_input_shape, mp_single_features),
-    'cnn': (mp_cnn_input_shape, mp_cnn_features),
-    'lstm': (mp_lstm_input_shape, mp_lstm_features),
-    'gru': (mp_gru_input_shape, mp_gru_features),
-    'transformer': (mp_transformer_input_shape, mp_transformer_features),
-}
+print("Running tuner1 with mp_X_train_input_scaled input shape:", mv_X_train.shape)
+print("Running tuner2 with mp_X_train_input_scaled scaled data: Rows:", mv_X_train.shape[0], "Columns:", mv_X_train.shape[1])
+print("Running tuner3 with mp_X_train_input_scaled input shape:", mv_X_train.shape)
+mp_inputs = Input(shape=(mv_X_train.shape[1],1) ) 
+print("Running tuner4 with mp_X_train_input_scaled input shape:", mp_inputs)
 
 # Create an instance of the tuner class
 print("Creating an instance of the tuner class")
@@ -309,13 +303,13 @@ mt = CMdtuner(mv_X_train,
               mv_y_train,
               mv_X_test,
               mv_y_test,
+              mp_inputs,
               mp_cnn_model,
               mp_lstm_model,
               mp_gru_model,
               mp_transformer_model,
               mp_run_single_input_model,
               mp_run_single_input_submodels,
-              shapes_and_features, 
               mp_objective,
               mp_max_epochs,
               mp_factor,

@@ -90,13 +90,24 @@ print("mp_random:", mp_random)
 mp_baseuniq=str(mp_random)
 mp_basepath = os.path.join("c:\\","tmp","tsmspilot",mp_baseuniq)
 
+
+mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
+mp_directory = f"tshybrid_ensemble_tuning_prod"
+mp_project_name = "prjEquinox1_prodcopilot"
+
+mp_random = np.random.randint(0, 1000)
+print("mp_random:", mp_random)
+
+mp_baseuniq=str(mp_random)
+mp_basepath = os.path.join(mp_modeldatapath, mp_directory,mp_baseuniq)
+
+
 tuner = kt.Hyperband(build_model,
                      objective='val_mean_absolute_error',
                      max_epochs=2,
                      factor=3,
-                     #directory='keras_tuner_dir',
                      directory=mp_basepath,
-                     project_name='forex_price_forecasting')
+                     project_name=mp_project_name)
 
 tuner.search_space_summary()
 
