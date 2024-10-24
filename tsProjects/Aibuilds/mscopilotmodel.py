@@ -50,8 +50,6 @@ y_train = y_train[:split_index]
 
 def build_model(hp):
     inputs = Input(shape=(60, 1))  # input shape as (None, 60, 1)
-    print("model inputs:", inputs)
-
     
     # CNN branch
     x_cnn = Conv1D(filters=hp.Int('cnn_filters', min_value=32, max_value=128, step=32), 
@@ -79,7 +77,7 @@ def build_model(hp):
     x = Dense(50, activation='relu')(combined)
     x = Dropout(0.3)(x)
     output = Dense(1, activation='linear')(x)
-    print("Model Parameters: inputs: ",inputs,"outputs: ",output)
+    
     model = Model(inputs=inputs, outputs=output)
     model.compile(optimizer=Adam(learning_rate=hp.Float('lr', min_value=1e-4, max_value=1e-2, sampling='LOG')),
                   loss=MeanSquaredError(), 
@@ -91,7 +89,7 @@ tuner = kt.Hyperband(build_model,
                      objective='val_mean_absolute_error',
                      max_epochs=2,
                      factor=3,
-                     directory='c:\\keras_tuner_dir',
+                     directory='keras_tuner_dir',
                      project_name='forex_price_forecasting')
 
 tuner.search_space_summary()
@@ -102,6 +100,6 @@ tuner.search(X_train, y_train,
              validation_data=(X_val, y_val),
              callbacks=[tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)])
 
-best_model = tuner.get_best_models(num_models=1)[0]
+best_model = tuner.get_best_models()
 best_params = tuner.get_best_hyperparameters(num_trials=1)[0]
-best_model.summary()
+best_model[0].summary()
