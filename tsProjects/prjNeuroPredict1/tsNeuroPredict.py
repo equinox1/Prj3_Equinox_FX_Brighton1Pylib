@@ -217,14 +217,14 @@ mp_lstm_model = True
 mp_gru_model = True
 mp_transformer_model = True
 mp_run_single_input_model = True
-mp_run_single_input_submodels = False # not implemeneted yet     
+mp_run_single_input_submodels = False # not implemented yet     
 # define inputshapes
 #mp_X_train_input_shape = Input(shape=(60, 1))  # input shape as (None, 60, 1)
-mp_single_input_shape = mp_X_train_input_shape
-mp_lstm_input_shape = mp_X_train_input_shape
-mp_cnn_input_shape = mp_X_train_input_shape
-mp_gru_input_shape = mp_X_train_input_shape
-mp_transformer_input_shape = mp_X_train_input_shape
+mp_single_input_shape = mp_X_train_input_shape[1]
+mp_lstm_input_shape = mp_X_train_input_shape[1]
+mp_cnn_input_shape = mp_X_train_input_shape[1]
+mp_gru_input_shape = mp_X_train_input_shape[1]
+mp_transformer_input_shape = mp_X_train_input_shape[1]
 # define features
 mp_single_features = 1
 mp_lstm_features = 1
@@ -354,6 +354,7 @@ mt = CMdtuner(mv_X_train,
       
 # Run the tuner to find the best model configuration
 print("Running Main call to tuner")
+
 best_model = mt.tuner.get_best_models()
 #best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
 #best_model[0].summary()

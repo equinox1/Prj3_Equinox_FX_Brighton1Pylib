@@ -50,6 +50,8 @@ y_train = y_train[:split_index]
 
 def build_model(hp):
     inputs = Input(shape=(60, 1))  # input shape as (None, 60, 1)
+    print("model inputs:", inputs)
+
     
     # CNN branch
     x_cnn = Conv1D(filters=hp.Int('cnn_filters', min_value=32, max_value=128, step=32), 
