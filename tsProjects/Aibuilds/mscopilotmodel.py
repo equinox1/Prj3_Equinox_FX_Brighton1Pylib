@@ -11,6 +11,7 @@ import numpy as np
 from tabulate import tabulate
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 
 # Assuming your data is in a CSV file
 file = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\Mql5Data\EURUSD_tickdata1.csv"
@@ -89,7 +90,8 @@ tuner = kt.Hyperband(build_model,
                      objective='val_mean_absolute_error',
                      max_epochs=2,
                      factor=3,
-                     directory='keras_tuner_dir',
+                     #directory='keras_tuner_dir',
+                     directory="c:\\tmp\\keras_tuner_dir",
                      project_name='forex_price_forecasting')
 
 tuner.search_space_summary()

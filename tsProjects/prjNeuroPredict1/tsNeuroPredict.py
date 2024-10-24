@@ -356,8 +356,8 @@ mt = CMdtuner(mv_X_train,
 print("Running Main call to tuner")
 
 best_model = mt.tuner.get_best_models()
-#best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
-#best_model[0].summary()
+best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
+best_model[0].summary()
  
 # Display the best model's summary
 
