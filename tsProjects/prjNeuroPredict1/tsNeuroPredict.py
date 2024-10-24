@@ -16,7 +16,7 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import keyring as kr
 from tabulate import tabulate
-
+from datetime import datetime, date
 # +-------------------------------------------------------------------
 # Import MetaTrader 5 (MT5) and other necessary packages
 # +-------------------------------------------------------------------
@@ -276,8 +276,13 @@ mp_chk_patience = 3
 mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
 mp_directory = f"tshybrid_ensemble_tuning_prod"
 mp_project_name = "prjEquinox1_prod"
-mp_basepath = os.path.join(mp_modeldatapath, mp_directory)
-mp_checkpoint_filepath = os.path.join(mp_modeldatapath,mp_directory, mp_project_name)
+mp_today=date.today().strftime('%Y-%m-%d %H:%M:%S')
+mp_random = np.random.randint(0, 1000)
+print("mp_random:", mp_random)
+print("mp_today:", mp_today)
+mp_baseuniq=str(mp_random)
+mp_basepath = os.path.join(mp_modeldatapath, mp_directory,mp_baseuniq)
+mp_checkpoint_filepath = os.path.join(mp_modeldatapath,mp_directory,mp_basepath, mp_project_name)
 print("mp_checkpoint_filepath:", mp_checkpoint_filepath)
 # Switch directories for testing if in test mode
 if mp_test:
