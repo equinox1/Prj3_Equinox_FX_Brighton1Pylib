@@ -80,15 +80,17 @@ class CMdtuner:
         
         
         self.tuner = kt.Hyperband(
-                     hypermodel=self.build_model,
+                    hypermodel=self.build_model,
                      objective=self.objective,
-                     max_epochs=self.max_epochs,
-                     executions_per_trial=self.executions_per_trial,
-                     directory=self.basepath,
-                     project_name=self.project_name,
-                     overwrite=self.overwrite,
-                     factor=self.factor
-                     )
+                    max_epochs=self.max_epochs,
+                    executions_per_trial=self.executions_per_trial,
+                    directory=self.basepath,
+                    project_name=self.project_name,
+                    overwrite=self.overwrite,
+                    factor=self.factor
+                    )
+
+        
 
 
 

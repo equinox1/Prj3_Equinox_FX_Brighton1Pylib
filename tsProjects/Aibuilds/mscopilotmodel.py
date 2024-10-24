@@ -85,13 +85,17 @@ def build_model(hp):
                   metrics=[MeanAbsoluteError()])
     
     return model
+mp_random = np.random.randint(0, 1000)
+print("mp_random:", mp_random)
+mp_baseuniq=str(mp_random)
+mp_basepath = os.path.join("c:\\","tmp","tsmspilot",mp_baseuniq)
 
 tuner = kt.Hyperband(build_model,
                      objective='val_mean_absolute_error',
                      max_epochs=2,
                      factor=3,
                      #directory='keras_tuner_dir',
-                     directory="c:\\tmp\\keras_tuner_dir",
+                     directory=mp_basepath,
                      project_name='forex_price_forecasting')
 
 tuner.search_space_summary()
