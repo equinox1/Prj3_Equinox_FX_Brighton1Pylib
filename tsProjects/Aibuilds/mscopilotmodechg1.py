@@ -49,9 +49,47 @@ y_val = y_train[split_index:]
 X_train = X_train[:split_index]
 y_train = y_train[:split_index]
 
+print("X_train shape:", X_train.shape)
 def build_model(hp):
-    inputs = Input(shape=(60, 1))  # input shape as (None, 60, 1)
+    #inputs = Input(shape=(60, 1))  # input shape as (None, 60, 1)
+    inputs = Input(shape=( X_train.shape[1:]) ) # input shape as (None, 60, 1)
+    cnn_inputs =Input(shape=( X_train.shape[1:]) ) # input shape as (None, 60, 1)
+
+
+    print("Pilot inputs:", inputs)
+    run_single_input_model = True
+
+    shapes = {
+    'cnn': X_train.shape[1:], # input shape as (60, 1)
+    'lstm':  X_train.shape[1:], # input shape as (60, 1)
+    'gru': X_train.shape[1:], # input shape as (60, 1)
+    'transformer': X_train.shape[1:], # input shape as (60, 1)
+    'single_input': X_train.shape[1:] # input shape as (60, 1)
+    }
     
+    cnn_inputs, lstm_inputs, gru_inputs, transformer_inputs, single_inputs = None, None, None, None, None
+    x_cnn, x_lstm, x_gru,x_trans = None, None, None, None
+
+    for model_type, input_shape in shapes.items():
+            if model_type == 'cnn':
+                cnn_inputs = Input(shape=input_shape) 
+                print("model cnn_inputs:", cnn_inputs)
+            elif model_type == 'lstm':
+                lstm_inputs = Input(shape=input_shape) 
+                print("model lstm_inputs:", lstm_inputs)
+            elif model_type == 'gru':
+                gru_inputs = Input(shape=input_shape) 
+                print("model gru_inputs:", gru_inputs)
+            elif model_type == 'transformer':
+                transformer_inputs =  Input(shape=input_shape) 
+                print("model transformer_inputs:", transformer_inputs)
+            elif model_type == 'single_input':
+                single_inputs =  Input(shape=input_shape) 
+                print("model inputs:", single_inputs)
+
+    print("Pilot inputs:", inputs,"cnn", cnn_inputs,"lstn", lstm_inputs, "gru",gru_inputs, "trans",transformer_inputs, "single",single_inputs)
+
+
     # CNN branch
     x_cnn = Conv1D(filters=hp.Int('cnn_filters', min_value=32, max_value=128, step=32), 
                    kernel_size=hp.Int('cnn_kernel_size', min_value=2, max_value=5, step=1), 
@@ -79,12 +117,23 @@ def build_model(hp):
     x = Dropout(0.3)(x)
     output = Dense(1, activation='linear')(x)
     
+    """
+    if run_single_input_model:
+            model = Model(inputs=single_inputs, outputs=output)
+            print("Running single input model", single_inputs)
+    else:
+            inputs = [cnn_inputs, lstm_inputs, gru_inputs, transformer_inputs]
+            model = Model(inputs=inputs, outputs=output)
+            print("Running multi input model", inputs)
+    """
     model = Model(inputs=inputs, outputs=output)
     model.compile(optimizer=Adam(learning_rate=hp.Float('lr', min_value=1e-4, max_value=1e-2, sampling='LOG')),
                   loss=MeanSquaredError(), 
                   metrics=[MeanAbsoluteError()])
     
     return model
+
+
 mp_random = np.random.randint(0, 1000)
 print("mp_random:", mp_random)
 mp_baseuniq=str(mp_random)
@@ -109,11 +158,11 @@ tuner = kt.Hyperband(build_model,
                      directory=mp_basepath,
                      project_name=mp_project_name)
 
-tuner.search_space_summary()
+#tuner.search_space_summary()
 
 # Assuming you have your data loaded in X_train, y_train, X_val, and y_val
 tuner.search(X_train, y_train,
-             epochs=1,
+            epochs=1,
              validation_data=(X_val, y_val),
              callbacks=[tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=3)])
 
