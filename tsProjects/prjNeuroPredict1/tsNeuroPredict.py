@@ -26,6 +26,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error
 
 from sklearn.preprocessing import StandardScaler
 scaler = StandardScaler()
@@ -355,33 +356,50 @@ mt = CMdtuner(mv_X_train,
 print("Running Main call to tuner")
 
 best_model = mt.tuner.get_best_models()
+
 best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
 best_model[0].summary()
- 
-# Display the best model's summary
 
-"""
 # +-------------------------------------------------------------------
 # Train and evaluate the model
 # +-------------------------------------------------------------------
-# Train the model using the scaled data
-# Fit the scaler to the training data
-# Assuming mv_y_train is a DataFrame
-mv_y_train_reshaped = mv_y_train.values.reshape(-1, 1)  # Convert to NumPy array and reshape
-scaler.fit(mv_y_train_reshaped)  # Use the reshaped array for fitting
-mv_model = best_model.fit(mv_X_train, mv_y_train_reshaped, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
+#best_model[0].fit(mv_X_train, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
+#best_model[0].evaluate(mv_X_test, mv_y_test)
+# Assuming mv_X_train is your training data
+scaler = StandardScaler()
+scaler.fit(mv_X_train)  # Fit the scaler on your training data
 
 # +-------------------------------------------------------------------
 # Predict the test data using the trained model
 # +-------------------------------------------------------------------
+# Assuming mv_X_train had 60 features, and the target is one of them (let's say the last one)
+scaler = StandardScaler()
+scaler.fit(mv_X_train)  # Fit scaler on training data (60 features)
 
-# Making predictions
-predicted_fx_price = best_model.predict(mv_X_test)
-predicted_fx_price = scaler.inverse_transform(predicted_fx_price)  # No need to reshape
+predicted_fx_price = best_model[0].predict(mv_X_test)
 
-# Inverse transform to get actual prices
-mv_y_test_reshaped = mv_y_test.values.reshape(-1, 1)  # Convert to NumPy array and reshape
-real_fx_price = scaler.inverse_transform(mv_y_test_reshaped)
+# If predicted_fx_price is only 1D, reshape to 2D
+predicted_fx_price = predicted_fx_price.reshape(-1, 1)
+
+# Inverse transform only the target column
+predicted_fx_price = scaler.inverse_transform(
+    np.hstack([np.zeros((predicted_fx_price.shape[0], mv_X_train.shape[1] - 1)), predicted_fx_price])
+)[:, -1]  # Extract only the target column after inverse transform
+
+
+# Assuming mv_y_train is the target variable (FX prices) used during training
+target_scaler = StandardScaler()
+
+# Fit the scaler on the training target values (not the features)
+target_scaler.fit(mv_y_train.values.reshape(-1, 1))
+
+# Now inverse transform mv_y_test using the target-specific scaler
+mv_y_test_reshaped = mv_y_test.values.reshape(-1, 1)  # Reshape to match the scaler's input shape
+real_fx_price = target_scaler.inverse_transform(mv_y_test_reshaped)  # Inverse transform to get actual prices
+
+#print(real_fx_price)
+
+
 
 # Visualizing the results
 plt.plot(real_fx_price, color='red', label='Real FX Price')
@@ -391,14 +409,15 @@ plt.xlabel('Time')
 plt.ylabel('FX Price')
 plt.legend()
 # Save the plot to a file
-
-
-plt.savefig(mp_directory + '\\' + 'plot.png')
-#plt.show()dir
+plt.savefig(mp_basepath + '\\' + 'plot.png')
+#plt.show()
 
 # Evaluate model performance (accuracy, precision, recall, etc.)
 # Uncomment and adjust model evaluation metrics for regression
+# Assuming best_model is trained and mv_X_test, mv_y_test are your test data
+#predicted_fx_price = best_model[0].predict(mv_X_test)  # Predict on the test data
 
-#mse = m1.model_performance(best_model, mv_X_test, mv_y_test)
-#print(f"Mean Squared Error: {mse}")
-"""
+# Calculate MSE
+mse = mean_squared_error(mv_y_test, predicted_fx_price)
+
+print(f"Mean Squared Error: {mse}")

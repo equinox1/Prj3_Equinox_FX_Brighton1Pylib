@@ -126,7 +126,7 @@ class CMdtuner:
         
         # Concatenate the outputs of the branches
         combined = Concatenate()([x_cnn, x_lstm, x_gru, x_trans])
-        x = Dense(50, activation='relu')(combined)
+        x = Dense(50, activation=self.activation1)(combined)
         x = Dropout(0.3)(x)
         output = Dense(1, activation=self.activation2)(x)
         
