@@ -396,9 +396,7 @@ target_scaler.fit(mv_y_train.values.reshape(-1, 1))
 mv_y_test_reshaped = mv_y_test.values.reshape(-1, 1)  # Reshape to match the scaler's input shape
 real_fx_price = target_scaler.inverse_transform(mv_y_test_reshaped)  # Inverse transform to get actual prices
 
-#print(real_fx_price)
-
-
+print("Real FX Price:", real_fx_price)  # Actual FX prices
 
 # Visualizing the results
 plt.plot(real_fx_price, color='red', label='Real FX Price')
