@@ -4,26 +4,16 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.metrics import MeanAbsoluteError
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from tensorflow.keras.callbacks import EarlyStopping
 import keras_tuner as kt
-import ml_dtypes
-import ml_dtypes as mld
-
-import pandas as pd
-import numpy as np
-from tabulate import tabulate
-import matplotlib.pyplot as plt
-import seaborn as sns
 import os
 
-
 class CMdtuner:
-    def __init__(self, lv_X_train, lv_y_train, lv_X_test, lv_y_test, lp_inputs,lp_cnn_model, lp_lstm_model, lp_gru_model, lp_transformer_model, lp_run_single_input_model, lp_run_single_input_submodels, 
-                 lp_objective, lp_max_epochs, lp_factor, lp_seed, lp_hyperband_iterations,
-                 lp_tune_new_entries, lp_allow_new_entries, lp_max_retries_per_trial, lp_max_consecutive_failed_trials,
-                 lp_validation_split, lp_epochs, lp_batch_size, lp_dropout, lp_oracle,lp_activation1,lp_activation2,lp_activation3,lp_activation4, lp_hypermodel, lp_max_model_size, lp_optimizer,
-                 lp_loss, lp_metrics, lp_distribution_strategy, lp_directory,lp_basepath, lp_project_name, lp_logger, lp_tuner_id,
-                 lp_overwrite, lp_executions_per_trial, lp_chk_fullmodel, lp_chk_verbosity, lp_chk_mode, lp_chk_monitor, lp_chk_sav_freq, lp_chk_patience,lp_checkpoint_filepath, lp_modeldatapath):
+    def __init__(self, lv_X_train, lv_y_train, lv_X_test, lv_y_test, lp_inputs, lp_cnn_model, lp_lstm_model, lp_gru_model, lp_transformer_model, lp_run_single_input_model, lp_run_single_input_submodels, 
+                 lp_objective, lp_max_epochs, lp_factor, lp_seed, lp_hyperband_iterations, lp_tune_new_entries, lp_allow_new_entries, lp_max_retries_per_trial, lp_max_consecutive_failed_trials,
+                 lp_validation_split, lp_epochs, lp_batch_size, lp_dropout, lp_oracle, lp_activation1, lp_activation2, lp_activation3, lp_activation4, lp_hypermodel, lp_max_model_size, lp_optimizer,
+                 lp_loss, lp_metrics, lp_distribution_strategy, lp_directory, lp_basepath, lp_project_name, lp_logger, lp_tuner_id, lp_overwrite, lp_executions_per_trial, lp_chk_fullmodel, lp_chk_verbosity,
+                 lp_chk_mode, lp_chk_monitor, lp_chk_sav_freq, lp_chk_patience, lp_checkpoint_filepath, lp_modeldatapath):
         # Set the input data
         self.X_train = lv_X_train
         self.y_train = lv_y_train
@@ -79,50 +69,51 @@ class CMdtuner:
         self.tunefilename = os.path.join(self.modeldatapath, self.directory)
         
         self.tuner = kt.Hyperband(
-                    hypermodel=self.build_model,
-                    objective=self.objective,
-                    max_epochs=self.max_epochs,
-                    executions_per_trial=self.executions_per_trial,
-                    directory=self.basepath,
-                    project_name=self.project_name,
-                    #overwrite=self.overwrite,
-                    factor=self.factor
-                    )
+            hypermodel=self.build_model,
+            objective=self.objective,
+            max_epochs=self.max_epochs,
+            executions_per_trial=self.executions_per_trial,
+            directory=self.basepath,
+            project_name=self.project_name,
+            factor=self.factor
+        )
 
         self.tuner.search_space_summary()
 
         self.tuner.search(self.X_train, self.y_train,
                           epochs=self.epochs,
                           validation_data=(self.X_test, self.y_test),
-                          callbacks=[tf.keras.callbacks.EarlyStopping(monitor=self.chk_monitor, patience=self.chk_patience)])
+                          callbacks=[EarlyStopping(monitor=self.chk_monitor, patience=self.chk_patience)])
 
     def build_model(self, hp):
-        
         inputs = self.inputs
-        # input shape as (None, 60, 1)
         print("Build tuner inputs:", inputs)
-        x_cnn, x_lstm, x_gru,x_trans = None, None, None, None
+        x_cnn, x_lstm, x_gru, x_trans = None, None, None, None
 
         # CNN branch
         x_cnn = Conv1D(filters=hp.Int('cnn_filters', min_value=32, max_value=128, step=32), 
                        kernel_size=hp.Int('cnn_kernel_size', min_value=2, max_value=5, step=1), 
                        activation=self.activation1)(inputs)
         x_cnn = MaxPooling1D(pool_size=2)(x_cnn)
+        x_cnn = Dropout(0.3)(x_cnn)
         x_cnn = Flatten()(x_cnn)
         
         # LSTM branch
         x_lstm = LSTM(units=hp.Int('lstm_units', min_value=32, max_value=128, step=32), return_sequences=True)(inputs)
         x_lstm = LSTM(units=hp.Int('lstm_units', min_value=32, max_value=128, step=32))(x_lstm)
+        x_lstm = Dropout(0.3)(x_lstm)
         
         # GRU branch
         x_gru = GRU(units=hp.Int('gru_units', min_value=32, max_value=128, step=32), return_sequences=True)(inputs)
         x_gru = GRU(units=hp.Int('gru_units', min_value=32, max_value=128, step=32))(x_gru)
+        x_gru = Dropout(0.3)(x_gru)
         
         # Transformer branch
         x_trans = MultiHeadAttention(num_heads=hp.Int('num_heads', min_value=2, max_value=4, step=1), 
                                      key_dim=hp.Int('key_dim', min_value=32, max_value=128, step=32))(inputs, inputs)
         x_trans = LayerNormalization(epsilon=1e-6)(x_trans)
         x_trans = GlobalAveragePooling1D()(x_trans)
+        x_trans = Dropout(0.3)(x_trans)
         
         # Concatenate the outputs of the branches
         combined = Concatenate()([x_cnn, x_lstm, x_gru, x_trans])
