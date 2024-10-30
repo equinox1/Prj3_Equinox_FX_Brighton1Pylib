@@ -198,22 +198,7 @@ mp_y_test_input_shape = mv_y_test.shape
 # Hyperparameter tuning and model setup
 # +-------------------------------------------------------------------
 # Define parameters for the model tuning process
-# Data sources
-mv_X_train = mv_X_train
-#Shaping the data
-#=====================
-mv_X_train  = mv_X_train[:1048500]  # Trim to nearest number divisible by 60
-mv_X_train_numpy = mv_X_train.values
-# Reshape the array (-1, 60, 1)
-reshaped_array = mv_X_train_numpy.reshape(-1, 60, 1)
-# If you want to convert it back to a DataFrame:
-reshaped_df = pd.DataFrame(reshaped_array.reshape(-1, reshaped_array.shape[1]))
-mv_X_train = reshaped_df
-# End of reshaping
-#=====================
-
-#=======================
-mv_y_train = mv_y_train
+#
 # Select Model 
 mp_cnn_model = True
 mp_lstm_model = True   
@@ -221,19 +206,21 @@ mp_gru_model = True
 mp_transformer_model = True
 mp_run_single_input_model = True
 mp_run_single_input_submodels = False # not implemented yet     
+
 # define inputshapes
-#mp_X_train_input_shape = Input(shape=(60, 1))  # input shape as (None, 60, 1)
-mp_single_input_shape = mp_X_train_input_shape[1]
+mp_single_input_shape = mp_X_train_input_shape[1],
 mp_lstm_input_shape = mp_X_train_input_shape[1]
 mp_cnn_input_shape = mp_X_train_input_shape[1]
 mp_gru_input_shape = mp_X_train_input_shape[1]
 mp_transformer_input_shape = mp_X_train_input_shape[1]
+
 # define features
 mp_single_features = 1
 mp_lstm_features = 1
 mp_cnn_features = 1
 mp_gru_features = 1
 mp_transformer_features = 1
+
 # Hypermodel parameters
 mp_activation1= 'relu'     
 mp_activation2 = 'linear'
@@ -251,7 +238,7 @@ mp_max_retries_per_trial = 1
 mp_max_consecutive_failed_trials = 1
 # base tuner parameters
 mp_validation_split = 0.2
-mp_epochs = 1
+mp_epochs = 150
 mp_batch_size = 16   
 mp_dropout = 0.2
 mp_oracle = None
@@ -402,6 +389,17 @@ real_fx_price = target_scaler.inverse_transform(mv_y_test_reshaped)  # Inverse t
 #print(real_fx_price)
 
 # Evaluation and visualization
+#Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values. 
+# The lower the MSE, the better the model.
+
+#Mean Absolute Error (MAE): It measures the average absolute difference between the predicted and actual values. 
+# Like MSE, lower values indicate better model performance.
+
+#R2 Score: Also known as the coefficient of determination, it measures the proportion of the variance in the
+# dependent variable that is predictable from the independent variable(s). An R2 score of 1 indicates a 
+# perfect fit, while a score of 0 suggests that the model is no better than predicting the mean of the target
+# variable. Negative values indicate poor model performance.
+
 mse, mae, r2 = mean_squared_error(real_fx_price, predicted_fx_price), mean_absolute_error(real_fx_price, predicted_fx_price), r2_score(real_fx_price, predicted_fx_price)
 print(f"Mean Squared Error: {mse}, Mean Absolute Error: {mae}, R² Score: {r2}")
 
