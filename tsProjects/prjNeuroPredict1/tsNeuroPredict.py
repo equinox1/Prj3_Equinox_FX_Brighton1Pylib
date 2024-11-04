@@ -228,7 +228,7 @@ mp_activation3 = 'softmax'
 mp_activation4 = 'sigmoid'     
 mp_Hypermodel = 'HyperModel'
 mp_objective = 'val_loss'
-mp_max_epochs = 1
+mp_max_epochs = 10
 mp_factor = 3
 mp_seed = 42
 mp_hyperband_iterations = 1
@@ -238,7 +238,7 @@ mp_max_retries_per_trial = 1
 mp_max_consecutive_failed_trials = 1
 # base tuner parameters
 mp_validation_split = 0.2
-mp_epochs = 150
+mp_epochs = 100
 mp_batch_size = 16   
 mp_dropout = 0.2
 mp_oracle = None
@@ -248,8 +248,7 @@ mp_optimizer = 'adam'
 mp_loss = 'mean_squared_error'
 mp_metrics = ['mean_squared_error']
 mp_distribution_strategy = None
-
-
+mp_directory = None
 mp_logger = None
 mp_tuner_id = None
 mp_overwrite = False
