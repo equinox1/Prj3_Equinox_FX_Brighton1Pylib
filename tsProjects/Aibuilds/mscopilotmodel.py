@@ -14,7 +14,7 @@ import seaborn as sns
 import os
 
 # Assuming your data is in a CSV file
-file = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\Mql5Data\EURUSD_tickdata1.csv"
+file = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data/EURUSD_tickdata1.csv"
 
 data = pd.read_csv(file)
 print("Data Loaded: ", data.head(5))
@@ -88,10 +88,10 @@ def build_model(hp):
 mp_random = np.random.randint(0, 1000)
 print("mp_random:", mp_random)
 mp_baseuniq=str(mp_random)
-mp_basepath = os.path.join("c:\\","tmp","tsmspilot",mp_baseuniq)
+mp_basepath = os.path.join("c://","tmp","tsmspilot",mp_baseuniq)
 
 
-mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
+mp_modeldatapath = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/PythonLib/tsModelData"
 mp_directory = f"tshybrid_ensemble_tuning_prod"
 mp_project_name = "prjEquinox1_prodcopilot"
 

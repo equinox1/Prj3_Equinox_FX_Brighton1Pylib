@@ -80,7 +80,7 @@ except ValueError:
 
 
 # Parameters for connecting to MT5 terminal
-MPPATH = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
+MPPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/brokers/icmarkets/terminal64.exe"
 MPPASS = str(password)
 MPSERVER = r"ICMarketsSC-Demo"
 MPTIMEOUT = 60000
@@ -107,7 +107,7 @@ mp_rowcount = 10000
 mp_command = mt5.COPY_TICKS_ALL
 mp_dfName = "df_rates"
 mv_manual = True
-mp_path = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\Mql5Data"
+mp_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
 
 lpfileid = "tickdata1"
 mp_filename = f"{mp_symbol_primary}_{lpfileid}.csv"
@@ -130,8 +130,8 @@ if not isinstance(mv_ticks1, pd.DataFrame) or mv_ticks1.empty:
 mv_ticks2 = mv_ticks1.copy()  # Copy the tick data for further processing
 
 # Shift the data by a specified time interval (e.g., 60 seconds)
-mp_seconds = 60
-mp_unit = 's'
+mp_seconds = 60 # Shift the data by 60 seconds
+mp_unit = 's' # Shift the data by 60 seconds
 
 mv_X_ticks3, mv_y_ticks3 = d1.run_shift_data2(mv_ticks2, mp_seconds, mp_unit)  # Ensure the method name is correct
 if mv_X_ticks3 is None or mv_y_ticks3 is None:
@@ -262,7 +262,7 @@ mp_chk_monitor = 'val_loss' # 'val_loss' or 'val_mean_squared_error'
 mp_chk_sav_freq = 'epoch' # 'epoch' or 'batch'
 mp_chk_patience = 3
 
-mp_modeldatapath = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\PythonLib\tsModelData"
+mp_modeldatapath = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/PythonLib/tsModelData"
 mp_directory = f"tshybrid_ensemble_tuning_prod"
 mp_project_name = "prjEquinox1_prod"
 mp_today=date.today().strftime('%Y-%m-%d %H:%M:%S')
@@ -364,7 +364,7 @@ scaler.fit(mv_X_train)  # Fit the scaler on your training data
 # +-------------------------------------------------------------------
 # Assuming mv_X_train had 60 features, and the target is one of them (let's say the last one)
 scaler = StandardScaler()
-scaler.fit(mv_X_train)  # Fit scaler on training data (60 features)
+scaler.fit(mv_X_train)  # Fit scaler on training data (number of seconds features)
 
 predicted_fx_price = best_model[0].predict(mv_X_test)
 
@@ -410,6 +410,6 @@ plt.title('FX Price Prediction')
 plt.xlabel('Time')
 plt.ylabel('FX Price')
 plt.legend()
-plt.savefig(mp_basepath + '\\' + 'plot.png')
+plt.savefig(mp_basepath + '//' + 'plot.png')
 plt.show()
 

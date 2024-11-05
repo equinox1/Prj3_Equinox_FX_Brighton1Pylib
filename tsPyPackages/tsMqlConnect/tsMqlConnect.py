@@ -50,7 +50,7 @@ from MetaTrader5 import *
 # usage: connect services mql api
 #
 # section:params
-# \param  double svar;              -  value
+# /param  double svar;              -  value
 #-------------------------------------------------------------------- 
 class CMqlinit:
     def __init__(self, lppath, lplogin, lppassword, lpserver, lptimeout, lpportable):
@@ -65,7 +65,7 @@ class CMqlinit:
 # create method  "run_mql_login()".
 # class: cmqlinit      
 # usage: login
-# \param cmqlinit    var                          
+# /param cmqlinit    var                          
 #--------------------------------------------------------------------
 
     def run_mql_login(self, lppath, lplogin, lppassword, lpserver, lptimeout, lpportable):
@@ -81,7 +81,7 @@ class CMqlinit:
 # usage: connect services mql api
 #
 # section:params
-# \param  double svar;              -  value
+# /param  double svar;              -  value
 #-------------------------------------------------------------------- 
 class CMqlinitdemo(CMqlinit):
     pass
@@ -91,7 +91,7 @@ class CMqlinitdemo(CMqlinit):
 # usage: connect services mql api
 #
 # section:params
-# \param  double svar;              -  value
+# /param  double svar;              -  value
 #-------------------------------------------------------------------- 
 class CMqlinitprod(CMqlinit):
     pass

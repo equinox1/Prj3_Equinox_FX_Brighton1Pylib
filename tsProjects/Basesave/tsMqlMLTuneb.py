@@ -272,7 +272,7 @@ class CMqlmlsetuptune:
 # create method  "TransformerBlock".
 # class: cmqlmlsetup
 # usage: mql data
-# \pTransformerBlock
+# /pTransformerBlock
 #--------------------------------------------------------------------
 #Base Models:
 
