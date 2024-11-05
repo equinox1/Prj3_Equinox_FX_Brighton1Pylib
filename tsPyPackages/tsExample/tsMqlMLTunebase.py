@@ -142,7 +142,7 @@ class CMqlmlsetuptune:
     # create method  "model_builder"
     # class:cmqlmlsetup
     # usage: mql data
-    # \pdl_build_neuro_network
+    # /pdl_build_neuro_network
     #--------------------------------------------------------------------
     def model_builder(hp):
         '''
@@ -205,7 +205,7 @@ class CMqlmlsetuptune:
 # create method  "dl_model_tune_build"
 # class:cmqlmlsetup
 # usage: mql data
-# \pdl_build_neuro_network
+# /pdl_build_neuro_network
 #--------------------------------------------------------------------
 # Method to build the model for Keras Tuner
     def dl_model_tune_build(self,lp_X_train_scaled, lp_X_test_scaled, optimizer='adam', loss='mean_squared_error', k_reg=0.001):
@@ -243,7 +243,7 @@ class CMqlmlsetuptune:
 # create method  "dl_model_tune_run"
 # class:cmqlmlsetup
 # usage: mql data
-# \pdl_build_neuro_network
+# /pdl_build_neuro_network
 #--------------------------------------------------------------------           
 # Method to run the Keras Tuner
     def dl_model_tune_run(self,lp_X_train_scaled, lp_X_test_scaled, optimizer='adam', loss='mean_squared_error', k_reg=0.001):
@@ -294,7 +294,7 @@ class CMqlmlsetuptune:
 # create method  "dl_model_performance"
 # class:cmqlmlsetup
 # usage: mql data
-# \pdl_build_neuro_network
+# /pdl_build_neuro_network
 #--------------------------------------------------------------------
 #Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values.
 # The lower the MSE, the better the model.
@@ -311,11 +311,11 @@ class CMqlmlsetuptune:
         lp_X_train_scaled= lp_X_train_scaled[:len(lp_X_test_scaled)]  # Truncate 'x' to match 'y'
         # Calculate and print mean squared error
         mse = mean_squared_error(lp_X_train_scaled, lp_model.predict(lp_X_test_scaled))
-        print(f"\nMean Squared Error: {mse}")
+        print(f"/nMean Squared Error: {mse}")
         # Calculate and print mean absolute error
         mae = mean_absolute_error(lp_X_train_scaled, lp_model.predict(lp_X_test_scaled))
-        print(f"\nMean Absolute Error: {mae}")
+        print(f"/nMean Absolute Error: {mae}")
         # Calculate and print R2 Score
         r2 = r2_score(lp_X_train_scaled, lp_model.predict(lp_X_test_scaled))
-        print(f"\nR2 Score: {r2}")
+        print(f"/nR2 Score: {r2}")
         return r2

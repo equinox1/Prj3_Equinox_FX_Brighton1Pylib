@@ -2,7 +2,7 @@
 # create method  "dl_model_tune"
 # class:cmqlmlsetup
 # usage: mql data
-# \pdl_build_neuro_network
+# /pdl_build_neuro_network
 #--------------------------------------------------------------------
 # Define a function to create a model, required for KerasRegressor
     def dl_model_tune(k_reg, lp_X_train, optimizer='adam', loss='mean_squared_error',learning_rate=0.001):

@@ -65,7 +65,7 @@ mv_debug = 0
 cred = kr.get_credential("xercesdemo", "")
 c1 = CMqlinitdemo
 # start Params
-c1.path = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\mql5\brokers\icmarkets\terminal64.exe"
+c1.path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/brokers/icmarkets/terminal64.exe"
 c1.login = int(cred.username)
 c1.password = str(cred.password)
 c1.server = r"ICMarketsSC-Demo"
@@ -117,13 +117,13 @@ mv_ticks1.head(10)
 """
 import pandas as pd
 
-lp_path = r"c:\users\shepa\onedrive\8.0 projects\8.3 projectmodelsequinox\equinrun\Mql5Data"
+lp_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
 
 lpfileid="tickdata1"
 
 lp_filename = "EURUSD" + "_" + lpfileid + ".csv"
 
-lpmergepath = lp_path + "\\" + lp_filename
+lpmergepath = lp_path + "//" + lp_filename
 
 print("1:lpmergepath:", lpmergepath)
 

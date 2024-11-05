@@ -128,7 +128,7 @@ class CMqlmlsetup:
 # create method  "dl_split_data_sets".
 # class:cmqlmlsetup
 # usage: mql data
-# \pdlsplit data
+# /pdlsplit data
 
 #--------------------------------------------------------------------
     def dl_split_data_sets(df, X, y, test_size=0.2, shuffle = False, prog = 1):
@@ -153,7 +153,7 @@ class CMqlmlsetup:
 # create method  "dl_train_model_scaled".
 # class:cmqlmlsetup
 # usage: mql data
-# \param  var
+# /param  var
 #--------------------------------------------------------------------
     def dl_train_model_scaled(df):
         # sourcery skip: instance-method-first-arg-name
@@ -165,7 +165,7 @@ class CMqlmlsetup:
 # create method  "dl_test_model_scaled".
 # class:cmqlmlsetup
 # usage: mql data
-# \param  var
+# /param  var
 #----------test----------------------------------------------------
     def dl_test_model_scaled(df):
         # sourcery skip: instance-method-first-arg-name
@@ -177,7 +177,7 @@ class CMqlmlsetup:
 # create method  "dl_build_neuro_network".
 # class: cmqlmlsetup
 # usage: mql data
-# \pdl_build_neuro_network
+# /pdl_build_neuro_network
 #--------------------------------------------------------------------
     def dl_build_neuro_network(self,p_k_reg, X_train, optimizer='adam', loss='mean_squared_error'):
         # sourcery skip: instance-method-first-arg-name
@@ -195,7 +195,7 @@ class CMqlmlsetup:
 
 # create method  "dl_train_model".
 # class:cmqlmlsetup  usage: mql data
-# \param  var
+# /param  var
 #--------------------------------------------------------------------
     def dl_train_model(self,lp_model,lp_X_train_scaled, lp_y_train, epoch = 1, batch_size = 256, validation_split = 0.2, verbose =1):
         # sourcery skip: instance-method-first-arg-name
@@ -215,7 +215,7 @@ class CMqlmlsetup:
 # create method  "dl_predict_network"
 # class:cmqlmlsetup
 # usage: mql data
-# \pdl_build_neuro_network
+# /pdl_build_neuro_network
 #--------------------------------------------------------------------
     def dl_predict_values(self,df, model, seconds = 60):
         # sourcery skip: instance-method-first-arg-name
@@ -236,7 +236,7 @@ class CMqlmlsetup:
 # create method  "dl_model_performance"
 # class:cmqlmlsetup
 # usage: mql data
-# \pdl_build_neuro_network
+# /pdl_build_neuro_network
 #--------------------------------------------------------------------
 #Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values.
 # The lower the MSE, the better the model.
@@ -253,20 +253,20 @@ class CMqlmlsetup:
         lp_X_train_scaled= lp_X_train_scaled[:len(lp_X_test_scaled)]  # Truncate 'x' to match 'y'
         # Calculate and print mean squared error
         mse = mean_squared_error(lp_X_train_scaled, lp_model.predict(lp_X_test_scaled))
-        print(f"\nMean Squared Error: {mse}")
+        print(f"/nMean Squared Error: {mse}")
         # Calculate and print mean absolute error
         mae = mean_absolute_error(lp_X_train_scaled, lp_model.predict(lp_X_test_scaled))
-        print(f"\nMean Absolute Error: {mae}")
+        print(f"/nMean Absolute Error: {mae}")
         # Calculate and print R2 Score
         r2 = r2_score(lp_X_train_scaled, lp_model.predict(lp_X_test_scaled))
-        print(f"\nR2 Score: {r2}")
+        print(f"/nR2 Score: {r2}")
         return r2
 
 #--------------------------------------------------------------------
 # create method  "dl_model_tune_build"
 # class:cmqlmlsetup
 # usage: mql data
-# \pdl_build_neuro_network
+# /pdl_build_neuro_network
 #--------------------------------------------------------------------
 # Define a function to create a model, required for KerasRegressor
     def dl_model_tune_build(self,hp,lp_X_test_scaled, optimizer='adam', loss='mean_squared_error', k_reg = 0.001):
@@ -305,7 +305,7 @@ class CMqlmlsetup:
 # create method  "dl_model_tune_run"
 # class:cmqlmlsetup
 # usage: mql data
-# \pdl_build_neuro_network
+# /pdl_build_neuro_network
 #--------------------------------------------------------------------
 # Define a function to create a model, required for KerasRegressor
     def dl_model_tune_run(self,hp,lp_X_train_scaled,lp_X_test_scaled,optimizer='adam',  loss='mean_squared_error', k_reg = 0.001):     

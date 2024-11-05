@@ -23,7 +23,7 @@ from sklearn.preprocessing import MinMaxScaler
 # usage: mql data services
 #
 # section:params
-# \param  double svar;              -  value
+# /param  double svar;              -  value
 #-------------------------------------------------------------------- 
 class CMqldatasetup:
     def __init__(self):
@@ -32,7 +32,7 @@ class CMqldatasetup:
     # create method  "setmql_timezone()".
     # class: cmqldatasetup      
     # usage: mql data
-    # \param  var                          
+    # /param  var                          
     def set_mql_timezone(self, lp_year=2024, lp_month=1, lp_day=1, lp_timezone="etc/UTC"):
         lv_timezone = pytz.timezone(lp_timezone)  # Set the timezone
         native_dt = datetime(lp_year, lp_month, lp_day)  # Create a native datetime object
@@ -41,7 +41,7 @@ class CMqldatasetup:
     # create method  "run_load_from_mql()".
     # class: cmqldatasetup      
     # usage: mql data
-    # \param  var                          
+    # /param  var                          
     def run_load_from_mql(self, lp_manual, lp_rates1="rates", lp_utc_from="2023-01-01 00:00:00+00:00", lp_symbol="JPYUSD", lp_rows=1000, lp_rowcount=1000, lp_flag=mt5.COPY_TICKS_ALL, lp_path=".", lp_filename="tickdata"):
         # request 100 000 eurusd ticks starting from lp_year, lp_month, lp_day in utc time zone
         if lp_manual:
@@ -68,7 +68,7 @@ class CMqldatasetup:
                 lp_rates1 = pd.DataFrame(lp_rates1)
                 print("2:lp_rates1 loaded via api:", lp_rates1.head())
             else:
-                lpmergepath = lp_path + "\\" + lp_filename
+                lpmergepath = lp_path + "//" + lp_filename
                 print("3:Manual load_filename:", lpmergepath)
                 lp_rates1 = pd.read_csv(lpmergepath, sep=',', nrows=lp_rowcount)
                 print("3:ticks received:", len(lp_rates1))
@@ -88,7 +88,7 @@ class CMqldatasetup:
     # create method  "run_shift_data1()".
     # class: cmqldatasetup      
     # usage: mql data
-    # \param  var                          
+    # /param  var                          
     def run_shift_data1(self, lp_df, lp_seconds=60, lp_unit='s'):
         lv_seconds = lp_seconds
         lv_number_of_rows = lv_seconds
@@ -106,7 +106,7 @@ class CMqldatasetup:
     # create method  "create_dataset()".
     # class: cmqldatasetup      
     # usage: # Creating time steps for LSTM input
-    # \param  var
+    # /param  var
     def create_dataset(self, data, lp_seconds=60):
         X_data, y_data = [], []
         for i in range(len(data) - lp_seconds - 1):
@@ -118,7 +118,7 @@ class CMqldatasetup:
     # create method  "run_shift_data2()".
     # class: cmqldatasetup      
     # usage: mql data
-    # \param  var                          
+    # /param  var                          
     def run_shift_data2(self, df, lp_seconds=60, lp_unit='s'):
         # Selecting the 'Close' column for prediction
         close_prices = df['close'].values.reshape(-1, 1)

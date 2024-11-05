@@ -46,7 +46,7 @@ class CMqlmlsetup:
     # create method  "dl_split_data_sets".
     # class:cmqlmlsetup
     # usage: mql data
-    # \pdlsplit data
+    # /pdlsplit data
     #--------------------------------------------------------------------
     def dl_split_data_sets(self, X,y, train_split= 0.8,test_split= 0.2, shuffle=False):
         # Splitting data into training and testing sets
@@ -60,7 +60,7 @@ class CMqlmlsetup:
     # create method  "dl_train_model_scaled".
     # class:cmqlmlsetup
     # usage: mql data
-    # \param  var
+    # /param  var
     #--------------------------------------------------------------------
     def dl_train_model_scaled(self, lpdf):
         scaler = StandardScaler()
@@ -70,7 +70,7 @@ class CMqlmlsetup:
     # create method  "dl_test_model_scaled".
     # class:cmqlmlsetup
     # usage: mql data
-    # \param  var
+    # /param  var
     #--------------------------------------------------------------------
     def dl_test_model_scaled(self, lpdf):
         scaler = StandardScaler()
@@ -80,7 +80,7 @@ class CMqlmlsetup:
     # create method  "dl_model_performance"
     # class:cmqlmlsetup
     # usage: mql data
-    # \pdl_build_neuro_network
+    # /pdl_build_neuro_network
     #--------------------------------------------------------------------
     def model_performance(self, model, X_test, y_test):
         # Predict the model
