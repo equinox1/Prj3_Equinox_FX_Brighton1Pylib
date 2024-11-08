@@ -1,10 +1,10 @@
 #+------------------------------------------------------------------+
 #|                                                    tsmqlmod1.pyw
 #|                                                    tony shepherd |
-#|                                                  www.equinox.com |
+#|                                                  https://www.xercescloud.co.uk |
 #+------------------------------------------------------------------+
 #property copyright "tony shepherd"
-#property link      "www.equinox.com"
+#property link      "https://www.xercescloud.co.uk"
 #property version   "1.01"
 #+-------------------------------------------------------------------
 

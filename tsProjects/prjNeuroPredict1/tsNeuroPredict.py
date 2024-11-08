@@ -1,10 +1,10 @@
 # +------------------------------------------------------------------+
 # |                                                 neuropredict2.py |
 # |                                                    Tony Shepherd |
-# |                                                  www.equinox.com |
+# |                                                  https://www.xercescloud.co.uk |
 # +------------------------------------------------------------------+
 # property copyright "Tony Shepherd"
-# property link      "www.equinox.com"
+# property link      "https://www.xercescloud.co.uk"
 # property version   "1.01"
 # Test mode to pass through Litmus test data
 mp_test = False
