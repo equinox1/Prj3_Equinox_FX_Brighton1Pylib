@@ -1,7 +1,7 @@
 # +------------------------------------------------------------------+
 # |                                                 neuropredict2.py |
 # |                                                    Tony Shepherd |
-# |                                                  https://www.xercescloud.co.uk |
+# |                                    https://www.xercescloud.co.uk |
 # +------------------------------------------------------------------+
 # property copyright "Tony Shepherd"
 # property link      "https://www.xercescloud.co.uk"
@@ -44,6 +44,12 @@ from tsMqlMLTune import CMdtuner
 # Import TensorFlow for machine learning
 # +-------------------------------------------------------------------
 import tensorflow as tf
+import onnx
+import tf2onnx
+import onnxruntime
+import onnxruntime.backend as backend
+import onnxruntime.tools.symbolic_shape_infer as symbolic_shape_infer
+
 tf.compat.v1.reset_default_graph()  # Ensure compatibility with TensorFlow v1 functions
 print("Tensorflow Version", tf.__version__)
 
@@ -92,6 +98,17 @@ login_success = c1.run_mql_login(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, M
 if not login_success:
     raise ConnectionError("Failed to login to MT5 terminal")
 
+terminal_info = mt5.terminal_info()
+print(terminal_info)
+file_path=terminal_info.data_path +r"/MQL5/Files/"
+print(f"MQL file_path:" ,file_path)
+
+#data_path to save model
+import sys
+data_path=sys.argv[0]
+last_index=data_path.rfind("/")+1
+data_path=data_path[:last_index]
+print(f"data_path to save onnx model: {data_path}")
 # +-------------------------------------------------------------------
 # Import data from MQL
 # +-------------------------------------------------------------------
