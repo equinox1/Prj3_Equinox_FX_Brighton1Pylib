@@ -413,3 +413,17 @@ plt.legend()
 plt.savefig(mp_basepath + '//' + 'plot.png')
 plt.show()
 
+# +-------------------------------------------------------------------
+# Save model to ONNX
+# +-------------------------------------------------------------------
+#import tf2onnx
+#output_path = data_path+"model.eurusd.H1.120.onnx"
+#onnx_model = tf2onnx.convert.from_keras(model, output_path=output_path)
+#print(f"model saved to {output_path}")
+
+#output_path = file_path+"model.eurusd.H1.120.onnx"
+#onnx_model = tf2onnx.convert.from_keras(model, output_path=output_path)
+#print(f"saved model to {output_path}")
+
+# finish
+#mt5.shutdown()
