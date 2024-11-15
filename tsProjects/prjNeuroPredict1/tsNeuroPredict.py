@@ -6,8 +6,46 @@
 # property copyright "Tony Shepherd"
 # property link      "https://www.xercescloud.co.uk"
 # property version   "1.01"
+
+####################################################################
+# PARAMS
+####################################################################
 # Test mode to pass through Litmus test data
 mp_test = False
+# Shift the data by a specified time interval (e.g., 60 seconds)
+SECONDS = 1
+MINUTES = 60
+HOURS = 60 * MINUTES
+DAYS = 24 * HOURS
+WEEKS = 7 * DAYS
+YEARS = 365 * DAYS
+mp_datatype = 'M1' # Data type: M1, M5, M15, M30, H1, H4, D1, W1, MN1
+
+mp_seconds = MINUTES # Shift the data by 60 second interval
+mp_unit = 's' # Shift the data by 60 seconds
+
+# Set parameters for data extraction
+mp_symbol_primary = "EURUSD"
+mp_symbol_secondary = "GBPUSD"
+mp_year = 2024
+mp_month = 1
+mp_day = 1
+mp_timezone = 'etc/UTC'
+mp_rows = 10000
+mp_rowcount = 10000
+
+mp_dfName = "df_rates"
+mv_manual = True
+mp_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
+
+lpfileid = "tickdata1"
+mp_filename = f"{mp_symbol_primary}_{lpfileid}.csv"
+
+# Set parameters for the model
+mp_param_max_epochs=10 
+mp_param_epochs = 100
+
+####################################################################
 
 # +-------------------------------------------------------------------
 # Import standard Python packages
@@ -104,37 +142,20 @@ file_path=terminal_info.data_path +r"/MQL5/Files/"
 print(f"MQL file_path:" ,file_path)
 
 #data_path to save model
-import sys
-data_path=sys.argv[0]
-last_index=data_path.rfind("/")+1
-data_path=data_path[:last_index]
-print(f"data_path to save onnx model: {data_path}")
+mp_data_path=file_path
+print(f"data_path to save onnx model: ",mp_data_path)
 # +-------------------------------------------------------------------
 # Import data from MQL
 # +-------------------------------------------------------------------
-# Set parameters for data extraction
-mp_symbol_primary = "EURUSD"
-mp_symbol_secondary = "GBPUSD"
-mp_year = 2024
-mp_month = 1
-mp_day = 1
-mp_timezone = 'etc/UTC'
-mp_rows = 10000
-mp_rowcount = 10000
-mp_command = mt5.COPY_TICKS_ALL
-mp_dfName = "df_rates"
-mv_manual = True
-mp_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
-
-lpfileid = "tickdata1"
-mp_filename = f"{mp_symbol_primary}_{lpfileid}.csv"
 
 # Set up dataset
 d1 = CMqldatasetup()
+mp_command = mt5.COPY_TICKS_ALL
 mv_utc_from = d1.set_mql_timezone(mp_year, mp_month, mp_day, mp_timezone)
 print(f"Timezone Set to: {mv_utc_from}")
 print(f"mp_path Set to: {mp_path}")
 print(f"mp_filename Set to: {mp_filename}")
+
 
 # Load tick data from MQL
 mv_ticks1 = d1.run_load_from_mql(mv_manual, mp_dfName, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename)
@@ -146,9 +167,7 @@ if not isinstance(mv_ticks1, pd.DataFrame) or mv_ticks1.empty:
 # +-------------------------------------------------------------------
 mv_ticks2 = mv_ticks1.copy()  # Copy the tick data for further processing
 
-# Shift the data by a specified time interval (e.g., 60 seconds)
-mp_seconds = 60 # Shift the data by 60 seconds
-mp_unit = 's' # Shift the data by 60 seconds
+
 
 mv_X_ticks3, mv_y_ticks3 = d1.run_shift_data2(mv_ticks2, mp_seconds, mp_unit)  # Ensure the method name is correct
 if mv_X_ticks3 is None or mv_y_ticks3 is None:
@@ -245,7 +264,7 @@ mp_activation3 = 'softmax'
 mp_activation4 = 'sigmoid'     
 mp_Hypermodel = 'HyperModel'
 mp_objective = 'val_loss'
-mp_max_epochs = 10
+mp_max_epochs = mp_param_max_epochs 
 mp_factor = 3
 mp_seed = 42
 mp_hyperband_iterations = 1
@@ -255,7 +274,7 @@ mp_max_retries_per_trial = 1
 mp_max_consecutive_failed_trials = 1
 # base tuner parameters
 mp_validation_split = 0.2
-mp_epochs = 100
+mp_epochs = mp_param_epochs 
 mp_batch_size = 16   
 mp_dropout = 0.2
 mp_oracle = None
@@ -361,17 +380,23 @@ mt = CMdtuner(
       
 # Run the tuner to find the best model configuration
 print("Running Main call to tuner")
-
 best_model = mt.tuner.get_best_models()
-
 best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
 best_model[0].summary()
+
+# +-------------------------------------------------------------------
+# Scale the data
+# +-------------------------------------------------------------------
+scaler = StandardScaler()
+mv_X_train = scaler.fit_transform(mv_X_train)
+mv_X_test = scaler.transform(mv_X_test)
 
 # +-------------------------------------------------------------------
 # Train and evaluate the model
 # +-------------------------------------------------------------------
 #best_model[0].fit(mv_X_train, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
 #best_model[0].evaluate(mv_X_test, mv_y_test)
+
 # Assuming mv_X_train is your training data
 scaler = StandardScaler()
 scaler.fit(mv_X_train)  # Fit the scaler on your training data
@@ -382,7 +407,6 @@ scaler.fit(mv_X_train)  # Fit the scaler on your training data
 # Assuming mv_X_train had 60 features, and the target is one of them (let's say the last one)
 scaler = StandardScaler()
 scaler.fit(mv_X_train)  # Fit scaler on training data (number of seconds features)
-
 predicted_fx_price = best_model[0].predict(mv_X_test)
 
 # If predicted_fx_price is only 1D, reshape to 2D
@@ -428,19 +452,18 @@ plt.xlabel('Time')
 plt.ylabel('FX Price')
 plt.legend()
 plt.savefig(mp_basepath + '//' + 'plot.png')
-plt.show()
+#plt.show()
 
 # +-------------------------------------------------------------------
 # Save model to ONNX
 # +-------------------------------------------------------------------
-#import tf2onnx
-#output_path = data_path+"model.eurusd.H1.120.onnx"
-#onnx_model = tf2onnx.convert.from_keras(model, output_path=output_path)
-#print(f"model saved to {output_path}")
+# Save the model to ONNX format
 
-#output_path = file_path+"model.eurusd.H1.120.onnx"
-#onnx_model = tf2onnx.convert.from_keras(model, output_path=output_path)
-#print(f"saved model to {output_path}")
+mp_output_path = mp_data_path + "model_" + mp_symbol_primary + "_" + mp_datatype + "_" + str(mp_seconds) + ".onnx"
+print(f"output_path: ",mp_output_path)
+#onnx_model, _ = tf2onnx.convert.from_keras(best_model[0])
+#onnx.save_model(onnx_model, mp_output_path)
+print(f"model saved to ",mp_output_path)
 
 # finish
-#mt5.shutdown()
+mt5.shutdown()
