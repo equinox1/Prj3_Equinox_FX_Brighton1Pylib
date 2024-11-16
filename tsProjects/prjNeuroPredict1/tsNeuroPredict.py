@@ -42,8 +42,11 @@ lpfileid = "tickdata1"
 mp_filename = f"{mp_symbol_primary}_{lpfileid}.csv"
 
 # Set parameters for the model
-mp_param_max_epochs=10 
-mp_param_epochs = 100
+mp_param_steps = 10
+mp_param_max_epochs=100
+mp_param_min_epochs=5
+mp_param_epochs = 10
+
 
 ####################################################################
 
@@ -265,7 +268,7 @@ mp_activation4 = 'sigmoid'
 mp_Hypermodel = 'HyperModel'
 mp_objective = 'val_loss'
 mp_max_epochs = mp_param_max_epochs 
-mp_factor = 3
+mp_factor = 10
 mp_seed = 42
 mp_hyperband_iterations = 1
 mp_tune_new_entries = False
@@ -287,7 +290,7 @@ mp_distribution_strategy = None
 mp_directory = None
 mp_logger = None
 mp_tuner_id = None
-mp_overwrite = False
+mp_overwrite = True
 mp_executions_per_trial = 1
 mp_chk_fullmodel = True
 
@@ -296,7 +299,7 @@ mp_chk_verbosity = 1    # 0, 1mp_chk_mode = 'min' # 'min' or 'max'
 mp_chk_mode = 'min' # 'min' or 'max'
 mp_chk_monitor = 'val_loss' # 'val_loss' or 'val_mean_squared_error'
 mp_chk_sav_freq = 'epoch' # 'epoch' or 'batch'
-mp_chk_patience = 3
+mp_chk_patience = 10
 
 mp_modeldatapath = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/PythonLib/tsModelData"
 mp_directory = f"tshybrid_ensemble_tuning_prod"
@@ -336,7 +339,8 @@ mt = CMdtuner(
     run_single_input_model=mp_run_single_input_model,
     run_single_input_submodels=mp_run_single_input_submodels,
     objective=mp_objective,
-    max_epochs=mp_max_epochs,
+    max_epochs=mp_param_max_epochs,
+    min_epochs=mp_param_min_epochs,
     factor=mp_factor,
     seed=mp_seed,
     hyperband_iterations=mp_hyperband_iterations,
@@ -373,7 +377,8 @@ mt = CMdtuner(
     chk_sav_freq=mp_chk_sav_freq,
     chk_patience=mp_chk_patience,
     checkpoint_filepath=mp_checkpoint_filepath,
-    modeldatapath=mp_modeldatapath
+    modeldatapath=mp_modeldatapath,
+    step=mp_param_steps
 )
 
 
@@ -394,8 +399,10 @@ mv_X_test = scaler.transform(mv_X_test)
 # +-------------------------------------------------------------------
 # Train and evaluate the model
 # +-------------------------------------------------------------------
-#best_model[0].fit(mv_X_train, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
-#best_model[0].evaluate(mv_X_test, mv_y_test)
+print("Best Epochs:",best_model[0].best_params.epoch)
+print("Best Batch Size:",best_model[0].best_params.batch_size)
+best_model[0].fit(mv_X_train, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
+best_model[0].evaluate(mv_X_test, mv_y_test)
 
 # Assuming mv_X_train is your training data
 scaler = StandardScaler()

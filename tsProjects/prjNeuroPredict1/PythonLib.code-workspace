@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../MQL5/Brokers/ICMarkets"
+		}
+	],
+	"settings": {
+		"git.ignoreLimitWarning": true
+	}
+}
