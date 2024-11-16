@@ -131,6 +131,10 @@ env.bak/
 venv.bak/
 tsEquinox1//-env/
 
+#Models
+tsModelData/**/*
+tsModelData/
+
 
 # Spyder project settings
 .spyderproject
