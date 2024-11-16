@@ -7,6 +7,7 @@ from tensorflow.keras.metrics import MeanAbsoluteError
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 import keras_tuner as kt
 import os
+from keras_tuner import HyperParameters
 
 class CMdtuner:
     def __init__(self, **kwargs):
@@ -25,6 +26,7 @@ class CMdtuner:
         # Load hyperparameter tuning configuration parameters
         self.objective = kwargs['objective'] if 'objective' in kwargs else 'val_loss'
         self.max_epochs = kwargs['max_epochs'] if 'max_epochs' in kwargs else 10
+        self.min_epochs = kwargs['min_epochs'] if 'min_epochs' in kwargs else 1
         self.epochs = kwargs['epochs'] if 'epochs' in kwargs else 10
         self.factor = kwargs['factor'] if 'factor' in kwargs else 3
         self.seed = kwargs['seed'] if 'seed' in kwargs else 42
@@ -64,17 +66,19 @@ class CMdtuner:
         self.chk_patience = kwargs['chk_patience'] if 'chk_patience' in kwargs else 0
         self.checkpoint_filepath = kwargs['checkpoint_filepath'] if 'checkpoint_filepath' in kwargs else None
         self.modeldatapath = kwargs['modeldatapath'] if 'modeldatapath' in kwargs else None
+        self.step = kwargs['step'] if 'step' in kwargs else 5                                                                 
 
+        # Ensure the output directory exists
+        os.makedirs(self.basepath, exist_ok=True)
 
         # Define inputs
-        if 'inputs' in kwargs:
-            self.inputs = kwargs['inputs']
-        else:
-            if self.X_train is not None and hasattr(self.X_train, 'shape') and len(self.X_train.shape) >= 3:
+        self.inputs = kwargs.get('inputs')
+        if self.inputs is None:
+            if len(self.X_train.shape) >= 3:
                 self.inputs = Input(shape=(self.X_train.shape[1], self.X_train.shape[2]))
             else:
                 raise ValueError("Either 'inputs' or 'X_train' with a defined shape must be provided.")
-        
+
         # Define and configure the tuner
         self.tuner = kt.Hyperband(
             hypermodel=self.build_model,
@@ -89,11 +93,10 @@ class CMdtuner:
         # Display search space summary and begin tuning
         self.tuner.search_space_summary()
         self.tuner.search(self.X_train, self.y_train,
-                          epochs=self.epochs,
-                          batch_size=self.batch_size,
                           validation_data=(self.X_test, self.y_test),
-                          callbacks=self.get_callbacks())
-
+                          batch_size=self.batch_size,
+                          epochs=HyperParameters().Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step, default=self.epochs))
+                         
     def build_model(self, hp):
         # Ensure that at least one model branch is selected
         if not any([self.cnn_model, self.lstm_model, self.gru_model, self.transformer_model]):
@@ -133,10 +136,10 @@ class CMdtuner:
             combined = Concatenate()(branches)
         else:
             combined = branches[0]
-            
+
         x = Dense(50, activation=self.activation1)(combined)
         x = Dropout(0.3)(x)
-        output = Dense(1, activation=self.activation2)(x)
+        output = Dense(1, activation=hp.Choice('output_activation', [self.activation2, self.activation3, self.activation4]))(x)
 
         model = Model(inputs=self.inputs, outputs=output)
         model = self.compile_model(model, hp)
@@ -150,11 +153,10 @@ class CMdtuner:
             metrics=[MeanAbsoluteError()]
         )
         return model
-    
-    # Get callbacks with adjusted checkpoint filepath
+
     def get_callbacks(self):
-        checkpoint_filepath = os.path.join(self.basepath, 'best_model.weights.h5')  # Use .weights.h5 extension
+        checkpoint_filepath = os.path.join(self.basepath, 'best_model.keras')
         return [
-            EarlyStopping(monitor=self.chk_monitor, patience=self.chk_patience),
-            ModelCheckpoint(filepath=checkpoint_filepath, save_weights_only=True, save_best_only=True, monitor=self.chk_monitor, verbose=1)
+            EarlyStopping(monitor=self.objective, patience=self.chk_patience, verbose=1),
+            ModelCheckpoint(filepath=checkpoint_filepath, save_best_only=True, verbose=1)
         ]
