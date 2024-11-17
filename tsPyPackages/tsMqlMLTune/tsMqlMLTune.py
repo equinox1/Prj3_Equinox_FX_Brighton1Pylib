@@ -66,7 +66,8 @@ class CMdtuner:
         self.chk_patience = kwargs['chk_patience'] if 'chk_patience' in kwargs else 0
         self.checkpoint_filepath = kwargs['checkpoint_filepath'] if 'checkpoint_filepath' in kwargs else None
         self.modeldatapath = kwargs['modeldatapath'] if 'modeldatapath' in kwargs else None
-        self.step = kwargs['step'] if 'step' in kwargs else 5                                                                 
+        self.step = kwargs['step'] if 'step' in kwargs else 5    
+        self.multiactivate = kwargs['multiactivate'] if 'multiactivate' in kwargs else False                                                             
 
         # Ensure the output directory exists
         os.makedirs(self.basepath, exist_ok=True)
@@ -139,7 +140,10 @@ class CMdtuner:
 
         x = Dense(50, activation=self.activation1)(combined)
         x = Dropout(0.3)(x)
-        output = Dense(1, activation=hp.Choice('output_activation', [self.activation2, self.activation3, self.activation4]))(x)
+        if self.multiactivate:
+            output = Dense(1, activation=hp.Choice('output_activation', [self.activation2, self.activation3, self.activation4]))(x)
+        else:
+            output = Dense(1, activation=self.activation2)(x)
 
         model = Model(inputs=self.inputs, outputs=output)
         model = self.compile_model(model, hp)
