@@ -45,10 +45,10 @@ mp_filename = f"{mp_symbol_primary}_{lpfileid}.csv"
 mp_param_steps = 1
 mp_param_max_epochs=10
 mp_param_min_epochs=1
-mp_param_epochs = 2
+mp_param_epochs = 10
 mp_param_chk_patience = 3
 
-
+mp_multiactivate=True  
 ####################################################################
 
 # +-------------------------------------------------------------------
@@ -295,7 +295,7 @@ mp_tuner_id = None
 mp_overwrite = True
 mp_executions_per_trial = 1
 mp_chk_fullmodel = True
-mp_multiactivate=False
+
 
 # Checkpoint parameters
 mp_chk_verbosity = 1    # 0, 1mp_chk_mode = 'min' # 'min' or 'max'
@@ -481,7 +481,6 @@ spec = (tf.TensorSpec(spec, tf.float32, name="input"),)
 print("spec: ",spec)
 onnx_model = tf2onnx.convert.from_keras(best_model[0], input_signature=spec, output_path= mp_output_path)
 
-onnx.save_model(onnx_model, mp_output_path)
 print(f"model saved to ", mp_output_path)
 
 # finish
