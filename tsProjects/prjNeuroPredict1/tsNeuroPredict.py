@@ -171,8 +171,6 @@ if not isinstance(mv_ticks1, pd.DataFrame) or mv_ticks1.empty:
 # +-------------------------------------------------------------------
 mv_ticks2 = mv_ticks1.copy()  # Copy the tick data for further processing
 
-
-
 mv_X_ticks3, mv_y_ticks3 = d1.run_shift_data2(mv_ticks2, mp_seconds, mp_unit)  # Ensure the method name is correct
 if mv_X_ticks3 is None or mv_y_ticks3 is None:
     raise ValueError("Shifted data is invalid. Check the `run_shift_data2` method.")
@@ -219,14 +217,12 @@ mv_X_train, mv_X_test, mv_y_train, mv_y_test = m1.dl_split_data_sets(mv_X_ticks3
 if mv_X_train.empty or mv_X_test.empty or mv_y_train.empty or mv_y_test.empty:
     raise ValueError("Failed to split data into training and test sets")
 
-
 print("2:Start Shapes of split data DataFrames:")
 print(f"mv_X_train shape: {mv_X_train.shape}")
 print(f"mv_X_test shape: {mv_X_test.shape}")
 print(f"mv_y_train shape: {mv_y_train.shape}")
 print(f"mv_y_test shape: {mv_y_test.shape}")
 print("2:End Shapes of split data DataFrames:")
-
 
 # define the input shape for the model
 mp_X_train_input_shape = mv_X_train.shape
