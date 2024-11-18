@@ -4,9 +4,9 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Compile-Project-X",
+            "label": "Compile-Equinox",
             "type": "shell",
-            "command": "C:\\Users\\Acme\\AppData\\Roaming\\MetaQuotes\\Terminal\\83D4764E0403A8685E84D6FCAB361879\\MQL5\\Compile-MQL.ps1  C:\\Users\\Acme\\AppData\\Roaming\\MetaQuotes\\Terminal\\83D4764E0403A8685E84D6FCAB361879\\MQL5\\Experts\\ProjectX\\ProjectX.mq5",
+            "command": "C:\\Users\\shepa\\OneDrive\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\\MQL5\\Brokers\\ICMarkets\\MQL5\\Scripts\\Vscodescripts\\compilemql.ps1  C:\\Users\\shepa\\OneDrive\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\\MQL5\\Brokers\\ICMarkets\\MQL5\\Experts\\Advisors\\Equinox\\MQL5DEV2FX\\MainEAV1.mq5",
             "presentation": {
                 "echo": true,
                 "reveal": "always",
