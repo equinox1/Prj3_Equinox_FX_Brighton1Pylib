@@ -478,7 +478,7 @@ print("spec: ",spec)
 # Convert the model to ONNX format
 opver = 17
 onnx_model = tf2onnx.convert.from_keras(best_model[0], input_signature=spec, output_path= mp_output_path, opset=opver)
-
+print("ONNX Runtime version:", ort.__version__)
 print(f"model saved to ", mp_output_path)
 
 # finish
