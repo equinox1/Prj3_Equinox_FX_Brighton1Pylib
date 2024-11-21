@@ -461,8 +461,8 @@ plt.savefig(mp_basepath + '//' + 'plot.png')
 
 mp_output_path = mp_data_path + "model_" + mp_symbol_primary + "_" + mp_datatype + "_" + str(mp_seconds) + ".onnx"
 print(f"output_path: ",mp_output_path)
-#onnx_model, _ = tf2onnx.convert.from_keras(best_model[0])
-#onnx.save_model(onnx_model, mp_output_path)
+onnx_model, _ = tf2onnx.convert.from_keras(best_model[0], opset=self.batch_size)
+onnx.save_model(onnx_model, mp_output_path)
 print(f"model saved to ",mp_output_path)
 
 # finish
