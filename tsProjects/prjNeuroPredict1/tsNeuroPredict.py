@@ -45,7 +45,7 @@ mp_filename = f"{mp_symbol_primary}_{lpfileid}.csv"
 mp_param_steps = 1
 mp_param_max_epochs=10
 mp_param_min_epochs=1
-mp_param_epochs = 10
+mp_param_epochs = 200
 mp_param_chk_patience = 3
 
 mp_multiactivate=True  
@@ -272,7 +272,7 @@ mp_hyperband_iterations = 1
 mp_tune_new_entries = False
 mp_allow_new_entries = False
 mp_max_retries_per_trial = 1
-mp_max_consecutive_failed_trials = 3
+mp_max_consecutive_failed_trials = 1
 # base tuner parameters
 mp_validation_split = 0.2
 mp_epochs = mp_param_epochs 
@@ -475,7 +475,9 @@ print("mp_inputs: ",mp_inputs)
 spec = mp_inputs.shape
 spec = (tf.TensorSpec(spec, tf.float32, name="input"),)
 print("spec: ",spec)
-onnx_model = tf2onnx.convert.from_keras(best_model[0], input_signature=spec, output_path= mp_output_path)
+# Convert the model to ONNX format
+opver = 17
+onnx_model = tf2onnx.convert.from_keras(best_model[0], input_signature=spec, output_path= mp_output_path, opset=opver)
 
 print(f"model saved to ", mp_output_path)
 
