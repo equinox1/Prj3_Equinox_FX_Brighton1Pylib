@@ -31,8 +31,8 @@ mp_year = 2024
 mp_month = 1
 mp_day = 1
 mp_timezone = 'etc/UTC'
-mp_rows = 10000
-mp_rowcount = 10000
+mp_rows = 100000
+mp_rowcount = 100000
 
 mp_dfName = "df_rates"
 mv_manual = True
