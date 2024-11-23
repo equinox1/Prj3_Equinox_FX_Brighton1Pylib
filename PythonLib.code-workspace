@@ -18,7 +18,10 @@
 			"*.mqh": "cpp",
 			"*.mq4": "cpp",
 			"*.mq5": "cpp",
-			"*.inc": "cpp"
+			"*.inc": "cpp",
+			"filesystem": "cpp",
+			"format": "cpp",
+			"xstring": "cpp"
 		}
 	}
 }
