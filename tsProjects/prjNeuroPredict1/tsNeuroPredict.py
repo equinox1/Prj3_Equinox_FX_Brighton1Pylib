@@ -481,6 +481,8 @@ onnx_model = tf2onnx.convert.from_keras(best_model[0], input_signature=spec, out
 print("ONNX Runtime version:", ort.__version__)
 print(f"model saved to ", mp_output_path)
 
+from onnx import checker 
+checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
 plt.show()
