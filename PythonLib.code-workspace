@@ -24,7 +24,9 @@
 			"*.inc": "cpp",
 			"filesystem": "cpp",
 			"format": "cpp",
-			"xstring": "cpp"
+			"xstring": "cpp",
+			"complex": "cpp",
+			"vector": "cpp"
 		}
 	}
 }
