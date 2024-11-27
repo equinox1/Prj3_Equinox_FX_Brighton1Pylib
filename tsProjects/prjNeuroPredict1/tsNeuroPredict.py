@@ -10,7 +10,27 @@
 ####################################################################
 # PARAMS
 ####################################################################
-# Test mode to pass through Litmus test data
+# Login
+BROKER1 = "xerces_icm"
+BROKER2 = "xerces_meta"
+MPBROKPATH1 = r"Brokers/ICMarkets/terminal64.exe"
+MPBROKPATH2 = r"Brokers/Metaquotes/terminal64.exe"
+SERVER1 = "ICMarketsSC-Demo"
+SERVER2 = "MetaQuotes-Demo"
+# Parameters for connecting to MT5 terminal
+MBROKER = BROKER2
+MKBROKPATH=MPBROKPATH2
+MSERVER = SERVER2
+
+# Parameters for connecting to MT5 terminal
+MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
+MPBROKPATH1 = MKBROKPATH
+MPPATH = MPBASEPATH + MPBROKPATH
+MPPASS = str(password)
+MPSERVER = MSERVER
+MPTIMEOUT = 60000
+MPPORTABLE = True
+#Test mode
 mp_test = False
 # Shift the data by a specified time interval (e.g., 60 seconds)
 SECONDS = 1
@@ -109,8 +129,10 @@ if gpus:
 # +-------------------------------------------------------------------
 # Start MetaTrader 5 (MQL) terminal login
 # +-------------------------------------------------------------------
-# Fetch credentials from keyring
-cred = kr.get_credential("xercesdemo", "")
+# Fetch credentials from keyring for metaquotes and xerces_meta
+
+
+cred = kr.get_credential(MBROKER, "")
 if cred is None:
     raise ValueError("Credentials not found in keyring")
 
@@ -127,12 +149,7 @@ except ValueError:
     raise ValueError("Username is not a valid integer")
 
 
-# Parameters for connecting to MT5 terminal
-MPPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/brokers/icmarkets/terminal64.exe"
-MPPASS = str(password)
-MPSERVER = r"ICMarketsSC-Demo"
-MPTIMEOUT = 60000
-MPPORTABLE = True
+
 
 # Initialize and login to the MT5 terminal
 c1 = CMqlinitdemo(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
