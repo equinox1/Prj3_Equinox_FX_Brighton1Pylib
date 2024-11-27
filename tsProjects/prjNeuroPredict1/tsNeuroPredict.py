@@ -151,9 +151,8 @@ except ValueError:
     raise ValueError("Username is not a valid integer")
 
 MPPASS = str(password)
-MPPASS="JyMj!o5g"
 
-print(f"Login: {MPLOGIN}, Password: {MPPASS}")
+print(f"Login: {MPLOGIN}")
 # Initialize and login to the MT5 terminal
 c1 = CMqlinit(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV)
 login_success = c1.run_mql_login(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV)
