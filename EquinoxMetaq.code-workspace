@@ -4,9 +4,6 @@
 			"path": "."
 		},
 		{
-			"path": "../MQL5/Brokers/ICMarkets"
-		},
-		{
 			"path": "../MQL5/Brokers/Metaquotes"
 		}
 	],
@@ -27,6 +24,7 @@
 			"xstring": "cpp",
 			"complex": "cpp",
 			"vector": "cpp"
-		}
+		},
+		"C_Cpp.clang_format_style": "file:c:\\Users\\shepa\\.vscode\\extensions\\l-i-v.mql-tools-2.1.0\\files\\.clang-format"
 	}
 }
