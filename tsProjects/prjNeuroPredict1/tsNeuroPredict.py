@@ -149,8 +149,6 @@ except ValueError:
     raise ValueError("Username is not a valid integer")
 
 
-
-
 # Initialize and login to the MT5 terminal
 c1 = CMqlinitdemo(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
 login_success = c1.run_mql_login(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
