@@ -6,30 +6,32 @@
 # property copyright "Tony Shepherd"
 # property link      "https://www.xercescloud.co.uk"
 # property version   "1.01"
-
+MAINBROKER = "METAQUOTES" # "ICM" or "METAQUOTES"
 ####################################################################
 # PARAMS
 ####################################################################
-# Login
-BROKER1 = "xerces_icm"
-BROKER2 = "xerces_meta"
-MPBROKPATH1 = r"Brokers/ICMarkets/terminal64.exe"
-MPBROKPATH2 = r"Brokers/Metaquotes/terminal64.exe"
-SERVER1 = "ICMarketsSC-Demo"
-SERVER2 = "MetaQuotes-Demo"
-# Parameters for connecting to MT5 terminal
-MBROKER = BROKER2
-MKBROKPATH=MPBROKPATH2
-MSERVER = SERVER2
+# Login options
+if MAINBROKER == "ICM":
+        BROKER = "xerces_icm"
+        MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
+        MPBROKPATH = r"Brokers/ICMarkets/terminal64.exe"
+        MPSERVER = "ICMarketsSC-Demo"
+        MPTIMEOUT = 60000
+        MPPORTABLE = True
+        MPPATH = MPBASEPATH + MPBROKPATH
+        MPENV = "demo"  # "prod" or "demo"
+        print(f"MPPATH: {MPPATH}")
+if MAINBROKER == "METAQUOTES":
+        BROKER = "xerces_meta"
+        MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
+        MPBROKPATH = r"Brokers/Metaquotes/terminal64.exe"
+        MPSERVER = "MetaQuotes-Demo"
+        MPTIMEOUT = 60000
+        MPPORTABLE = True
+        MPPATH = MPBASEPATH + MPBROKPATH
+        MPENV = "demo"  # "prod" or "demo"
+        print(f"MPPATH: {MPPATH}")
 
-# Parameters for connecting to MT5 terminal
-MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
-MPBROKPATH1 = MKBROKPATH
-MPPATH = MPBASEPATH + MPBROKPATH
-MPPASS = str(password)
-MPSERVER = MSERVER
-MPTIMEOUT = 60000
-MPPORTABLE = True
 #Test mode
 mp_test = False
 # Shift the data by a specified time interval (e.g., 60 seconds)
@@ -96,7 +98,7 @@ from sklearn.preprocessing import StandardScaler
 scaler = StandardScaler()
 # Import custom modules for MT5 and AI-related functionality
 
-from tsMqlConnect import CMqlinitdemo
+from tsMqlConnect import CMqlinit
 from tsMqlData import CMqldatasetup
 from tsMqlML import CMqlmlsetup
 from tsMqlMLTune import CMdtuner
@@ -132,7 +134,7 @@ if gpus:
 # Fetch credentials from keyring for metaquotes and xerces_meta
 
 
-cred = kr.get_credential(MBROKER, "")
+cred = kr.get_credential(BROKER, "")
 if cred is None:
     raise ValueError("Credentials not found in keyring")
 
@@ -148,10 +150,13 @@ try:
 except ValueError:
     raise ValueError("Username is not a valid integer")
 
+MPPASS = str(password)
+MPPASS="JyMj!o5g"
 
+print(f"Login: {MPLOGIN}, Password: {MPPASS}")
 # Initialize and login to the MT5 terminal
-c1 = CMqlinitdemo(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
-login_success = c1.run_mql_login(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
+c1 = CMqlinit(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV)
+login_success = c1.run_mql_login(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV)
 if not login_success:
     raise ConnectionError("Failed to login to MT5 terminal")
 
@@ -482,6 +487,9 @@ plt.savefig(mp_basepath + '//' + 'plot.png')
 
 mp_output_path = mp_data_path + "model_" + mp_symbol_primary + "_" + mp_datatype + "_" + str(mp_seconds) + ".onnx"
 print(f"output_path: ",mp_output_path)
+onnx_model, _ = tf2onnx.convert.from_keras(best_model[0], opset=self.batch_size)
+onnx.save_model(onnx_model, mp_output_path)
+print(f"model saved to ",mp_output_path)
 
 # Assuming your model has a single input
 
