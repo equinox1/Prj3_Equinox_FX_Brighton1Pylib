@@ -1,13 +1,10 @@
 {
 	"folders": [
 		{
-			"path": "."
+			"path": "../.."
 		},
 		{
-			"path": "../MQL5/Brokers/ICMarkets"
-		},
-		{
-			"path": "../MQL5/Brokers/Metaquotes"
+			"path": "../../../MQL5/Brokers/ICMarkets"
 		}
 	],
 	"settings": {
@@ -21,12 +18,9 @@
 			"*.mqh": "cpp",
 			"*.mq4": "cpp",
 			"*.mq5": "cpp",
-			"*.inc": "cpp",
-			"filesystem": "cpp",
 			"format": "cpp",
-			"xstring": "cpp",
-			"complex": "cpp",
-			"vector": "cpp"
+			"filesystem": "cpp",
+			"xstring": "cpp"
 		}
 	}
 }

@@ -5,9 +5,6 @@
 		},
 		{
 			"path": "../MQL5/Brokers/ICMarkets"
-		},
-		{
-			"path": "../MQL5/Brokers/Metaquotes"
 		}
 	],
 	"settings": {

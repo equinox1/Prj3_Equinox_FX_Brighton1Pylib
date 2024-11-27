@@ -10,7 +10,27 @@
 ####################################################################
 # PARAMS
 ####################################################################
-# Test mode to pass through Litmus test data
+# Login
+BROKER1 = "xerces_icm"
+BROKER2 = "xerces_meta"
+MPBROKPATH1 = r"Brokers/ICMarkets/terminal64.exe"
+MPBROKPATH2 = r"Brokers/Metaquotes/terminal64.exe"
+SERVER1 = "ICMarketsSC-Demo"
+SERVER2 = "MetaQuotes-Demo"
+# Parameters for connecting to MT5 terminal
+MBROKER = BROKER2
+MKBROKPATH=MPBROKPATH2
+MSERVER = SERVER2
+
+# Parameters for connecting to MT5 terminal
+MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
+MPBROKPATH1 = MKBROKPATH
+MPPATH = MPBASEPATH + MPBROKPATH
+MPPASS = str(password)
+MPSERVER = MSERVER
+MPTIMEOUT = 60000
+MPPORTABLE = True
+#Test mode
 mp_test = False
 # Shift the data by a specified time interval (e.g., 60 seconds)
 SECONDS = 1
@@ -31,8 +51,8 @@ mp_year = 2024
 mp_month = 1
 mp_day = 1
 mp_timezone = 'etc/UTC'
-mp_rows = 10000
-mp_rowcount = 10000
+mp_rows = 100000
+mp_rowcount = 100000
 
 mp_dfName = "df_rates"
 mv_manual = True
@@ -42,9 +62,13 @@ lpfileid = "tickdata1"
 mp_filename = f"{mp_symbol_primary}_{lpfileid}.csv"
 
 # Set parameters for the model
-mp_param_max_epochs=10 
-mp_param_epochs = 100
+mp_param_steps = 1
+mp_param_max_epochs=10
+mp_param_min_epochs=1
+mp_param_epochs = 200
+mp_param_chk_patience = 3
 
+mp_multiactivate=True  
 ####################################################################
 
 # +-------------------------------------------------------------------
@@ -105,8 +129,10 @@ if gpus:
 # +-------------------------------------------------------------------
 # Start MetaTrader 5 (MQL) terminal login
 # +-------------------------------------------------------------------
-# Fetch credentials from keyring
-cred = kr.get_credential("xercesdemo", "")
+# Fetch credentials from keyring for metaquotes and xerces_meta
+
+
+cred = kr.get_credential(MBROKER, "")
 if cred is None:
     raise ValueError("Credentials not found in keyring")
 
@@ -123,12 +149,7 @@ except ValueError:
     raise ValueError("Username is not a valid integer")
 
 
-# Parameters for connecting to MT5 terminal
-MPPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/brokers/icmarkets/terminal64.exe"
-MPPASS = str(password)
-MPSERVER = r"ICMarketsSC-Demo"
-MPTIMEOUT = 60000
-MPPORTABLE = True
+
 
 # Initialize and login to the MT5 terminal
 c1 = CMqlinitdemo(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
@@ -166,8 +187,6 @@ if not isinstance(mv_ticks1, pd.DataFrame) or mv_ticks1.empty:
 # Prepare and process the data
 # +-------------------------------------------------------------------
 mv_ticks2 = mv_ticks1.copy()  # Copy the tick data for further processing
-
-
 
 mv_X_ticks3, mv_y_ticks3 = d1.run_shift_data2(mv_ticks2, mp_seconds, mp_unit)  # Ensure the method name is correct
 if mv_X_ticks3 is None or mv_y_ticks3 is None:
@@ -215,14 +234,12 @@ mv_X_train, mv_X_test, mv_y_train, mv_y_test = m1.dl_split_data_sets(mv_X_ticks3
 if mv_X_train.empty or mv_X_test.empty or mv_y_train.empty or mv_y_test.empty:
     raise ValueError("Failed to split data into training and test sets")
 
-
 print("2:Start Shapes of split data DataFrames:")
 print(f"mv_X_train shape: {mv_X_train.shape}")
 print(f"mv_X_test shape: {mv_X_test.shape}")
 print(f"mv_y_train shape: {mv_y_train.shape}")
 print(f"mv_y_test shape: {mv_y_test.shape}")
 print("2:End Shapes of split data DataFrames:")
-
 
 # define the input shape for the model
 mp_X_train_input_shape = mv_X_train.shape
@@ -251,6 +268,7 @@ mp_gru_input_shape = mp_X_train_input_shape[1]
 mp_transformer_input_shape = mp_X_train_input_shape[1]
 
 # define features
+mp_null=None
 mp_single_features = 1
 mp_lstm_features = 1
 mp_cnn_features = 1
@@ -265,7 +283,7 @@ mp_activation4 = 'sigmoid'
 mp_Hypermodel = 'HyperModel'
 mp_objective = 'val_loss'
 mp_max_epochs = mp_param_max_epochs 
-mp_factor = 3
+mp_factor = 10
 mp_seed = 42
 mp_hyperband_iterations = 1
 mp_tune_new_entries = False
@@ -287,16 +305,17 @@ mp_distribution_strategy = None
 mp_directory = None
 mp_logger = None
 mp_tuner_id = None
-mp_overwrite = False
+mp_overwrite = True
 mp_executions_per_trial = 1
 mp_chk_fullmodel = True
+
 
 # Checkpoint parameters
 mp_chk_verbosity = 1    # 0, 1mp_chk_mode = 'min' # 'min' or 'max'
 mp_chk_mode = 'min' # 'min' or 'max'
 mp_chk_monitor = 'val_loss' # 'val_loss' or 'val_mean_squared_error'
 mp_chk_sav_freq = 'epoch' # 'epoch' or 'batch'
-mp_chk_patience = 3
+mp_chk_patience = mp_param_chk_patience
 
 mp_modeldatapath = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/PythonLib/tsModelData"
 mp_directory = f"tshybrid_ensemble_tuning_prod"
@@ -305,7 +324,7 @@ mp_today=date.today().strftime('%Y-%m-%d %H:%M:%S')
 mp_random = np.random.randint(0, 1000)
 print("mp_random:", mp_random)
 print("mp_today:", mp_today)
-mp_baseuniq=str(mp_random)
+mp_baseuniq=str(1) # str(mp_random)
 mp_basepath = os.path.join(mp_modeldatapath, mp_directory,mp_baseuniq)
 mp_checkpoint_filepath = os.path.join(mp_modeldatapath,mp_directory,mp_basepath, mp_project_name)
 print("mp_checkpoint_filepath:", mp_checkpoint_filepath)
@@ -336,7 +355,8 @@ mt = CMdtuner(
     run_single_input_model=mp_run_single_input_model,
     run_single_input_submodels=mp_run_single_input_submodels,
     objective=mp_objective,
-    max_epochs=mp_max_epochs,
+    max_epochs=mp_param_max_epochs,
+    min_epochs=mp_param_min_epochs,
     factor=mp_factor,
     seed=mp_seed,
     hyperband_iterations=mp_hyperband_iterations,
@@ -373,7 +393,9 @@ mt = CMdtuner(
     chk_sav_freq=mp_chk_sav_freq,
     chk_patience=mp_chk_patience,
     checkpoint_filepath=mp_checkpoint_filepath,
-    modeldatapath=mp_modeldatapath
+    modeldatapath=mp_modeldatapath,
+    step=mp_param_steps,
+    multiactivate=mp_multiactivate
 )
 
 
@@ -394,8 +416,9 @@ mv_X_test = scaler.transform(mv_X_test)
 # +-------------------------------------------------------------------
 # Train and evaluate the model
 # +-------------------------------------------------------------------
-#best_model[0].fit(mv_X_train, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
-#best_model[0].evaluate(mv_X_test, mv_y_test)
+
+best_model[0].fit(mv_X_train, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
+best_model[0].evaluate(mv_X_test, mv_y_test)
 
 # Assuming mv_X_train is your training data
 scaler = StandardScaler()
@@ -452,7 +475,7 @@ plt.xlabel('Time')
 plt.ylabel('FX Price')
 plt.legend()
 plt.savefig(mp_basepath + '//' + 'plot.png')
-#plt.show()
+
 
 # +-------------------------------------------------------------------
 # Save model to ONNX
@@ -461,9 +484,28 @@ plt.savefig(mp_basepath + '//' + 'plot.png')
 
 mp_output_path = mp_data_path + "model_" + mp_symbol_primary + "_" + mp_datatype + "_" + str(mp_seconds) + ".onnx"
 print(f"output_path: ",mp_output_path)
+<<<<<<< HEAD
 onnx_model, _ = tf2onnx.convert.from_keras(best_model[0], opset=self.batch_size)
 onnx.save_model(onnx_model, mp_output_path)
 print(f"model saved to ",mp_output_path)
+=======
+>>>>>>> metaq
 
+# Assuming your model has a single input
+
+# Convert the model
+print("mp_inputs: ",mp_inputs)
+spec = mp_inputs.shape
+spec = (tf.TensorSpec(spec, tf.float32, name="input"),)
+print("spec: ",spec)
+# Convert the model to ONNX format
+opver = 17
+onnx_model = tf2onnx.convert.from_keras(best_model[0], input_signature=spec, output_path= mp_output_path, opset=opver)
+print("ONNX Runtime version:", ort.__version__)
+print(f"model saved to ", mp_output_path)
+
+from onnx import checker 
+checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
+plt.show()

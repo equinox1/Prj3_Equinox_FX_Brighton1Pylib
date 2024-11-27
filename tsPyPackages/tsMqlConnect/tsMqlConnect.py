@@ -95,3 +95,56 @@ class CMqlinitdemo(CMqlinit):
 #-------------------------------------------------------------------- 
 class CMqlinitprod(CMqlinit):
     pass
+
+#-------------------------------------------------------------------
+# create class  "CMmqliniticmdemo"
+# usage: connect services mql api
+#
+# section:params
+# /param  double svar;              -  value
+#-------------------------------------------------------------------- 
+class CMqliniticmdemo(CMqlinit):
+    def __init__(self, **kwargs):
+        
+        # Load dataset and model configuration parameters
+        self.MPBASEPATH = kwargs['MPBASEPATH'] if 'MPBASEPATH' in kwargs else r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"        
+        self.MPBROKPATH = kwargs['MPBROKPATH'] if 'MPBROKPATH' in kwargs else r"brokers/icmarkets/terminal64.exe"
+        self.MPPATH = kwargs['MPPATH'] if 'MPPATH' in kwargs else self.MPBASEPATH + self.MPBROKPATH     
+
+        self.MPLOGIN = kwargs['MPLOGIN'] if 'MPLOGIN' in kwargs else "username"
+        self.MPPASS = kwargs['MPPASS'] if 'MPPASS' in kwargs else "password"
+        self.MPSERVER = kwargs['MPSERVER'] if 'MPSERVER' in kwargs else r"ICMarketsSC-Demo"
+        self.MPTIMEOUT = kwargs['MPTIMEOUT'] if 'MPTIMEOUT' in kwargs else 60000
+        self.MPPORTABLE = kwargs['MPPORTABLE'] if 'MPPORTABLE' in kwargs else True
+        self.run_mql_login(self.MPPATH, self.MPLOGIN, self.MPPASS, self.MPSERVER, self.MPTIMEOUT, self.MPPORTABLE)
+
+
+#-------------------------------------------------------------------
+# create class  "CMmqliniticmprod"
+# usage: connect services mql api
+#
+# section:params
+# /param  double svar;              -  value
+#-------------------------------------------------------------------- 
+class CMqliniticmprod(CMqlinit):
+    pass
+
+#-------------------------------------------------------------------
+# create class  "CMmqlinitmetademo"
+# usage: connect services mql api
+#
+# section:params
+# /param  double svar;              -  value
+#-------------------------------------------------------------------- 
+class CMqliniticmdemo(CMqlinit):
+    pass
+
+#-------------------------------------------------------------------
+# create class  "CMmqlinitmetaprod"
+# usage: connect services mql api
+#
+# section:params
+# /param  double svar;              -  value
+#-------------------------------------------------------------------- 
+class CMqlinitmetaprod(CMqlinit):
+    pass
