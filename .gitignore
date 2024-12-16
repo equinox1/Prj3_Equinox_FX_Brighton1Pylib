@@ -134,7 +134,8 @@ tsEquinox1//-env/
 #Models
 tsModelData/**/*
 tsModelData/
-
+tsEquinox1-env/Lib/site-packages/*
+tsEquinox1-env/*
 
 # Spyder project settings
 .spyderproject

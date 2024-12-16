@@ -6,77 +6,13 @@
 # property copyright "Tony Shepherd"
 # property link      "https://www.xercescloud.co.uk"
 # property version   "1.01"
-MAINBROKER = "METAQUOTES" # "ICM" or "METAQUOTES"
-####################################################################
-# PARAMS
-####################################################################
-# Login options
-if MAINBROKER == "ICM":
-        BROKER = "xerces_icm"
-        MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
-        MPBROKPATH = r"Brokers/ICMarkets/terminal64.exe"
-        MPSERVER = "ICMarketsSC-Demo"
-        MPTIMEOUT = 60000
-        MPPORTABLE = True
-        MPPATH = MPBASEPATH + MPBROKPATH
-        MPENV = "demo"  # "prod" or "demo"
-        print(f"MPPATH: {MPPATH}")
-if MAINBROKER == "METAQUOTES":
-        BROKER = "xerces_meta"
-        MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
-        MPBROKPATH = r"Brokers/Metaquotes/terminal64.exe"
-        MPSERVER = "MetaQuotes-Demo"
-        MPTIMEOUT = 60000
-        MPPORTABLE = True
-        MPPATH = MPBASEPATH + MPBROKPATH
-        MPENV = "demo"  # "prod" or "demo"
-        print(f"MPPATH: {MPPATH}")
-
-#Test mode
-mp_test = False
-# Shift the data by a specified time interval (e.g., 60 seconds)
-SECONDS = 1
-MINUTES = 60
-HOURS = 60 * MINUTES
-DAYS = 24 * HOURS
-WEEKS = 7 * DAYS
-YEARS = 365 * DAYS
-mp_datatype = 'M1' # Data type: M1, M5, M15, M30, H1, H4, D1, W1, MN1
-
-mp_seconds = MINUTES # Shift the data by 60 second interval
-mp_unit = 's' # Shift the data by 60 seconds
-
-# Set parameters for data extraction
-mp_symbol_primary = "EURUSD"
-mp_symbol_secondary = "GBPUSD"
-mp_year = 2024
-mp_month = 1
-mp_day = 1
-mp_timezone = 'etc/UTC'
-mp_rows = 100000
-mp_rowcount = 100000
-
-mp_dfName = "df_rates"
-mv_manual = True
-mp_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
-
-lpfileid = "tickdata1"
-mp_filename = f"{mp_symbol_primary}_{lpfileid}.csv"
-
-# Set parameters for the model
-mp_param_steps = 1
-mp_param_max_epochs=10
-mp_param_min_epochs=1
-mp_param_epochs = 200
-mp_param_chk_patience = 3
-
-mp_multiactivate=True  
-####################################################################
-
 # +-------------------------------------------------------------------
 # Import standard Python packages
 # +-------------------------------------------------------------------
 import os
+import sys
+import time
+import json
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import keyring as kr
 from tabulate import tabulate
@@ -103,7 +39,6 @@ from tsMqlData import CMqldatasetup
 from tsMqlML import CMqlmlsetup
 from tsMqlMLTune import CMdtuner
 
-
 # +-------------------------------------------------------------------
 # Import TensorFlow for machine learning
 # +-------------------------------------------------------------------
@@ -127,13 +62,91 @@ if gpus:
     except RuntimeError as e:
         print(e)
 
+#################################################################
+# Start of the main script
+#Variable input
+mp_test = False
+mp_dfName1 = "df_rates1"
+mp_dfName2 = "df_rates2"
+mv_loadapi = True
+mv_loadfile = True
+mv_usedata = 'loadfile  ' # 'loadapi' or 'loadfile'
+
+mp_rows = 100000
+mp_rowcount = 100000
+MAINBROKER = "METAQUOTES" # "ICM" or "METAQUOTES"
+MPDATAFILE =  "tickdata1.csv"
+# Constant Definitions
+TIMEVALUE = {
+    'SECONDS': 1,
+    'MINUTES': 60,
+    'HOURS': 60 * 60,
+    'DAYS': 24 * 60 * 60,
+    'WEEKS': 7 * 24 * 60 * 60,
+    'YEARS': 365 * 24 * 60 * 60
+}
+MINUTES = TIMEVALUE['MINUTES']
+TIMEFRAME = ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1', 'W1', 'MN1']
+UNIT = ['s', 'm', 'h', 'd', 'w', 'm']
+DATATYPE = ['TICKS', 'MINUTES', 'HOURS', 'DAYS', 'WEEKS', 'MONTHS']
+SYMBOLS = ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD", "EURJPY", "EURGBP", "EURCHF", "EURCAD", "EURAUD", "EURNZD", "GBPJPY", "GBPAUD", "GBPNZD", "GBPCAD", "GBPCHF", "AUDJPY", "AUDNZD", "AUDCAD", "AUDCHF", "NZDJPY", "NZDCAD", "NZDCHF", "CADJPY", "CADCHF", "CHFJPY"]
+TIMEZONES = ["etc/UTC", "Europe/London", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Asia/Tokyo", "Asia/Hong_Kong", "Asia/Shanghai", "Asia/Singapore", "Asia/Dubai", "Asia/Mumbai", "Australia/Sydney", "Australia/Melbourne", "Africa/Johannesburg", "Europe/Berlin", "Europe/Paris", "Europe/Madrid", "Europe/Rome", "Europe/Amsterdam", "Europe/Brussels", "Europe/Stockholm", "Europe/Oslo", "Europe/Copenhagen", "Europe/Zurich", "Europe/Vienna", "Europe/Warsaw", "Europe/Prague", "Europe/Budapest", "Europe/Bucharest", "Europe/Sofia", "Europe/Athens", "Europe/Helsinki", "Europe/Tallinn", "Europe/Vilnius", "Europe/Riga", "Europe/Lisbon", "Europe/Dublin", "Europe/Edinburgh", "Europe/Ljubljana", "Europe/Bratislava", "Europe/Luxembourg", "Europe/Monaco", "Europe/Valletta", "Europe/Andorra", "Europe/San_Marino", "Europe/Vatican", "Europe/Gibraltar"]
+
+# Set the parameters for data import
+mp_symbol_primary = SYMBOLS[0]
+mp_symbol_secondary = SYMBOLS[1]
+mp_shiftvalue = MINUTES #  e.g Shift the data by 60 second interval
+mp_unit = UNIT[0] # unit value passed to mql5 loader
+
+mp_year = datetime.now().year
+mp_day = datetime.now().day
+mp_month = datetime.now().month
+mp_timezone = TIMEZONES[0]
+
+####################################################################
+# LOGIN PARAMS
+####################################################################
+# Login options
+if MAINBROKER == "ICM":
+        BROKER = "xerces_icm"
+        MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
+        MPBROKPATH = r"Brokers/ICMarkets/terminal64.exe"
+        MKFILES=r"Brokers/ICMarkets/MQL5/Files/"
+        MPSERVER = "ICMarketsSC-Demo"
+        MPTIMEOUT = 60000
+        MPPORTABLE = True
+        MPPATH = MPBASEPATH + MPBROKPATH
+        MPENV = "demo"  # "prod" or "demo"
+        MPDATAPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
+        MPFILEVALUE = f"{mp_symbol_primary}_{MPDATAFILE}"
+        print(f"MPPATH: {MPPATH}")
+if MAINBROKER == "METAQUOTES":
+        BROKER = "xerces_meta"
+        MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
+        MPBROKPATH = r"Brokers/Metaquotes/terminal64.exe"
+        MKFILES=r"Brokers/Metaquotes/MQL5/Files/"
+        MPSERVER = "MetaQuotes-Demo"
+        MPTIMEOUT = 60000
+        MPPORTABLE = True
+        MPPATH = MPBASEPATH + MPBROKPATH
+        MPENV = "demo"  # "prod" or "demo"
+        MPDATAPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
+        MPFILEVALUE = f"{mp_symbol_primary}_{MPDATAFILE}"
+        print(f"MPPATH: {MPPATH}")
+
+# Set parameters for the Tensorflow model
+mp_param_steps = 1
+mp_param_max_epochs=10
+mp_param_min_epochs=1
+mp_param_epochs = 200
+mp_param_chk_patience = 3
+mp_multiactivate=True  
+####################################################################
 
 # +-------------------------------------------------------------------
 # Start MetaTrader 5 (MQL) terminal login
 # +-------------------------------------------------------------------
 # Fetch credentials from keyring for metaquotes and xerces_meta
-
-
 cred = kr.get_credential(BROKER, "")
 if cred is None:
     raise ValueError("Credentials not found in keyring")
@@ -161,11 +174,15 @@ if not login_success:
 
 terminal_info = mt5.terminal_info()
 print(terminal_info)
-file_path=terminal_info.data_path +r"/MQL5/Files/"
-print(f"MQL file_path:" ,file_path)
 
-#data_path to save model
-mp_data_path=file_path
+# Set the data path for MQL files
+MQLFILES=r"/MQL5/Files/"
+mql_file_path=os.path.join(MPBASEPATH,MKFILES)
+
+print(f"MQL file_path:" ,mql_file_path)
+
+#data_path to save models
+mp_data_path=mql_file_path
 print(f"data_path to save onnx model: ",mp_data_path)
 # +-------------------------------------------------------------------
 # Import data from MQL
@@ -173,56 +190,40 @@ print(f"data_path to save onnx model: ",mp_data_path)
 
 # Set up dataset
 d1 = CMqldatasetup()
-mp_command = mt5.COPY_TICKS_ALL
+
+mp_command = 'mt5.COPY_TICKS_ALL'
 mv_utc_from = d1.set_mql_timezone(mp_year, mp_month, mp_day, mp_timezone)
+mp_path=MPDATAPATH
+mp_filename=MPFILEVALUE
+print(f"Year: {mp_year}, Month: {mp_month}, Day: {mp_day}")
 print(f"Timezone Set to: {mv_utc_from}")
-print(f"mp_path Set to: {mp_path}")
-print(f"mp_filename Set to: {mp_filename}")
+print(f"mp_path Set to: {MPDATAPATH}")
+print(f"mp_filename Set to: {MPFILEVALUE}")
 
 
 # Load tick data from MQL
-mv_ticks1 = d1.run_load_from_mql(mv_manual, mp_dfName, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename)
-if not isinstance(mv_ticks1, pd.DataFrame) or mv_ticks1.empty:
-    raise ValueError("Failed to load tick data from MQL")
+mv_tdata1api , mv_tdata1load = d1.run_load_from_mql(mv_loadapi ,mv_loadfile , mp_dfName1,mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename)
+# Display the first few rows of the data for verification
+print(tabulate(mv_tdata1api.head(3), showindex=False, headers=mv_tdata1.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print(tabulate(mv_tdata1load.head(3), showindex=False, headers=mv_tdata1.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 
 # +-------------------------------------------------------------------
 # Prepare and process the data
 # +-------------------------------------------------------------------
-mv_ticks2 = mv_ticks1.copy()  # Copy the tick data for further processing
+mv_X_tdata2a = mv_tdata1api.copy()  # Copy the data for further processing
+mv_y_tdata2a = mv_tdata1api.copy()  # Copy the data for further processing
 
-mv_X_ticks3, mv_y_ticks3 = d1.run_shift_data2(mv_ticks2, mp_seconds, mp_unit)  # Ensure the method name is correct
-if mv_X_ticks3 is None or mv_y_ticks3 is None:
-    raise ValueError("Shifted data is invalid. Check the `run_shift_data2` method.")
+mv_X_tdata2b = mv_tdata1load.copy()  # Copy the data for further processing
+mv_y_tdata2b = mv_tdata1load.copy()  # Copy the data for further processing
 
-# Check if the data is a pandas DataFrame or a NumPy array
-df = mv_X_ticks3
-# Check if df is a pandas DataFrame
-if isinstance(df, pd.DataFrame):
-    print("df is a pandas DataFrame")
-# Check if df is a NumPy array
-elif isinstance(df, np.ndarray):
-    df = pd.DataFrame(df[:, :, 0])  # Assuming the first element is required
-    mv_X_ticks3 = pd.DataFrame(df)
-else:
-    print("df is neither a pandas DataFrame nor a NumPy array")
+# Check the switch of which file to use
+if mp_usedata == 'loadapi':
+    mv_X_tdata2 = mv_X_tdata2a
+    mv_y_tdata2 = mv_y_tdata2a
 
-mv_X_ticks3 = pd.DataFrame(mv_X_ticks3)
-mv_y_ticks3 = pd.DataFrame(mv_y_ticks3)
-
-# Display the first few rows of the data for verification
-print(tabulate(mv_ticks1.head(10), showindex=False, headers=mv_ticks1.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print(tabulate(mv_ticks2.head(10), showindex=False, headers=mv_ticks2.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print(tabulate(mv_X_ticks3.head(10), showindex=False, headers=mv_X_ticks3.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print(tabulate(mv_y_ticks3.head(10), showindex=False, headers=mv_y_ticks3.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-
-
-print("1:Start Shapes of DataFrames:")
-print(f"mv_ticks1: {mv_ticks1.shape}")
-print(f"mv_ticks2: {mv_ticks2.shape}")
-print(f"mv_ticks3: {mv_X_ticks3.shape}")
-print(f"mv_ticks3: {mv_y_ticks3.shape}")
-print("1:End Shapes of DataFrames:")
-
+if mp_usedata == 'loadfile':
+    mv_X_tdata2 = mv_X_tdata2b
+    mv_y_tdata2 = mv_y_tdata2b
 
 # +-------------------------------------------------------------------
 # Split the data into training and test sets
@@ -232,7 +233,7 @@ mp_train_split = 0.8
 mp_test_split = 0.2
 mp_shuffle = False
 
-mv_X_train, mv_X_test, mv_y_train, mv_y_test = m1.dl_split_data_sets(mv_X_ticks3, mv_y_ticks3, mp_train_split, mp_test_split, mp_shuffle)
+mv_X_train, mv_X_test, mv_y_train, mv_y_test = m1.dl_split_data_sets(mv_X_tdata2, mv_y_tdata2, mp_train_split, mp_test_split, mp_shuffle)
 if mv_X_train.empty or mv_X_test.empty or mv_y_train.empty or mv_y_test.empty:
     raise ValueError("Failed to split data into training and test sets")
 
