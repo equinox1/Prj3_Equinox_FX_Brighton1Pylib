@@ -10,6 +10,9 @@
 # Import standard Python packages
 # +-------------------------------------------------------------------
 import os
+import pathlib
+from pathlib import Path, PurePosixPath
+import posixpath
 import sys
 import time
 import json
@@ -68,14 +71,17 @@ if gpus:
 mp_test = False
 mp_dfName1 = "df_rates1"
 mp_dfName2 = "df_rates2"
-mv_loadapi = True
-mv_loadfile = True
-mv_usedata = 'loadfile  ' # 'loadapi' or 'loadfile'
+mv_loadapiticks = True
+mv_loadapirates = True
+mv_loadfileticks = True
+mv_loadfilerates = True
+mv_usedata = 'loadfileticks' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
 
 mp_rows = 100000
 mp_rowcount = 100000
 MAINBROKER = "METAQUOTES" # "ICM" or "METAQUOTES"
-MPDATAFILE =  "tickdata1.csv"
+MPDATAFILE1 =  "tickdata1.csv"
+MPDATAFILE2 =  "ratesdata1.csv"
 # Constant Definitions
 TIMEVALUE = {
     'SECONDS': 1,
@@ -86,7 +92,7 @@ TIMEVALUE = {
     'YEARS': 365 * 24 * 60 * 60
 }
 MINUTES = TIMEVALUE['MINUTES']
-TIMEFRAME = ['M1', 'M5', 'M15', 'M30', 'H1', 'H4', 'D1', 'W1', 'MN1']
+TIMEFRAME= [mt5.TIMEFRAME_M1, mt5.TIMEFRAME_M5, mt5.TIMEFRAME_M15, mt5.TIMEFRAME_M30, mt5.TIMEFRAME_H1, mt5.TIMEFRAME_H4, mt5.TIMEFRAME_D1, mt5.TIMEFRAME_W1, mt5.TIMEFRAME_MN1]
 UNIT = ['s', 'm', 'h', 'd', 'w', 'm']
 DATATYPE = ['TICKS', 'MINUTES', 'HOURS', 'DAYS', 'WEEKS', 'MONTHS']
 SYMBOLS = ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD", "EURJPY", "EURGBP", "EURCHF", "EURCAD", "EURAUD", "EURNZD", "GBPJPY", "GBPAUD", "GBPNZD", "GBPCAD", "GBPCHF", "AUDJPY", "AUDNZD", "AUDCAD", "AUDCHF", "NZDJPY", "NZDCAD", "NZDCHF", "CADJPY", "CADCHF", "CHFJPY"]
@@ -102,7 +108,8 @@ mp_year = datetime.now().year
 mp_day = datetime.now().day
 mp_month = datetime.now().month
 mp_timezone = TIMEZONES[0]
-
+mp_timeframe = TIMEFRAME[1]
+mp_history_size = 5 # Number of years of data to fetch
 ####################################################################
 # LOGIN PARAMS
 ####################################################################
@@ -118,7 +125,8 @@ if MAINBROKER == "ICM":
         MPPATH = MPBASEPATH + MPBROKPATH
         MPENV = "demo"  # "prod" or "demo"
         MPDATAPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
-        MPFILEVALUE = f"{mp_symbol_primary}_{MPDATAFILE}"
+        MPFILEVALUE1 = f"{mp_symbol_primary}_{MPDATAFILE1}"
+        MPFILEVALUE2 = f"{mp_symbol_primary}_{MPDATAFILE2}"
         print(f"MPPATH: {MPPATH}")
 if MAINBROKER == "METAQUOTES":
         BROKER = "xerces_meta"
@@ -131,7 +139,8 @@ if MAINBROKER == "METAQUOTES":
         MPPATH = MPBASEPATH + MPBROKPATH
         MPENV = "demo"  # "prod" or "demo"
         MPDATAPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
-        MPFILEVALUE = f"{mp_symbol_primary}_{MPDATAFILE}"
+        MPFILEVALUE1 = f"{mp_symbol_primary}_{MPDATAFILE1}"
+        MPFILEVALUE2 = f"{mp_symbol_primary}_{MPDATAFILE2}"
         print(f"MPPATH: {MPPATH}")
 
 # Set parameters for the Tensorflow model
@@ -191,39 +200,70 @@ print(f"data_path to save onnx model: ",mp_data_path)
 # Set up dataset
 d1 = CMqldatasetup()
 
-mp_command = 'mt5.COPY_TICKS_ALL'
-mv_utc_from = d1.set_mql_timezone(mp_year, mp_month, mp_day, mp_timezone)
+mp_command = mt5.COPY_TICKS_ALL
+
+mv_utc_from = d1.set_mql_timezone(mp_year-mp_history_size, mp_month, mp_day, mp_timezone)
+mv_utc_to = d1.set_mql_timezone(mp_year, mp_month, mp_day, mp_timezone)
+
+print("mv_utc_from set to : ",mv_utc_from, "mv_utc_to set to : ",mv_utc_to)
 mp_path=MPDATAPATH
-mp_filename=MPFILEVALUE
+mp_filename1=MPFILEVALUE1
+mp_filename2=MPFILEVALUE2
 print(f"Year: {mp_year}, Month: {mp_month}, Day: {mp_day}")
 print(f"Timezone Set to: {mv_utc_from}")
 print(f"mp_path Set to: {MPDATAPATH}")
-print(f"mp_filename Set to: {MPFILEVALUE}")
+print(f"mp_filename1 Set to: {MPFILEVALUE1}")
+print(f"mp_filename2 Set to: {MPFILEVALUE2}")
 
 
 # Load tick data from MQL
-mv_tdata1api , mv_tdata1load = d1.run_load_from_mql(mv_loadapi ,mv_loadfile , mp_dfName1,mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename)
+mv_tdata1apiticks ,mv_tdata1apirates, mv_tdata1loadticks,mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks ,mv_loadapirates,mv_loadfileticks,mv_loadfilerates , mp_dfName1,mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1,mp_filename2,mp_timeframe)
 # Display the first few rows of the data for verification
-print(tabulate(mv_tdata1api.head(3), showindex=False, headers=mv_tdata1.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print(tabulate(mv_tdata1load.head(3), showindex=False, headers=mv_tdata1.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print("1:Start First few rows of the API Tick data:")
+print(tabulate(mv_tdata1apiticks.head(3), showindex=False, headers=mv_tdata1apiticks.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print("2:Start First few rows of the API Rates data:")
+print(tabulate(mv_tdata1apirates.head(3), showindex=False, headers=mv_tdata1apirates.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print("3: Start First few rows of the FILE Tick data:")
+print(tabulate(mv_tdata1loadticks.head(3), showindex=False, headers=mv_tdata1loadticks.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print("4: Start First few rows of the FILE Rates data:")
+print(tabulate(mv_tdata1loadrates.head(3), showindex=False, headers=mv_tdata1loadrates.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 
 # +-------------------------------------------------------------------
 # Prepare and process the data
 # +-------------------------------------------------------------------
-mv_X_tdata2a = mv_tdata1api.copy()  # Copy the data for further processing
-mv_y_tdata2a = mv_tdata1api.copy()  # Copy the data for further processing
+mv_X_tdata2a = mv_tdata1apiticks.copy()  # Copy the data for further processing
+mv_y_tdata2a = mv_tdata1apiticks.copy()  # Copy the data for further processing
 
-mv_X_tdata2b = mv_tdata1load.copy()  # Copy the data for further processing
-mv_y_tdata2b = mv_tdata1load.copy()  # Copy the data for further processing
+mv_X_tdata2b = mv_tdata1apirates.copy()  # Copy the data for further processing
+mv_y_tdata2b = mv_tdata1apirates.copy()  # Copy the data for further processing
+
+mv_X_tdata2c = mv_tdata1loadticks.copy()  # Copy the data for further processing
+mv_y_tdata2c = mv_tdata1loadticks.copy()  # Copy the data for further processing
+
+mv_X_tdata2d = mv_tdata1loadrates.copy()  # Copy the data for further processing
+mv_y_tdata2d = mv_tdata1loadrates.copy()  # Copy the data for further processing
 
 # Check the switch of which file to use
-if mp_usedata == 'loadapi':
+if mv_usedata == 'loadapiticks':
+    print("Using API data")
     mv_X_tdata2 = mv_X_tdata2a
     mv_y_tdata2 = mv_y_tdata2a
 
-if mp_usedata == 'loadfile':
+if mv_usedata == 'loadapirates':
+    print("Using API data")
     mv_X_tdata2 = mv_X_tdata2b
     mv_y_tdata2 = mv_y_tdata2b
+
+if mv_usedata == 'loadfileticks':
+    print("Using File data")
+    mv_X_tdata2 = mv_X_tdata2c
+    mv_y_tdata2 = mv_y_tdata2c
+
+if mv_usedata == 'loadfilerates':
+    print("Using File data")
+    mv_X_tdata2 = mv_X_tdata2d
+    mv_y_tdata2 = mv_y_tdata2d
+
 
 # +-------------------------------------------------------------------
 # Split the data into training and test sets
@@ -328,8 +368,10 @@ mp_random = np.random.randint(0, 1000)
 print("mp_random:", mp_random)
 print("mp_today:", mp_today)
 mp_baseuniq=str(1) # str(mp_random)
+
 mp_basepath = os.path.join(mp_modeldatapath, mp_directory,mp_baseuniq)
-mp_checkpoint_filepath = os.path.join(mp_modeldatapath,mp_directory,mp_basepath, mp_project_name)
+
+mp_checkpoint_filepath = posixpath.join(mp_modeldatapath, mp_directory, mp_project_name)
 print("mp_checkpoint_filepath:", mp_checkpoint_filepath)
 # Switch directories for testing if in test mode
 if mp_test:
@@ -400,9 +442,7 @@ mt = CMdtuner(
     step=mp_param_steps,
     multiactivate=mp_multiactivate
 )
-
-
-      
+    
 # Run the tuner to find the best model configuration
 print("Running Main call to tuner")
 best_model = mt.tuner.get_best_models()
@@ -454,7 +494,6 @@ target_scaler.fit(mv_y_train.values.reshape(-1, 1))
 mv_y_test_reshaped = mv_y_test.values.reshape(-1, 1)  # Reshape to match the scaler's input shape
 real_fx_price = target_scaler.inverse_transform(mv_y_test_reshaped)  # Inverse transform to get actual prices
 
-#print(real_fx_price)
 
 # Evaluation and visualization
 #Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values. 
