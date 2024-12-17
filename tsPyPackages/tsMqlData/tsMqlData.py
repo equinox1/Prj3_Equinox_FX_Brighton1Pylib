@@ -38,8 +38,8 @@ class CMqldatasetup:
         self.mp_command = kwargs.get('mp_command', None)
         self.mp_path = kwargs.get('mp_path', None)
         self.mp_filename = kwargs.get('mp_filename', None)
-        self.mp_seconds = kwargs.get('mp_seconds', None)
-        self.mp_unit = kwargs.get('mp_unit', None)
+        self.mp_seconds = kwargs.get('mp_seconds', 60)
+        self.mp_unit = kwargs.get('mp_unit', 's')
         self.lp_year = kwargs.get('lp_year', '2023')
         self.lp_month = kwargs.get('lp_month', '01')
         self.lp_day = kwargs.get('lp_day', '01')
@@ -69,72 +69,141 @@ class CMqldatasetup:
     # class: cmqldatasetup      
     # usage: mql data
     # /param  var                          
-    def run_load_from_mql(self, lp_loadapiticks ,lp_loadapirates,lp_loadfileticks,lp_loadfilerates, lp_rates1,lp_rates2, lp_utc_from, lp_symbol, lp_rows, lp_rowcount, lp_command, lp_path, lp_filename1,lp_filename2,lp_timeframe):
-        # request 100 000 eurusd ticks starting from lp_year, lp_month, lp_day in utc time zone
+    def run_load_from_mql(self, lp_loadapiticks, lp_loadapirates, lp_loadfileticks, lp_loadfilerates, lp_rates1, lp_rates2, lp_utc_from, lp_symbol, lp_rows, lp_rowcount, lp_command, lp_path, lp_filename1, lp_filename2, lp_timeframe):
         
+        #Reset the dataframes
         lp_rates1 = pd.DataFrame()
         lp_rates1 = lp_rates1.drop(index=lp_rates1.index)
         lp_rates2 = pd.DataFrame()
         lp_rates2 = lp_rates2.drop(index=lp_rates2.index)
         lp_rates3 = pd.DataFrame()
         lp_rates3 = lp_rates3.drop(index=lp_rates3.index)
-
+        lp_rates4 = pd.DataFrame()
+        lp_rates4 = lp_rates4.drop(index=lp_rates4.index)
+        print("mp_unit", self.mp_unit, "mp_seconds", self.mp_seconds)
         if lp_loadapiticks:
             try:
-                #copy_ticks_from(
-                #symbol,       // symbol name
-                #date_from,    // date the ticks are requested from
-                #count,        // number of requested ticks
-                #flags         // combination of flags defining the type of requested ticks
-                #)
+                print("Running Tick load from Mql")
+                print("===========================")
+                print("lp_utc_from", lp_utc_from)
+                print("lp_rows", lp_rows)
+                print("lp_symbol", lp_symbol)
+                print("lp_command", lp_command)
                 lp_rates1 = mt5.copy_ticks_from(lp_symbol, lp_utc_from, lp_rows, lp_command)
                 lp_rates1 = pd.DataFrame(lp_rates1)
-                print(" Api tick data received:", len(lp_rates1))
+                # Wrangle timestamp and date
+                lp_rates1 = self.wrangle_time(lp_rates1, self.lp_seconds, self.lp_unit)
+
                 if lp_rates1 is None or len(lp_rates1) == 0:
                     print("1:No tick data found")  
+                else:
+                    print("Api tick data received:", len(lp_rates1))
             except Exception as e:
                 e = mt5.last_error()
-                print(f"Mt5 result: {e}")
+                print(f"Mt5 api ticks exception: {e}")
 
         if lp_loadapirates:
             try:
-                #copy_rates_from(
-                #symbol,       // symbol name
-                #timeframe,    // timeframe
-                #date_from,    // initial bar open date
-                #count         // number of bars
-                #)
+                print("Running Rates load from Mql")
+                print("===========================")
+                print("lp_symbol", lp_symbol)
+                print("lp_timeframe", lp_timeframe)
+                print("lp_utc_from", lp_utc_from)
+                print("lp_rows", lp_rows)
                 lp_rates2 = mt5.copy_rates_from(lp_symbol,lp_timeframe ,lp_utc_from, lp_rows)
                 lp_rates2 = pd.DataFrame(lp_rates2)
-                print(" Api rates data received:", len(lp_rates2))
+                # Wrangle timestamp and date
+                lp_rates2=self.wrangle_time(lp_rates2, self.lp_seconds, self.lp_unit)
+
                 if lp_rates2 is None or len(lp_rates2) == 0:
                     print("1:No rate data found")  
+                else:
+                    print("Api rates data received:", len(lp_rates2))   
             except Exception as e:
                 e = mt5.last_error()
-                print(f"Mt5 result: {e}")
+                print(f"Mt5 api rates exception: {e}")
 
         if lp_loadfileticks:    
             lpmergepath = lp_path + "//" + lp_filename1
-            
             try:
                 lp_rates3 = pd.read_csv(lpmergepath, sep=',', nrows=lp_rowcount)
-                print("File tick data received:", len(lp_rates3))
+                # Wrangle timestamp and date
+                lp_rates3=wrangle_time(lp_rates3, self.lp_seconds, self.lp_unit)
+
+                if lp_rates3 is None or len(lp_rates3) == 0:
+                    print("1:No tick data found")
+                else:
+                    print("File tick data received:", len(lp_rates3))
             except Exception as e:
                 e = mt5.last_error()
-                print(f"Fileload result: {e}")
+                print(f"Fileload Tick exception: {e}")
 
         if lp_loadfilerates:    
             lpmergepath = lp_path + "//" + lp_filename2
             
             try:
                 lp_rates4 = pd.read_csv(lpmergepath, sep=',', nrows=lp_rowcount)
-                print("File rates data received:", len(lp_rates4))
+                # Wrangle timestamp and date
+                lp_rates4=wrangle_time(lp_rates4, self.lp_seconds, self.lp_unit)
+                if lp_rates4 is None or len(lp_rates4) == 0:
+                    print("1:No rate data found")
+                else:
+                    print("File rate data received:", len(lp_rates4))
             except Exception as e:
                 e = mt5.last_error()
-                print(f"Fileload result: {e}")
+                print(f"Fileload rates exception: {e}")
 
         return lp_rates1 , lp_rates2, lp_rates3, lp_rates4
 
+
+    # create method  "wrangletime".
+    # class: cmqldatasetup      
+    # usage: mql data
+    # /param  var                          
+    def wrangle_time(self, lp_df, lp_seconds, lp_unit):
+        print("Running the Wrangle method")
+        # Wrangle timestamp and date for tick data
+        columns_to_rename = {
+            'T1_Date': 'time',
+            'T2_Date': 'Date',
+            'T2_Timestamp': 'Timestamp',
+            'T1_Bid Price': 'bid',
+            'T2_Bid Price': 'Bid Price',
+            'T1_Ask Price': 'ask',
+            'T2_Ask Price': 'Ask Price',
+            'T1_Last Price': 'last',
+            'T2_Last Price': 'Last Price',
+            'T1_Volume Real': 'volume_real',
+            'T2_Volume': 'Volume',
+            'T_Flags': 'time_msc',
+            'R1_Date': 'time',
+            'R1_Open': 'open',
+            'R1_High': 'high',
+            'R1_Low': 'low',
+            'R1_Close': 'close',
+            'R1_Tick Volume': 'tick_volume',
+            'R1_Spread': 'spread',
+            'R1_Real Volume': 'real_volume',
+            'R2_Date': 'time',
+            'R2_Open': 'open',
+            'R2_High': 'high',
+            'R2_Low': 'low',
+            'R2_Close': 'close',
+            'R2_Tick Volume': 'tick_volume',
+            'R2_Spread': 'spread',
+            'R2_Real Volume': 'real_volume'
+        }
+
+        for old_col, new_col in columns_to_rename.items():
+            if old_col in lp_df.columns:
+                lp_df.rename(columns={old_col: new_col}, inplace=True)
+
+        if 'ask' in lp_df.columns and 'bid' in lp_df.columns:
+            lp_df['T1_Close'] = (lp_df['ask'] + lp_df['bid']) / 2
+        if 'Ask Price' in lp_df.columns and 'Bid Price' in lp_df.columns:
+            lp_df['T2_Close'] = (lp_df['Ask Price'] + lp_df['Bid Price']) / 2
+
+        return lp_df
 
     # create method  "run_shift_data1()".
     # class: cmqldatasetup      
