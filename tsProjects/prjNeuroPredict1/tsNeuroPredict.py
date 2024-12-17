@@ -92,7 +92,7 @@ TIMEVALUE = {
     'YEARS': 365 * 24 * 60 * 60
 }
 MINUTES = TIMEVALUE['MINUTES']
-TIMEFRAME= [mt5.TIMEFRAME_M1, mt5.TIMEFRAME_M5, mt5.TIMEFRAME_M15, mt5.TIMEFRAME_M30, mt5.TIMEFRAME_H1, mt5.TIMEFRAME_H4, mt5.TIMEFRAME_D1, mt5.TIMEFRAME_W1, mt5.TIMEFRAME_MN1]
+TIMEFRAME= ['mt5.TIMEFRAME_M1',' mt5.TIMEFRAME_M5', 'mt5.TIMEFRAME_M15', 'mt5.TIMEFRAME_M30', 'mt5.TIMEFRAME_H1', 'mt5.TIMEFRAME_H4', 'mt5.TIMEFRAME_D1', 'mt5.TIMEFRAME_W1', 'mt5.TIMEFRAME_MN1']
 UNIT = ['s', 'm', 'h', 'd', 'w', 'm']
 DATATYPE = ['TICKS', 'MINUTES', 'HOURS', 'DAYS', 'WEEKS', 'MONTHS']
 SYMBOLS = ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD", "EURJPY", "EURGBP", "EURCHF", "EURCAD", "EURAUD", "EURNZD", "GBPJPY", "GBPAUD", "GBPNZD", "GBPCAD", "GBPCHF", "AUDJPY", "AUDNZD", "AUDCAD", "AUDCHF", "NZDJPY", "NZDCAD", "NZDCHF", "CADJPY", "CADCHF", "CHFJPY"]
@@ -109,6 +109,8 @@ mp_day = datetime.now().day
 mp_month = datetime.now().month
 mp_timezone = TIMEZONES[0]
 mp_timeframe = TIMEFRAME[1]
+print("1:mp_timeframe: ",mp_timeframe)
+mp_timeframe = str(TIMEFRAME[1])
 mp_history_size = 5 # Number of years of data to fetch
 ####################################################################
 # LOGIN PARAMS
@@ -240,29 +242,33 @@ mv_y_tdata2b = mv_tdata1apirates.copy()  # Copy the data for further processing
 mv_X_tdata2c = mv_tdata1loadticks.copy()  # Copy the data for further processing
 mv_y_tdata2c = mv_tdata1loadticks.copy()  # Copy the data for further processing
 
-mv_X_tdata2d = mv_tdata1loadrates.copy()  # Copy the data for further processing
-mv_y_tdata2d = mv_tdata1loadrates.copy()  # Copy the data for further processing
+mv_X_tdata2d = None  # Initialize to None
+mv_y_tdata2d = None  # Initialize to None
 
 # Check the switch of which file to use
 if mv_usedata == 'loadapiticks':
-    print("Using API data")
+    print("Using API Tick data")
     mv_X_tdata2 = mv_X_tdata2a
     mv_y_tdata2 = mv_y_tdata2a
 
-if mv_usedata == 'loadapirates':
-    print("Using API data")
+elif mv_usedata == 'loadapirates':
+    print("Using API Rates data")
     mv_X_tdata2 = mv_X_tdata2b
     mv_y_tdata2 = mv_y_tdata2b
 
-if mv_usedata == 'loadfileticks':
-    print("Using File data")
+elif mv_usedata == 'loadfileticks':
+    print("Using File Tick data")
     mv_X_tdata2 = mv_X_tdata2c
     mv_y_tdata2 = mv_y_tdata2c
 
-if mv_usedata == 'loadfilerates':
-    print("Using File data")
+elif mv_usedata == 'loadfilerates':
+    print("Using File Rates data")
     mv_X_tdata2 = mv_X_tdata2d
     mv_y_tdata2 = mv_y_tdata2d
+
+# Ensure mv_X_tdata2 and mv_y_tdata2 are set correctly
+if mv_X_tdata2 is None or mv_y_tdata2 is None:
+    raise ValueError("Invalid mv_usedata value. Data not loaded properly.")
 
 
 # +-------------------------------------------------------------------
@@ -304,14 +310,14 @@ mp_run_single_input_model = True
 mp_run_single_input_submodels = False # not implemented yet     
 
 # define inputshapes
-mp_single_input_shape = mp_X_train_input_shape[1],
+mp_single_input_shape = mp_X_train_input_shape[1]
 mp_lstm_input_shape = mp_X_train_input_shape[1]
 mp_cnn_input_shape = mp_X_train_input_shape[1]
 mp_gru_input_shape = mp_X_train_input_shape[1]
 mp_transformer_input_shape = mp_X_train_input_shape[1]
 
 # define features
-mp_null=None
+mp_null = None
 mp_single_features = 1
 mp_lstm_features = 1
 mp_cnn_features = 1
@@ -385,6 +391,7 @@ print("Running tuner3 with mp_X_train_input_scaled input shape:", mv_X_train.sha
 mp_inputs = Input(shape=(mv_X_train.shape[1],1) ) 
 print("Running tuner4 with mp_X_train_input_scaled input shape:", mp_inputs)
 
+"""
 # Create an instance of the tuner class
 print("Creating an instance of the tuner class")
 mt = CMdtuner(
@@ -448,6 +455,7 @@ print("Running Main call to tuner")
 best_model = mt.tuner.get_best_models()
 best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
 best_model[0].summary()
+
 
 # +-------------------------------------------------------------------
 # Scale the data
@@ -548,3 +556,5 @@ checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
 plt.show()
+
+"""
