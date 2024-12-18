@@ -20,6 +20,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import keyring as kr
 from tabulate import tabulate
 from datetime import datetime, date
+import pytz
 # +-------------------------------------------------------------------
 # Import MetaTrader 5 (MT5) and other necessary packages
 # +-------------------------------------------------------------------
@@ -77,7 +78,7 @@ mv_loadfileticks = True
 mv_loadfilerates = True
 mv_usedata = 'loadfileticks' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
 
-mp_rows = 100000
+mp_rows = 1000
 mp_rowcount = 100000
 MAINBROKER = "METAQUOTES" # "ICM" or "METAQUOTES"
 MPDATAFILE1 =  "tickdata1.csv"
@@ -92,7 +93,7 @@ TIMEVALUE = {
     'YEARS': 365 * 24 * 60 * 60
 }
 MINUTES = TIMEVALUE['MINUTES']
-TIMEFRAME= ['mt5.TIMEFRAME_M1',' mt5.TIMEFRAME_M5', 'mt5.TIMEFRAME_M15', 'mt5.TIMEFRAME_M30', 'mt5.TIMEFRAME_H1', 'mt5.TIMEFRAME_H4', 'mt5.TIMEFRAME_D1', 'mt5.TIMEFRAME_W1', 'mt5.TIMEFRAME_MN1']
+TIMEFRAME= [mt5.TIMEFRAME_M1, mt5.TIMEFRAME_M5, mt5.TIMEFRAME_M15, mt5.TIMEFRAME_M30, mt5.TIMEFRAME_H1, mt5.TIMEFRAME_H4, mt5.TIMEFRAME_D1,mt5.TIMEFRAME_W1, mt5.TIMEFRAME_MN1]
 UNIT = ['s', 'm', 'h', 'd', 'w', 'm']
 DATATYPE = ['TICKS', 'MINUTES', 'HOURS', 'DAYS', 'WEEKS', 'MONTHS']
 SYMBOLS = ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD", "EURJPY", "EURGBP", "EURCHF", "EURCAD", "EURAUD", "EURNZD", "GBPJPY", "GBPAUD", "GBPNZD", "GBPCAD", "GBPCHF", "AUDJPY", "AUDNZD", "AUDCAD", "AUDCHF", "NZDJPY", "NZDCAD", "NZDCHF", "CADJPY", "CADCHF", "CHFJPY"]
@@ -108,9 +109,9 @@ mp_year = datetime.now().year
 mp_day = datetime.now().day
 mp_month = datetime.now().month
 mp_timezone = TIMEZONES[0]
-mp_timeframe = TIMEFRAME[1]
+mp_timeframe = TIMEFRAME[5]
 print("1:mp_timeframe: ",mp_timeframe)
-mp_timeframe = str(TIMEFRAME[1])
+#mp_timeframe = str(TIMEFRAME[0])
 mp_history_size = 5 # Number of years of data to fetch
 ####################################################################
 # LOGIN PARAMS
@@ -217,18 +218,18 @@ print(f"mp_path Set to: {MPDATAPATH}")
 print(f"mp_filename1 Set to: {MPFILEVALUE1}")
 print(f"mp_filename2 Set to: {MPFILEVALUE2}")
 
-
 # Load tick data from MQL
 mv_tdata1apiticks ,mv_tdata1apirates, mv_tdata1loadticks,mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks ,mv_loadapirates,mv_loadfileticks,mv_loadfilerates , mp_dfName1,mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1,mp_filename2,mp_timeframe)
 # Display the first few rows of the data for verification
-print("1:Start First few rows of the API Tick data:")
+print("1:Start First few rows of the API Tick data:Count",len(mv_tdata1apiticks))
 print(tabulate(mv_tdata1apiticks.head(3), showindex=False, headers=mv_tdata1apiticks.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print("2:Start First few rows of the API Rates data:")
+print("2:Start First few rows of the API Rates data:Count",len(mv_tdata1apirates))
 print(tabulate(mv_tdata1apirates.head(3), showindex=False, headers=mv_tdata1apirates.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print("3: Start First few rows of the FILE Tick data:")
+print("3: Start First few rows of the FILE Tick data:Count",len(mv_tdata1loadticks))
 print(tabulate(mv_tdata1loadticks.head(3), showindex=False, headers=mv_tdata1loadticks.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print("4: Start First few rows of the FILE Rates data:")
+print("4: Start First few rows of the FILE Rates data:Count",len(mv_tdata1loadrates))
 print(tabulate(mv_tdata1loadrates.head(3), showindex=False, headers=mv_tdata1loadrates.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+
 
 # +-------------------------------------------------------------------
 # Prepare and process the data
@@ -390,6 +391,18 @@ print("Running tuner2 with mp_X_train_input_scaled scaled data: Rows:", mv_X_tra
 print("Running tuner3 with mp_X_train_input_scaled input shape:", mv_X_train.shape)
 mp_inputs = Input(shape=(mv_X_train.shape[1],1) ) 
 print("Running tuner4 with mp_X_train_input_scaled input shape:", mp_inputs)
+
+
+# Display the first few rows of the data for verification
+print("1:Start First few rows of the mv_X_train: Count",len(mv_X_train))
+print(tabulate(mv_X_train.head(3), showindex=False, headers=mv_X_train.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print("2:Start First few rows of mv_y_train: Count",len(mv_y_train))
+print(tabulate(mv_y_train.head(3), showindex=False, headers=mv_y_train.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print("3: Start First few rows of mv_X_test: Count",len(mv_X_test))
+print(tabulate(mv_X_test.head(3), showindex=False, headers=mv_X_test.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print("4: Start First few rows of mv_y_test: Count",len(mv_y_test))
+print(tabulate(mv_y_test.head(3), showindex=False, headers=mv_y_test.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+
 
 """
 # Create an instance of the tuner class
