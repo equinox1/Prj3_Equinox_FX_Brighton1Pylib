@@ -184,8 +184,10 @@ class CMqldatasetup:
             if column in df.columns:
                 try:
                     if fmt:
+                        print(f"Converting {column} to datetime with format {fmt}")
                         df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce') 
                     else:
+                        print(f"Converting {column} to datetime with unit {unit}")
                         df[column] = pd.to_datetime(df[column].astype('int64'), unit=unit, errors='coerce')
                 except Exception as e:
                     print(f"Error converting {column}: {e}")
@@ -232,15 +234,15 @@ class CMqldatasetup:
         }
 
         date_columns = {
-            'ticks1': ('time', '%Y%m%d'),
-            'rates1': ('time', '%Y%m%d'),
-            'ticks2': ('Date', '%Y%m%d'),
-            'rates2': ('Date', '%Y%m%d'),
+            'ticks1': ('time',lp_unit, '%Y%m%d'),
+            'rates1': ('time',lp_unit, '%Y%m%d'),
+            'ticks2': ('Date',lp_unit, '%Y%m%d'),
+            'rates2': ('Date',lp_unit, '%Y%m%d'),
         }
 
         time_columns = {
-            'ticks2': ('Timestamp', '%H:%M:%S'),
-            'rates2': ('Timestamp', '%H:%M:%S'),
+            'ticks2': ('Timestamp','ms', '%H:%M:%S'),
+            'rates2': ('Timestamp','ms,' '%H:%M:%S'),
              }
 
         if lp_filesrc in mappings:

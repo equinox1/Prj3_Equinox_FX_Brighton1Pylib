@@ -43,11 +43,9 @@ import logging
 
 from tsMqlConnect import CMqlinit
 from tsMqlData import CMqldatasetup
-from tsMqlData import DataSource
 from tsMqlML import CMqlmlsetup
 from tsMqlMLTune import CMdtuner
 
-from tsMqlData import wrangle_time, DATA_SOURCES
 
 # +-------------------------------------------------------------------
 # Import TensorFlow for machine learning
