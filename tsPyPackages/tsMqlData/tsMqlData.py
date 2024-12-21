@@ -73,13 +73,9 @@ class CMqldatasetup:
         
         #Reset the dataframes
         lp_rates1 = pd.DataFrame()
-        lp_rates1 = lp_rates1.drop(index=lp_rates1.index)
         lp_rates2 = pd.DataFrame()
-        lp_rates2 = lp_rates2.drop(index=lp_rates2.index)
         lp_rates3 = pd.DataFrame()
-        lp_rates3 = lp_rates3.drop(index=lp_rates3.index)
         lp_rates4 = pd.DataFrame()
-        lp_rates4 = lp_rates4.drop(index=lp_rates4.index)
         print("mp_unit", self.mp_unit, "mp_seconds", self.mp_seconds)
         if lp_loadapiticks:
             try:
@@ -91,15 +87,12 @@ class CMqldatasetup:
                 print("lp_command", lp_command)
                 lp_rates1 = mt5.copy_ticks_from(lp_symbol, lp_utc_from, lp_rows, lp_command)
                 lp_rates1 = pd.DataFrame(lp_rates1)
-                # Wrangle timestamp and date
-                lp_rates1 = self.wrangle_time(lp_rates1, self.lp_seconds, self.lp_unit)
-
-                if lp_rates1 is None or len(lp_rates1) == 0:
+                
+                if lp_rates1.empty:
                     print("1:No tick data found")  
                 else:
                     print("Api tick data received:", len(lp_rates1))
             except Exception as e:
-                e = mt5.last_error()
                 print(f"Mt5 api ticks exception: {e}")
 
         if lp_loadapirates:
@@ -112,30 +105,24 @@ class CMqldatasetup:
                 print("lp_rows", lp_rows)
                 lp_rates2 = mt5.copy_rates_from(lp_symbol,lp_timeframe ,lp_utc_from, lp_rows)
                 lp_rates2 = pd.DataFrame(lp_rates2)
-                # Wrangle timestamp and date
-                lp_rates2=self.wrangle_time(lp_rates2, self.lp_seconds, self.lp_unit)
-
-                if lp_rates2 is None or len(lp_rates2) == 0:
+                
+                if lp_rates2.empty:
                     print("1:No rate data found")  
                 else:
                     print("Api rates data received:", len(lp_rates2))   
             except Exception as e:
-                e = mt5.last_error()
                 print(f"Mt5 api rates exception: {e}")
 
         if lp_loadfileticks:    
             lpmergepath = lp_path + "//" + lp_filename1
             try:
                 lp_rates3 = pd.read_csv(lpmergepath, sep=',', nrows=lp_rowcount)
-                # Wrangle timestamp and date
-                lp_rates3=wrangle_time(lp_rates3, self.lp_seconds, self.lp_unit)
-
-                if lp_rates3 is None or len(lp_rates3) == 0:
+               
+                if lp_rates3.empty:
                     print("1:No tick data found")
                 else:
                     print("File tick data received:", len(lp_rates3))
             except Exception as e:
-                e = mt5.last_error()
                 print(f"Fileload Tick exception: {e}")
 
         if lp_loadfilerates:    
@@ -143,65 +130,129 @@ class CMqldatasetup:
             
             try:
                 lp_rates4 = pd.read_csv(lpmergepath, sep=',', nrows=lp_rowcount)
-                # Wrangle timestamp and date
-                lp_rates4=wrangle_time(lp_rates4, self.lp_seconds, self.lp_unit)
-                if lp_rates4 is None or len(lp_rates4) == 0:
+                if lp_rates4.empty:
                     print("1:No rate data found")
                 else:
                     print("File rate data received:", len(lp_rates4))
             except Exception as e:
-                e = mt5.last_error()
                 print(f"Fileload rates exception: {e}")
 
         return lp_rates1 , lp_rates2, lp_rates3, lp_rates4
 
 
-    # create method  "wrangletime".
-    # class: cmqldatasetup      
-    # usage: mql data
-    # /param  var                          
-    def wrangle_time(self, lp_df, lp_seconds, lp_unit):
-        print("Running the Wrangle method")
-        # Wrangle timestamp and date for tick data
-        columns_to_rename = {
-            'T1_Date': 'time',
-            'T2_Date': 'Date',
-            'T2_Timestamp': 'Timestamp',
-            'T1_Bid Price': 'bid',
-            'T2_Bid Price': 'Bid Price',
-            'T1_Ask Price': 'ask',
-            'T2_Ask Price': 'Ask Price',
-            'T1_Last Price': 'last',
-            'T2_Last Price': 'Last Price',
-            'T1_Volume Real': 'volume_real',
-            'T2_Volume': 'Volume',
-            'T_Flags': 'time_msc',
-            'R1_Date': 'time',
-            'R1_Open': 'open',
-            'R1_High': 'high',
-            'R1_Low': 'low',
-            'R1_Close': 'close',
-            'R1_Tick Volume': 'tick_volume',
-            'R1_Spread': 'spread',
-            'R1_Real Volume': 'real_volume',
-            'R2_Date': 'time',
-            'R2_Open': 'open',
-            'R2_High': 'high',
-            'R2_Low': 'low',
-            'R2_Close': 'close',
-            'R2_Tick Volume': 'tick_volume',
-            'R2_Spread': 'spread',
-            'R2_Real Volume': 'real_volume'
+    def wrangle_time(self, lp_df, lp_seconds, lp_unit, lp_filesrc):
+        """
+        Processes data from various sources by renaming columns, handling datetime conversions, 
+        and performing data cleaning. 
+
+        Parameters:
+            lp_df (DataFrame): Input data.
+            lp_seconds (int): Time in seconds (unused in the current logic).
+            lp_unit (str): Unit of time for conversion (e.g., 's', 'ms').
+            lp_filesrc (str): Data source identifier (e.g., 'ticks1', 'rates1').
+
+        Returns:
+            DataFrame: Cleaned and transformed data.
+        """
+        def rename_columns(df, mapping):
+            valid_renames = {old: new for old, new in mapping.items() if old in df.columns}
+            df.rename(columns=valid_renames, inplace=True)
+            print(f"Renamed columns: {valid_renames}")
+
+        def convert_datetime(df, column, unit=None, fmt=None):
+            """
+            Converts a column to datetime format.
+
+            The fmt parameter follows a specific set of directives to indicate how the
+            date and time components are arranged in the string.
+
+            Common directives include:
+            %Y: Year with century (e.g., 2023)
+            %m: Month as zero-padded number (01-12)
+            %d: Day of the month as zero-padded number (01-31)
+            %H: Hour (24-hour clock) as zero-padded number (00-23)
+            %M: Minute as zero-padded number (00-59)
+            %S: Second as zero-padded number (00-59)
+            %y: Year without century (00-99)
+
+            Args:
+                df (DataFrame): The DataFrame containing the column to convert.
+                column (str): The name of the column to convert.
+                unit (str, optional): The unit of the time for conversion. Defaults to None.
+                fmt (str, optional): The format string for datetime conversion. Defaults to None.
+            """
+            if column in df.columns:
+                try:
+                    if fmt:
+                        df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce') 
+                    else:
+                        df[column] = pd.to_datetime(df[column].astype('int64'), unit=unit, errors='coerce')
+                except Exception as e:
+                    print(f"Error converting {column}: {e}")
+
+        mappings = {
+            'ticks1': {
+                'time': 'T1_Date',
+                'bid': 'T1_Bid Price',
+                'ask': 'T1_Ask Price',
+                'last': 'T1_Last Price',
+                'volume': 'T1_Volume',
+                'time_msc': 'T1_Time_Msc',
+                'flags': 'T1_Flags',
+                'volume_real': 'T1_Real Volume'
+            },
+            'rates1': {
+                'time': 'R1_Date',
+                'open': 'R1_Open',
+                'high': 'R1_High',
+                'low': 'R1_Low',
+                'close': 'R1_Close',
+                'tick_volume': 'R1_Tick Volume',
+                'spread': 'R1_spread',
+                'real_volume': 'R1_Real Volume'
+            },
+            'ticks2': {
+                'Date': 'T2_Date',
+                'Timestamp': 'T2_Timestamp',
+                'Bid Price': 'T2_Bid Price',
+                'Ask Price': 'T2_Ask Price',
+                'Last Price': 'Last Price',
+                'Volume': 'T2_Volume'
+            },
+            'rates2': {
+                'Date': 'R2_Date',
+                'Timestamp': 'R2_Timestamp',
+                'Open': 'R2_Open',
+                'High': 'R2_High',
+                'Low': 'R2_Low',
+                'Close': 'R2_Close',
+                'tick_volume': 'R2_Tick Volume',
+                'Volume': 'R2_Volume'
+            }
         }
 
-        for old_col, new_col in columns_to_rename.items():
-            if old_col in lp_df.columns:
-                lp_df.rename(columns={old_col: new_col}, inplace=True)
+        date_columns = {
+            'ticks1': ('time', '%Y%m%d'),
+            'rates1': ('time', '%Y%m%d'),
+            'ticks2': ('Date', '%Y%m%d'),
+            'rates2': ('Date', '%Y%m%d'),
+        }
 
-        if 'ask' in lp_df.columns and 'bid' in lp_df.columns:
-            lp_df['T1_Close'] = (lp_df['ask'] + lp_df['bid']) / 2
-        if 'Ask Price' in lp_df.columns and 'Bid Price' in lp_df.columns:
-            lp_df['T2_Close'] = (lp_df['Ask Price'] + lp_df['Bid Price']) / 2
+        time_columns = {
+            'ticks2': ('Timestamp', '%H:%M:%S'),
+            'rates2': ('Timestamp', '%H:%M:%S'),
+             }
+
+        if lp_filesrc in mappings:
+            rename_columns(lp_df, mappings[lp_filesrc])
+
+            if lp_filesrc in date_columns:
+                convert_datetime(lp_df, *date_columns[lp_filesrc])
+
+            if lp_filesrc in time_columns:
+                convert_datetime(lp_df, *time_columns[lp_filesrc])
+
+            lp_df.dropna(inplace=True)
 
         return lp_df
 
@@ -216,7 +267,7 @@ class CMqldatasetup:
         lp_df['time'] = pd.to_datetime(lp_df['time'], unit=lp_unit)
         lp_df['close'] = (lp_df['ask'] + lp_df['bid']) / 2
         lv_empty_rows = pd.DataFrame(np.nan, index=range(lv_number_of_rows), columns=lp_df.columns)
-        lp_df = lp_df._append(lv_empty_rows, ignore_index=True)
+        lp_df = pd.concat([lp_df, lv_empty_rows], ignore_index=True)
         lp_df['target'] = lp_df['close'].shift(-lv_seconds)
         lp_df = lp_df.dropna()
         lp_df.style.set_properties(**{'text-align': 'left'})
