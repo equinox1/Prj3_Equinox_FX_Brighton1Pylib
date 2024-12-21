@@ -227,10 +227,10 @@ print(f"mp_filename2 Set to: {MPFILEVALUE2}")
 mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks, mv_loadapirates, mv_loadfileticks, mv_loadfilerates, mp_dfName1, mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1, mp_filename2, mp_timeframe)
 
 
-d1.wrangle_time( mv_tdata1apiticks, mp_seconds, mp_unit,"ticks1")
-d1.wrangle_time( mv_tdata1apirates, mp_seconds, mp_unit,"rates1")
-d1.wrangle_time( mv_tdata1loadticks, mp_seconds, mp_unit,"ticks2")
-d1.wrangle_time( mv_tdata1loadrates, mp_seconds, mp_unit,"rates2")
+d1.wrangle_time( mv_tdata1apiticks,  mp_unit,"ticks1")
+d1.wrangle_time( mv_tdata1apirates,  mp_unit,"rates1")
+d1.wrangle_time( mv_tdata1loadticks, mp_unit,"ticks2")
+d1.wrangle_time( mv_tdata1loadrates, mp_unit,"rates2")
 
 print("1: dtypes of the dataframes")
 print(mv_tdata1apiticks.dtypes)  # Check the data types of the columns
