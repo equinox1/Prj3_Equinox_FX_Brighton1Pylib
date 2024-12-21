@@ -241,7 +241,6 @@ print(mv_tdata1loadticks.dtypes)  # Check the data types of the columns
 print("4: dtypes of the dataframes")
 print(mv_tdata1loadrates.dtypes)  # Check the data types of the columns
 
-
 # Display the first few rows of the data for verification
 hrows=10
 print("1:Start First few rows of the API Tick data:Count",len(mv_tdata1apiticks))
