@@ -37,11 +37,17 @@ from sklearn.metrics import r2_score
 from sklearn.preprocessing import StandardScaler
 scaler = StandardScaler()
 # Import custom modules for MT5 and AI-related functionality
+from dataclasses import dataclass
+from datetime import datetime
+import logging
 
 from tsMqlConnect import CMqlinit
 from tsMqlData import CMqldatasetup
+from tsMqlData import DataSource
 from tsMqlML import CMqlmlsetup
 from tsMqlMLTune import CMdtuner
+
+from tsMqlData import wrangle_time, DATA_SOURCES
 
 # +-------------------------------------------------------------------
 # Import TensorFlow for machine learning
@@ -104,6 +110,7 @@ mp_symbol_primary = SYMBOLS[0]
 mp_symbol_secondary = SYMBOLS[1]
 mp_shiftvalue = MINUTES #  e.g Shift the data by 60 second interval
 mp_unit = UNIT[0] # unit value passed to mql5 loader
+mp_seconds = TIMEVALUE['MINUTES'] # 60 seconds
 
 mp_year = datetime.now().year
 mp_day = datetime.now().day
@@ -219,18 +226,36 @@ print(f"mp_filename1 Set to: {MPFILEVALUE1}")
 print(f"mp_filename2 Set to: {MPFILEVALUE2}")
 
 # Load tick data from MQL
-mv_tdata1apiticks ,mv_tdata1apirates, mv_tdata1loadticks,mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks ,mv_loadapirates,mv_loadfileticks,mv_loadfilerates , mp_dfName1,mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1,mp_filename2,mp_timeframe)
+mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks, mv_loadapirates, mv_loadfileticks, mv_loadfilerates, mp_dfName1, mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1, mp_filename2, mp_timeframe)
+
+
+d1.wrangle_time( mv_tdata1apiticks, mp_seconds, mp_unit,"ticks1")
+d1.wrangle_time( mv_tdata1apirates, mp_seconds, mp_unit,"rates1")
+d1.wrangle_time( mv_tdata1loadticks, mp_seconds, mp_unit,"ticks2")
+d1.wrangle_time( mv_tdata1loadrates, mp_seconds, mp_unit,"rates2")
+
+print("1: dtypes of the dataframes")
+print(mv_tdata1apiticks.dtypes)  # Check the data types of the columns
+print("2: dtypes of the dataframes")
+print(mv_tdata1apirates.dtypes)  # Check the data types of the columns
+print("3: dtypes of the dataframes")
+print(mv_tdata1loadticks.dtypes)  # Check the data types of the columns
+print("4: dtypes of the dataframes")
+print(mv_tdata1loadrates.dtypes)  # Check the data types of the columns
+
+
 # Display the first few rows of the data for verification
+hrows=10
 print("1:Start First few rows of the API Tick data:Count",len(mv_tdata1apiticks))
-print(tabulate(mv_tdata1apiticks.head(3), showindex=False, headers=mv_tdata1apiticks.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print(tabulate(mv_tdata1apiticks.head(hrows), showindex=False, headers=mv_tdata1apiticks.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 print("2:Start First few rows of the API Rates data:Count",len(mv_tdata1apirates))
-print(tabulate(mv_tdata1apirates.head(3), showindex=False, headers=mv_tdata1apirates.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print(tabulate(mv_tdata1apirates.head(hrows), showindex=False, headers=mv_tdata1apirates.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 print("3: Start First few rows of the FILE Tick data:Count",len(mv_tdata1loadticks))
-print(tabulate(mv_tdata1loadticks.head(3), showindex=False, headers=mv_tdata1loadticks.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print(tabulate(mv_tdata1loadticks.head(hrows), showindex=False, headers=mv_tdata1loadticks.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 print("4: Start First few rows of the FILE Rates data:Count",len(mv_tdata1loadrates))
-print(tabulate(mv_tdata1loadrates.head(3), showindex=False, headers=mv_tdata1loadrates.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+print(tabulate(mv_tdata1loadrates.head(hrows), showindex=False, headers=mv_tdata1loadrates.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 
-
+"""
 # +-------------------------------------------------------------------
 # Prepare and process the data
 # +-------------------------------------------------------------------
@@ -404,7 +429,8 @@ print("4: Start First few rows of mv_y_test: Count",len(mv_y_test))
 print(tabulate(mv_y_test.head(3), showindex=False, headers=mv_y_test.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 
 
-"""
+
+
 # Create an instance of the tuner class
 print("Creating an instance of the tuner class")
 mt = CMdtuner(
@@ -468,7 +494,6 @@ print("Running Main call to tuner")
 best_model = mt.tuner.get_best_models()
 best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
 best_model[0].summary()
-
 
 # +-------------------------------------------------------------------
 # Scale the data
@@ -569,5 +594,4 @@ checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
 plt.show()
-
 """
