@@ -141,54 +141,23 @@ class CMqldatasetup:
 
 
     def wrangle_time(self, lp_df, lp_unit, lp_filesrc):
-        """
-        Processes data from various sources by renaming columns, handling datetime conversions, 
-        and performing data cleaning. 
-
-        Parameters:
-            lp_df (DataFrame): Input data.
-            lp_unit (str): Unit of time for conversion (e.g., 's', 'ms').
-            lp_filesrc (str): Data source identifier (e.g., 'ticks1', 'rates1').
-
-        Returns:
-            DataFrame: Cleaned and transformed data.
-        """
         def rename_columns(df, mapping):
             valid_renames = {old: new for old, new in mapping.items() if old in df.columns}
             df.rename(columns=valid_renames, inplace=True)
             print(f"Renamed columns: {valid_renames}")
 
         def convert_datetime(df, column, unit='s', fmt=None):
-            """
-            Converts a column to datetime format.
-
-            The fmt parameter follows a specific set of directives to indicate how the
-            date and time components are arranged in the string.
-
-            Common directives include:
-            %Y: Year with century (e.g., 2023)
-            %m: Month as zero-padded number (01-12)
-            %d: Day of the month as zero-padded number (01-31)
-            %H: Hour (24-hour clock) as zero-padded number (00-23)
-            %M: Minute as zero-padded number (00-59)
-            %S: Second as zero-padded number (00-59)
-            %y: Year without century (00-99)
-
-            Args:
-                df (DataFrame): The DataFrame containing the column to convert.
-                column (str): The name of the column to convert.
-                unit (str, optional): The unit of the time for conversion. Defaults to None.
-                fmt (str, optional): The format string for datetime conversion. Defaults to None.
-            """
             print(f"Converting {column} to datetime")
             if column in df.columns:
                 try:
                     if fmt:
                         print(f"Converting {column} to datetime with format {fmt}")
-                        df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce') 
+                        df[column] = pd.to_datetime(df[column], unit=unit,format=fmt, errors='coerce')
                     else:
                         print(f"Converting {column} to datetime with unit {unit}")
-                        df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce')
+                        df[column] = pd.to_datetime(df[column], unit=unit,format=fmt, errors='coerce')
+                    print(f"Conversion successful for {column}:")
+                    print(df[column].head())  # Print the first few rows to verify conversion
                 except Exception as e:
                     print(f"Error converting {column}: {e}")
 
@@ -250,38 +219,41 @@ class CMqldatasetup:
             
             if lp_filesrc in date_columns:
                 column, fmt = date_columns[lp_filesrc]
-                convert_datetime(lp_df, column,unit=self.mp_unit, fmt=fmt)
+                #convert_datetime(lp_df, column, unit='s', fmt=fmt)
+                convert_datetime(lp_df, column, unit='s')
 
             if lp_filesrc in time_columns:
                 column, fmt = time_columns[lp_filesrc]
-                convert_datetime(lp_df, column,unit='ms', fmt=fmt)
+                #convert_datetime(lp_df, column, unit='ms', fmt=fmt)
+                convert_datetime(lp_df, column, unit='ms')
 
             rename_columns(lp_df, mappings[lp_filesrc])
-
+            
             # Handle missing values
-            #lp_df.fillna(method='ffill', inplace=True)  # Forward fill
-            #lp_df.fillna(method='bfill', inplace=True)  # Backward fill
+            lp_df.fillna(method='ffill', inplace=True)  # Forward fill
+            lp_df.fillna(method='bfill', inplace=True)  # Backward fill
 
             # Remove duplicates
-            #lp_df.drop_duplicates(inplace=True)
+            lp_df.drop_duplicates(inplace=True)
 
             # Convert data types
-            #for col in lp_df.select_dtypes(include=['object']).columns:
-            #    lp_df[col] = lp_df[col].astype(str)
-            #for col in lp_df.select_dtypes(include=['int64', 'float64']).columns:
-            #    lp_df[col] = pd.to_numeric(lp_df[col], errors='coerce')
+            for col in lp_df.select_dtypes(include=['object']).columns:
+                lp_df[col] = lp_df[col].astype(str)
+            for col in lp_df.select_dtypes(include=['int64', 'float64']).columns:
+                lp_df[col] = pd.to_numeric(lp_df[col], errors='coerce')
 
             # Remove outliers (example: removing rows where volume is extremely high)
-            #if 'volume' in lp_df.columns:
-            #    lp_df = lp_df[lp_df['volume'] < lp_df['volume'].quantile(0.99)]
+            if 'volume' in lp_df.columns:
+                lp_df = lp_df[lp_df['volume'] < lp_df['volume'].quantile(0.99)]
 
             # Standardize data (example: converting all string columns to lowercase)
-            #for col in lp_df.select_dtypes(include=['object']).columns:
-            #    lp_df[col] = lp_df[col].str.lower()
+            for col in lp_df.select_dtypes(include=['object']).columns:
+                lp_df[col] = lp_df[col].str.lower()
 
             #lp_df.dropna(inplace=True)
 
         return lp_df
+
 
     # create method  "run_shift_data1()".
     # class: cmqldatasetup      
