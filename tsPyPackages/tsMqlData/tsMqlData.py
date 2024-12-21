@@ -140,14 +140,13 @@ class CMqldatasetup:
         return lp_rates1 , lp_rates2, lp_rates3, lp_rates4
 
 
-    def wrangle_time(self, lp_df, lp_seconds, lp_unit, lp_filesrc):
+    def wrangle_time(self, lp_df, lp_unit, lp_filesrc):
         """
         Processes data from various sources by renaming columns, handling datetime conversions, 
         and performing data cleaning. 
 
         Parameters:
             lp_df (DataFrame): Input data.
-            lp_seconds (int): Time in seconds (unused in the current logic).
             lp_unit (str): Unit of time for conversion (e.g., 's', 'ms').
             lp_filesrc (str): Data source identifier (e.g., 'ticks1', 'rates1').
 
@@ -159,7 +158,7 @@ class CMqldatasetup:
             df.rename(columns=valid_renames, inplace=True)
             print(f"Renamed columns: {valid_renames}")
 
-        def convert_datetime(df, column, unit=None, fmt=None):
+        def convert_datetime(df, column, unit='s', fmt=None):
             """
             Converts a column to datetime format.
 
@@ -181,6 +180,7 @@ class CMqldatasetup:
                 unit (str, optional): The unit of the time for conversion. Defaults to None.
                 fmt (str, optional): The format string for datetime conversion. Defaults to None.
             """
+            print(f"Converting {column} to datetime")
             if column in df.columns:
                 try:
                     if fmt:
@@ -188,7 +188,7 @@ class CMqldatasetup:
                         df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce') 
                     else:
                         print(f"Converting {column} to datetime with unit {unit}")
-                        df[column] = pd.to_datetime(df[column].astype('int64'), unit=unit, errors='coerce')
+                        df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce')
                 except Exception as e:
                     print(f"Error converting {column}: {e}")
 
@@ -234,27 +234,52 @@ class CMqldatasetup:
         }
 
         date_columns = {
-            'ticks1': ('time',lp_unit, '%Y%m%d'),
-            'rates1': ('time',lp_unit, '%Y%m%d'),
-            'ticks2': ('Date',lp_unit, '%Y%m%d'),
-            'rates2': ('Date',lp_unit, '%Y%m%d'),
+            'ticks1': ('time', '%Y%m%d'),
+            'rates1': ('time', '%Y%m%d'),
+            'ticks2': ('Date', '%Y%m%d'),
+            'rates2': ('Date', '%Y%m%d'),
         }
 
         time_columns = {
-            'ticks2': ('Timestamp','ms', '%H:%M:%S'),
-            'rates2': ('Timestamp','ms,' '%H:%M:%S'),
-             }
+            'ticks2': ('Timestamp', '%H:%M:%S'),
+            'rates2': ('Timestamp', '%H:%M:%S'),
+        }
 
         if lp_filesrc in mappings:
-            rename_columns(lp_df, mappings[lp_filesrc])
-
+            print(f"Processing {lp_filesrc} data")
+            
             if lp_filesrc in date_columns:
-                convert_datetime(lp_df, *date_columns[lp_filesrc])
+                column, fmt = date_columns[lp_filesrc]
+                convert_datetime(lp_df, column,unit=self.mp_unit, fmt=fmt)
 
             if lp_filesrc in time_columns:
-                convert_datetime(lp_df, *time_columns[lp_filesrc])
+                column, fmt = time_columns[lp_filesrc]
+                convert_datetime(lp_df, column,unit='ms', fmt=fmt)
 
-            lp_df.dropna(inplace=True)
+            rename_columns(lp_df, mappings[lp_filesrc])
+
+            # Handle missing values
+            #lp_df.fillna(method='ffill', inplace=True)  # Forward fill
+            #lp_df.fillna(method='bfill', inplace=True)  # Backward fill
+
+            # Remove duplicates
+            #lp_df.drop_duplicates(inplace=True)
+
+            # Convert data types
+            #for col in lp_df.select_dtypes(include=['object']).columns:
+            #    lp_df[col] = lp_df[col].astype(str)
+            #for col in lp_df.select_dtypes(include=['int64', 'float64']).columns:
+            #    lp_df[col] = pd.to_numeric(lp_df[col], errors='coerce')
+
+            # Remove outliers (example: removing rows where volume is extremely high)
+            #if 'volume' in lp_df.columns:
+            #    lp_df = lp_df[lp_df['volume'] < lp_df['volume'].quantile(0.99)]
+
+            # Standardize data (example: converting all string columns to lowercase)
+            #for col in lp_df.select_dtypes(include=['object']).columns:
+            #    lp_df[col] = lp_df[col].str.lower()
+
+            #lp_df.dropna(inplace=True)
 
         return lp_df
 
