@@ -10,11 +10,11 @@
 
 # packages dependencies for this module
 #
-from datetime import datetime
-
 import MetaTrader5 as mt5
 import numpy as np
 import pandas as pd
+from datetime import datetime
+import arrow
 import pytz
 from sklearn.preprocessing import MinMaxScaler
 
@@ -146,16 +146,23 @@ class CMqldatasetup:
             df.rename(columns=valid_renames, inplace=True)
             print(f"Renamed columns: {valid_renames}")
 
-        def convert_datetime(df, column,  fmt=None, unit=None):
+        def convert_datetime(df, column, fmt=None, unit=None,type=None):
             print(f"Converting {column} to datetime")
             if column in df.columns:
                 try:
-                    print(f"Converting {column} to datetime with unit {unit}")
-                    df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce')
-                    print(df[column].head(3))  # Print the first few rows to verify conversion
-                    print(f"Converting {column} to datetime with format {fmt}")
-                    df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce')
-                    print(df[column].head(3))  # Print the first few rows to verify conversion
+                    if  type == 'l':
+                        print(f"1:Converting {column} to datetime with string")
+                        df[column] = pd.to_datetime(df[column].astype(str))
+                        print(df[column].head(3))  # Print the first few rows to verify conversion
+                    elif fmt and type == 'f':
+                        print(f"2:Converting {column} to datetime with format {fmt}")
+                        df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce',infer_datetime_format= True)
+                        print(df[column].head(3))  # Print the first few rows to verify conversion
+                    elif unit and type == 'u':
+                        print(f"1:Converting {column} to datetime with unit {unit}")
+                        df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce',infer_datetime_format= True)
+                        print(df[column].head(3))  # Print the first few rows to verify conversion
+
                 except Exception as e:
                     print(f"Error converting {column}: {e}")
 
@@ -201,33 +208,32 @@ class CMqldatasetup:
         }
 
         date_columns = {
-            'ticks1': ('time', '%Y%m%d', 's'),
-            'rates1': ('time', '%Y%m%d', 's'),
-            'ticks2': ('Date', '%Y%m%d', 'ms'),#Date 20240101
-            'rates2': ('Date', '%Y%m%d,%H:%M:%S', 'ms'),#Date 20030505,00:00:00
+            'ticks1': ('time', '%Y%m%d', 's', 'u'),
+            'rates1': ('time', '%Y%m%d', 's', 'u'),
+            'ticks2': ('Date', '%Y%m%d', 's', 'f'),
+            'rates2': ('Date', '%Y%m%d', 's', 'u'),
         }
 
         time_columns = {
-            'ticks1': ('time_msc', '%H:%M:%S', 'ms'),
-            'ticks2': ('Timestamp', '%H:%M:%S', 's'), #Timestamp 22:00:12 
-            'rates2': ('Timestamp', '%H:%M:%S', 's'), #Timestamp 17:49:00
+            'ticks1': ('time_msc', '%H:%M:%S', 'ms', 'u'),
+            'ticks2': ('Timestamp', '%H:%M:%S','ms', 'l'),
+            'rates2': ('Timestamp', '%H:%M:%S','s', 'u'),
         }
 
         if lp_filesrc in mappings:
             print(f"Processing {lp_filesrc} data")
             
             if lp_filesrc in date_columns:
-                column, fmt, unit = date_columns[lp_filesrc]
-                convert_datetime(lp_df, column,  fmt=fmt, unit=unit)
-            
+                column, fmt, unit ,type = date_columns[lp_filesrc]
+                convert_datetime(lp_df, column, fmt=fmt, unit=unit,type=type)
 
             if lp_filesrc in time_columns:
-                column, fmt, unit = time_columns[lp_filesrc]
-                convert_datetime(lp_df, column, fmt=fmt, unit=unit)
-               
+                column, fmt, unit ,type = time_columns[lp_filesrc]
+                convert_datetime(lp_df, column, fmt=fmt, unit=unit,type=type)
 
             rename_columns(lp_df, mappings[lp_filesrc])
             
+            """
             # Handle missing values
             lp_df.fillna(method='ffill', inplace=True)  # Forward fill
             lp_df.fillna(method='bfill', inplace=True)  # Backward fill
@@ -249,8 +255,9 @@ class CMqldatasetup:
             for col in lp_df.select_dtypes(include=['object']).columns:
                 lp_df[col] = lp_df[col].str.lower()
 
-            #lp_df.dropna(inplace=True)
-
+            # Uncomment the following line if you want to remove any remaining NaNs
+            # lp_df.dropna(inplace=True)
+            """
         return lp_df
 
 
@@ -265,7 +272,7 @@ class CMqldatasetup:
         lp_df['time'] = pd.to_datetime(lp_df['time'], unit=lp_unit)
         lp_df['close'] = (lp_df['ask'] + lp_df['bid']) / 2
         lv_empty_rows = pd.DataFrame(np.nan, index=range(lv_number_of_rows), columns=lp_df.columns)
-        lp_df = pd.concat([lp_df, lv_empty_rows], ignore_index=True)
+        lp_df = pd.concat([lp_df, lv_empty_rows], coerce_index=True)
         lp_df['target'] = lp_df['close'].shift(-lv_seconds)
         lp_df = lp_df.dropna()
         lp_df.style.set_properties(**{'text-align': 'left'})
