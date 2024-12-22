@@ -232,6 +232,7 @@ d1.wrangle_time( mv_tdata1apirates,  mp_unit,"rates1")
 d1.wrangle_time( mv_tdata1loadticks, mp_unit,"ticks2")
 d1.wrangle_time( mv_tdata1loadrates, mp_unit,"rates2")
 
+"""
 print("1: dtypes of the dataframes")
 print(mv_tdata1apiticks.dtypes)  # Check the data types of the columns
 print("2: dtypes of the dataframes")
@@ -240,6 +241,7 @@ print("3: dtypes of the dataframes")
 print(mv_tdata1loadticks.dtypes)  # Check the data types of the columns
 print("4: dtypes of the dataframes")
 print(mv_tdata1loadrates.dtypes)  # Check the data types of the columns
+"""
 
 # Display the first few rows of the data for verification
 hrows=10
