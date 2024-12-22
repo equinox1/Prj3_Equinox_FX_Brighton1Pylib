@@ -146,18 +146,16 @@ class CMqldatasetup:
             df.rename(columns=valid_renames, inplace=True)
             print(f"Renamed columns: {valid_renames}")
 
-        def convert_datetime(df, column, unit='s', fmt=None):
+        def convert_datetime(df, column,  fmt=None, unit=None):
             print(f"Converting {column} to datetime")
             if column in df.columns:
                 try:
-                    if fmt:
-                        print(f"Converting {column} to datetime with format {fmt}")
-                        df[column] = pd.to_datetime(df[column], unit=unit,format=fmt, errors='coerce')
-                    else:
-                        print(f"Converting {column} to datetime with unit {unit}")
-                        df[column] = pd.to_datetime(df[column], unit=unit,format=fmt, errors='coerce')
-                    print(f"Conversion successful for {column}:")
-                    print(df[column].head())  # Print the first few rows to verify conversion
+                    print(f"Converting {column} to datetime with unit {unit}")
+                    df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce')
+                    print(df[column].head(3))  # Print the first few rows to verify conversion
+                    print(f"Converting {column} to datetime with format {fmt}")
+                    df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce')
+                    print(df[column].head(3))  # Print the first few rows to verify conversion
                 except Exception as e:
                     print(f"Error converting {column}: {e}")
 
@@ -203,29 +201,30 @@ class CMqldatasetup:
         }
 
         date_columns = {
-            'ticks1': ('time', '%Y%m%d'),
-            'rates1': ('time', '%Y%m%d'),
-            'ticks2': ('Date', '%Y%m%d'),
-            'rates2': ('Date', '%Y%m%d'),
+            'ticks1': ('time', '%Y%m%d', 's'),
+            'rates1': ('time', '%Y%m%d', 's'),
+            'ticks2': ('Date', '%Y%m%d', 'ms'),#Date 20240101
+            'rates2': ('Date', '%Y%m%d,%H:%M:%S', 'ms'),#Date 20030505,00:00:00
         }
 
         time_columns = {
-            'ticks2': ('Timestamp', '%H:%M:%S'),
-            'rates2': ('Timestamp', '%H:%M:%S'),
+            'ticks1': ('time_msc', '%H:%M:%S', 'ms'),
+            'ticks2': ('Timestamp', '%H:%M:%S', 's'), #Timestamp 22:00:12 
+            'rates2': ('Timestamp', '%H:%M:%S', 's'), #Timestamp 17:49:00
         }
 
         if lp_filesrc in mappings:
             print(f"Processing {lp_filesrc} data")
             
             if lp_filesrc in date_columns:
-                column, fmt = date_columns[lp_filesrc]
-                #convert_datetime(lp_df, column, unit='s', fmt=fmt)
-                convert_datetime(lp_df, column, unit='s')
+                column, fmt, unit = date_columns[lp_filesrc]
+                convert_datetime(lp_df, column,  fmt=fmt, unit=unit)
+            
 
             if lp_filesrc in time_columns:
-                column, fmt = time_columns[lp_filesrc]
-                #convert_datetime(lp_df, column, unit='ms', fmt=fmt)
-                convert_datetime(lp_df, column, unit='ms')
+                column, fmt, unit = time_columns[lp_filesrc]
+                convert_datetime(lp_df, column, fmt=fmt, unit=unit)
+               
 
             rename_columns(lp_df, mappings[lp_filesrc])
             
