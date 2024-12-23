@@ -150,17 +150,21 @@ class CMqldatasetup:
             print(f"Converting {column} to datetime")
             if column in df.columns:
                 try:
-                    if  type == 'l':
-                        print(f"1:Converting {column} to datetime with string")
-                        df[column] = pd.to_datetime(df[column].astype(str))
+                    if  type == 'a':
+                        print(f"1:Converting {column} to datetime with astype string")
+                        df[column] = datetime.strptime(df[column], fmt)
+                        print(df[column].head(3))  # Print the first few rows to verify conversion
+                    elif  type == 'b':
+                        print(f"1:Converting {column} to datetime with topy string")
+                        df[column] = pd.to_datetime(df[column].dt.to_pydatetime(), errors='coerce',infer_datetime_format= False,utc=True)
                         print(df[column].head(3))  # Print the first few rows to verify conversion
                     elif fmt and type == 'f':
                         print(f"2:Converting {column} to datetime with format {fmt}")
-                        df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce',infer_datetime_format= True)
+                        df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce',infer_datetime_format= False,utc=True)
                         print(df[column].head(3))  # Print the first few rows to verify conversion
                     elif unit and type == 'u':
                         print(f"1:Converting {column} to datetime with unit {unit}")
-                        df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce',infer_datetime_format= True)
+                        df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce',infer_datetime_format= False,utc=True)
                         print(df[column].head(3))  # Print the first few rows to verify conversion
 
                 except Exception as e:
@@ -211,13 +215,13 @@ class CMqldatasetup:
             'ticks1': ('time', '%Y%m%d', 's', 'u'),
             'rates1': ('time', '%Y%m%d', 's', 'u'),
             'ticks2': ('Date', '%Y%m%d', 's', 'f'),
-            'rates2': ('Date', '%Y%m%d', 's', 'u'),
+            'rates2': ('Date', '%Y%m%d', 's', 'b'),
         }
 
         time_columns = {
             'ticks1': ('time_msc', '%H:%M:%S', 'ms', 'u'),
-            'ticks2': ('Timestamp', '%H:%M:%S','ms', 'l'),
-            'rates2': ('Timestamp', '%H:%M:%S','s', 'u'),
+            'ticks2': ('Timestamp', '%H:%M:%S','ms', 'b'),
+            'rates2': ('Timestamp', '%H:%M:%S','s', 'a'),
         }
 
         if lp_filesrc in mappings:
@@ -233,7 +237,7 @@ class CMqldatasetup:
 
             rename_columns(lp_df, mappings[lp_filesrc])
             
-            """
+            
             # Handle missing values
             lp_df.fillna(method='ffill', inplace=True)  # Forward fill
             lp_df.fillna(method='bfill', inplace=True)  # Backward fill
@@ -245,7 +249,15 @@ class CMqldatasetup:
             for col in lp_df.select_dtypes(include=['object']).columns:
                 lp_df[col] = lp_df[col].astype(str)
             for col in lp_df.select_dtypes(include=['int64', 'float64']).columns:
-                lp_df[col] = pd.to_numeric(lp_df[col], errors='coerce')
+                lp_df[col] = pd.to_numeric(lp_df[col], errors='coerce')     
+
+            # Convert to datetime
+            
+            for col in lp_df.select_dtypes(include=['datetime64']).columns:
+                lp_df[col] = pd.to_numeric(lp_df[col], errors='coerce')     
+
+            
+            
 
             # Remove outliers (example: removing rows where volume is extremely high)
             if 'volume' in lp_df.columns:
@@ -256,8 +268,8 @@ class CMqldatasetup:
                 lp_df[col] = lp_df[col].str.lower()
 
             # Uncomment the following line if you want to remove any remaining NaNs
-            # lp_df.dropna(inplace=True)
-            """
+            lp_df.dropna(inplace=True)
+            
         return lp_df
 
 
