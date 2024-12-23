@@ -8,7 +8,7 @@ from datetime import datetime
 # 20030505,00:00:00,1.12161,1.12209,1.12161,1.12209,16,16,6
 
 # Original data
-ratesdata = {
+ratesdata1 = {
     "Date": ["20030505"],
     "Timestamp": ["00:00:00"],
     "Open": [1.12161],
@@ -23,7 +23,7 @@ ratesdata = {
 # 20240101,22:00:12,1.10427,1.10481,1.10427,1
 
 # Create the data
-tickdata = {
+tickdata1 = {
     "Date": ["20240101"],
     "Timestamp": ["22:00:12"],
     "Bid Price": [1.10427],
@@ -31,6 +31,12 @@ tickdata = {
     "Last Price": [1.10427],
     "Volume": [1]
 }
+
+tickdata= df1 = pd.read_csv("C:\\Users\\shepa\\OneDrive\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\PythonLib\\tsProjects\\ExampleModel\\EURUSD_tickdata1.csv")
+ratesdata= df2 = pd.read_csv("C:\\Users\\shepa\\OneDrive\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\PythonLib\\tsProjects\\ExampleModel\\EURUSD_ratesdata1.csv",sep=',')
+
+print("Tickdata",tickdata.head())
+print("Ratesdata",ratesdata)
 
 # Create a DataFrame
 df1 = pd.DataFrame(ratesdata)
@@ -95,3 +101,4 @@ elif fswitch == 3:
     print(df1)
     print("Tickdata")
     print(df2)
+
