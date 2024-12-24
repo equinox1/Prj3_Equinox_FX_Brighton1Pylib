@@ -227,12 +227,10 @@ print(f"mp_filename2 Set to: {MPFILEVALUE2}")
 mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks, mv_loadapirates, mv_loadfileticks, mv_loadfilerates, mp_dfName1, mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1, mp_filename2, mp_timeframe)
 
 
-d1.wrangle_time( mv_tdata1apiticks,  mp_unit,"ticks1")
-d1.wrangle_time( mv_tdata1apirates,  mp_unit,"rates1")
-d1.wrangle_time( mv_tdata1loadticks, mp_unit,"ticks2")
-d1.wrangle_time( mv_tdata1loadrates, mp_unit,"rates2")
-
-
+d1.wrangle_time(mv_tdata1apiticks, mp_unit, "ticks1")
+d1.wrangle_time(mv_tdata1apirates, mp_unit, "rates1")
+d1.wrangle_time(mv_tdata1loadticks, mp_unit, "ticks2")
+d1.wrangle_time(mv_tdata1loadrates, mp_unit, "rates2")
 
 print("1: dtypes of the dataframes")
 print(mv_tdata1apiticks.dtypes)  # Check the data types of the columns
@@ -244,6 +242,52 @@ print("4: dtypes of the dataframes")
 print(mv_tdata1loadrates.dtypes)  # Check the data types of the columns
 
 
+
+mv_tdata1apiticks = d1.create_target(
+    df=mv_tdata1apiticks,
+    lookahead_seconds=mp_seconds,
+    bid_column='T1_Bid_Price',
+    ask_column='T1_Ask_Price',
+    column_in='T1_Bid_Price',
+    column_out1='close',
+    column_out2='target',
+    run_mode=1
+)
+
+
+mv_tdata1apirates = d1.create_target(
+    df=mv_tdata1apirates,
+    lookahead_seconds=mp_seconds,
+    bid_column='R1_Bid_Price',
+    ask_column='R1_Ask_Price',
+    column_in='R1_Close',
+    column_out1='close',
+    column_out2='target',
+    run_mode=2
+)
+
+mv_tdata1loadticks = d1.create_target(
+    df=mv_tdata1loadticks,
+    lookahead_seconds=mp_seconds,
+    bid_column='T2_Bid_Price',
+    ask_column='T2_Ask_Price',
+    column_in='T2_Bid_Price',
+    column_out1='close',
+    column_out2='target',
+    run_mode=3
+)
+
+mv_tdata1loadrates = d1.create_target(
+    df=mv_tdata1loadrates,
+    lookahead_seconds=mp_seconds,
+    bid_column='R2_Bid_Price',
+    ask_column='R2_Ask_Price',
+    column_in='R2_Close',
+    column_out1='close',
+    column_out2='target',
+    run_mode=4
+)
+
 # Display the first few rows of the data for verification
 hrows=10
 print("1:Start First few rows of the API Tick data:Count",len(mv_tdata1apiticks))
@@ -254,6 +298,7 @@ print("3: Start First few rows of the FILE Tick data:Count",len(mv_tdata1loadtic
 print(tabulate(mv_tdata1loadticks.head(hrows), showindex=False, headers=mv_tdata1loadticks.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 print("4: Start First few rows of the FILE Rates data:Count",len(mv_tdata1loadrates))
 print(tabulate(mv_tdata1loadrates.head(hrows), showindex=False, headers=mv_tdata1loadrates.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+
 
 """
 # +-------------------------------------------------------------------
@@ -363,8 +408,8 @@ mp_seed = 42
 mp_hyperband_iterations = 1
 mp_tune_new_entries = False
 mp_allow_new_entries = False
-mp_max_retries_per_trial = 1
-mp_max_consecutive_failed_trials = 1
+mp_max_retries_per_trial = 10
+mp_max_consecutive_failed_trials = 10
 # base tuner parameters
 mp_validation_split = 0.2
 mp_epochs = mp_param_epochs 
@@ -427,8 +472,6 @@ print("3: Start First few rows of mv_X_test: Count",len(mv_X_test))
 print(tabulate(mv_X_test.head(3), showindex=False, headers=mv_X_test.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 print("4: Start First few rows of mv_y_test: Count",len(mv_y_test))
 print(tabulate(mv_y_test.head(3), showindex=False, headers=mv_y_test.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-
-
 
 
 # Create an instance of the tuner class
