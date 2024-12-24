@@ -17,7 +17,7 @@ from datetime import datetime
 import arrow
 import pytz
 from sklearn.preprocessing import MinMaxScaler
-
+import logging
 #--------------------------------------------------------------------
 # create class  "CMqldatasetup"
 # usage: mql data services
@@ -54,8 +54,9 @@ class CMqldatasetup:
         self.lp_filename = kwargs.get('lp_filename', 'tickdata1')
         self.lp_seconds = kwargs.get('lp_seconds', None)
         self.lp_timeframe = kwargs.get('lp_timeframe', 'mt5.TIMEFRAME_M1')
+        self.lp_run = kwargs.get('lp_run', 1)
        
-
+    logging.basicConfig(level=logging.INFO)
     # create method  "setmql_timezone()".
     # class: cmqldatasetup      
     # usage: mql data
@@ -140,46 +141,46 @@ class CMqldatasetup:
         return lp_rates1 , lp_rates2, lp_rates3, lp_rates4
 
 
-    def wrangle_time(self, lp_df, lp_unit, lp_filesrc):
+    def wrangle_time(self, df, lp_unit, lp_filesrc):
         def rename_columns(df, mapping):
             valid_renames = {old: new for old, new in mapping.items() if old in df.columns}
             df.rename(columns=valid_renames, inplace=True)
             print(f"Renamed columns: {valid_renames}")
 
         def convert_datetime(df, column, fmt=None, unit=None,type=None):
-            print(f"Converting {column} to datetime")
+            print(f"Converting {lp_filesrc} {column} to datetime")
             if column in df.columns:
                 try:
                     if  type == 'a':
-                        print(f"1:Converting {column} to datetime with astype string")
+                        print(f"1:Converting {lp_filesrc} {column} to datetime with astype string")
                         df[column] = datetime.strptime(df[column], fmt)
                         print(df[column].head(3))  # Print the first few rows to verify conversion
                     elif  type == 'b':
-                        print(f"1:Converting {column} to datetime with topy string")
-                        df[column] = pd.to_datetime(df[column].dt.to_pydatetime(), errors='coerce',infer_datetime_format= False,utc=True)
+                        print(f"2:Converting {lp_filesrc} {column} to datetime with topy string")
+                        df[column] = pd.to_datetime(df[column].dt.to_pydatetime(), errors='coerce',utc=True)
                         print(df[column].head(3))  # Print the first few rows to verify conversion
                     elif fmt and type == 'f':
-                        print(f"2:Converting {column} to datetime with format {fmt}")
-                        df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce',infer_datetime_format= False,utc=True)
+                        print(f"3:Converting {lp_filesrc} {column} to datetime with format {fmt}")
+                        df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce',utc=True)
                         print(df[column].head(3))  # Print the first few rows to verify conversion
                     elif unit and type == 'u':
-                        print(f"1:Converting {column} to datetime with unit {unit}")
-                        df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce',infer_datetime_format= False,utc=True)
+                        print(f"4:Converting {lp_filesrc} {column} to datetime with unit {unit}")
+                        df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce',utc=True)
                         print(df[column].head(3))  # Print the first few rows to verify conversion
-
+                        
                 except Exception as e:
                     print(f"Error converting {column}: {e}")
 
         mappings = {
             'ticks1': {
                 'time': 'T1_Date',
-                'bid': 'T1_Bid Price',
-                'ask': 'T1_Ask Price',
+                'bid': 'T1_Bid_Price',
+                'ask': 'T1_Ask_Price',
                 'last': 'T1_Last Price',
                 'volume': 'T1_Volume',
                 'time_msc': 'T1_Time_Msc',
                 'flags': 'T1_Flags',
-                'volume_real': 'T1_Real Volume'
+                'volume_real': 'T1_Real_Volume'
             },
             'rates1': {
                 'time': 'R1_Date',
@@ -187,16 +188,16 @@ class CMqldatasetup:
                 'high': 'R1_High',
                 'low': 'R1_Low',
                 'close': 'R1_Close',
-                'tick_volume': 'R1_Tick Volume',
+                'tick_volume': 'R1_Tick_Volume',
                 'spread': 'R1_spread',
-                'real_volume': 'R1_Real Volume'
+                'real_volume': 'R1_Real_Volume'
             },
             'ticks2': {
                 'Date': 'T2_Date',
                 'Timestamp': 'T2_Timestamp',
-                'Bid Price': 'T2_Bid Price',
-                'Ask Price': 'T2_Ask Price',
-                'Last Price': 'Last Price',
+                'Bid Price': 'T2_Bid_Price',
+                'Ask Price': 'T2_Ask_Price',
+                'Last Price': 'T2_Last_Price',
                 'Volume': 'T2_Volume'
             },
             'rates2': {
@@ -207,89 +208,153 @@ class CMqldatasetup:
                 'Low': 'R2_Low',
                 'Close': 'R2_Close',
                 'tick_volume': 'R2_Tick Volume',
-                'Volume': 'R2_Volume'
+                'Volume': 'R2_Volume',
+                'vol2' : 'R2_Vol1',
+                'vol3' : 'R2_Vol3'
             }
         }
 
         date_columns = {
             'ticks1': ('time', '%Y%m%d', 's', 'u'),
             'rates1': ('time', '%Y%m%d', 's', 'u'),
-            'ticks2': ('Date', '%Y%m%d', 's', 'f'),
+            'ticks2': ('Date', '%Y%m%d', 's', 'b'),
             'rates2': ('Date', '%Y%m%d', 's', 'b'),
         }
 
         time_columns = {
             'ticks1': ('time_msc', '%H:%M:%S', 'ms', 'u'),
             'ticks2': ('Timestamp', '%H:%M:%S','ms', 'b'),
-            'rates2': ('Timestamp', '%H:%M:%S','s', 'a'),
+            'rates2': ('Timestamp', '%H:%M:%S','s', 'b'),
         }
-
+        
+        conv_columns = {
+            'ticks1': ('time', '%Y%m%d', 's', 'x'),
+            'rates1': ('time', '%Y%m%d', 's', 'x'),      
+        }
         if lp_filesrc in mappings:
             print(f"Processing {lp_filesrc} data")
             
             if lp_filesrc in date_columns:
                 column, fmt, unit ,type = date_columns[lp_filesrc]
-                convert_datetime(lp_df, column, fmt=fmt, unit=unit,type=type)
+                convert_datetime(df, column, fmt=fmt, unit=unit,type=type)
 
             if lp_filesrc in time_columns:
                 column, fmt, unit ,type = time_columns[lp_filesrc]
-                convert_datetime(lp_df, column, fmt=fmt, unit=unit,type=type)
-
-            rename_columns(lp_df, mappings[lp_filesrc])
-            
-            
+                convert_datetime(df, column, fmt=fmt, unit=unit,type=type)
+         
+            if lp_filesrc in conv_columns:
+                column, fmt, unit ,type = conv_columns[lp_filesrc]
+                convert_datetime(df, column, fmt=fmt, unit=unit,type=type)
+                
+            # Rename columns
+            rename_columns(df, mappings[lp_filesrc])
             # Handle missing values
-            lp_df.fillna(method='ffill', inplace=True)  # Forward fill
-            lp_df.fillna(method='bfill', inplace=True)  # Backward fill
+            if not df.empty:
+                df.ffill(inplace=True)  # Forward fill
+                df.bfill(inplace=True)  # Backward fill
 
             # Remove duplicates
-            lp_df.drop_duplicates(inplace=True)
+            df.drop_duplicates(inplace=True)
 
             # Convert data types
-            for col in lp_df.select_dtypes(include=['object']).columns:
-                lp_df[col] = lp_df[col].astype(str)
-            for col in lp_df.select_dtypes(include=['int64', 'float64']).columns:
-                lp_df[col] = pd.to_numeric(lp_df[col], errors='coerce')     
+           
+            for col in df.select_dtypes(include=['int64', 'float64']).columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')     
 
-            # Convert to datetime
+        
             
-            for col in lp_df.select_dtypes(include=['datetime64']).columns:
-                lp_df[col] = pd.to_numeric(lp_df[col], errors='coerce')     
-
-            
-            
-
             # Remove outliers (example: removing rows where volume is extremely high)
-            if 'volume' in lp_df.columns:
-                lp_df = lp_df[lp_df['volume'] < lp_df['volume'].quantile(0.99)]
+            if 'volume' in df.columns:
+                df = df[df['volume'] < df['volume'].quantile(0.99)]
 
             # Standardize data (example: converting all string columns to lowercase)
-            for col in lp_df.select_dtypes(include=['object']).columns:
-                lp_df[col] = lp_df[col].str.lower()
+            for col in df.select_dtypes(include=['datetime64']).columns:
+                 df[col] = pd.to_numeric(df[col], errors='coerce')  
+            for col in df.select_dtypes(include=['datetime64[ns, UTC]']).columns:
+                 df[col] = pd.to_numeric(df[col], errors='coerce')        
 
-            # Uncomment the following line if you want to remove any remaining NaNs
-            lp_df.dropna(inplace=True)
             
-        return lp_df
+            
+            # Uncomment the following line if you want to remove any remaining NaNs
+            #df.dropna(inplace=True)
+
+            
+        return df
+
+    def create_target(self, df, lookahead_seconds, bid_column, ask_column,
+                      column_in=None, column_out1='close', column_out2='target', run_mode=1):
+
+        """
+        Creates a target column in the DataFrame by calculating mid prices or shifting a specified column.
+
+        Parameters:
+            df (pd.DataFrame): Input DataFrame containing market data.
+            lookahead_seconds (int): Number of seconds to shift for the target.
+            bid_column (str): Name of the column with bid prices.
+            ask_column (str): Name of the column with ask prices.
+            column_in (str, optional): Column to use for mid-price calculation (optional).
+            column_out1 (str): Name of the output column for the close price (default: 'close').
+            column_out2 (str): Name of the output column for the target (default: 'target').
+            run_mode (int): Specifies the operation mode (1, 2, 3, or 4).
+
+        Returns:
+            pd.DataFrame: DataFrame with the target column added.
+
+        Raises:
+            ValueError: If `column_in` is not provided for run modes 2/4.
+            ValueError: If `run_mode` is not in {1, 2, 3, 4}.
+         """
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("The input `df` must be a pandas DataFrame.")
+        if not isinstance(lookahead_seconds, int) or lookahead_seconds <= 0:
+            raise ValueError("The `lookahead_seconds` must be a positive integer.")
+
+        if run_mode in {1, 3}:
+            if column_in is None:
+                column_in = 'mid_price'
+                df[column_in] = (df[bid_column] + df[ask_column]) / 2
+                logging.info(f"Mid-price column `{column_in}` calculated.")
+
+            df[column_out1] = df[column_in]
+            df[column_out2] = df[column_in].shift(-lookahead_seconds)
+            logging.info("Target column created for run mode 1 or 3.")
+
+        elif run_mode in {2, 4}:
+            if column_in is None:
+                raise ValueError("`column_in` must be provided for run modes 2 or 4.")
+
+            df[column_out1] = df[column_in]
+            df[column_out2] = df[column_in].shift(-lookahead_seconds)
+            logging.info("Target column created for run mode 2 or 4.")
+
+        else:
+            raise ValueError(f"Invalid `run_mode`: {run_mode}. Must be one of {{1, 2, 3, 4}}.")
+
+        # Optionally display the last few rows for debugging
+        logging.debug(f"Last 10 rows of the DataFrame:\n{df.tail(10)}")
+
+        return df
+
+        
 
 
     # create method  "run_shift_data1()".
     # class: cmqldatasetup      
     # usage: mql data
     # /param  var                          
-    def run_shift_data1(self, lp_df, lp_seconds, lp_unit):
+    def run_shift_data1(self, df, lp_seconds, lp_unit):
         lv_seconds = lp_seconds
         lv_number_of_rows = lv_seconds
-        lp_df.style.set_properties(**{'text-align': 'left'})
-        lp_df['time'] = pd.to_datetime(lp_df['time'], unit=lp_unit)
-        lp_df['close'] = (lp_df['ask'] + lp_df['bid']) / 2
-        lv_empty_rows = pd.DataFrame(np.nan, index=range(lv_number_of_rows), columns=lp_df.columns)
-        lp_df = pd.concat([lp_df, lv_empty_rows], coerce_index=True)
-        lp_df['target'] = lp_df['close'].shift(-lv_seconds)
-        lp_df = lp_df.dropna()
-        lp_df.style.set_properties(**{'text-align': 'left'})
-        print("lpDf", lp_df.tail(10))
-        return lp_df
+        df.style.set_properties(**{'text-align': 'left'})
+        df['time'] = pd.to_datetime(df['time'], unit=lp_unit)
+        df['close'] = (df['ask'] + df['bid']) / 2
+        lv_empty_rows = pd.DataFrame(np.nan, index=range(lv_number_of_rows), columns=df.columns)
+        df = pd.concat([df, lv_empty_rows], coerce_index=True)
+        df['target'] = df['close'].shift(-lv_seconds)
+        df = df.dropna()
+        df.style.set_properties(**{'text-align': 'left'})
+        print("lpDf", df.tail(10))
+        return df
 
     # create method  "create_dataset()".
     # class: cmqldatasetup      
