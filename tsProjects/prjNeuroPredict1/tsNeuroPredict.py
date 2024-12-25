@@ -226,11 +226,10 @@ print(f"mp_filename2 Set to: {MPFILEVALUE2}")
 # Load tick data from MQL
 mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks, mv_loadapirates, mv_loadfileticks, mv_loadfilerates, mp_dfName1, mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1, mp_filename2, mp_timeframe)
 
-
-d1.wrangle_time(mv_tdata1apiticks, mp_unit, "ticks1")
-d1.wrangle_time(mv_tdata1apirates, mp_unit, "rates1")
-d1.wrangle_time(mv_tdata1loadticks, mp_unit, "ticks2")
-d1.wrangle_time(mv_tdata1loadrates, mp_unit, "rates2")
+d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtm=True)
+d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtm=True)
+d1.wrangle_time(mv_tdata1loadticks, mp_unit,mp_filesrc= "ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtm=True)
+d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtm=True)
 
 print("1: dtypes of the dataframes")
 print(mv_tdata1apiticks.dtypes)  # Check the data types of the columns
@@ -240,8 +239,6 @@ print("3: dtypes of the dataframes")
 print(mv_tdata1loadticks.dtypes)  # Check the data types of the columns
 print("4: dtypes of the dataframes")
 print(mv_tdata1loadrates.dtypes)  # Check the data types of the columns
-
-
 
 mv_tdata1apiticks = d1.create_target(
     df=mv_tdata1apiticks,
@@ -300,7 +297,7 @@ print("4: Start First few rows of the FILE Rates data:Count",len(mv_tdata1loadra
 print(tabulate(mv_tdata1loadrates.head(hrows), showindex=False, headers=mv_tdata1loadrates.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 
 
-"""
+
 # +-------------------------------------------------------------------
 # Prepare and process the data
 # +-------------------------------------------------------------------
@@ -537,7 +534,7 @@ print("Running Main call to tuner")
 best_model = mt.tuner.get_best_models()
 best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
 best_model[0].summary()
-
+"""
 # +-------------------------------------------------------------------
 # Scale the data
 # +-------------------------------------------------------------------
