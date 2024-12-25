@@ -32,6 +32,7 @@ tickdata1 = {
     "Volume": [1]
 }
 
+
 tickdata= df1 = pd.read_csv("C:\\Users\\shepa\\OneDrive\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\PythonLib\\tsProjects\\ExampleModel\\EURUSD_tickdata1.csv")
 ratesdata= df2 = pd.read_csv("C:\\Users\\shepa\\OneDrive\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\PythonLib\\tsProjects\\ExampleModel\\EURUSD_ratesdata1.csv",sep=',')
 

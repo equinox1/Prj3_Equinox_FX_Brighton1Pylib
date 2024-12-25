@@ -97,7 +97,6 @@ class CMdtuner:
                           validation_data=(self.X_test, self.y_test),
                           batch_size=self.batch_size,
                           epochs=HyperParameters().Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step, default=self.epochs))
-                         
     def build_model(self, hp):
         # Ensure that at least one model branch is selected
         if not any([self.cnn_model, self.lstm_model, self.gru_model, self.transformer_model]):

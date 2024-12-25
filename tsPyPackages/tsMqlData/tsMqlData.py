@@ -141,35 +141,51 @@ class CMqldatasetup:
         return lp_rates1 , lp_rates2, lp_rates3, lp_rates4
 
 
-    def wrangle_time(self, df, lp_unit, lp_filesrc):
+    def wrangle_time(self, df, lp_unit, mp_filesrc, filter_int, filter_flt, filter_obj, filter_dtm):
+    
+        """
+        Wrangles time-related data in the DataFrame.
+
+        Parameters:
+            df (pd.DataFrame): Input DataFrame.
+            lp_unit (str): Unit of time.
+            mp_filesrc (str): Source of the file.
+            filter_int (bool): Whether to filter integer columns.
+            filter_flt (bool): Whether to filter float columns.
+            filter_obj (bool): Whether to filter object columns.
+            filter_dtm (bool): Whether to filter datetime columns.
+
+        Returns:
+            pd.DataFrame: The wrangled DataFrame.
+        """
+        
         def rename_columns(df, mapping):
             valid_renames = {old: new for old, new in mapping.items() if old in df.columns}
             df.rename(columns=valid_renames, inplace=True)
             print(f"Renamed columns: {valid_renames}")
 
-        def convert_datetime(df, column, fmt=None, unit=None,type=None):
-            print(f"Converting {lp_filesrc} {column} to datetime")
+        def convert_datetime(df, column, fmt=None, unit=None, type=None):
+            print(f"Converting {mp_filesrc} {column} to datetime")
             if column in df.columns:
                 try:
-                    if  type == 'a':
-                        print(f"1:Converting {lp_filesrc} {column} to datetime with astype string")
-                        df[column] = datetime.strptime(df[column], fmt)
-                        print(df[column].head(3))  # Print the first few rows to verify conversion
-                    elif  type == 'b':
-                        print(f"2:Converting {lp_filesrc} {column} to datetime with topy string")
-                        df[column] = pd.to_datetime(df[column].dt.to_pydatetime(), errors='coerce',utc=True)
-                        print(df[column].head(3))  # Print the first few rows to verify conversion
+                    if type == 'a':
+                        print(f"1:Converting {mp_filesrc} {column} to datetime with astype string")
+                        df[column] = pd.to_datetime(df[column], errors='coerce', utc=True)
+                        print("1: ", df[column].head(2))  # Print the first few rows to verify conversion
+                    elif type == 'b':
+                        print(f"2:Converting {mp_filesrc} {column} to datetime with topy string")
+                        df[column] = pd.to_datetime(df[column].dt.to_pydatetime(), errors='coerce', utc=True)
+                        print("2: ", df[column].head(2))  # Print the first few rows to verify conversion
                     elif fmt and type == 'f':
-                        print(f"3:Converting {lp_filesrc} {column} to datetime with format {fmt}")
-                        df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce',utc=True)
-                        print(df[column].head(3))  # Print the first few rows to verify conversion
+                        print(f"3:Converting {mp_filesrc} {column} to datetime with format {fmt}")
+                        df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
+                        print("3: ", df[column].head(2))  # Print the first few rows to verify conversion
                     elif unit and type == 'u':
-                        print(f"4:Converting {lp_filesrc} {column} to datetime with unit {unit}")
-                        df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce',utc=True)
-                        print(df[column].head(3))  # Print the first few rows to verify conversion
-                        
+                        print(f"4:Converting {mp_filesrc} {column} to datetime with unit {unit}")
+                        df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce', utc=True)
+                        print("4: ", df[column].head(2))  # Print the first few rows to verify conversion
                 except Exception as e:
-                    print(f"Error converting {column}: {e}")
+                    print(f"Error converting {mp_filesrc} {column}: {e}")
 
         mappings = {
             'ticks1': {
@@ -209,8 +225,8 @@ class CMqldatasetup:
                 'Close': 'R2_Close',
                 'tick_volume': 'R2_Tick Volume',
                 'Volume': 'R2_Volume',
-                'vol2' : 'R2_Vol1',
-                'vol3' : 'R2_Vol3'
+                'vol2': 'R2_Vol1',
+                'vol3': 'R2_Vol3'
             }
         }
 
@@ -228,57 +244,52 @@ class CMqldatasetup:
         }
         
         conv_columns = {
-            'ticks1': ('time', '%Y%m%d', 's', 'x'),
-            'rates1': ('time', '%Y%m%d', 's', 'x'),      
-        }
-        if lp_filesrc in mappings:
-            print(f"Processing {lp_filesrc} data")
+            'ticks1': ('T1_Date', '%Y%m%d', 's', 'x'),
+            'rates1': ('R1_Date', '%Y%m%d', 's', 'x'),  
+            'ticks2': ('Timestamp', '%H:%M:%S','ms', 'a'),
+            'rates2': ('Timestamp', '%H:%M:%S','s', 'a'),
+           }
+        if mp_filesrc in mappings:
+            print(f"Processing {mp_filesrc} data")
             
-            if lp_filesrc in date_columns:
-                column, fmt, unit ,type = date_columns[lp_filesrc]
+            if mp_filesrc in date_columns:
+                print(f"a: Processing {mp_filesrc} date columns")
+                column, fmt, unit ,type = date_columns[mp_filesrc]
                 convert_datetime(df, column, fmt=fmt, unit=unit,type=type)
 
-            if lp_filesrc in time_columns:
-                column, fmt, unit ,type = time_columns[lp_filesrc]
+            if mp_filesrc in time_columns:
+                print(f"b: Processing {mp_filesrc} time columns")
+                column, fmt, unit ,type = time_columns[mp_filesrc]
                 convert_datetime(df, column, fmt=fmt, unit=unit,type=type)
          
-            if lp_filesrc in conv_columns:
-                column, fmt, unit ,type = conv_columns[lp_filesrc]
+            if mp_filesrc in conv_columns:
+                print(f"c: Processing {mp_filesrc} conv columns")
+                column, fmt, unit ,type = conv_columns[mp_filesrc]
                 convert_datetime(df, column, fmt=fmt, unit=unit,type=type)
-                
+
             # Rename columns
-            rename_columns(df, mappings[lp_filesrc])
-            # Handle missing values
-            if not df.empty:
-                df.ffill(inplace=True)  # Forward fill
-                df.bfill(inplace=True)  # Backward fill
-
-            # Remove duplicates
-            df.drop_duplicates(inplace=True)
-
+            rename_columns(df, mappings[mp_filesrc])
+            
             # Convert data types
-           
-            for col in df.select_dtypes(include=['int64', 'float64']).columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')     
+            if filter_int:
+                for col in df.select_dtypes(include=['int64']).columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce') 
+                    print(" Columns Numeric: ", col)
+            if filter_flt:
+                for col in df.select_dtypes(include=['float64']).columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce') 
+                    print(" Columns Numeric: ", col)
+            if filter_obj:
+                for col in df.select_dtypes(include=['object']).columns:
+                    df[col] = pd.to_datetime(df[col], errors='coerce') 
+                    print(" Columns Object: ", col)
+            if filter_dtm:
+                for col in df.select_dtypes(include=['datetime64[ns]', 'datetime64[ns, UTC]']).columns:
+                    df[col] = df[col].astype('int64')
+                    print(" Columns DateTime: ", col) 
 
-        
-            
-            # Remove outliers (example: removing rows where volume is extremely high)
-            if 'volume' in df.columns:
-                df = df[df['volume'] < df['volume'].quantile(0.99)]
-
-            # Standardize data (example: converting all string columns to lowercase)
-            for col in df.select_dtypes(include=['datetime64']).columns:
-                 df[col] = pd.to_numeric(df[col], errors='coerce')  
-            for col in df.select_dtypes(include=['datetime64[ns, UTC]']).columns:
-                 df[col] = pd.to_numeric(df[col], errors='coerce')        
-
-            
-            
-            # Uncomment the following line if you want to remove any remaining NaNs
-            #df.dropna(inplace=True)
-
-            
+            df.dropna(inplace=True)
+         
         return df
 
     def create_target(self, df, lookahead_seconds, bid_column, ask_column,
