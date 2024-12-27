@@ -141,7 +141,7 @@ class CMqldatasetup:
         return lp_rates1 , lp_rates2, lp_rates3, lp_rates4
 
 
-    def wrangle_time(self, df, lp_unit, mp_filesrc, filter_int, filter_flt, filter_obj, filter_dtm):
+    def wrangle_time(self, df, lp_unit, mp_filesrc, filter_int, filter_flt, filter_obj, filter_dtmi, filter_dtmf):
     
         """
         Wrangles time-related data in the DataFrame.
@@ -170,7 +170,7 @@ class CMqldatasetup:
                 try:
                     if type == 'a':
                         print(f"1:Converting {mp_filesrc} {column} to datetime with astype string")
-                        df[column] = pd.to_datetime(df[column], errors='coerce', utc=True)
+                        df[column] = pd.to_datetime(df[column],format='%d.%m.%Y %H:%M:%S', errors='coerce', utc=True)
                         print("1: ", df[column].head(2))  # Print the first few rows to verify conversion
                     elif type == 'b':
                         print(f"2:Converting {mp_filesrc} {column} to datetime with topy string")
@@ -231,23 +231,23 @@ class CMqldatasetup:
         }
 
         date_columns = {
-            'ticks1': ('time', '%Y%m%d', 's', 'u'),
-            'rates1': ('time', '%Y%m%d', 's', 'u'),
-            'ticks2': ('Date', '%Y%m%d', 's', 'b'),
-            'rates2': ('Date', '%Y%m%d', 's', 'b'),
+            'ticks1': ('time', '%Y%m%d', 's', 'u'), #u
+            'rates1': ('time', '%Y%m%d', 's', 'u'), #u
+            'ticks2': ('Date', '%Y%m%d', 's', 'b'), #b
+            'rates2': ('Date', '%Y%m%d', 's', 'b'), #b
         }
 
         time_columns = {
-            'ticks1': ('time_msc', '%H:%M:%S', 'ms', 'u'),
-            'ticks2': ('Timestamp', '%H:%M:%S','ms', 'b'),
-            'rates2': ('Timestamp', '%H:%M:%S','s', 'b'),
+            'ticks1': ('time_msc', '%H:%M:%S', 'ms', 'u'),          #u
+            'ticks2': ('Timestamp', '%H:%M:%S','ms', 'b'),          #b
+            'rates2': ('Timestamp', '%H:%M:%S','s', 'b'),           #b
         }
         
         conv_columns = {
-            'ticks1': ('T1_Date', '%Y%m%d', 's', 'x'),
-            'rates1': ('R1_Date', '%Y%m%d', 's', 'x'),  
-            'ticks2': ('Timestamp', '%H:%M:%S','ms', 'a'),
-            'rates2': ('Timestamp', '%H:%M:%S','s', 'a'),
+            'ticks1': ('T1_Date', '%Y%m%d', 's', 'a'),              #a
+            'rates1': ('R1_Date', '%Y%m%d', 's', 'a'),              #a 
+            'ticks2': ('Timestamp', '%H:%M:%S','ms', 'a'),          #a
+            'rates2': ('Timestamp', '%H:%M:%S','s', 'a'),           #a
            }
         if mp_filesrc in mappings:
             print(f"Processing {mp_filesrc} data")
@@ -283,9 +283,13 @@ class CMqldatasetup:
                 for col in df.select_dtypes(include=['object']).columns:
                     df[col] = pd.to_datetime(df[col], errors='coerce') 
                     print(" Columns Object: ", col)
-            if filter_dtm:
+            if filter_dtmi:
                 for col in df.select_dtypes(include=['datetime64[ns]', 'datetime64[ns, UTC]']).columns:
-                    df[col] = df[col].astype('int64')
+                    df[col] = pd.to_numeric(df[col].view('int64'))  # To numeric
+                    print(" Columns DateTime: ", col) 
+            if filter_dtmf:
+                for col in df.select_dtypes(include=['datetime64[ns]', 'datetime64[ns, UTC]']).columns:
+                    df[col] = pd.to_numeric(df[col].view('float64'))  # To numeric
                     print(" Columns DateTime: ", col) 
 
             df.dropna(inplace=True)

@@ -34,7 +34,8 @@ class CMdtuner:
         self.tune_new_entries = kwargs['tune_new_entries'] if 'tune_new_entries' in kwargs else True
         self.allow_new_entries = kwargs['allow_new_entries'] if 'allow_new_entries' in kwargs else True
         self.max_retries_per_trial = kwargs['max_retries_per_trial'] if 'max_retries_per_trial' in kwargs else 3
-        self.max_consecutive_failed_trials = kwargs['max_consecutive_failed_trials'] if 'max_consecutive_failed_trials' in kwargs else 3
+        self.max_consecutive_failed_trials = kwargs['max_consecutive_failed_trials'] if 'max_consecutive_failed_trials' in kwargs else 30
+        print("self.max_consecutive_failed_trials",self.max_consecutive_failed_trials)
         self.validation_split = kwargs['validation_split'] if 'validation_split' in kwargs else 0.2
         self.batch_size = kwargs['batch_size'] if 'batch_size' in kwargs else 32
         self.dropout = kwargs['dropout'] if 'dropout' in kwargs else 0.3
@@ -88,9 +89,13 @@ class CMdtuner:
             factor=self.factor,
             directory=self.basepath,
             project_name=self.project_name,
-            overwrite=self.overwrite
+            overwrite=self.overwrite,
+            max_consecutive_failed_trials=self.max_consecutive_failed_trials,
+            max_retries_per_trial=self.max_retries_per_trial,
         )
 
+        # Configure the tuner's oracle
+        self.tuner.oracle.max_fail_streak = self.max_consecutive_failed_trials
         # Display search space summary and begin tuning
         self.tuner.search_space_summary()
         self.tuner.search(self.X_train, self.y_train,
