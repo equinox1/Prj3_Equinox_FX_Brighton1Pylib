@@ -90,8 +90,6 @@ class CMdtuner:
             directory=self.basepath,
             project_name=self.project_name,
             overwrite=self.overwrite,
-            max_consecutive_failed_trials=self.max_consecutive_failed_trials,
-            max_retries_per_trial=self.max_retries_per_trial,
         )
 
         # Configure the tuner's oracle
@@ -101,6 +99,8 @@ class CMdtuner:
         self.tuner.search(self.X_train, self.y_train,
                           validation_data=(self.X_test, self.y_test),
                           batch_size=self.batch_size,
+                          max_consecutive_failed_trials=self.max_consecutive_failed_trials,
+                          max_retries_per_trial=self.max_retries_per_trial,
                           epochs=HyperParameters().Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step, default=self.epochs))
     def build_model(self, hp):
         # Ensure that at least one model branch is selected
