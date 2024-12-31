@@ -9,6 +9,9 @@ import keras_tuner as kt
 import os
 from keras_tuner import HyperParameters
 
+
+
+
 class CMdtuner:
     def __init__(self, **kwargs):
         # Load dataset and model configuration parameters
@@ -68,7 +71,13 @@ class CMdtuner:
         self.checkpoint_filepath = kwargs['checkpoint_filepath'] if 'checkpoint_filepath' in kwargs else None
         self.modeldatapath = kwargs['modeldatapath'] if 'modeldatapath' in kwargs else None
         self.step = kwargs['step'] if 'step' in kwargs else 5    
-        self.multiactivate = kwargs['multiactivate'] if 'multiactivate' in kwargs else False                                                             
+        self.multiactivate = kwargs['multiactivate'] if 'multiactivate' in kwargs else False   
+        self.tf1 = kwargs['tf1'] if 'tf1' in kwargs else False    
+        self.tf2 = kwargs['tf2'] if 'tf2' in kwargs else False                                                      
+
+        #Enable tensorflow debugging
+        if self.tf1: debugging.set_log_device_placement(self.tf1)
+        if self.tf2: tf.debugging.enable_check_numerics()
 
         # Ensure the output directory exists
         os.makedirs(self.basepath, exist_ok=True)
@@ -89,7 +98,7 @@ class CMdtuner:
             factor=self.factor,
             directory=self.basepath,
             project_name=self.project_name,
-            overwrite=self.overwrite,
+            overwrite=self.overwrite,  
         )
 
         # Configure the tuner's oracle
@@ -99,9 +108,9 @@ class CMdtuner:
         self.tuner.search(self.X_train, self.y_train,
                           validation_data=(self.X_test, self.y_test),
                           batch_size=self.batch_size,
-                          max_consecutive_failed_trials=self.max_consecutive_failed_trials,
-                          max_retries_per_trial=self.max_retries_per_trial,
-                          epochs=HyperParameters().Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step, default=self.epochs))
+                          epochs=HyperParameters().Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step, default=self.epochs),
+                         )
+                     
     def build_model(self, hp):
         # Ensure that at least one model branch is selected
         if not any([self.cnn_model, self.lstm_model, self.gru_model, self.transformer_model]):
@@ -145,9 +154,9 @@ class CMdtuner:
         x = Dense(50, activation=self.activation1)(combined)
         x = Dropout(0.3)(x)
         if self.multiactivate:
-            output = Dense(1, activation=hp.Choice('output_activation', [self.activation2, self.activation3, self.activation4]))(x)
+                output = Dense(1, activation=hp.Choice('output_activation', [self.activation2, self.activation3, self.activation4]))(x)
         else:
-            output = Dense(1, activation=self.activation2)(x)
+                output = Dense(1, activation=self.activation2)(x)
 
         model = Model(inputs=self.inputs, outputs=output)
         model = self.compile_model(model, hp)
