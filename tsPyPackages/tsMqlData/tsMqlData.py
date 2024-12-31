@@ -144,7 +144,7 @@ class CMqldatasetup:
         return lp_rates1 , lp_rates2, lp_rates3, lp_rates4
 
 
-    def wrangle_time(self, df: pd.DataFrame, lp_unit: str, mp_filesrc: str, filter_int: bool, filter_flt: bool, filter_obj: bool, filter_dtmi: bool, filter_dtmf: bool, mp_dropna: bool) -> pd.DataFrame:
+    def wrangle_time(self, df: pd.DataFrame, lp_unit: str, mp_filesrc: str, filter_int: bool, filter_flt: bool, filter_obj: bool, filter_dtmi: bool, filter_dtmf: bool, mp_dropna: bool,mp_merge: bool, mp_convert: bool):
         """
         Wrangles time-related data in the DataFrame.
 
@@ -190,13 +190,15 @@ class CMqldatasetup:
                         df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
                         df[column] = pd.to_datetime(df[column].dt.strftime('%H:%M:%S.%f'), format='%H:%M:%S.%f', errors='coerce', utc=True)
                     elif type == 'b':
-                        print(f"Converting {mp_filesrc} {column} to datetime with topy string: type {type} and format {fmt}")
-                        df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
-                        df[column] = pd.to_datetime(df[column].dt.to_pydatetime(), errors='coerce', utc=True)
+                        print(f"Converting {mp_filesrc} {column} to datetime with tf model: type {type} and format {fmt}")
+                        df[column]  = pd.to_datetime(df.pop(df[column]), format='%d.%m.%Y %H:%M:%S')
                     elif type == 'c':
                         print(f"Converting {mp_filesrc} {column} to datetime with stfttime years string: type {type} and format {fmt}")
                         df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
                         df[column] = pd.to_datetime(df[column].dt.strftime('%d/%m/%y %H:%M:%S.%f'), format='%d/%m/%y %H:%M:%S.%f', errors='coerce', utc=True)
+                    elif type == 'd':
+                        print(f"Converting {mp_filesrc} {column} to datetime with tf time: type {type} and format {fmt}")
+                        df[column] = df[column].map(pd.Timestamp.timestamp)
                     elif fmt and type == 'f':
                         print(f"Converting {mp_filesrc} {column} to datetime with format {fmt}: type {type} and format {fmt}")
                         df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
@@ -266,13 +268,17 @@ class CMqldatasetup:
         }
         
         conv_columns = {
-            'ticks1': ('T1_Date', '%d.%m.%Y %H:%M:%S', 's', 'a'),
-            'rates1': ('R1_Date', '%d.%m.%Y %H:%M:%S', 's', 'a'),
-            'ticks2': ('Timestamp', '%H:%M:%S', 'ms', 'f'),
-            'rates2': ('Timestamp', '%H:%M:%S', 's', 'f'),
+            'ticks1': ('T1_Date', '%d.%m.%Y %H:%M:%S', 's', 'b'),
+            'rates1': ('R1_Date', '%d.%m.%Y %H:%M:%S', 's', 'b'),
+            'ticks2': ('T2_Date', '%d.%m.%Y %H:%M:%S', 's', 'b'),
+            'rates2': ('R2_Date', '%d.%m.%Y %H:%M:%S', 's', 'b'),
+            'ticks2': ('Timestamp', '%H:%M:%S', 'ms', 'd'),
+            'rates2': ('Timestamp', '%H:%M:%S', 's', 'd'),
         }
 
         merge_columns = {
+            'ticks1': ('T1_Date', 'T1_Timestamp', 'T1_mDatetime'),
+            'rates1': ('R1_Date', 'R1_Timestamp', 'R1_mDatetime'),
             'ticks2': ('T2_Date', 'T2_Timestamp', 'T2_mDatetime'),
             'rates2': ('R2_Date', 'R2_Timestamp', 'R2_mDatetime'),
         }
@@ -288,13 +294,13 @@ class CMqldatasetup:
                 column, fmt, unit, type = time_columns[mp_filesrc]
                 convert_datetime(df, column, fmt=fmt, unit=unit, type=type)
          
-            if mp_filesrc in conv_columns:
+            if mp_filesrc in conv_columns and mp_convert:
                 column, fmt, unit, type = conv_columns[mp_filesrc]
                 convert_datetime(df, column, fmt=fmt, unit=unit, type=type)
            
             rename_columns(df, mappings[mp_filesrc])
 
-            if mp_filesrc in merge_columns:
+            if mp_filesrc in merge_columns and mp_merge:
                 col1, col2, mcol = merge_columns[mp_filesrc]
                 df = merge_datetime(df, col1, col2, mcol, mp_filesrc)
                 
@@ -319,9 +325,9 @@ class CMqldatasetup:
                     df[col] = pd.to_numeric(df[col].view('float64'))
                     print("Columns DateTime:", col)
             if mp_dropna:
-                df.dropna(inplace=True)
+                df.fillna(0, inplace=True)
                 print("Dropped NaN values")
-           
+            
         return df
 
 

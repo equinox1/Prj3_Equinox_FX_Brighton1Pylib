@@ -74,16 +74,18 @@ if gpus:
 # Start of the main script
 #Variable input
 mp_test = False
+show_nans = False
+show_dtype = False
 mp_dfName1 = "df_rates1"
 mp_dfName2 = "df_rates2"
 mv_loadapiticks = True
 mv_loadapirates = True
 mv_loadfileticks = True
 mv_loadfilerates = True
-mv_usedata = 'loadfileticks' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
+mv_usedata = 'loadapiticks' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
 
 mp_rows = 1000
-mp_rowcount = 100000
+mp_rowcount = 10000
 MAINBROKER = "METAQUOTES" # "ICM" or "METAQUOTES"
 MPDATAFILE1 =  "tickdata1.csv"
 MPDATAFILE2 =  "ratesdata1.csv"
@@ -226,19 +228,20 @@ print(f"mp_filename2 Set to: {MPFILEVALUE2}")
 # Load tick data from MQL
 mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks, mv_loadapirates, mv_loadfileticks, mv_loadfilerates, mp_dfName1, mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1, mp_filename2, mp_timeframe)
 
-mv_tdata1apiticks=d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False,mp_dropna=False)
-mv_tdata1apirates=d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False)
-mv_tdata1loadticks=d1.wrangle_time(mv_tdata1loadticks, mp_unit,mp_filesrc= "ticks2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=True,mp_dropna=True)
-mv_tdata1loadrates=d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False)
+mv_tdata1apiticks=d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=True)
+mv_tdata1apirates=d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=True)
+mv_tdata1loadticks=d1.wrangle_time(mv_tdata1loadticks, mp_unit,mp_filesrc= "ticks2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=True)
+mv_tdata1loadrates=d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True)
 
-print("1: dtypes of the dataframes")
-print(mv_tdata1apiticks.dtypes)  # Check the data types of the columns
-print("2: dtypes of the dataframes")
-print(mv_tdata1apirates.dtypes)  # Check the data types of the columns
-print("3: dtypes of the dataframes")
-print(mv_tdata1loadticks.dtypes)  # Check the data types of the columns
-print("4: dtypes of the dataframes")
-print(mv_tdata1loadrates.dtypes)  # Check the data types of the columns
+if show_dtype:
+    print("1: dtypes of the dataframes")
+    print(mv_tdata1apiticks.dtypes)  # Check the data types of the columns
+    print("2: dtypes of the dataframes")
+    print(mv_tdata1apirates.dtypes)  # Check the data types of the columns
+    print("3: dtypes of the dataframes")
+    print(mv_tdata1loadticks.dtypes)  # Check the data types of the columns
+    print("4: dtypes of the dataframes")
+    print(mv_tdata1loadrates.dtypes)  # Check the data types of the columns
 
 mv_tdata1apiticks = d1.create_target(
     df=mv_tdata1apiticks,
@@ -311,8 +314,8 @@ mv_y_tdata2b = mv_tdata1apirates.copy()  # Copy the data for further processing
 mv_X_tdata2c = mv_tdata1loadticks.copy()  # Copy the data for further processing
 mv_y_tdata2c = mv_tdata1loadticks.copy()  # Copy the data for further processing
 
-mv_X_tdata2d = None  # Initialize to None
-mv_y_tdata2d = None  # Initialize to None
+mv_X_tdata2d = mv_tdata1loadrates.copy()  # Copy the data for further processing
+mv_y_tdata2d = mv_tdata1loadrates.copy()  # Copy the data for further processing
 
 # Check the switch of which file to use
 if mv_usedata == 'loadapiticks':
@@ -365,6 +368,15 @@ mp_X_test_input_shape = mv_X_test.shape
 mp_y_train_input_shape = mv_y_train.shape
 mp_y_test_input_shape = mv_y_test.shape
 
+# Check for NaNs in the data
+if show_nans:
+    print("Nans Check: self.X_train",mv_X_train.isnull().sum())  # Check for NaNs in features
+    print("Nans Check: self.y_train",mv_y_train.isnull().sum())  # Check for NaNs in target
+    print("Nans Check: self.X_test",mv_X_test.isnull().sum())  # Check for NaNs in features
+    print("Nans Check: self.y_test",mv_y_test.isnull().sum())  # Check for NaNs in
+
+
+
 # +-------------------------------------------------------------------
 # Hyperparameter tuning and model setup
 # +-------------------------------------------------------------------
@@ -406,8 +418,8 @@ mp_seed = 42
 mp_hyperband_iterations = 1
 mp_tune_new_entries = False
 mp_allow_new_entries = False
-mp_max_retries_per_trial = 10
-mp_max_consecutive_failed_trials = 11
+mp_max_retries_per_trial = 5
+mp_max_consecutive_failed_trials = 6
 # base tuner parameters
 mp_validation_split = 0.2
 mp_epochs = mp_param_epochs 
@@ -471,7 +483,6 @@ print(tabulate(mv_X_test.head(3), showindex=False, headers=mv_X_test.columns, ta
 print("4: Start First few rows of mv_y_test: Count",len(mv_y_test))
 print(tabulate(mv_y_test.head(3), showindex=False, headers=mv_y_test.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 
-
 # Create an instance of the tuner class
 print("Creating an instance of the tuner class")
 mt = CMdtuner(
@@ -527,7 +538,9 @@ mt = CMdtuner(
     checkpoint_filepath=mp_checkpoint_filepath,
     modeldatapath=mp_modeldatapath,
     step=mp_param_steps,
-    multiactivate=mp_multiactivate
+    multiactivate=True,
+    tf1=False,
+    tf2=False,
 )
     
 # Run the tuner to find the best model configuration
@@ -550,9 +563,6 @@ mv_X_test = scaler.transform(mv_X_test)
 best_model[0].fit(mv_X_train, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
 best_model[0].evaluate(mv_X_test, mv_y_test)
 
-# Assuming mv_X_train is your training data
-scaler = StandardScaler()
-scaler.fit(mv_X_train)  # Fit the scaler on your training data
 
 # +-------------------------------------------------------------------
 # Predict the test data using the trained model
@@ -604,6 +614,8 @@ plt.xlabel('Time')
 plt.ylabel('FX Price')
 plt.legend()
 plt.savefig(mp_basepath + '//' + 'plot.png')
+plt.show()
+print("Plot Model saved to ",mp_basepath + '//' + 'plot.png')
 
 
 # +-------------------------------------------------------------------
