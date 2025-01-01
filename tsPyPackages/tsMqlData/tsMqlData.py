@@ -167,43 +167,47 @@ class CMqldatasetup:
             valid_renames = {old: new for old, new in mapping.items() if old in df.columns}
             df.rename(columns=valid_renames, inplace=True)
        
-        def merge_datetime(df, col1, col2, mcol, mp_filesrc): 
+        def merge_datetime(df, col1, col2, mcol, mfmt1,mfmt2,mp_filesrc): 
             if col1 in df.columns and col2 in df.columns:
                 try:
                     print(f"Merging {mp_filesrc} {col1} and {col2} to {mcol}")
                     df[mcol] = pd.to_datetime(df[col1].dt.strftime('%Y-%m-%d') + ' ' + df[col2].dt.strftime('%H:%M:%S.%f'), format='%Y-%m-%d %H:%M:%S.%f', errors='coerce', utc=True)
                     print("Sort Merged datetime columns")
-                    columns = [mcol] + [col for col in df.columns if col != mcol]
-                    print("Columns:", columns)
-                    df = df[columns]
-                    df.drop([col1, col2], axis=1, inplace=True, errors='ignore')
-                    
+                    # Reorder columns
+                    print("Sorting merged datetime column")
+                    df = df[[mcol] + [col for col in df.columns if col not in {col1, col2, mcol}]]
+                    print("Columns:", df.columns)
                 except Exception as e:
                     print(f"Error merging {mp_filesrc} {col1} and {col2} to {mcol}: {e}")
             return df
 
+
+
+      
+
         def convert_datetime(df: pd.DataFrame, column: str, fmt: str = None, unit: str = None, type: str = None) -> None:
+           # print("Converting: datetime columns:", column," with format:", fmt, " and unit:", unit, " and type:",type)
             if column in df.columns:
                 try:
                     if type == 'a':
-                        print(f"Converting {mp_filesrc} {column} to datetime with stfttime hours string: type {type} and format {fmt}")
+                        print(f"Converting:a {mp_filesrc} {column} to datetime with stfttime hours string: type {type} and format {fmt}")
                         df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
                         df[column] = pd.to_datetime(df[column].dt.strftime('%H:%M:%S.%f'), format='%H:%M:%S.%f', errors='coerce', utc=True)
                     elif type == 'b':
-                        print(f"Converting {mp_filesrc} {column} to datetime with tf model: type {type} and format {fmt}")
-                        df[column]  = pd.to_datetime(df.pop(df[column]), format='%d.%m.%Y %H:%M:%S')
+                        print(f"Converting:b {mp_filesrc} {column} to datetime with tf date model: type {type} and format {fmt}")
+                        df[column] = pd.to_datetime(df.pop(column), format=fmt, errors='coerce', utc=True,inplace=True)
                     elif type == 'c':
-                        print(f"Converting {mp_filesrc} {column} to datetime with stfttime years string: type {type} and format {fmt}")
+                        print(f"Converting:c {mp_filesrc} {column} to datetime with stfttime years string: type {type} and format {fmt}")
                         df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
                         df[column] = pd.to_datetime(df[column].dt.strftime('%d/%m/%y %H:%M:%S.%f'), format='%d/%m/%y %H:%M:%S.%f', errors='coerce', utc=True)
                     elif type == 'd':
-                        print(f"Converting {mp_filesrc} {column} to datetime with tf time: type {type} and format {fmt}")
+                        print(f"Converting:d {mp_filesrc} {column} to datetime with tf time: type {type} and format {fmt}")
                         df[column] = df[column].map(pd.Timestamp.timestamp)
-                    elif fmt and type == 'f':
-                        print(f"Converting {mp_filesrc} {column} to datetime with format {fmt}: type {type} and format {fmt}")
+                    elif type == 'e':
+                        print(f"Converting:e {mp_filesrc} {column} to datetime with format {fmt}: type {type} and format {fmt}")
                         df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
-                    elif unit and type == 'u':
-                        print(f"Converting {mp_filesrc} {column} to datetime with unit {unit}: type {type} and format {fmt}")
+                    elif type == 'f':
+                        print(f"Converting:f {mp_filesrc} {column} to datetime with unit {unit}: type {type} and format {fmt}")
                         df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce', utc=True)
                 except Exception as e:
                     print(f"Error converting {mp_filesrc} {column} {type}: {e}")
@@ -255,32 +259,33 @@ class CMqldatasetup:
         }
 
         date_columns = {
-            'ticks1': ('time', '%Y%m%d', 's', 'u'),
-            'rates1': ('time', '%Y%m%d', 's', 'u'),
-            'ticks2': ('Date', '%Y%m%d', 's', 'c'),
-            'rates2': ('Date', '%Y%m%d', 's', 'c'),
+            'ticks1': ('time', '%Y%m%d', 's', 'f'),
+            'rates1': ('time', '%Y%m%d', 's', 'f'),
+            'ticks2': ('Date', '%Y%m%d', 's', 'e'),
+            'rates2': ('Date', '%Y%m%d', 's', 'e'),
         }
 
         time_columns = {
-            'ticks1': ('time_msc', '%d.%m.%Y %H:%M:%S', 'ms', 'u'),
+            'ticks1': ('time_msc', '%Y%m%d %H:%M:%S', 'ms', 'f'),
             'ticks2': ('Timestamp', '%H:%M:%S', 'ms', 'a'),
             'rates2': ('Timestamp', '%H:%M:%S', 's', 'a'),
         }
         
         conv_columns = {
-            'ticks1': ('T1_Date', '%d.%m.%Y %H:%M:%S', 's', 'b'),
-            'rates1': ('R1_Date', '%d.%m.%Y %H:%M:%S', 's', 'b'),
-            'ticks2': ('T2_Date', '%d.%m.%Y %H:%M:%S', 's', 'b'),
-            'rates2': ('R2_Date', '%d.%m.%Y %H:%M:%S', 's', 'b'),
-            'ticks2': ('Timestamp', '%H:%M:%S', 'ms', 'd'),
-            'rates2': ('Timestamp', '%H:%M:%S', 's', 'd'),
+            'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 's', 'b'),
+            'ticks1': ('T1_Time_Msc', '%Y%m%d %H:%M:%S.%f', 's', 'b'),
+            'rates1': ('R1_Date', '%Y%m%d %H:%M:%S.%f', 's', 'b'),
+            'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
+            'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
         }
 
+        # Columns are renamed before merging
+
         merge_columns = {
-            'ticks1': ('T1_Date', 'T1_Timestamp', 'T1_mDatetime'),
-            'rates1': ('R1_Date', 'R1_Timestamp', 'R1_mDatetime'),
-            'ticks2': ('T2_Date', 'T2_Timestamp', 'T2_mDatetime'),
-            'rates2': ('R2_Date', 'R2_Timestamp', 'R2_mDatetime'),
+            'ticks1': ('T1_Date', 'T1_Timestamp', 'T1_mDatetime','%Y%m%d %H:%M:%S','%H:%M:%S'),
+            'rates1': ('R1_Date', 'R1_Timestamp', 'R1_mDatetime','%Y%m%d %H:%M:%S','%H:%M:%S'),
+            'ticks2': ('T2_Date', 'T2_Timestamp', 'T2_mDatetime','%Y%m%d %H:%M:%S','%Y%m%d %H:%M:%S'),
+            'rates2': ('R2_Date', 'R2_Timestamp', 'R2_mDatetime','%Y%m%d %H:%M:%S','%Y%m%d %H:%M:%S'),
         }
 
         if mp_filesrc in mappings:
@@ -293,16 +298,19 @@ class CMqldatasetup:
             if mp_filesrc in time_columns:
                 column, fmt, unit, type = time_columns[mp_filesrc]
                 convert_datetime(df, column, fmt=fmt, unit=unit, type=type)
-         
+
+            # Rename columns
+            rename_columns(df, mappings[mp_filesrc])
+                
+            # Merge datetime columns
+            if mp_filesrc in merge_columns and mp_merge:
+                col1, col2, mcol,mfmt1,mfmt2 = merge_columns[mp_filesrc]
+                df = merge_datetime(df, col1, col2, mcol,mfmt1,mfmt2, mp_filesrc)
+
+            # Convert datetime columns wiyh tf
             if mp_filesrc in conv_columns and mp_convert:
                 column, fmt, unit, type = conv_columns[mp_filesrc]
                 convert_datetime(df, column, fmt=fmt, unit=unit, type=type)
-           
-            rename_columns(df, mappings[mp_filesrc])
-
-            if mp_filesrc in merge_columns and mp_merge:
-                col1, col2, mcol = merge_columns[mp_filesrc]
-                df = merge_datetime(df, col1, col2, mcol, mp_filesrc)
                 
             if filter_int:
                 for col in df.select_dtypes(include=['int64']).columns:
