@@ -43,7 +43,7 @@ import logging
 
 from tsMqlConnect import CMqlinit
 from tsMqlData import CMqldatasetup
-from tsMqlML import CMqlmlsetup
+from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
 from tsMqlMLTune import CMdtuner
 
 
@@ -74,7 +74,6 @@ if gpus:
 # Start of the main script
 #Variable input
 mp_test = False
-show_nans = False
 show_dtype = False
 mp_dfName1 = "df_rates1"
 mp_dfName2 = "df_rates2"
@@ -235,7 +234,6 @@ mv_tdata1loadrates=d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rate
 
 if show_dtype:
     print("1: dtypes of the dataframes")
-    
     print(mv_tdata1apiticks.dtypes)  # Check the data types of the columns
     print("2: dtypes of the dataframes")
     print(mv_tdata1apirates.dtypes)  # Check the data types of the columns
@@ -302,7 +300,6 @@ print("4: Start First few rows of the FILE Rates data:Count",len(mv_tdata1loadra
 print(tabulate(mv_tdata1loadrates.head(hrows), showindex=False, headers=mv_tdata1loadrates.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 
 
-
 # +-------------------------------------------------------------------
 # Prepare and process the data
 # +-------------------------------------------------------------------
@@ -343,7 +340,8 @@ elif mv_usedata == 'loadfilerates':
 if mv_X_tdata2 is None or mv_y_tdata2 is None:
     raise ValueError("Invalid mv_usedata value. Data not loaded properly.")
 
-"""
+
+
 # +-------------------------------------------------------------------
 # Split the data into training and test sets
 # +-------------------------------------------------------------------
@@ -356,6 +354,42 @@ mv_X_train, mv_X_test, mv_y_train, mv_y_test = m1.dl_split_data_sets(mv_X_tdata2
 if mv_X_train.empty or mv_X_test.empty or mv_y_train.empty or mv_y_test.empty:
     raise ValueError("Failed to split data into training and test sets")
 
+# Establish Windows for the data
+mp_past_timewindow = TIMEVALUE['HOURS'] * 24
+mp_future_timewindow = TIMEVALUE['HOURS'] * 1
+print("mp_timewindow:", mp_past_timewindow, "mp_future_timewindow:", mp_future_timewindow)
+# Create the time window generator
+
+train_df = mv_X_train
+val_df = mv_X_test
+test_df = mv_y_test
+mp_feature_columns = ['close']
+mp_label_columns = ['target']   
+mp_label_count = len(mp_label_columns)
+
+window = CMqlWindowGenerator(
+    input_width=mp_past_timewindow,
+    label_width=mp_label_count,
+    shift=mp_future_timewindow,
+    train_df=train_df,
+    val_df=val_df,
+    test_df=test_df,
+    label_columns=mp_feature_columns
+)
+print(window)
+
+
+
+# Split the data into training and test sets
+mv_X_train=window.train
+mv_X_test=window.test
+mv_y_train=window.train
+mv_y_test=window.test
+
+
+
+"""
+# Display the first few rows of the data for verification
 print("2:Start Shapes of split data DataFrames:")
 print(f"mv_X_train shape: {mv_X_train.shape}")
 print(f"mv_X_test shape: {mv_X_test.shape}")
@@ -368,14 +402,6 @@ mp_X_train_input_shape = mv_X_train.shape
 mp_X_test_input_shape = mv_X_test.shape
 mp_y_train_input_shape = mv_y_train.shape
 mp_y_test_input_shape = mv_y_test.shape
-
-# Check for NaNs in the data
-if show_nans:
-    print("Nans Check: self.X_train",mv_X_train.isnull().sum())  # Check for NaNs in features
-    print("Nans Check: self.y_train",mv_y_train.isnull().sum())  # Check for NaNs in target
-    print("Nans Check: self.X_test",mv_X_test.isnull().sum())  # Check for NaNs in features
-    print("Nans Check: self.y_test",mv_y_test.isnull().sum())  # Check for NaNs in
-
 
 
 # +-------------------------------------------------------------------
