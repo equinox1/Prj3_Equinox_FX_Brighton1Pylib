@@ -346,62 +346,116 @@ if mv_X_tdata2 is None or mv_y_tdata2 is None:
 # Split the data into training and test sets
 # +-------------------------------------------------------------------
 m1 = CMqlmlsetup()
-mp_train_split = 0.8
-mp_test_split = 0.2
+mp_train_split = 0.7
+mp_validation_split = 0.2
+mp_test_split = 0.1
+mp_gap=1-mp_test_split
 mp_shuffle = False
 
-mv_X_train, mv_X_test, mv_y_train, mv_y_test = m1.dl_split_data_sets(mv_X_tdata2, mv_y_tdata2, mp_train_split, mp_test_split, mp_shuffle)
-if mv_X_train.empty or mv_X_test.empty or mv_y_train.empty or mv_y_test.empty:
-    raise ValueError("Failed to split data into training and test sets")
+# Split the data into training and test sets
+n = len(mv_X_tdata2)
+train_df = mv_X_tdata2[0:int(n*mp_train_split)]
+val_df = mv_X_tdata2[int(n*mp_train_split):int(n*mp_gap)]
+test_df = mv_X_tdata2[int(n*mp_gap):]
 
+
+print("train",train_df.head(5))
+print("val",val_df.head(5))
+print("test",test_df.head(5))
+
+train_df = pd.DataFrame(train_df)
+val_df = pd.DataFrame(val_df)
+test_df = pd.DataFrame(test_df)
+# +-------------------------------------------------------------------
+# End Split the data into training and test sets
+# +-------------------------------------------------------------------
+
+# +-------------------------------------------------------------------
+# Normalize the data
+# +-------------------------------------------------------------------
+train_mean = train_df.mean()
+train_std = train_df.std()
+
+train_df = (train_df - train_mean) / train_std
+val_df = (val_df - train_mean) / train_std
+test_df = (test_df - train_mean) / train_std
+# +-------------------------------------------------------------------
+# End Normalize the data
+# +-------------------------------------------------------------------
+
+# +-------------------------------------------------------------------
 # Establish Windows for the data
-mp_past_timewindow = TIMEVALUE['HOURS'] * 24
-mp_future_timewindow = TIMEVALUE['HOURS'] * 1
-print("mp_timewindow:", mp_past_timewindow, "mp_future_timewindow:", mp_future_timewindow)
-# Create the time window generator
+# +-------------------------------------------------------------------
 
-train_df = mv_X_train
-val_df = mv_X_test
-test_df = mv_y_test
-mp_feature_columns = ['close']
-mp_label_columns = ['target']   
-mp_label_count = len(mp_label_columns)
+mp_past_inputwidth_timewindow = 24  # 24 hours of history data INPUT WIDTH
+mp_future_offsetwidth_timewindow = 24 # one LABEL=1  prediction 24 hours in the future Offset 24 hours
+print("mp_past_inputwidth_timewindow:",mp_past_inputwidth_timewindow, "mp_future_offsetwidth_timewindow:",mp_future_offsetwidth_timewindow)
 
-window = CMqlWindowGenerator(
-    input_width=mp_past_timewindow,
-    label_width=mp_label_count,
-    shift=mp_future_timewindow,
+# Ensure mp_feature_columns is defined and is a list
+# 24 hours of history data to forecast 24 hours in the future for 1 label 
+mp_feature_columns = ['close']  # Example column names for feature independent variables
+mp_label_columns = ['target']   # Example column names for label dependent variables
+mp_num_features = len(mp_feature_columns) # Number of features
+mp_num_labels = len(mp_label_columns) # Number of labels
+
+print("Window Paramas: input_width:",mp_past_inputwidth_timewindow, "label_width:",mp_num_labels, "shift:",mp_future_offsetwidth_timewindow, "label_columns:",mp_feature_columns)
+w1 = CMqlWindowGenerator(
+    input_width=mp_past_inputwidth_timewindow,
+    label_width=mp_num_labels,
+    shift=mp_future_offsetwidth_timewindow,
     train_df=train_df,
     val_df=val_df,
     test_df=test_df,
     label_columns=mp_feature_columns
 )
-print(window)
+
+print(w1)
+print("w1.total_window_size: ",w1.total_window_size)
+# +-------------------------------------------------------------------
+# End  Establish Windows for the data
+# +-------------------------------------------------------------------
 
 
+# +-------------------------------------------------------------------
+# Split the data into windows split into inputs and labels
+# +-------------------------------------------------------------------
 
-# Split the data into training and test sets
-mv_X_train=window.train
-mv_X_test=window.test
-mv_y_train=window.train
-mv_y_test=window.test
+w1win ,w1win_inputs,w1win_labels = w1.window_slicer( train_df, window_size=w1.total_window_size, shift_size=100)
+
+print('train All shapes are: (batch, time, features)')
+print(f'1:Window shape: {w1win.shape}')
+print(f'2:Inputs shape: {w1win_inputs.shape}')
+print(f'3:Labels shape: {w1win_labels.shape}')
+
+w2win ,w2win_inputs,w2win_labels = w1.window_slicer( val_df, window_size=w1.total_window_size, shift_size=100)
+print('val All shapes are: (batch, time, features)')
+print(f'1:Window shape: {w2win.shape}')
+print(f'2:Inputs shape: {w2win_inputs.shape}')
+print(f'3:Labels shape: {w2win_labels.shape}')
+
+w3win ,w3win_inputs,w3win_labels = w1.window_slicer( test_df, window_size=w1.total_window_size, shift_size=100)
+print('test All shapes are: (batch, time, features)')
+print(f'1:Window shape: {w3win.shape}')
+print(f'2:Inputs shape: {w3win_inputs.shape}')
+print(f'3:Labels shape: {w3win_labels.shape}')
 
 
+# +-------------------------------------------------------------------
+# End Split the data into windows split into inputs and labels
+# +-------------------------------------------------------------------
 
-"""
-# Display the first few rows of the data for verification
-print("2:Start Shapes of split data DataFrames:")
-print(f"mv_X_train shape: {mv_X_train.shape}")
-print(f"mv_X_test shape: {mv_X_test.shape}")
-print(f"mv_y_train shape: {mv_y_train.shape}")
-print(f"mv_y_test shape: {mv_y_test.shape}")
-print("2:End Shapes of split data DataFrames:")
+# +-------------------------------------------------------------------
+# TF datasets
+# +-------------------------------------------------------------------
+train = w1.train
+val = w1.val
+test = w1.test
+for w1win_inputs, w1win_labels in train.take(1):
+  print(f'1:Inputs shape (batch, time, features): {w1win_inputs.shape}')
+  print(f'2:Labels shape (batch, time, features): {w1win_labels.shape}')
 
-# define the input shape for the model
-mp_X_train_input_shape = mv_X_train.shape
-mp_X_test_input_shape = mv_X_test.shape
-mp_y_train_input_shape = mv_y_train.shape
-mp_y_test_input_shape = mv_y_test.shape
+w1.w1win = w1win_inputs, w1win_labels
+w1.plot(plot_col='close', model=None, max_subplots=3)
 
 
 # +-------------------------------------------------------------------
@@ -411,18 +465,20 @@ mp_y_test_input_shape = mv_y_test.shape
 #
 # Select Model 
 mp_cnn_model = True
-mp_lstm_model = True   
+mp_lstm_model = True
+plot = w1.plot(plot_col='close', model=None, max_subplots=3)
 mp_gru_model = True
 mp_transformer_model = True
 mp_run_single_input_model = True
 mp_run_single_input_submodels = False # not implemented yet     
 
 # define inputshapes
-mp_single_input_shape = mp_X_train_input_shape[1]
-mp_lstm_input_shape = mp_X_train_input_shape[1]
-mp_cnn_input_shape = mp_X_train_input_shape[1]
-mp_gru_input_shape = mp_X_train_input_shape[1]
-mp_transformer_input_shape = mp_X_train_input_shape[1]
+print("train.shape[1]:",w1win.shape[1])
+mp_single_input_shape = w1win.shape[1]
+mp_lstm_input_shape = w1win.shape[1]
+mp_cnn_input_shape = w1win.shape[1]
+mp_gru_input_shape = w1win.shape[1]
+mp_transformer_input_shape = w1win.shape[1]
 
 # define features
 mp_null = None
@@ -493,30 +549,20 @@ if mp_test:
     mp_project_name = "prjEquinox1_test"
 
 # Run the tuner to find the best model configuration
-print("Running tuner1 with mp_X_train_input_scaled input shape:", mv_X_train.shape)
-print("Running tuner2 with mp_X_train_input_scaled scaled data: Rows:", mv_X_train.shape[0], "Columns:", mv_X_train.shape[1])
-print("Running tuner3 with mp_X_train_input_scaled input shape:", mv_X_train.shape)
-mp_inputs = Input(shape=(mv_X_train.shape[1],1) ) 
+print("Running tuner1 with mp_X_train_input_scaled input shape:", w1win.shape)
+print("Running tuner2 with mp_X_train_input_scaled scaled data: Rows:", w1win.shape[0], "Columns:", w1win.shape[1])
+print("Running tuner3 with mp_X_train_input_scaled input shape:", w1win.shape)
+mp_inputs = Input(shape=(w1win.shape[1],1) ) 
 print("Running tuner4 with mp_X_train_input_scaled input shape:", mp_inputs)
 
 
-# Display the first few rows of the data for verification
-print("1:Start First few rows of the mv_X_train: Count",len(mv_X_train))
-print(tabulate(mv_X_train.head(3), showindex=False, headers=mv_X_train.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print("2:Start First few rows of mv_y_train: Count",len(mv_y_train))
-print(tabulate(mv_y_train.head(3), showindex=False, headers=mv_y_train.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print("3: Start First few rows of mv_X_test: Count",len(mv_X_test))
-print(tabulate(mv_X_test.head(3), showindex=False, headers=mv_X_test.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print("4: Start First few rows of mv_y_test: Count",len(mv_y_test))
-print(tabulate(mv_y_test.head(3), showindex=False, headers=mv_y_test.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
 
 # Create an instance of the tuner class
 print("Creating an instance of the tuner class")
 mt = CMdtuner(
-    X_train=mv_X_train,
-    y_train=mv_y_train,
-    X_test=mv_X_test,
-    y_test=mv_y_test,
+    X_train=train,
+    X_val=val,
+    X_test=test,
     inputs=mp_inputs,
     cnn_model=mp_cnn_model,
     lstm_model=mp_lstm_model,
@@ -580,15 +626,16 @@ best_model[0].summary()
 # Scale the data
 # +-------------------------------------------------------------------
 scaler = StandardScaler()
-mv_X_train = scaler.fit_transform(mv_X_train)
-mv_X_test = scaler.transform(mv_X_test)
+mv_X_train = scaler.fit_transform(train)
+mv_X_val = scaler.transform(val)
+mv_X_test = scaler.transform(test)
 
 # +-------------------------------------------------------------------
 # Train and evaluate the model
 # +-------------------------------------------------------------------
 
-best_model[0].fit(mv_X_train, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
-best_model[0].evaluate(mv_X_test, mv_y_test)
+best_model[0].fit(mv_X_train, mv_X_val,mv_X_test, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
+best_model[0].evaluate(mv_X_val, mv_X_test)
 
 
 # +-------------------------------------------------------------------
@@ -673,4 +720,3 @@ from onnx import checker
 checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
-"""

@@ -115,7 +115,7 @@ class CMqlmlsetup:
 class CMqlWindowGenerator():
     def __init__(self, input_width, label_width, shift,
                  train_df, val_df, test_df,
-                 label_columns=None):
+                 label_columns=None, **kwargs):
         # Store the raw data.
         self.train_df = train_df
         self.val_df = val_df
@@ -143,6 +143,8 @@ class CMqlWindowGenerator():
         self.labels_slice = slice(self.label_start, None)
         self.label_indices = np.arange(self.total_window_size)[self.labels_slice]
 
+    
+
     def __repr__(self):
         return '\n'.join([
             f'Total window size: {self.total_window_size}',
@@ -159,7 +161,7 @@ class CMqlWindowGenerator():
                 axis=-1)
         return inputs, labels
 
-    def plot(self, model=None, plot_col='T (degC)', max_subplots=3):
+    def plot(self, model=None, plot_col='close', max_subplots=3):
         inputs, labels = self.example
         plt.figure(figsize=(12, 8))
         plot_col_index = self.column_indices[plot_col]
@@ -190,6 +192,7 @@ class CMqlWindowGenerator():
                 plt.legend()
 
         plt.xlabel('Time [h]')
+        return plt
 
     def make_dataset(self, data):
         data = np.array(data, dtype=np.float32)
@@ -227,3 +230,22 @@ class CMqlWindowGenerator():
             # And cache it for next time
             self._example = result
         return result
+
+    def window_slicer(self, df, window_size, shift_size):
+
+        # Stack three slices, the length of the total window.
+        slice1 = df[:window_size]
+        slice2 = df[shift_size:shift_size + window_size]
+        slice3 = df[2 * shift_size:2 * shift_size + window_size]
+
+        # Ensure all slices are of the same shape
+        min_length = min(len(slice1), len(slice2), len(slice3))
+
+        varwin = tf.stack([
+            slice1[:min_length],
+            slice2[:min_length],
+            slice3[:min_length]
+        ])
+
+        varwin_inputs, varwin_labels = self.split_window(varwin)
+        return varwin ,varwin_inputs, varwin_labels
