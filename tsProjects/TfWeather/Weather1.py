@@ -304,6 +304,7 @@ def split_window(self, features):
 
   return inputs, labels
 
+
 WindowGenerator.split_window = split_window
 
 

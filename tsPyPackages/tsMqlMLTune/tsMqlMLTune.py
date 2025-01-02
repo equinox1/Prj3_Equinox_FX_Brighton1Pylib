@@ -9,16 +9,12 @@ import keras_tuner as kt
 import os
 from keras_tuner import HyperParameters
 
-
-
-
 class CMdtuner:
     def __init__(self, **kwargs):
         # Load dataset and model configuration parameters
         self.X_train = kwargs['X_train'] if 'X_train' in kwargs else None
-        self.y_train = kwargs['y_train'] if 'y_train' in kwargs else None
+        self.X_val = kwargs['X_val'] if 'X_val' in kwargs else None
         self.X_test = kwargs['X_test'] if 'X_test' in kwargs else None
-        self.y_test = kwargs['y_test'] if 'y_test' in kwargs else None
 
         # Load model configuration parameters
         self.cnn_model = kwargs['cnn_model'] if 'cnn_model' in kwargs else False
@@ -38,7 +34,7 @@ class CMdtuner:
         self.allow_new_entries = kwargs['allow_new_entries'] if 'allow_new_entries' in kwargs else True
         self.max_retries_per_trial = kwargs['max_retries_per_trial'] if 'max_retries_per_trial' in kwargs else 3
         self.max_consecutive_failed_trials = kwargs['max_consecutive_failed_trials'] if 'max_consecutive_failed_trials' in kwargs else 30
-        print("self.max_consecutive_failed_trials",self.max_consecutive_failed_trials)
+        print("self.max_consecutive_failed_trials", self.max_consecutive_failed_trials)
         self.validation_split = kwargs['validation_split'] if 'validation_split' in kwargs else 0.2
         self.batch_size = kwargs['batch_size'] if 'batch_size' in kwargs else 32
         self.dropout = kwargs['dropout'] if 'dropout' in kwargs else 0.3
@@ -53,7 +49,7 @@ class CMdtuner:
         self.loss = kwargs['loss'] if 'loss' in kwargs else 'mean_squared_error'
         self.metrics = kwargs['metrics'] if 'metrics' in kwargs else ['mean_absolute_error']
         self.distribution_strategy = kwargs['distribution_strategy'] if 'distribution_strategy' in kwargs else None
-        self.directory = kwargs['directory'] if 'directory' in kwargs else None       
+        self.directory = kwargs['directory'] if 'directory' in kwargs else None
         self.basepath = kwargs['basepath'] if 'basepath' in kwargs else None
         self.project_name = kwargs['project_name'] if 'project_name' in kwargs else None
         self.logger = kwargs['logger'] if 'logger' in kwargs else None
@@ -70,13 +66,13 @@ class CMdtuner:
         self.chk_patience = kwargs['chk_patience'] if 'chk_patience' in kwargs else 0
         self.checkpoint_filepath = kwargs['checkpoint_filepath'] if 'checkpoint_filepath' in kwargs else None
         self.modeldatapath = kwargs['modeldatapath'] if 'modeldatapath' in kwargs else None
-        self.step = kwargs['step'] if 'step' in kwargs else 5    
-        self.multiactivate = kwargs['multiactivate'] if 'multiactivate' in kwargs else False   
-        self.tf1 = kwargs['tf1'] if 'tf1' in kwargs else False    
-        self.tf2 = kwargs['tf2'] if 'tf2' in kwargs else False                                                      
+        self.step = kwargs['step'] if 'step' in kwargs else 5
+        self.multiactivate = kwargs['multiactivate'] if 'multiactivate' in kwargs else False
+        self.tf1 = kwargs['tf1'] if 'tf1' in kwargs else False
+        self.tf2 = kwargs['tf2'] if 'tf2' in kwargs else False
 
-        #Enable tensorflow debugging
-        if self.tf1: debugging.set_log_device_placement(self.tf1)
+        # Enable tensorflow debugging
+        if self.tf1: tf.debugging.set_log_device_placement(self.tf1)
         if self.tf2: tf.debugging.enable_check_numerics()
 
         # Ensure the output directory exists
@@ -85,10 +81,14 @@ class CMdtuner:
         # Define inputs
         self.inputs = kwargs.get('inputs')
         if self.inputs is None:
-            if len(self.X_train.shape) >= 3:
+            if self.X_train is not None and len(self.X_train.shape) >= 3:
                 self.inputs = Input(shape=(self.X_train.shape[1], self.X_train.shape[2]))
+            elif self.X_val is not None and len(self.X_val.shape) >= 3:
+                self.inputs = Input(shape=(self.X_val.shape[1], self.X_val.shape[2]))
+            elif self.X_test is not None and len(self.X_test.shape) >= 3:
+                self.inputs = Input(shape=(self.X_test.shape[1], self.X_test.shape[2]))
             else:
-                raise ValueError("Either 'inputs' or 'X_train' with a defined shape must be provided.")
+                raise ValueError("Either 'inputs' or 'X_train', 'X_val', or 'X_test' with a defined shape must be provided.")
 
         # Define and configure the tuner
         self.tuner = kt.Hyperband(
@@ -98,19 +98,19 @@ class CMdtuner:
             factor=self.factor,
             directory=self.basepath,
             project_name=self.project_name,
-            overwrite=self.overwrite,  
+            overwrite=self.overwrite,
         )
 
         # Configure the tuner's oracle
         self.tuner.oracle.max_fail_streak = self.max_consecutive_failed_trials
         # Display search space summary and begin tuning
         self.tuner.search_space_summary()
-        self.tuner.search(self.X_train, self.y_train,
-                          validation_data=(self.X_test, self.y_test),
+        self.tuner.search(self.X_train,
+                          validation_data=(self.X_val, self.X_test),
                           batch_size=self.batch_size,
                           epochs=HyperParameters().Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step, default=self.epochs),
                          )
-                     
+
     def build_model(self, hp):
         # Ensure that at least one model branch is selected
         if not any([self.cnn_model, self.lstm_model, self.gru_model, self.transformer_model]):
@@ -138,11 +138,21 @@ class CMdtuner:
             x_gru = GRU(units=hp.Int('gru_units', min_value=32, max_value=128, step=32, default=64))(x_gru)
 
         # Transformer branch
+      
         if self.transformer_model:
-            x_trans = MultiHeadAttention(num_heads=hp.Int('num_heads', min_value=2, max_value=4, step=1, default=2),
-                                         key_dim=hp.Int('key_dim', min_value=32, max_value=128, step=32, default=64))(self.inputs, self.inputs)
+            key_dim = hp.Int('key_dim', min_value=32, max_value=128, step=32, default=64)
+            num_heads = hp.Int('num_heads', min_value=2, max_value=4, step=1, default=2)
+
+            # Project inputs if necessary
+            if self.inputs.shape[-1] != key_dim:
+                inputs_projected = Dense(units=key_dim)(self.inputs)
+            else:
+                inputs_projected = self.inputs
+
+            x_trans = MultiHeadAttention(num_heads=num_heads, key_dim=key_dim)(inputs_projected, inputs_projected)
             x_trans = LayerNormalization(epsilon=1e-6)(x_trans)
             x_trans = GlobalAveragePooling1D()(x_trans)
+
 
         # Concatenate branches and build model
         branches = [x for x in [x_cnn, x_lstm, x_gru, x_trans] if x is not None]
@@ -154,9 +164,9 @@ class CMdtuner:
         x = Dense(50, activation=self.activation1)(combined)
         x = Dropout(0.3)(x)
         if self.multiactivate:
-                output = Dense(1, activation=hp.Choice('output_activation', [self.activation2, self.activation3, self.activation4]))(x)
+            output = Dense(1, activation=hp.Choice('output_activation', [self.activation2, self.activation3, self.activation4]))(x)
         else:
-                output = Dense(1, activation=self.activation2)(x)
+            output = Dense(1, activation=self.activation2)(x)
 
         model = Model(inputs=self.inputs, outputs=output)
         model = self.compile_model(model, hp)
