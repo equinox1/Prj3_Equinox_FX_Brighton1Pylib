@@ -18,9 +18,7 @@ import arrow
 import pytz
 from sklearn.preprocessing import MinMaxScaler
 import logging
-# Import Temporian
-#import temporian as tp under dev windows only
-
+from tabulate import tabulate
 #--------------------------------------------------------------------
 # create class  "CMqldatasetup"
 # usage: mql data services
@@ -198,7 +196,7 @@ class CMqldatasetup:
                         df[column] = pd.to_datetime(df[column].dt.strftime('%H:%M:%S.%f'), format='%H:%M:%S.%f', errors='coerce', utc=True)
                     elif type == 'b':
                         print(f"Converting:b {mp_filesrc} {column} to datetime with tf date model: type {type} and format {fmt}")
-                        df[column] = pd.to_datetime(df.pop(column), format=fmt, errors='coerce', utc=True,inplace=True)
+                        df[column] = pd.to_datetime(df.pop(column), format=fmt, errors='coerce')
                     elif type == 'c':
                         print(f"Converting:c {mp_filesrc} {column} to datetime with stfttime years string: type {type} and format {fmt}")
                         df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
@@ -522,3 +520,9 @@ class CMqldatasetup:
 
             
         return lp_rates1 , lp_rates2, lp_rates3, lp_rates4
+
+
+    def run_mql_print(self, df, hrows):
+        print("Start First few rows of the  data:Count",len(df))
+        print(tabulate(df.head(hrows), showindex=False, headers=df.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+           

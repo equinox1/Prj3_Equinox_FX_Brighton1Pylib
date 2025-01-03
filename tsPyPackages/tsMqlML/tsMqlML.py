@@ -249,3 +249,28 @@ class CMqlWindowGenerator():
 
         varwin_inputs, varwin_labels = self.split_window(varwin)
         return varwin ,varwin_inputs, varwin_labels
+
+    import numpy as np
+
+    def Sequential_Input(df, input_sequence):
+        """
+        Prepare sequential input data for an LSTM model.
+        
+        Parameters:
+        df (pd.DataFrame or pd.Series): The data to prepare, typically a time series.
+        input_sequence (int): The number of time steps to include in each input sequence.
+        
+        Returns:
+        tuple: Two numpy arrays, X (input sequences) and y (corresponding labels).
+        """
+        df_np = df.to_numpy()  # Convert DataFrame or Series to numpy array
+        X = []
+        y = []
+        for i in range(len(df_np) - input_sequence):
+            row = df_np[i:i + input_sequence]  # Input sequence
+            X.append(row)
+            label = df_np[i + input_sequence]  # Corresponding label
+            y.append(label)
+        return np.array(X), np.array(y)
+
+    

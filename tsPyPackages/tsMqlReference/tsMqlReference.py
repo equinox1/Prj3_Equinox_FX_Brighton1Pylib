@@ -29,14 +29,29 @@ class CMqlTimeConfig:
             'YEARS': 365.25 * 24 * 60 * 60  # Average year length accounting for leap years
         }
 
-        TIMEFRAME = [
-            mt5.TIMEFRAME_M1, mt5.TIMEFRAME_M5, mt5.TIMEFRAME_M15, 
-            mt5.TIMEFRAME_M30, mt5.TIMEFRAME_H1, mt5.TIMEFRAME_H4, 
-            mt5.TIMEFRAME_D1, mt5.TIMEFRAME_W1, mt5.TIMEFRAME_MN1
-        ]
-
-        UNIT = ['s', 'm', 'h', 'd', 'w', 'm']
-        DATATYPE = ['TICKS', 'MINUTES', 'HOURS', 'DAYS', 'WEEKS', 'MONTHS']
+        TIMEFRAME = {
+            'M1': mt5.TIMEFRAME_M1,
+            'M5': mt5.TIMEFRAME_M5,
+            'M15': mt5.TIMEFRAME_M15,
+            'M30': mt5.TIMEFRAME_M30,
+            'H1': mt5.TIMEFRAME_H1,
+            'H4': mt5.TIMEFRAME_H4,
+            'D1': mt5.TIMEFRAME_D1,
+            'W1': mt5.TIMEFRAME_W1,
+            'MN1': mt5.TIMEFRAME_MN1
+        }
+        
+        UNIT = ['Miliseconds' 'ms','Seconds:' 's', 'Minutes:' 'm', 'Hours:' 'h', 'Days:' 'd', 'Weeks:' 'w', 'Months:' 'm']
+          
+        DATATYPE = {'TICKS' : 'TICKS', 
+                    'MINUTE' : 'MINUTE',
+                    'HOUR' : 'HOUR', 
+                    'DAY' : 'DAY',
+                    'WEEK' : 'WEEK', 
+                    'MONTH' : 'MONTH', 
+                    'YEAR' : 'YEAR'
+        }
+        
         SYMBOLS = [
             "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD", 
             "EURJPY", "EURGBP", "EURCHF", "EURCAD", "EURAUD", "EURNZD", 
