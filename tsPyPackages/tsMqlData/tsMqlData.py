@@ -18,6 +18,9 @@ import arrow
 import pytz
 from sklearn.preprocessing import MinMaxScaler
 import logging
+# Import Temporian
+#import temporian as tp under dev windows only
+
 #--------------------------------------------------------------------
 # create class  "CMqldatasetup"
 # usage: mql data services
@@ -441,3 +444,81 @@ class CMqldatasetup:
         # Reshaping data to the format required by LSTM
         X = np.reshape(X, (X.shape[0], X.shape[1], 1))
         return X, y
+
+
+        #Time series data TEMPORIAN
+        # create method  "run_load_from_mql()".
+    # class: cmqldatasetup      
+    # usage: mql data
+    # /param  var                          
+    def temporian_load_from_mql(self, lp_loadapiticks, lp_loadapirates, lp_loadfileticks, lp_loadfilerates, lp_rates1, lp_rates2, lp_utc_from, lp_symbol, lp_rows, lp_rowcount, lp_command, lp_path, lp_filename1, lp_filename2, lp_timeframe):
+        
+        #Reset the dataframes
+        lp_rates1 = pd.DataFrame()
+        lp_rates2 = pd.DataFrame()
+        lp_rates3 = pd.DataFrame()
+        lp_rates4 = pd.DataFrame()
+        print("mp_unit", self.mp_unit, "mp_seconds", self.mp_seconds)
+        if lp_loadapiticks:
+            try:
+                print("Running Tick load from Mql")
+                print("===========================")
+                print("lp_utc_from", lp_utc_from)
+                print("lp_rows", lp_rows)
+                print("lp_symbol", lp_symbol)
+                print("lp_command", lp_command)
+                lp_rates1 = mt5.copy_ticks_from(lp_symbol, lp_utc_from, lp_rows, lp_command)
+                lp_rates1 = pd.DataFrame(lp_rates1)
+                
+                if lp_rates1.empty:
+                    print("1:No tick data found")  
+                else:
+                    print("Api tick data received:", len(lp_rates1))
+            except Exception as e:
+                print(f"Mt5 api ticks exception: {e}")
+
+        if lp_loadapirates:
+            try:
+                print("Running Rates load from Mql")
+                print("===========================")
+                print("lp_symbol", lp_symbol)
+                print("lp_timeframe", lp_timeframe)
+                print("lp_utc_from", lp_utc_from)
+                print("lp_rows", lp_rows)
+                lp_rates2 = mt5.copy_rates_from(lp_symbol,lp_timeframe ,lp_utc_from, lp_rows)
+                lp_rates2 = pd.DataFrame(lp_rates2)
+                
+                if lp_rates2.empty:
+                    print("1:No rate data found")  
+                else:
+                    print("Api rates data received:", len(lp_rates2))   
+            except Exception as e:
+                print(f"Mt5 api rates exception: {e}")
+
+        if lp_loadfileticks:    
+            lpmergepath = lp_path + "//" + lp_filename1
+            try:
+                lp_rates3 = tp.from_csv(lpmergepath)
+               
+                if lp_rates3.empty:
+                    print("1:No tick data found")
+                else:
+                    print("File tick data received:", len(lp_rates3))
+            except Exception as e:
+                print(f"Fileload Tick exception: {e}")
+
+        if lp_loadfilerates:    
+            lpmergepath = lp_path + "//" + lp_filename2
+            
+            try:
+                lp_rates4 = tp.from_csv(lpmergepath)
+                lp_rates4.drop('vol3', axis=1, inplace=True)
+                if lp_rates4.empty:
+                    print("1:No rate data found")
+                else:
+                    print("File rate data received:", len(lp_rates4))
+            except Exception as e:
+                print(f"Fileload rates exception: {e}")
+
+            
+        return lp_rates1 , lp_rates2, lp_rates3, lp_rates4

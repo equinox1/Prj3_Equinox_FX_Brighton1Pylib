@@ -70,7 +70,6 @@ if gpus:
 #Variable input
 loadtensor = False
 loadtemporian = True
-broker = "METAQUOTES" # "ICM" or "METAQUOTES"
 
 mp_test = False
 show_dtype = False
@@ -84,6 +83,7 @@ mv_usedata = 'loadfileticks' # 'loadapiticks' or 'loadapirates'or loadfileticks 
 
 mp_rows = 1000
 mp_rowcount = 10000
+MAINBROKER = "METAQUOTES" # "ICM" or "METAQUOTES"
 MPDATAFILE1 =  "tickdata1.csv"
 MPDATAFILE2 =  "ratesdata1.csv"
 # Constant Definitions
@@ -108,13 +108,48 @@ mp_symbol_secondary = SYMBOLS[1]
 mp_shiftvalue = MINUTES #  e.g Shift the data by 60 second interval
 mp_unit = UNIT[0] # unit value passed to mql5 loader
 mp_seconds = TIMEVALUE['MINUTES'] # 60 seconds
+
 mp_year = datetime.now().year
 mp_day = datetime.now().day
 mp_month = datetime.now().month
 mp_timezone = TIMEZONES[0]
 mp_timeframe = TIMEFRAME[5]
 print("1:mp_timeframe: ",mp_timeframe)
+#mp_timeframe = str(TIMEFRAME[0])
 mp_history_size = 5 # Number of years of data to fetch
+####################################################################
+# LOGIN PARAMS
+####################################################################
+# Login options
+if MAINBROKER == "ICM":
+        BROKER = "xerces_icm"
+        MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
+        MPBROKPATH = r"Brokers/ICMarkets/terminal64.exe"
+        MKFILES=r"Brokers/ICMarkets/MQL5/Files/"
+        MPSERVER = "ICMarketsSC-Demo"
+        MPTIMEOUT = 60000
+        MPPORTABLE = True
+        MPPATH = MPBASEPATH + MPBROKPATH
+        MPENV = "demo"  # "prod" or "demo"
+        MPDATAPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
+        MPFILEVALUE1 = f"{mp_symbol_primary}_{MPDATAFILE1}"
+        MPFILEVALUE2 = f"{mp_symbol_primary}_{MPDATAFILE2}"
+        print(f"MPPATH: {MPPATH}")
+if MAINBROKER == "METAQUOTES":
+        BROKER = "xerces_meta"
+        MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
+        MPBROKPATH = r"Brokers/Metaquotes/terminal64.exe"
+        MKFILES=r"Brokers/Metaquotes/MQL5/Files/"
+        MPSERVER = "MetaQuotes-Demo"
+        MPTIMEOUT = 60000
+        MPPORTABLE = True
+        MPPATH = MPBASEPATH + MPBROKPATH
+        MPENV = "demo"  # "prod" or "demo"
+        MPDATAPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
+        MPFILEVALUE1 = f"{mp_symbol_primary}_{MPDATAFILE1}"
+        MPFILEVALUE2 = f"{mp_symbol_primary}_{MPDATAFILE2}"
+        print(f"MPPATH: {MPPATH}")
+
 # Set parameters for the Tensorflow model
 mp_param_steps = 1
 mp_param_max_epochs=10
@@ -122,14 +157,11 @@ mp_param_min_epochs=1
 mp_param_epochs = 200
 mp_param_chk_patience = 3
 mp_multiactivate=True  
+####################################################################
+
 # +-------------------------------------------------------------------
 # Start MetaTrader 5 (MQL) terminal login
 # +-------------------------------------------------------------------
-c0 = CMqlinit
-BROKER, MPPATH, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2, MKFILES, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV=c0. set_mql_broker(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
-print(f"Broker: {BROKER}, MPPATH: {MPPATH}, MPDATAPATH: {MPDATAPATH}, MPFILEVALUE1: {MPFILEVALUE1}, MPFILEVALUE2: {MPFILEVALUE2}, MKFILES: {MKFILES}, MPSERVER: {MPSERVER}, MPTIMEOUT: {MPTIMEOUT}, MPPORTABLE: {MPPORTABLE}, MPENV: {MPENV}")
-c1 = CMqlinit(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV)
-
 # Fetch credentials from keyring for metaquotes and xerces_meta
 cred = kr.get_credential(BROKER, "")
 if cred is None:
@@ -140,15 +172,18 @@ password = cred.password
 # Check if the credentials are fetched successfully
 if not username or not password:
     raise ValueError("Username or password not found in keyring")
+
 # Ensure username is a valid integer
 try:
     MPLOGIN = int(username)
 except ValueError:
     raise ValueError("Username is not a valid integer")
-MPPASS = str(password)
-print(f"Login: {MPLOGIN}")
 
+MPPASS = str(password)
+
+print(f"Login: {MPLOGIN}")
 # Initialize and login to the MT5 terminal
+c1 = CMqlinit(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV)
 login_success = c1.run_mql_login(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV)
 if not login_success:
     raise ConnectionError("Failed to login to MT5 terminal")
