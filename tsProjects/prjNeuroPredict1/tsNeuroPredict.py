@@ -35,7 +35,7 @@ from dataclasses import dataclass
 # Import Temporian
 # import temporian as tp # under dev windows only
 # Import equinox functionality
-from tsMqlConnect import CMqlinit
+from tsMqlConnect import CMqlinit, CMqlBrokerConfig
 from tsMqlData import CMqldatasetup
 from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
 from tsMqlMLTune import CMdtuner
@@ -68,8 +68,8 @@ if gpus:
 # Start of the main script
 #################################################################
 #Variable input
-loadtensor = False
-loadtemporian = True
+loadtensor = True
+loadtemporian = False
 broker = "METAQUOTES" # "ICM" or "METAQUOTES"
 
 mp_test = False
@@ -125,10 +125,21 @@ mp_multiactivate=True
 # +-------------------------------------------------------------------
 # Start MetaTrader 5 (MQL) terminal login
 # +-------------------------------------------------------------------
-c0 = CMqlinit
-BROKER, MPPATH, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2, MKFILES, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV=c0. set_mql_broker(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
-print(f"Broker: {BROKER}, MPPATH: {MPPATH}, MPDATAPATH: {MPDATAPATH}, MPFILEVALUE1: {MPFILEVALUE1}, MPFILEVALUE2: {MPFILEVALUE2}, MKFILES: {MKFILES}, MPSERVER: {MPSERVER}, MPTIMEOUT: {MPTIMEOUT}, MPPORTABLE: {MPPORTABLE}, MPENV: {MPENV}")
-c1 = CMqlinit(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV)
+c0 = CMqlBrokerConfig(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
+broker_config = c0.set_mql_broker()
+
+BROKER = broker_config['BROKER']
+MPPATH = broker_config['MPPATH']
+MPBASEPATH = broker_config['MPBASEPATH']
+MPDATAPATH = broker_config['MPDATAPATH']
+MPFILEVALUE1 = broker_config['MPFILEVALUE1']
+MPFILEVALUE2 = broker_config['MPFILEVALUE2']
+MKFILES = broker_config['MKFILES']
+MPSERVER = broker_config['MPSERVER']
+MPTIMEOUT = broker_config['MPTIMEOUT']
+MPPORTABLE = broker_config['MPPORTABLE']
+MPENV = broker_config['MPENV']
+print(f"Broker: {BROKER}")
 
 # Fetch credentials from keyring for metaquotes and xerces_meta
 cred = kr.get_credential(BROKER, "")
@@ -149,6 +160,7 @@ MPPASS = str(password)
 print(f"Login: {MPLOGIN}")
 
 # Initialize and login to the MT5 terminal
+c1 = CMqlinit(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV)
 login_success = c1.run_mql_login(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV)
 if not login_success:
     raise ConnectionError("Failed to login to MT5 terminal")

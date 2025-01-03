@@ -45,54 +45,66 @@ class CMqlinit:
             return mt5.last_error()
 
 
-#--------------------------------------------------------------------
-# create method  "setbrokers.
-# class: cmqlinit      
-# usage: login
-# /param cmqlinit    var                          
-#--------------------------------------------------------------------
-    def set_mql_broker(self, lpbroker='MetaQuotes', mp_symbol_primary='EURUSD', MPDATAFILE1=None, MPDATAFILE2=None, **kwargs):
-        # Default values for variables
-        BROKER = None
-        MPPATH = None
-        MPDATAPATH = None
-        MPFILEVALUE1 = None
-        MPFILEVALUE2 = None
-        MKFILES = None
-        MPSERVER = None
-        MPTIMEOUT = None
-        MPPORTABLE = None
-        MPENV = None
+class CMqlBrokerConfig:
+    def __init__(self, lpbroker='MetaQuotes', mp_symbol_primary='EURUSD', MPDATAFILE1=None, MPDATAFILE2=None):
+        self.lpbroker = lpbroker
+        self.mp_symbol_primary = mp_symbol_primary
+        self.MPDATAFILE1 = MPDATAFILE1
+        self.MPDATAFILE2 = MPDATAFILE2
 
-        if lpbroker == "ICM":
-            BROKER = "xerces_icm"
-            MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
-            MPBROKPATH = r"Brokers/ICMarkets/terminal64.exe"
-            MKFILES = r"Brokers/ICMarkets/MQL5/Files/"
-            MPSERVER = "ICMarketsSC-Demo"
-            MPTIMEOUT = 60000
-            MPPORTABLE = True
-            MPPATH = MPBASEPATH + MPBROKPATH
-            MPENV = "demo"  # "prod" or "demo"
-            MPDATAPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
-            MPFILEVALUE1 = f"{mp_symbol_primary}_{MPDATAFILE1}"
-            MPFILEVALUE2 = f"{mp_symbol_primary}_{MPDATAFILE2}"
-            print(f"MPPATH: {MPPATH}")
-        elif lpbroker == "MetaQuotes":
-            BROKER = "xerces_meta"
-            MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
-            MPBROKPATH = r"Brokers/Metaquotes/terminal64.exe"
-            MKFILES = r"Brokers/Metaquotes/MQL5/Files/"
-            MPSERVER = "MetaQuotes-Demo"
-            MPTIMEOUT = 60000
-            MPPORTABLE = True
-            MPPATH = MPBASEPATH + MPBROKPATH
-            MPENV = "demo"  # "prod" or "demo"
-            MPDATAPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
-            MPFILEVALUE1 = f"{mp_symbol_primary}_{MPDATAFILE1}"
-            MPFILEVALUE2 = f"{mp_symbol_primary}_{MPDATAFILE2}"
-            print(f"MPPATH: {MPPATH}")
-        else:
-            raise ValueError(f"Unsupported broker: {lpbroker}")
+    def set_mql_broker(self):
+        # Common defaults
+        base_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
+        data_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
+        timeout = 60000
+        portable = True
+        env = "demo"  # "prod" or "demo"
 
-    return BROKER, MPPATH, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2, MKFILES, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV
+        # Broker-specific configurations
+        broker_configs = {
+            "ICM": {
+                "broker": "xerces_icm",
+                "broker_path": r"Brokers/ICMarkets/terminal64.exe",
+                "files_path": r"Brokers/ICMarkets/MQL5/Files/",
+                "server": "ICMarketsSC-Demo",
+            },
+            "METAQUOTES": {
+                "broker": "xerces_meta",
+                "broker_path": r"Brokers/Metaquotes/terminal64.exe",
+                "files_path": r"Brokers/Metaquotes/MQL5/Files/",
+                "server": "MetaQuotes-Demo",
+            },
+        }
+
+        if self.lpbroker not in broker_configs:
+            raise ValueError(f"Unsupported broker: {self.lpbroker}")
+
+        config = broker_configs[self.lpbroker]
+
+        # Debugging output
+        print(f"Broker: {config['broker']}")
+        print(f"Broker Path: {base_path + config['broker_path']}")
+        print(f"Base Path: {base_path}")
+        print(f"Data Path: {data_path}")
+        print(f"MPFILEVALUE1: {self.mp_symbol_primary}_{self.MPDATAFILE1}")
+        print(f"MPFILEVALUE2: {self.mp_symbol_primary}_{self.MPDATAFILE2}")
+        print(f"Files Path: {config['files_path']}")
+        print(f"Server: {config['server']}")
+        print(f"Timeout: {timeout}")
+        print(f"Portable: {portable}")
+        print(f"Environment: {env}")
+
+        return {
+            "BROKER": config["broker"],
+            "MPPATH": base_path + config["broker_path"],
+            "MPBASEPATH": base_path,
+            "MPDATAPATH": data_path,
+            "MPFILEVALUE1": f"{self.mp_symbol_primary}_{self.MPDATAFILE1}",
+            "MPFILEVALUE2": f"{self.mp_symbol_primary}_{self.MPDATAFILE2}",
+            "MKFILES": config["files_path"],
+            "MPSERVER": config["server"],
+            "MPTIMEOUT": timeout,
+            "MPPORTABLE": portable,
+            "MPENV": env,
+        }
+
