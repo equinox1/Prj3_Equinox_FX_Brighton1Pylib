@@ -39,6 +39,7 @@ from tsMqlConnect import CMqlinit, CMqlBrokerConfig
 from tsMqlData import CMqldatasetup
 from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
 from tsMqlMLTune import CMdtuner
+from tsMqlReference import CMqlTimeConfig
 # Import TensorFlow for machine learning
 import tensorflow as tf
 import onnx
@@ -71,7 +72,6 @@ if gpus:
 loadtensor = True
 loadtemporian = False
 broker = "METAQUOTES" # "ICM" or "METAQUOTES"
-
 mp_test = False
 show_dtype = False
 mp_dfName1 = "df_rates1"
@@ -86,35 +86,45 @@ mp_rows = 1000
 mp_rowcount = 10000
 MPDATAFILE1 =  "tickdata1.csv"
 MPDATAFILE2 =  "ratesdata1.csv"
-# Constant Definitions
-TIMEVALUE = {
-    'SECONDS': 1,
-    'MINUTES': 60,
-    'HOURS': 60 * 60,
-    'DAYS': 24 * 60 * 60,
-    'WEEKS': 7 * 24 * 60 * 60,
-    'YEARS': 365 * 24 * 60 * 60
-}
-MINUTES = TIMEVALUE['MINUTES']
-TIMEFRAME= [mt5.TIMEFRAME_M1, mt5.TIMEFRAME_M5, mt5.TIMEFRAME_M15, mt5.TIMEFRAME_M30, mt5.TIMEFRAME_H1, mt5.TIMEFRAME_H4, mt5.TIMEFRAME_D1,mt5.TIMEFRAME_W1, mt5.TIMEFRAME_MN1]
-UNIT = ['s', 'm', 'h', 'd', 'w', 'm']
-DATATYPE = ['TICKS', 'MINUTES', 'HOURS', 'DAYS', 'WEEKS', 'MONTHS']
-SYMBOLS = ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD", "EURJPY", "EURGBP", "EURCHF", "EURCAD", "EURAUD", "EURNZD", "GBPJPY", "GBPAUD", "GBPNZD", "GBPCAD", "GBPCHF", "AUDJPY", "AUDNZD", "AUDCAD", "AUDCHF", "NZDJPY", "NZDCAD", "NZDCHF", "CADJPY", "CADCHF", "CHFJPY"]
-TIMEZONES = ["etc/UTC", "Europe/London", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Asia/Tokyo", "Asia/Hong_Kong", "Asia/Shanghai", "Asia/Singapore", "Asia/Dubai", "Asia/Mumbai", "Australia/Sydney", "Australia/Melbourne", "Africa/Johannesburg", "Europe/Berlin", "Europe/Paris", "Europe/Madrid", "Europe/Rome", "Europe/Amsterdam", "Europe/Brussels", "Europe/Stockholm", "Europe/Oslo", "Europe/Copenhagen", "Europe/Zurich", "Europe/Vienna", "Europe/Warsaw", "Europe/Prague", "Europe/Budapest", "Europe/Bucharest", "Europe/Sofia", "Europe/Athens", "Europe/Helsinki", "Europe/Tallinn", "Europe/Vilnius", "Europe/Riga", "Europe/Lisbon", "Europe/Dublin", "Europe/Edinburgh", "Europe/Ljubljana", "Europe/Bratislava", "Europe/Luxembourg", "Europe/Monaco", "Europe/Valletta", "Europe/Andorra", "Europe/San_Marino", "Europe/Vatican", "Europe/Gibraltar"]
 
+#Set time constants
+config = CMqlTimeConfig()
+constants = config.get_constants()
+print(constants)
 # Set the parameters for data import
-mp_symbol_primary = SYMBOLS[0]
-mp_symbol_secondary = SYMBOLS[1]
-mp_shiftvalue = MINUTES #  e.g Shift the data by 60 second interval
-mp_unit = UNIT[0] # unit value passed to mql5 loader
-mp_seconds = TIMEVALUE['MINUTES'] # 60 seconds
-mp_year = datetime.now().year
-mp_day = datetime.now().day
-mp_month = datetime.now().month
-mp_timezone = TIMEZONES[0]
-mp_timeframe = TIMEFRAME[5]
-print("1:mp_timeframe: ",mp_timeframe)
 mp_history_size = 5 # Number of years of data to fetch
+
+mp_symbol_primary = constants['SYMBOLS'][0]
+print("1:mp_symbol_primary: ", mp_symbol_primary)
+
+mp_symbol_secondary = constants['SYMBOLS'][1]
+print("2:mp_symbol_secondary: ", mp_symbol_secondary)
+
+mp_shiftvalue = constants['DATATYPE'][1]
+print("1:mp_shiftvalue: ", mp_shiftvalue)
+
+mp_unit = constants['UNIT'][0]
+print("1:mp_unit: ", mp_unit)
+
+mp_seconds = constants['TIMEVALUE']['SECONDS']
+print("1:mp_seconds: ", mp_seconds)
+
+mp_year = datetime.now().year
+print("1:mp_year: ", mp_year)
+
+mp_day = datetime.now().day
+print("1:mp_day: ", mp_day)
+
+mp_month = datetime.now().month
+print("1:mp_month: ", mp_month)
+
+mp_timezone = constants['TIMEZONES'][0]
+print("1:mp_timezone: ", mp_timezone)
+
+mp_timeframe = constants['TIMEFRAME'][5]
+print("1:mp_timeframe: ", mp_timeframe)
+print("1:mp_timeframe: ",mp_timeframe)
+
 # Set parameters for the Tensorflow model
 mp_param_steps = 1
 mp_param_max_epochs=10
