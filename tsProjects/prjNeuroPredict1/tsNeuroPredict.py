@@ -17,7 +17,7 @@ import sys
 import time
 import json
 import keyring as kr
-from tabulate import tabulate
+
 from datetime import datetime, date
 import pytz
 import matplotlib.pyplot as plt
@@ -32,8 +32,6 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 # Import dataclasses for data manipulation
 import pandas as pd
 from dataclasses import dataclass
-# Import Temporian
-# import temporian as tp # under dev windows only
 # Import equinox functionality
 from tsMqlConnect import CMqlinit, CMqlBrokerConfig
 from tsMqlData import CMqldatasetup
@@ -65,10 +63,9 @@ if gpus:
     except RuntimeError as e:
         print(e)
 
-#################################################################
-# Start of the main script
-#################################################################
-#Variable input
+# +-------------------------------------------------------------------
+# start of set variables
+# +-------------------------------------------------------------------
 loadtensor = True
 loadtemporian = False
 broker = "METAQUOTES" # "ICM" or "METAQUOTES"
@@ -81,7 +78,6 @@ mv_loadapirates = True
 mv_loadfileticks = True
 mv_loadfilerates = True
 mv_usedata = 'loadfileticks' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
-
 mp_rows = 1000
 mp_rowcount = 10000
 MPDATAFILE1 =  "tickdata1.csv"
@@ -90,40 +86,29 @@ MPDATAFILE2 =  "ratesdata1.csv"
 #Set time constants
 config = CMqlTimeConfig()
 constants = config.get_constants()
-print(constants)
+
 # Set the parameters for data import
 mp_history_size = 5 # Number of years of data to fetch
-
 mp_symbol_primary = constants['SYMBOLS'][0]
 print("1:mp_symbol_primary: ", mp_symbol_primary)
-
 mp_symbol_secondary = constants['SYMBOLS'][1]
 print("2:mp_symbol_secondary: ", mp_symbol_secondary)
-
-mp_shiftvalue = constants['DATATYPE'][1]
+mp_shiftvalue = constants['DATATYPE']['MINUTE']
 print("1:mp_shiftvalue: ", mp_shiftvalue)
-
 mp_unit = constants['UNIT'][0]
 print("1:mp_unit: ", mp_unit)
-
 mp_seconds = constants['TIMEVALUE']['SECONDS']
 print("1:mp_seconds: ", mp_seconds)
-
-mp_year = datetime.now().year
-print("1:mp_year: ", mp_year)
-
-mp_day = datetime.now().day
-print("1:mp_day: ", mp_day)
-
-mp_month = datetime.now().month
-print("1:mp_month: ", mp_month)
-
 mp_timezone = constants['TIMEZONES'][0]
 print("1:mp_timezone: ", mp_timezone)
-
-mp_timeframe = constants['TIMEFRAME'][5]
+mp_timeframe = constants['TIMEFRAME']['H4']
 print("1:mp_timeframe: ", mp_timeframe)
-print("1:mp_timeframe: ",mp_timeframe)
+mp_year = datetime.now().year
+print("1:mp_year: ", mp_year)
+mp_day = datetime.now().day
+print("1:mp_day: ", mp_day)
+mp_month = datetime.now().month
+print("1:mp_month: ", mp_month)
 
 # Set parameters for the Tensorflow model
 mp_param_steps = 1
@@ -132,6 +117,10 @@ mp_param_min_epochs=1
 mp_param_epochs = 200
 mp_param_chk_patience = 3
 mp_multiactivate=True  
+# +-------------------------------------------------------------------
+# End of start of set variables
+# +-------------------------------------------------------------------
+
 # +-------------------------------------------------------------------
 # Start MetaTrader 5 (MQL) terminal login
 # +-------------------------------------------------------------------
@@ -188,14 +177,16 @@ print(f"MQL file_path:" ,mql_file_path)
 mp_data_path=mql_file_path
 print(f"data_path to save onnx model: ",mp_data_path)
 # +-------------------------------------------------------------------
+# End of Login to MetaTrader 5 (MQL) terminal
+# +-------------------------------------------------------------------
+
+# +-------------------------------------------------------------------
 # Import data from MQL
 # +-------------------------------------------------------------------
 
 # Set up dataset
 d1 = CMqldatasetup()
-
 mp_command = mt5.COPY_TICKS_ALL
-
 mv_utc_from = d1.set_mql_timezone(mp_year-mp_history_size, mp_month, mp_day, mp_timezone)
 mv_utc_to = d1.set_mql_timezone(mp_year, mp_month, mp_day, mp_timezone)
 
@@ -210,82 +201,26 @@ print(f"mp_filename1 Set to: {MPFILEVALUE1}")
 print(f"mp_filename2 Set to: {MPFILEVALUE2}")
 
 # Load tick data from MQL
-if loadtensor:
-    mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks, mv_loadapirates, mv_loadfileticks, mv_loadfilerates, mp_dfName1, mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1, mp_filename2, mp_timeframe)
-    mv_tdata1apiticks=d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False)
-    mv_tdata1apirates=d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False)
-    mv_tdata1loadticks=d1.wrangle_time(mv_tdata1loadticks, mp_unit,mp_filesrc= "ticks2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True)
-    mv_tdata1loadrates=d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False)
-elif loadtemporian:
-    mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.temporian_load_from_mql(mv_loadapiticks, mv_loadapirates, mv_loadfileticks, mv_loadfilerates, mp_dfName1, mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1, mp_filename2, mp_timeframe)
+mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks, mv_loadapirates, mv_loadfileticks, mv_loadfilerates, mp_dfName1, mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1, mp_filename2, mp_timeframe)
 
-if show_dtype:
-    print("1: dtypes of the dataframes")
-    print(mv_tdata1apiticks.dtypes)  # Check the data types of the columns
-    print("2: dtypes of the dataframes")
-    print(mv_tdata1apirates.dtypes)  # Check the data types of the columns
-    print("3: dtypes of the dataframes")
-    print(mv_tdata1loadticks.dtypes)  # Check the data types of the columns
-    print("4: dtypes of the dataframes")
-    print(mv_tdata1loadrates.dtypes)  # Check the data types of the columns
+#wrangle the data 
+mv_tdata1apiticks=d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False)
+mv_tdata1apirates=d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False)
+mv_tdata1loadticks=d1.wrangle_time(mv_tdata1loadticks, mp_unit,mp_filesrc= "ticks2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True)
+mv_tdata1loadrates=d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False)
 
-mv_tdata1apiticks = d1.create_target(
-    df=mv_tdata1apiticks,
-    lookahead_seconds=mp_seconds,
-    bid_column='T1_Bid_Price',
-    ask_column='T1_Ask_Price',
-    column_in='T1_Bid_Price',
-    column_out1='close',
-    column_out2='target',
-    run_mode=1
-)
-
-
-mv_tdata1apirates = d1.create_target(
-    df=mv_tdata1apirates,
-    lookahead_seconds=mp_seconds,
-    bid_column='R1_Bid_Price',
-    ask_column='R1_Ask_Price',
-    column_in='R1_Close',
-    column_out1='close',
-    column_out2='target',
-    run_mode=2
-)
-
-mv_tdata1loadticks = d1.create_target(
-    df=mv_tdata1loadticks,
-    lookahead_seconds=mp_seconds,
-    bid_column='T2_Bid_Price',
-    ask_column='T2_Ask_Price',
-    column_in='T2_Bid_Price',
-    column_out1='close',
-    column_out2='target',
-    run_mode=3
-)
-
-mv_tdata1loadrates = d1.create_target(
-    df=mv_tdata1loadrates,
-    lookahead_seconds=mp_seconds,
-    bid_column='R2_Bid_Price',
-    ask_column='R2_Ask_Price',
-    column_in='R2_Close',
-    column_out1='close',
-    column_out2='target',
-    run_mode=4
-)
+#Create the target label column
+mv_tdata1apiticks = d1.create_target(df=mv_tdata1apiticks,lookahead_seconds=mp_seconds,bid_column='T1_Bid_Price', ask_column='T1_Ask_Price', column_in='T1_Bid_Price',column_out1='close',column_out2='target', run_mode=1)
+mv_tdata1apirates = d1.create_target(df=mv_tdata1apirates,lookahead_seconds=mp_seconds,bid_column='R1_Bid_Price', ask_column='R1_Ask_Price', column_in='R1_Close',column_out1='close',column_out2='target', run_mode=2)
+mv_tdata1loadticks = d1.create_target(df=mv_tdata1loadticks,lookahead_seconds=mp_seconds,bid_column='T2_Bid_Price', ask_column='T2_Ask_Price', column_in='T2_Bid_Price',column_out1='close',column_out2='target', run_mode=3)
+mv_tdata1loadrates = d1.create_target(df=mv_tdata1loadrates,lookahead_seconds=mp_seconds,bid_column='R2_Bid_Price', ask_column='R2_Ask_Price', column_in='R2_Close',column_out1='close',column_out2='target', run_mode=4)
 
 
 # Display the first few rows of the data for verification
-hrows=10
-print("1:Start First few rows of the API Tick data:Count",len(mv_tdata1apiticks))
-print(tabulate(mv_tdata1apiticks.head(hrows), showindex=False, headers=mv_tdata1apiticks.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print("2:Start First few rows of the API Rates data:Count",len(mv_tdata1apirates))
-print(tabulate(mv_tdata1apirates.head(hrows), showindex=False, headers=mv_tdata1apirates.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print("3: Start First few rows of the FILE Tick data:Count",len(mv_tdata1loadticks))
-print(tabulate(mv_tdata1loadticks.head(hrows), showindex=False, headers=mv_tdata1loadticks.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print("4: Start First few rows of the FILE Rates data:Count",len(mv_tdata1loadrates))
-print(tabulate(mv_tdata1loadrates.head(hrows), showindex=False, headers=mv_tdata1loadrates.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-
+d1.run_mql_print(mv_tdata1apiticks,10)
+d1.run_mql_print(mv_tdata1apirates,10)
+d1.run_mql_print(mv_tdata1loadticks,10)
+d1.run_mql_print(mv_tdata1loadrates,10)
 
 # +-------------------------------------------------------------------
 # Prepare and process the data
@@ -323,12 +258,6 @@ elif mv_usedata == 'loadfilerates':
     mv_X_tdata2 = mv_X_tdata2d
     mv_y_tdata2 = mv_y_tdata2d
 
-# Ensure mv_X_tdata2 and mv_y_tdata2 are set correctly
-if mv_X_tdata2 is None or mv_y_tdata2 is None:
-    raise ValueError("Invalid mv_usedata value. Data not loaded properly.")
-
-
-
 # +-------------------------------------------------------------------
 # Split the data into training and test sets
 # +-------------------------------------------------------------------
@@ -339,20 +268,18 @@ mp_test_split = 0.1
 mp_gap=1-mp_test_split
 mp_shuffle = False
 
-# Split the data into training and test sets
+# Check Sequence method for X and Y
+
+# End Check Sequence method for X and Y
 n = len(mv_X_tdata2)
-train_df = mv_X_tdata2[0:int(n*mp_train_split)]
-val_df = mv_X_tdata2[int(n*mp_train_split):int(n*mp_gap)]
-test_df = mv_X_tdata2[int(n*mp_gap):]
+X_train = mv_X_tdata2[0:int(n*mp_train_split)] #features close
+y_train = mv_y_tdata2[0:int(n*mp_train_split)] #labels target
 
+X_val = mv_X_tdata2[int(n*mp_train_split):int(n*mp_gap)]
+y_val = mv_y_tdata2[int(n*mp_train_split):int(n*mp_gap)]
 
-print("train",train_df.head(5))
-print("val",val_df.head(5))
-print("test",test_df.head(5))
-
-train_df = pd.DataFrame(train_df)
-val_df = pd.DataFrame(val_df)
-test_df = pd.DataFrame(test_df)
+X_test = mv_X_tdata2[int(n*mp_gap):]
+y_test = mv_y_tdata2[int(n*mp_gap):]
 # +-------------------------------------------------------------------
 # End Split the data into training and test sets
 # +-------------------------------------------------------------------
@@ -360,12 +287,32 @@ test_df = pd.DataFrame(test_df)
 # +-------------------------------------------------------------------
 # Normalize the data
 # +-------------------------------------------------------------------
-train_mean = train_df.mean()
-train_std = train_df.std()
+X_train_mean = X_train.mean()
+X_train_std = X_train.std()
 
-train_df = (train_df - train_mean) / train_std
-val_df = (val_df - train_mean) / train_std
-test_df = (test_df - train_mean) / train_std
+y_train_mean = y_train.mean()
+y_train_std = y_train.std()
+
+X_val_mean = X_val.mean()
+X_val_std = X_val.std()
+
+y_val_mean = y_val.mean()
+y_val_std = y_val.std()
+
+X_test_mean = X_test.mean()
+X_test_std = X_test.std()
+
+y_test_mean = y_test.mean()
+y_test_std = y_test.std()
+
+X_train = (X_train - X_train_mean) / X_train_std
+X_val = (X_val - X_train_mean) / X_train_std
+X_test = (X_test - X_train_mean) / X_train_std
+
+y_train = (y_train - y_train_mean) / y_train_std
+y_val = (y_val - y_train_mean) / y_train_std
+y_test = (y_test - y_train_mean) / y_train_std
+
 # +-------------------------------------------------------------------
 # End Normalize the data
 # +-------------------------------------------------------------------
@@ -402,7 +349,7 @@ print("w1.total_window_size: ",w1.total_window_size)
 # End  Establish Windows for the data
 # +-------------------------------------------------------------------
 
-
+""""
 # +-------------------------------------------------------------------
 # Split the data into windows split into inputs and labels
 # +-------------------------------------------------------------------
@@ -707,3 +654,4 @@ from onnx import checker
 checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
+"""
