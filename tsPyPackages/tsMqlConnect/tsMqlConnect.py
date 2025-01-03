@@ -43,3 +43,56 @@ class CMqlinit:
         else:
             print(f"there has been a problem with initialization: {mt5.last_error()}")
             return mt5.last_error()
+
+
+#--------------------------------------------------------------------
+# create method  "setbrokers.
+# class: cmqlinit      
+# usage: login
+# /param cmqlinit    var                          
+#--------------------------------------------------------------------
+    def set_mql_broker(self, lpbroker='MetaQuotes', mp_symbol_primary='EURUSD', MPDATAFILE1=None, MPDATAFILE2=None, **kwargs):
+    # Default values for variables
+        BROKER = None
+        MPPATH = None
+        MPDATAPATH = None
+        MPFILEVALUE1 = None
+        MPFILEVALUE2 = None
+        MKFILES = None
+        MPSERVER = None
+        MPTIMEOUT = None
+        MPPORTABLE = None
+        MPENV = None
+    
+    if lpbroker == "ICM":
+        BROKER = "xerces_icm"
+        MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
+        MPBROKPATH = r"Brokers/ICMarkets/terminal64.exe"
+        MKFILES = r"Brokers/ICMarkets/MQL5/Files/"
+        MPSERVER = "ICMarketsSC-Demo"
+        MPTIMEOUT = 60000
+        MPPORTABLE = True
+        MPPATH = MPBASEPATH + MPBROKPATH
+        MPENV = "demo"  # "prod" or "demo"
+        MPDATAPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
+        MPFILEVALUE1 = f"{mp_symbol_primary}_{MPDATAFILE1}"
+        MPFILEVALUE2 = f"{mp_symbol_primary}_{MPDATAFILE2}"
+        print(f"MPPATH: {MPPATH}")
+    elif lpbroker == "MetaQuotes":
+        BROKER = "xerces_meta"
+        MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
+        MPBROKPATH = r"Brokers/Metaquotes/terminal64.exe"
+        MKFILES = r"Brokers/Metaquotes/MQL5/Files/"
+        MPSERVER = "MetaQuotes-Demo"
+        MPTIMEOUT = 60000
+        MPPORTABLE = True
+        MPPATH = MPBASEPATH + MPBROKPATH
+        MPENV = "demo"  # "prod" or "demo"
+        MPDATAPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
+        MPFILEVALUE1 = f"{mp_symbol_primary}_{MPDATAFILE1}"
+        MPFILEVALUE2 = f"{mp_symbol_primary}_{MPDATAFILE2}"
+        print(f"MPPATH: {MPPATH}")
+    else:
+        raise ValueError(f"Unsupported broker: {lpbroker}")
+
+    return BROKER, MPPATH, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2, MKFILES, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV
