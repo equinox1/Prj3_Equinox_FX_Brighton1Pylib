@@ -88,3 +88,4 @@ class CMqlTimeConfig:
             "SYMBOLS": SYMBOLS,
             "TIMEZONES": TIMEZONES
         }
+    
