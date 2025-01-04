@@ -123,6 +123,8 @@ ax.axis('tight')
 
 #Time
 #Similarly, the Date Time column is very useful, but not in this string form. Start by converting it to seconds:
+#Taking each 6th record as we need only hourly data, so ignoring every other record(which are on 10 minute level)
+
 timestamp_s = date_time.map(pd.Timestamp.timestamp)
 
 #Similar to the wind direction, the time in seconds is not a useful model input. 

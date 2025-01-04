@@ -273,4 +273,37 @@ class CMqlWindowGenerator():
             y.append(label)
         return np.array(X), np.array(y)
 
-    
+    import tensorflow as tf
+
+    def windowed_dataset(series, window_size, batch_size, shuffle_buffer):
+        """
+        Creates a windowed dataset for time series data.
+
+        Args:
+        - series (array-like): The time series data to process.
+        - window_size (int): The size of each window.
+        - batch_size (int): The batch size for training.
+        - shuffle_buffer (int): The buffer size for shuffling the data.
+
+        Returns:
+        - tf.data.Dataset: The processed dataset ready for training.
+        """
+        # Step 1: Convert the series into a TensorFlow dataset
+        dataset = tf.data.Dataset.from_tensor_slices(series)
+
+        # Step 2: Create windows of the specified size
+        dataset = dataset.window(window_size + 1, shift=1, drop_remainder=True)
+
+        # Step 3: Flatten each window into a single dataset
+        dataset = dataset.flat_map(lambda window: window.batch(window_size + 1))
+
+        # Step 4: Split each window into features (x) and labels (y)
+        dataset = dataset.map(lambda window: (window[:-1], window[-1]))
+
+        # Step 5: Shuffle the dataset with the specified buffer size
+        dataset = dataset.shuffle(shuffle_buffer)
+
+        # Step 6: Batch the dataset
+        dataset = dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+
+        return dataset
