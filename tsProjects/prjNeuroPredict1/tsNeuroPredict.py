@@ -258,8 +258,20 @@ elif mv_usedata == 'loadfilerates':
     mv_X_tdata2 = mv_X_tdata2d
     mv_y_tdata2 = mv_y_tdata2d
 
+
 # +-------------------------------------------------------------------
-# Split the data into training and test sets
+# Split the data into training and test sets FIXED Partitioning
+#--------------------------------------------------------------------
+#If the time series contains seasonality, we want to ensure that each period contains a whole number
+# of seasons # (i.e. at least one year if it has annual seasonality).
+# We then train our model on the training period and evaluate it on the validation period. 
+# After tuning the model's hyperparameters to get the desired performance, youcan retrain it on the training 
+# and validation data, and then test on the unseen test data.
+# Another way to train and test forecasting models is by starting with a short training period and gradually
+# increasing it over time. This is referred to as roll-forwardpartitioning.
+#
+# +-------------------------------------------------------------------
+# Split the data into training and test sets through sequences
 # +-------------------------------------------------------------------
 m1 = CMqlmlsetup()
 mp_train_split = 0.7
@@ -268,9 +280,6 @@ mp_test_split = 0.1
 mp_gap=1-mp_test_split
 mp_shuffle = False
 
-# Check Sequence method for X and Y
-
-# End Check Sequence method for X and Y
 n = len(mv_X_tdata2)
 X_train = mv_X_tdata2[0:int(n*mp_train_split)] #features close
 y_train = mv_y_tdata2[0:int(n*mp_train_split)] #labels target
@@ -283,6 +292,70 @@ y_test = mv_y_tdata2[int(n*mp_gap):]
 # +-------------------------------------------------------------------
 # End Split the data into training and test sets
 # +-------------------------------------------------------------------
+
+
+# +-------------------------------------------------------------------
+# Windowing of the dataset
+#--------------------------------------------------------------------
+#divide our data into features and labels. In the case of time series data, 
+#FEATURES: our features will be a number of values in the series that we use to predict the next value.
+#LABELS: and our labels will be the next value.
+#WINDOW: For testing purposes, we can use the tf.data.Dataset class to create a window of time series
+# data for us
+# We can start with a function called windowed_dataset that takes in a data series and parameters for the
+# window_size, the batch_size to use in training, and the size of the shuffle_buffer that determines 
+# how the data will be shuffled.
+# Here's how the function works:
+# First we need to create a dataset from the series with tf.data.Dataset
+# We then use the window method to split the data based on our window_size
+# We then flatten the data to make it easier to work with using flat_map
+# We then shuffle the data and pass in the shuffle_buffer
+# The shuffled data is then split into $x$'s and $y$, which is the last element
+# The data is then batched into our batch_size and returned
+
+# Establish Windows for the data
+# +-------------------------------------------------------------------
+mp_past_inputwidth_timewindow = 24  # 24 hours of history data INPUT WIDTH
+mp_future_offsetwidth_timewindow = 24 # one LABEL=1  prediction 24 hours in the future Offset 24 hours
+print("mp_past_inputwidth_timewindow:",mp_past_inputwidth_timewindow, "mp_future_offsetwidth_timewindow:",mp_future_offsetwidth_timewindow)
+
+# Ensure mp_feature_columns is defined and is a list
+# 24 hours of history data to forecast 24 hours in the future for 1 label 
+mp_feature_columns = ['close']  # Example column names for feature independent variables
+mp_label_columns = ['target']   # Example column names for label dependent variables
+mp_num_features = len(mp_feature_columns) # Number of features
+mp_num_labels = len(mp_label_columns) # Number of labels
+
+print("Window Paramas: input_width:",mp_past_inputwidth_timewindow, "label_width:",mp_num_labels, "shift:",mp_future_offsetwidth_timewindow, "label_columns:",mp_feature_columns)
+wX1_i24_o24_l1 = CMqlWindowGenerator(
+    input_width=mp_past_inputwidth_timewindow,
+    label_width=mp_num_labels,
+    shift=mp_future_offsetwidth_timewindow,
+    X_train=X_train,
+    X_val=X_val,
+    X_test=X_test,
+    label_columns=mp_feature_columns
+)
+
+wy1_i24_o24_l1 = CMqlWindowGenerator(
+    input_width=mp_past_inputwidth_timewindow,
+    label_width=mp_num_labels,
+    shift=mp_future_offsetwidth_timewindow,
+    y_train=y_train,
+    y_val=y_val,
+    y_test=y_test,
+    label_columns=mp_feature_columns
+)
+
+print(wX1_i24_o24_l1)
+print(wy1_i24_o24_l1)
+print("wX1_i24_o24_l1.total_window_size: ",wX1_i24_o24_l1.total_window_size)
+print("wy1_i24_o24_l1).total_window_size: ",wy1_i24_o24_l1.total_window_size)
+# +-------------------------------------------------------------------
+# End  Establish Windows for the data
+# +-------------------------------------------------------------------
+
+
 
 # +-------------------------------------------------------------------
 # Normalize the data
@@ -317,62 +390,28 @@ y_test = (y_test - y_train_mean) / y_train_std
 # End Normalize the data
 # +-------------------------------------------------------------------
 
-# +-------------------------------------------------------------------
-# Establish Windows for the data
-# +-------------------------------------------------------------------
 
-mp_past_inputwidth_timewindow = 24  # 24 hours of history data INPUT WIDTH
-mp_future_offsetwidth_timewindow = 24 # one LABEL=1  prediction 24 hours in the future Offset 24 hours
-print("mp_past_inputwidth_timewindow:",mp_past_inputwidth_timewindow, "mp_future_offsetwidth_timewindow:",mp_future_offsetwidth_timewindow)
-
-# Ensure mp_feature_columns is defined and is a list
-# 24 hours of history data to forecast 24 hours in the future for 1 label 
-mp_feature_columns = ['close']  # Example column names for feature independent variables
-mp_label_columns = ['target']   # Example column names for label dependent variables
-mp_num_features = len(mp_feature_columns) # Number of features
-mp_num_labels = len(mp_label_columns) # Number of labels
-
-print("Window Paramas: input_width:",mp_past_inputwidth_timewindow, "label_width:",mp_num_labels, "shift:",mp_future_offsetwidth_timewindow, "label_columns:",mp_feature_columns)
-w1 = CMqlWindowGenerator(
-    input_width=mp_past_inputwidth_timewindow,
-    label_width=mp_num_labels,
-    shift=mp_future_offsetwidth_timewindow,
-    train_df=train_df,
-    val_df=val_df,
-    test_df=test_df,
-    label_columns=mp_feature_columns
-)
-
-print(w1)
-print("w1.total_window_size: ",w1.total_window_size)
-# +-------------------------------------------------------------------
-# End  Establish Windows for the data
-# +-------------------------------------------------------------------
-
-""""
 # +-------------------------------------------------------------------
 # Split the data into windows split into inputs and labels
 # +-------------------------------------------------------------------
 
-w1win ,w1win_inputs,w1win_labels = w1.window_slicer( train_df, window_size=w1.total_window_size, shift_size=100)
+train_wX1_i24_o24_l1_win ,train_wX1_i24_o24_l1_inputs,train_wX1_i24_o24_l1_labels = train_wX1_i24_o24_l1.window_slicer( X_train, window_size=w1.total_window_size, shift_size=100)
+print('train All shapes are: (batch, time, features)',train_wX1_i24_o24_l1_win.shape,train_wX1_i24_o24_l1_inputs.shape,train_wX1_i24_o24_l1_labels.shape)
 
-print('train All shapes are: (batch, time, features)')
-print(f'1:Window shape: {w1win.shape}')
-print(f'2:Inputs shape: {w1win_inputs.shape}')
-print(f'3:Labels shape: {w1win_labels.shape}')
+train_wy1_i24_o24_l1_win ,train_wy1_i24_o24_l1_inputs,train_wy1_i24_o24_l1_labels = train_wy1_i24_o24_l1.window_slicer( y_train, window_size=w1.total_window_size, shift_size=100)
+print('train All shapes are: (batch, time, features)',train_wy1_i24_o24_l1_win.shape,train_wy1_i24_o24_l1_inputs.shape,train_wy1_i24_o24_l1_labels.shape)
 
-w2win ,w2win_inputs,w2win_labels = w1.window_slicer( val_df, window_size=w1.total_window_size, shift_size=100)
-print('val All shapes are: (batch, time, features)')
-print(f'1:Window shape: {w2win.shape}')
-print(f'2:Inputs shape: {w2win_inputs.shape}')
-print(f'3:Labels shape: {w2win_labels.shape}')
+val_wX1_i24_o24_l1_win ,val_wX1_i24_o24_l1_inputs,val_wX1_i24_o24_l1_labels = val_wX1_i24_o24_l1.window_slicer( X_val, window_size=w1.total_window_size, shift_size=100)
+print('val All shapes are: (batch, time, features)',val_wX1_i24_o24_l1_win.shape,val_wX1_i24_o24_l1_inputs.shape,val_wX1_i24_o24_l1_labels.shape)
 
-w3win ,w3win_inputs,w3win_labels = w1.window_slicer( test_df, window_size=w1.total_window_size, shift_size=100)
-print('test All shapes are: (batch, time, features)')
-print(f'1:Window shape: {w3win.shape}')
-print(f'2:Inputs shape: {w3win_inputs.shape}')
-print(f'3:Labels shape: {w3win_labels.shape}')
+val_wy1_i24_o24_l1_win ,val_wy1_i24_o24_l1_inputs,val_wy1_i24_o24_l1_labels = val_wy1_i24_o24_l1.window_slicer( y_val, window_size=w1.total_window_size, shift_size=100)
+print('val All shapes are: (batch, time, features)',val_wy1_i24_o24_l1_win.shape,val_wy1_i24_o24_l1_inputs.shape,val_wy1_i24_o24_l1_labels.shape)
 
+test_wX1_i24_o24_l1_win ,test_wX1_i24_o24_l1_inputs,test_wX1_i24_o24_l1_labels = test_wX1_i24_o24_l1.window_slicer( X_test, window_size=w1.total_window_size, shift_size=100)
+print('test All shapes are: (batch, time, features)',test_wX1_i24_o24_l1_win.shape,test_wX1_i24_o24_l1_inputs.shape,test_wX1_i24_o24_l1_labels.shape)
+
+test_wy1_i24_o24_l1_win ,test_wy1_i24_o24_l1_inputs,test_wy1_i24_o24_l1_labels = test_wy1_i24_o24_l1.window_slicer( y_test, window_size=w1.total_window_size, shift_size=100)
+print('test All shapes are: (batch, time, features)',test_wy1_i24_o24_l1_win.shape,test_wy1_i24_o24_l1_inputs.shape,test_wy1_i24_o24_l1_labels.shape)
 
 # +-------------------------------------------------------------------
 # End Split the data into windows split into inputs and labels
@@ -381,8 +420,8 @@ print(f'3:Labels shape: {w3win_labels.shape}')
 # +-------------------------------------------------------------------
 # TF datasets
 # +-------------------------------------------------------------------
-train = w1.train
-val = w1.val
+X_train = wX1_i24_o24_l1.train
+X_val = wX1_i24_o24_l1.val
 test = w1.test
 for w1win_inputs, w1win_labels in train.take(1):
   print(f'1:Inputs shape (batch, time, features): {w1win_inputs.shape}')
@@ -390,6 +429,13 @@ for w1win_inputs, w1win_labels in train.take(1):
 
 w1.w1win = w1win_inputs, w1win_labels
 w1.plot(plot_col='close', model=None, max_subplots=3)
+
+# Run the tuner to find the best model configuration
+print("Running tuner1 with mp_X_train_input_scaled input shape:", w1win.shape)
+print("Running tuner2 with mp_X_train_input_scaled scaled data: Rows:", w1win.shape[0], "Columns:", w1win.shape[1])
+print("Running tuner3 with mp_X_train_input_scaled input shape:", w1win.shape)
+mp_inputs = Input(shape=(w1win.shape[1],1) ) 
+print("Running tuner4 with mp_X_train_input_scaled input shape:", mp_inputs)
 
 
 # +-------------------------------------------------------------------
@@ -482,21 +528,13 @@ if mp_test:
     mp_directory = f"tshybrid_ensemble_tuning_test"
     mp_project_name = "prjEquinox1_test"
 
-# Run the tuner to find the best model configuration
-print("Running tuner1 with mp_X_train_input_scaled input shape:", w1win.shape)
-print("Running tuner2 with mp_X_train_input_scaled scaled data: Rows:", w1win.shape[0], "Columns:", w1win.shape[1])
-print("Running tuner3 with mp_X_train_input_scaled input shape:", w1win.shape)
-mp_inputs = Input(shape=(w1win.shape[1],1) ) 
-print("Running tuner4 with mp_X_train_input_scaled input shape:", mp_inputs)
-
 
 
 # Create an instance of the tuner class
 print("Creating an instance of the tuner class")
 mt = CMdtuner(
-    X_train=train,
-    X_val=val,
-    X_test=test,
+    X_train=X_train,
+    y_train=y_train,
     inputs=mp_inputs,
     cnn_model=mp_cnn_model,
     lstm_model=mp_lstm_model,
