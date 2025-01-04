@@ -194,15 +194,15 @@ class CMqlWindowGenerator():
         plt.xlabel('Time [h]')
         return plt
 
-    def make_dataset(self, data):
+    def make_dataset(self, data, batch_size=32,total_window_size=24,shuffle=True,targets=None):
         data = np.array(data, dtype=np.float32)
         ds = tf.keras.utils.timeseries_dataset_from_array(
             data=data,
-            targets=None,
-            sequence_length=self.total_window_size,
+            targets=targets,
+            sequence_length=total_window_size,
             sequence_stride=1,
-            shuffle=True,
-            batch_size=32,)
+            shuffle=shuffle,
+            batch_size=batch_size,)
 
         ds = ds.map(self.split_window)
 
@@ -210,45 +210,54 @@ class CMqlWindowGenerator():
 
     @property
     def train(self):
-        return self.make_dataset(self.train_df)
+        return self.make_dataset(self.train_df,batch_size=32,total_window_size=24,shuffle=True,targets=None)
 
     @property
     def val(self):
-        return self.make_dataset(self.val_df)
+        return self.make_dataset(self.val_df, batch_size=32, total_window_size=24, shuffle=True, targets=None)
 
     @property
     def test(self):
-        return self.make_dataset(self.test_df)
+        return self.make_dataset(self.test_df, batch_size=32, total_window_size=24, shuffle=True, targets=None)
 
-    @property
-    def example(self):
-        """Get and cache an example batch of `inputs, labels` for plotting."""
-        result = getattr(self, '_example', None)
-        if result is None:
-            # No example batch was found, so get one from the `.train` dataset
-            result = next(iter(self.train))
-            # And cache it for next time
-            self._example = result
-        return result
+    def split_window(self, features):
+        inputs = features[:, self.input_slice, :]
+        labels = features[:, self.labels_slice, :]
+        if self.label_columns is not None:
+            labels = tf.stack(
+                [labels[:, :, self.column_indices[name]] for name in self.label_columns],
+                axis=-1)
+
+        # Slicing doesn't preserve static shape information, so set the shapes
+        # manually. This way the `tf.data.Datasets` are easier to inspect.
+        inputs.set_shape([None, self.input_width, None])
+        labels.set_shape([None, self.label_width, None])
+
+        return inputs, labels
+
+
 
     def window_slicer(self, df, window_size, shift_size):
+        # Ensure the DataFrame is large enough for the required slices
+        print("length of df",len(df), "window_size", window_size, "shift_size", shift_size, "2 * shift_size + window_size", 2 * shift_size + window_size)
+        if len(df) < 2 * shift_size + window_size:
+            raise ValueError("DataFrame is too small for the given window and shift sizes")
 
         # Stack three slices, the length of the total window.
-        slice1 = df[:window_size]
-        slice2 = df[shift_size:shift_size + window_size]
-        slice3 = df[2 * shift_size:2 * shift_size + window_size]
+        slice1 = df.iloc[:window_size]
+        slice2 = df.iloc[shift_size:shift_size + window_size]
+        slice3 = df.iloc[2 * shift_size:2 * shift_size + window_size]
 
         # Ensure all slices are of the same shape
         min_length = min(len(slice1), len(slice2), len(slice3))
 
         varwin = tf.stack([
-            slice1[:min_length],
-            slice2[:min_length],
-            slice3[:min_length]
+            slice1[:min_length].values,
+            slice2[:min_length].values,
+            slice3[:min_length].values
         ])
 
-        varwin_inputs, varwin_labels = self.split_window(varwin)
-        return varwin ,varwin_inputs, varwin_labels
+        return varwin
 
     import numpy as np
 

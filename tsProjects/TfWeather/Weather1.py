@@ -182,6 +182,10 @@ test_df = df[int(n*0.9):]
 
 num_features = df.shape[1]
 
+print("train_df.HEAD(5)", train_df.head(5))
+print("val_df.HEAD(5)", val_df.head(5))
+print("test_df.HEAD(5)", test_df.head(5))
+
 #Normalize the data
 #It is important to scale features before training a neural network. Normalization is a common way of doing this 
 #scaling: subtract the mean and divide by the standard deviation of each feature.
@@ -414,7 +418,7 @@ def test(self):
 
 @property
 def example(self):
-  """Get and cache an example batch of `inputs, labels` for plotting."""
+  #Get and cache an example batch of `inputs, labels` for plotting.
   result = getattr(self, '_example', None)
   if result is None:
     # No example batch was found, so get one from the `.train` dataset
@@ -427,6 +431,9 @@ WindowGenerator.train = train
 WindowGenerator.val = val
 WindowGenerator.test = test
 WindowGenerator.example = example
+
+
+
 
 #Now, the WindowGenerator object gives you access to the tf.data.Dataset objects, so you can easily iterate over the data.
 #The Dataset.element_spec property tells you the structure, data types, and shapes of the dataset elements.
