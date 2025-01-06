@@ -494,7 +494,6 @@ for train_ds_win_y1_i24_o24_l1 in train_ds_win_y1_i24_o24_l1.take(1):
     print(f'Labels shape: {train_ds_win_y1_i24_o24_l1[1].shape}')
 
 
-"""
 # X 6 x 1 x 1
 shift_size = 100
 window_size=win_X1_i6_o1_l1.total_window_size / (60 * 60 * 2)
@@ -512,6 +511,7 @@ else:
     stride = 1
 
 print("X 6 x 1 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
+#tag inputs_train_slice_win_y1_i6_o1_l1, labels_train_slice_win_y1_i6_o1_l1 = win_X1_i6_o1_l1.split_window(train_slice_win_X1_i6_o1_l1, input_size, output_size, stride)
 inputs_train_slice_win_y1_i6_o1_l1, labels_train_slice_win_y1_i6_o1_l1 = win_X1_i6_o1_l1.split_window(train_slice_win_X1_i6_o1_l1, input_size, output_size, stride)
 
 #print('All shapes are: (batch, time, features)')
@@ -557,7 +557,7 @@ train_ds_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.make_dataset(train_slice_win_y1_i6_o1
 for train_ds_win_y1_i6_o1_l1 in train_ds_win_y1_i6_o1_l1.take(1):
     print(f'Inputs shape: {train_ds_win_y1_i6_o1_l1[0].shape}')
     print(f'Labels shape: {train_ds_win_y1_i6_o1_l1[1].shape}')
-
+"""
 # +-------------------------------------------------------------------
 # End Split the data into windows split into inputs and labels
 # +-------------------------------------------------------------------
