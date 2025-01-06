@@ -491,17 +491,17 @@ print(f'Labels shape: {labels_train_slice_win_y1_i24_o24_l1}')
 #Create TF datasets
 # 24 x 1 x 1
 train_ds_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.make_dataset(train_slice_win_X1_i24_o24_l1, batch_size=16,total_window_size=win_X1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-
-for train_ds_win_X1_i24_o24_l1 in train_ds_win_X1_i24_o24_l1.take(1):
-    print(f'Inputs shape: {train_ds_win_X1_i24_o24_l1[0].shape}')
-    print(f'Labels shape: {train_ds_win_X1_i24_o24_l1[1].shape}')
-
 train_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(train_slice_win_y1_i24_o24_l1, batch_size=16,total_window_size=win_y1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
 
-for train_ds_win_y1_i24_o24_l1 in train_ds_win_y1_i24_o24_l1.take(1):
-    print(f'Inputs shape: {train_ds_win_y1_i24_o24_l1[0].shape}')
-    print(f'Labels shape: {train_ds_win_y1_i24_o24_l1[1].shape}')
+val_ds_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.make_dataset(train_slice_win_X1_i24_o24_l1, batch_size=16,total_window_size=win_X1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+val_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(train_slice_win_y1_i24_o24_l1, batch_size=16,total_window_size=win_y1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
 
+test_ds_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.make_dataset(train_slice_win_X1_i24_o24_l1, batch_size=16,total_window_size=win_X1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+test_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(train_slice_win_y1_i24_o24_l1, batch_size=16,total_window_size=win_y1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+
+train_dataset_24241 = tf.data.Dataset.from_tensor_slices((train_ds_win_X1_i24_o24_l1, train_ds_win_y1_i24_o24_l1)).batch(batch_size)
+val_dataset_24241 = tf.data.Dataset.from_tensor_slices((val_ds_win_X1_i24_o24_l1, val_ds_win_y1_i24_o24_l1)).batch(batch_size)
+test_dataset_24241 = tf.data.Dataset.from_tensor_slices((test_ds_win_X1_i24_o24_l1, test_ds_win_y1_i24_o24_l1)).batch(batch_size)
 
 # X 6 x 1 x 1
 shift_size = 100
@@ -556,30 +556,37 @@ print(f'Labels shape: {labels_train_slice_win_y1_i6_o1_l1}')
 #Create TF datasets
 # 6 x 1 x 1
 train_ds_win_X1_i6_o1_l1 = win_X1_i6_o1_l1.make_dataset(train_slice_win_X1_i6_o1_l1, batch_size=16,total_window_size=win_X1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-
-for train_ds_win_X1_i6_o1_l1 in train_ds_win_X1_i6_o1_l1.take(1):
-    print(f'Inputs shape: {train_ds_win_X1_i6_o1_l1[0].shape}')
-    print(f'Labels shape: {train_ds_win_X1_i6_o1_l1[1].shape}')
-
 train_ds_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.make_dataset(train_slice_win_y1_i6_o1_l1, batch_size=16,total_window_size=win_y1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
 
-for train_ds_win_y1_i6_o1_l1 in train_ds_win_y1_i6_o1_l1.take(1):
-    print(f'Inputs shape: {train_ds_win_y1_i6_o1_l1[0].shape}')
-    print(f'Labels shape: {train_ds_win_y1_i6_o1_l1[1].shape}')
+val_ds_win_X1_i6_o1_l1 = win_X1_i6_o1_l1.make_dataset(train_slice_win_X1_i6_o1_l1, batch_size=16,total_window_size=win_X1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+val_ds_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.make_dataset(train_slice_win_y1_i6_o1_l1, batch_size=16,total_window_size=win_y1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+
+test_ds_win_X1_i6_o1_l1 = win_X1_i6_o1_l1.make_dataset(train_slice_win_X1_i6_o1_l1, batch_size=16,total_window_size=win_X1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+test_ds_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.make_dataset(train_slice_win_y1_i6_o1_l1, batch_size=16,total_window_size=win_y1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+
+train_dataset_611 = tf.data.Dataset.from_tensor_slices((train_ds_win_X1_i6_o1_l1, train_ds_win_y1_i6_o1_l1)).batch(batch_size)
+val_dataset_611 = tf.data.Dataset.from_tensor_slices((val_ds_win_X1_i6_o1_l1, val_ds_win_y1_i6_o1_l1)).batch(batch_size)
+test_dataset_611 = tf.data.Dataset.from_tensor_slices((test_ds_win_X1_i6_o1_l1, test_ds_win_y1_i6_o1_l1)).batch(batch_size)
 
 # +-------------------------------------------------------------------
 # End Split the data into windows split into inputs and labels
 # +-------------------------------------------------------------------
 if winmodel == '24_24_1':
-    windowx=win_X1_i24_o24_l1
-    dswindowx=train_ds_win_X1_i24_o24_l1
-    windowy=win_y1_i24_o24_l1
-    dswindowy=train_ds_win_y1_i24_o24_l1
+    windowx = win_X1_i24_o24_l1
+    dswindowx = train_ds_win_X1_i24_o24_l1
+    windowy = win_y1_i24_o24_l1
+    dswindowy = train_ds_win_y1_i24_o24_l1
+    train_dataset = train_dataset_24241
+    val_dataset = val_dataset_24241
+    test_dataset = test_dataset_24241
 elif winmodel == '6_1_1':
-    windowx=win_X1_i6_o1_l1
-    dswindowx=train_ds_win_X1_i6_o1_l1
-    windowy=win_y1_i6_o1_l1
-    dswindowy=train_ds_win_y1_i6_o1_l1
+    windowx = win_X1_i6_o1_l1
+    dswindowx = train_ds_win_X1_i6_o1_l1
+    windowy = win_y1_i6_o1_l1
+    dswindowy = train_ds_win_y1_i6_o1_l1
+    train_dataset = train_dataset_611
+    val_dataset = val_dataset_611
+    test_dataset = test_dataset_611
 
 print("winmodel:", winmodel,"windowx:", windowx, "windowy:", windowy )
 
@@ -619,13 +626,16 @@ ymp_transformer_input_shape = yspec.shape if yspec else None
 axmp_inputs= xmp_inputs[2],xmp_inputs[3]
 aymp_inputs= ymp_inputs[2], ymp_inputs[3]
 print("axmp_inputs:", axmp_inputs)
+print("aymp_inputs:", aymp_inputs)
 
+bxmp_inputs= xmp_inputs[0],xmp_inputs[1],xmp_inputs[2],xmp_inputs[3]
+bymp_inputs= ymp_inputs[0], ymp_inputs[1], ymp_inputs[2], ymp_inputs[3]
+print("bxmp_inputs:", bxmp_inputs)
+print("bymp_inputs:", bymp_inputs)
 
 # print shapes of X and y FROM SRC DATASET
 print("SHAPE: mv_X_tdata2 shape:", mv_X_tdata2.shape)
 print("SHAPE: mv_y_tdata2 shape:", mv_y_tdata2.shape)
-
-
 
 print("SHAPE: mv_X_tdata2 shape0:", mv_X_tdata2.shape[0])
 print("SHAPE: mv_y_tdata2 shape0:", mv_y_tdata2.shape[0])
@@ -728,9 +738,10 @@ if mp_test:
 # Create an instance of the tuner class
 print("Creating an instance of the tuner class")
 mt = CMdtuner(
-    X_train=dswindowx,
-    y_train=dswindowy,
-    inputs=axmp_inputs,
+    traindataset=train_dataset,
+    valdataset=val_dataset,
+    testdataset=test_dataset,
+    inputs=bxmp_inputs,
     cnn_model=mp_cnn_model,
     lstm_model=mp_lstm_model,
     gru_model=mp_gru_model,
