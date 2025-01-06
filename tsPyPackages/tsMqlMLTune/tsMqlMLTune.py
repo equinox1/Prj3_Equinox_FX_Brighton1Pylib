@@ -16,6 +16,11 @@ class CMdtuner:
         self.X_val = kwargs['X_val'] if 'X_val' in kwargs else None
         self.X_test = kwargs['X_test'] if 'X_test' in kwargs else None
 
+        self.y_train = kwargs['y_train'] if 'y_train' in kwargs else None
+        self.y_val = kwargs['y_val'] if 'y_val' in kwargs else None
+        self.y_test = kwargs['y_test'] if 'y_test' in kwargs else None
+
+
         # Load model configuration parameters
         self.cnn_model = kwargs['cnn_model'] if 'cnn_model' in kwargs else False
         self.lstm_model = kwargs['lstm_model'] if 'lstm_model' in kwargs else False
@@ -79,14 +84,15 @@ class CMdtuner:
         os.makedirs(self.basepath, exist_ok=True)
 
         # Define inputs
+        print("tunemodel self.inputs", kwargs.get('inputs'))
         self.inputs = kwargs.get('inputs')
         if self.inputs is None:
-            if self.X_train is not None and len(self.X_train.shape) >= 3:
-                self.inputs = Input(shape=(self.X_train.shape[1], self.X_train.shape[2]))
+            if self.X_train is not None and len(self.X_train.shape) >= 4:
+                self.inputs = Input(shape=(self.X_train.shape[0], self.X_train.shape[1]))
             elif self.X_val is not None and len(self.X_val.shape) >= 3:
-                self.inputs = Input(shape=(self.X_val.shape[1], self.X_val.shape[2]))
-            elif self.X_test is not None and len(self.X_test.shape) >= 3:
-                self.inputs = Input(shape=(self.X_test.shape[1], self.X_test.shape[2]))
+                self.inputs = Input(shape=(self.X_val.shape[0], self.X_val.shape[1]))
+            elif self.X_test is not None and len(self.X_test.shape) >= 4:
+                self.inputs = Input(shape=(self.X_test.shape[0], self.X_test.shape[1]))
             else:
                 raise ValueError("Either 'inputs' or 'X_train', 'X_val', or 'X_test' with a defined shape must be provided.")
 

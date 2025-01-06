@@ -48,6 +48,7 @@ import onnxruntime
 import onnxruntime.backend as backend
 import onnxruntime.tools.symbolic_shape_infer as symbolic_shape_infer
 import warnings
+from numpy import concatenate
 # set values for libs
 warnings.filterwarnings("ignore")
 scaler = StandardScaler()
@@ -70,6 +71,7 @@ if gpus:
 # +-------------------------------------------------------------------
 loadtensor = True
 loadtemporian = False
+winmodel = '24_24_1' # '24_24_1' or '6_1_1'
 broker = "METAQUOTES" # "ICM" or "METAQUOTES"
 mp_test = False
 show_dtype = False
@@ -221,6 +223,10 @@ mv_tdata1apirates = d1.create_target(df=mv_tdata1apirates,lookahead_seconds=mp_s
 mv_tdata1loadticks = d1.create_target(df=mv_tdata1loadticks,lookahead_seconds=mp_seconds,bid_column='T2_Bid_Price', ask_column='T2_Ask_Price', column_in='T2_Bid_Price',column_out1='close',column_out2='target', run_mode=3)
 mv_tdata1loadrates = d1.create_target(df=mv_tdata1loadrates,lookahead_seconds=mp_seconds,bid_column='R2_Bid_Price', ask_column='R2_Ask_Price', column_in='R2_Close',column_out1='close',column_out2='target', run_mode=4)
 
+print("SHAPE0: mv_tdata1apiticks shape:", mv_tdata1apiticks.shape, "mv_tdata1apiticks.shape[0] :", mv_tdata1apiticks.shape[0], "mv_tdata1apiticks.shape[1] :", mv_tdata1apiticks.shape[1])  
+print("SHAPE0: mv_tdata1apirates shape:", mv_tdata1apirates.shape, "mv_tdata1apirates.shape[0] :", mv_tdata1apirates.shape[0], "mv_tdata1apirates.shape[1] :", mv_tdata1apirates.shape[1])
+print("SHAPE0: mv_tdata1loadticks shape:", mv_tdata1loadticks.shape, "mv_tdata1loadticks.shape[0] :", mv_tdata1loadticks.shape[0], "mv_tdata1loadticks.shape[1] :", mv_tdata1loadticks.shape[1])
+print("SHAPE0: mv_tdata1loadrates shape:", mv_tdata1loadrates.shape, "mv_tdata1loadrates.shape[0] :", mv_tdata1loadrates.shape[0], "mv_tdata1loadrates.shape[1] :", mv_tdata1loadrates.shape[1])
 
 # Display the first few rows of the data for verification
 d1.run_mql_print(mv_tdata1apiticks,10)
@@ -266,6 +272,9 @@ elif mv_usedata == 'loadfilerates':
     mv_X_tdata2 = mv_X_tdata2d
     mv_y_tdata2 = mv_y_tdata2d
 
+# print shapes of X and y
+print("SHAPE: mv_X_tdata2 shape:", mv_X_tdata2.shape)
+print("SHAPE: mv_y_tdata2 shape:", mv_y_tdata2.shape)
 
 # +-------------------------------------------------------------------
 # Split the data into training and test sets FIXED Partitioning
@@ -456,8 +465,8 @@ inputs_train_slice_win_X1_i24_o24_l1, labels_train_slice_win_X1_i24_o24_l1 = win
 
 print('All shapes are: (batch, time, features)')
 print(f'Window shape: {train_slice_win_X1_i24_o24_l1.shape}')
-#print(f'Inputs shape: {inputs_train_slice_win_X1_i24_o24_l1}')
-#print(f'Labels shape: {labels_train_slice_win_X1_i24_o24_l1}')
+print(f'Inputs shape: {inputs_train_slice_win_X1_i24_o24_l1}')
+print(f'Labels shape: {labels_train_slice_win_X1_i24_o24_l1}')
 
 # y 24 x 24 x 1
 shift_size = 100
@@ -476,8 +485,8 @@ inputs_train_slice_win_y1_i24_o24_l1, labels_train_slice_win_y1_i24_o24_l1 = win
 
 print('All shapes are: (batch, time, features)')
 print(f'Window shape: {train_slice_win_y1_i24_o24_l1.shape}')
-#print(f'Inputs shape: {inputs_train_slice_win_y1_i24_o24_l1}')
-#print(f'Labels shape: {labels_train_slice_win_y1_i24_o24_l1}')
+print(f'Inputs shape: {inputs_train_slice_win_y1_i24_o24_l1}')
+print(f'Labels shape: {labels_train_slice_win_y1_i24_o24_l1}')
 
 #Create TF datasets
 # 24 x 1 x 1
@@ -511,13 +520,13 @@ else:
     stride = 1
 
 print("X 6 x 1 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
-#tag inputs_train_slice_win_y1_i6_o1_l1, labels_train_slice_win_y1_i6_o1_l1 = win_X1_i6_o1_l1.split_window(train_slice_win_X1_i6_o1_l1, input_size, output_size, stride)
 inputs_train_slice_win_y1_i6_o1_l1, labels_train_slice_win_y1_i6_o1_l1 = win_X1_i6_o1_l1.split_window(train_slice_win_X1_i6_o1_l1, input_size, output_size, stride)
 
-#print('All shapes are: (batch, time, features)')
-#print(f'Window shape: {train_slice_win_X1_i6_o1_l1.shape}')
-#print(f'Inputs shape: {inputs_train_slice_win_X1_i6_o1_l1}')
-#print(f'Labels shape: {labels_train_slice_win_X1_i6_o1_l1}')
+print('All shapes are: (batch, time, features)')
+print(f'Window shape: {train_slice_win_X1_i6_o1_l1.shape}')
+print(f'Inputs shape: {inputs_train_slice_win_y1_i6_o1_l1}')
+print(f'Labels shape: {labels_train_slice_win_y1_i6_o1_l1}')
+
 
 # y 6 x 1 x 1
 shift_size = 100
@@ -557,12 +566,76 @@ train_ds_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.make_dataset(train_slice_win_y1_i6_o1
 for train_ds_win_y1_i6_o1_l1 in train_ds_win_y1_i6_o1_l1.take(1):
     print(f'Inputs shape: {train_ds_win_y1_i6_o1_l1[0].shape}')
     print(f'Labels shape: {train_ds_win_y1_i6_o1_l1[1].shape}')
-"""
+
 # +-------------------------------------------------------------------
 # End Split the data into windows split into inputs and labels
 # +-------------------------------------------------------------------
+if winmodel == '24_24_1':
+    windowx=win_X1_i24_o24_l1
+    dswindowx=train_ds_win_X1_i24_o24_l1
+    windowy=win_y1_i24_o24_l1
+    dswindowy=train_ds_win_y1_i24_o24_l1
+elif winmodel == '6_1_1':
+    windowx=win_X1_i6_o1_l1
+    dswindowx=train_ds_win_X1_i6_o1_l1
+    windowy=win_y1_i6_o1_l1
+    dswindowy=train_ds_win_y1_i6_o1_l1
+
+print("winmodel:", winmodel,"windowx:", windowx, "windowy:", windowy )
 
 
+
+# Print elements of dswindowx
+print("dswindowx:", dswindowx)
+#read tensor spec
+print("dswindowx element_spec:")
+for xspec in dswindowx.element_spec:
+    print(f"Shape: {xspec.shape}, Dtype: {xspec.dtype}")
+
+# Print elements of dswindowy
+print("dswindowy:", dswindowy)
+#read tensor spec
+print("dswindowy element_spec:")
+for yspec in dswindowy.element_spec:
+    print(f"Shape: {yspec.shape}, Dtype: {yspec.dtype}")
+
+
+# Initialize input shapes with Xspec
+xmp_inputs = xspec.shape if xspec else None
+xmp_lstm_input_shape = xspec.shape if xspec else None
+xmp_cnn_input_shape = xspec.shape if xspec else None
+xmp_gru_input_shape = xspec.shape if xspec else None
+xmp_single_input_shape = xspec.shape if xspec else None
+xmp_transformer_input_shape = xspec.shape if xspec else None
+
+# Initialize input shapes with Yspec
+ymp_inputs = yspec.shape if yspec else None
+ymp_lstm_input_shape = yspec.shape if yspec else None
+ymp_cnn_input_shape = yspec.shape if yspec else None
+ymp_gru_input_shape = yspec.shape if yspec else None
+ymp_single_input_shape = yspec.shape if yspec else None
+ymp_transformer_input_shape = yspec.shape if yspec else None
+
+axmp_inputs= xmp_inputs[2],xmp_inputs[3]
+aymp_inputs= ymp_inputs[2], ymp_inputs[3]
+print("axmp_inputs:", axmp_inputs)
+
+
+# print shapes of X and y FROM SRC DATASET
+print("SHAPE: mv_X_tdata2 shape:", mv_X_tdata2.shape)
+print("SHAPE: mv_y_tdata2 shape:", mv_y_tdata2.shape)
+
+
+
+print("SHAPE: mv_X_tdata2 shape0:", mv_X_tdata2.shape[0])
+print("SHAPE: mv_y_tdata2 shape0:", mv_y_tdata2.shape[0])
+print("SHAPE: mv_X_tdata2 shape1:", mv_X_tdata2.shape[1])
+print("SHAPE: mv_y_tdata2 shape1:", mv_y_tdata2.shape[1])
+
+print("xmp_inputs_shape: ", xmp_inputs[0], xmp_inputs[1], xmp_inputs[2], xmp_inputs[3])
+print("ymp_inputs_shape: ", ymp_inputs[0], ymp_inputs[1], ymp_inputs[2], ymp_inputs[3])
+
+ 
 # +-------------------------------------------------------------------
 # Hyperparameter tuning and model setup
 # +-------------------------------------------------------------------
@@ -571,19 +644,18 @@ for train_ds_win_y1_i6_o1_l1 in train_ds_win_y1_i6_o1_l1.take(1):
 # Select Model 
 mp_cnn_model = True
 mp_lstm_model = True
-plot = w1.plot(plot_col='close', model=None, max_subplots=3)
+#plot = win_X1_i24_o24_l1.plot(plot_col='close', model=None, max_subplots=3)
 mp_gru_model = True
 mp_transformer_model = True
 mp_run_single_input_model = True
-mp_run_single_input_submodels = False # not implemented yet     
+mp_run_single_input_submodels = False # not implemented yet    
 
-# define inputshapes
-print("train.shape[1]:", train_ds_win_X1_i24_o24_l1[0].shape[0])
-mp_lstm_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[1]
-mp_cnn_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[2]
-mp_gru_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[3]
-mp_single_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[4]
-mp_transformer_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[5]
+# define inputs
+mp_single_input_shape = axmp_inputs
+mp_lstm_input_shape = axmp_inputs
+mp_cnn_input_shape = axmp_inputs
+mp_gru_input_shape = axmp_inputs
+mp_transformer_input_shape = axmp_inputs
 
 # define features
 mp_null = None
@@ -653,14 +725,12 @@ if mp_test:
     mp_directory = f"tshybrid_ensemble_tuning_test"
     mp_project_name = "prjEquinox1_test"
 
-
-
 # Create an instance of the tuner class
 print("Creating an instance of the tuner class")
 mt = CMdtuner(
-    X_train=train_ds_win_X1_i24_o24_l1,
-    y_train=train_ds_win_y1_i24_o24_l1,
-    inputs=mp_inputs,
+    X_train=dswindowx,
+    y_train=dswindowy,
+    inputs=axmp_inputs,
     cnn_model=mp_cnn_model,
     lstm_model=mp_lstm_model,
     gru_model=mp_gru_model,
@@ -712,7 +782,8 @@ mt = CMdtuner(
     tf1=False,
     tf2=False,
 )
-    
+
+"""  
 # Run the tuner to find the best model configuration
 print("Running Main call to tuner")
 best_model = mt.tuner.get_best_models()
@@ -787,7 +858,6 @@ plt.legend()
 plt.savefig(mp_basepath + '//' + 'plot.png')
 plt.show()
 print("Plot Model saved to ",mp_basepath + '//' + 'plot.png')
-
 
 # +-------------------------------------------------------------------
 # Save model to ONNX
