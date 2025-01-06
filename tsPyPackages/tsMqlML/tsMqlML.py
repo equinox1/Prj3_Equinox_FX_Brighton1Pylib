@@ -164,7 +164,7 @@ class CMqlWindowGenerator():
     # /pdlsplit data
     #--------------------------------------------------------------------
     def plot(self, model=None, plot_col='close', max_subplots=3):
-        inputs, labels = self.example
+        #inputs, labels = self.example
         plt.figure(figsize=(12, 8))
         plot_col_index = self.column_indices[plot_col]
         max_n = min(max_subplots, len(inputs))
@@ -406,6 +406,24 @@ class CMqlWindowGenerator():
         print("Total window size:", total_window_size)
         print("Stride:", stride)
         print("Output size:", output_size)
-
         return ds
 
+    # Function to print elements in a dataset
+    def print_dataset_elements(self, dataset, num_elements=1):
+        shapes = []
+        dtypes = []
+        for element in dataset.take(num_elements):
+            print("Dataset Element:")
+            if isinstance(element, tuple):
+                for idx, el in enumerate(element):
+                    print(f"Element {idx}: shape={el.shape}, dtype={el.dtype}")
+                    shapes.append(el.shape)
+                    dtypes.append(el.dtype)
+            else:
+                print(f"Element: shape={element.shape}, dtype={element.dtype}")
+                shapes.append(element.shape)
+                dtypes.append(element.dtype)
+        
+        # Return a list of shapes and dtypes
+        return shapes, dtypes
+    
