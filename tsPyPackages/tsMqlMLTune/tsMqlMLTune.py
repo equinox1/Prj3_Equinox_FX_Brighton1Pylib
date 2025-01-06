@@ -12,14 +12,10 @@ from keras_tuner import HyperParameters
 class CMdtuner:
     def __init__(self, **kwargs):
         # Load dataset and model configuration parameters
-        self.X_train = kwargs['X_train'] if 'X_train' in kwargs else None
-        self.X_val = kwargs['X_val'] if 'X_val' in kwargs else None
-        self.X_test = kwargs['X_test'] if 'X_test' in kwargs else None
-
-        self.y_train = kwargs['y_train'] if 'y_train' in kwargs else None
-        self.y_val = kwargs['y_val'] if 'y_val' in kwargs else None
-        self.y_test = kwargs['y_test'] if 'y_test' in kwargs else None
-
+        
+        self.traindataset = kwargs['traindatset'] if 'traindataset' in kwargs else None
+        self.valdataset = kwargs['valdataset'] if 'valdataset' in kwargs else None
+        self.testdataset = kwargs['testdataset'] if 'testdataset' in kwargs else None
 
         # Load model configuration parameters
         self.cnn_model = kwargs['cnn_model'] if 'cnn_model' in kwargs else False
@@ -84,17 +80,19 @@ class CMdtuner:
         os.makedirs(self.basepath, exist_ok=True)
 
         # Define inputs
-        print("tunemodel self.inputs", kwargs.get('inputs'))
         self.inputs = kwargs.get('inputs')
-        if self.inputs is None:
-            if self.X_train is not None and len(self.X_train.shape) >= 4:
-                self.inputs = Input(shape=(self.X_train.shape[0], self.X_train.shape[1]))
-            elif self.X_val is not None and len(self.X_val.shape) >= 3:
-                self.inputs = Input(shape=(self.X_val.shape[0], self.X_val.shape[1]))
-            elif self.X_test is not None and len(self.X_test.shape) >= 4:
-                self.inputs = Input(shape=(self.X_test.shape[0], self.X_test.shape[1]))
-            else:
-                raise ValueError("Either 'inputs' or 'X_train', 'X_val', or 'X_test' with a defined shape must be provided.")
+        print("tunemodel self.inputs", self.inputs)
+        print("tunemodel self.inputs[1] Batch size:", self.inputs[1])
+        print("tunemodel self.inputs[2] Timesteps:", self.inputs[2])
+        print("tunemodel self.inputs[3] Features:", self.inputs[3])
+      
+        batches = self.inputs[1]
+        timesteps = self.inputs[2]
+        features = self.inputs[3]   
+        self.inputs = (batches, timesteps, features)
+        print("tunemodel self.inputs", self.inputs)
+        input_tensor = Input(shape=(timesteps, features))  # The shape does not include the batch size
+        self.inputs = input_tensor
 
         # Define and configure the tuner
         self.tuner = kt.Hyperband(
@@ -111,11 +109,14 @@ class CMdtuner:
         self.tuner.oracle.max_fail_streak = self.max_consecutive_failed_trials
         # Display search space summary and begin tuning
         self.tuner.search_space_summary()
-        self.tuner.search(self.X_train,
-                          validation_data=(self.X_val, self.X_test),
-                          batch_size=self.batch_size,
+
+        
+        self.tuner.search(self.traindataset, 
+                          validation_data=self.valdataset, 
                           epochs=HyperParameters().Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step, default=self.epochs),
-                         )
+                          batch_size=self.batch_size
+               )
+
 
     def build_model(self, hp):
         # Ensure that at least one model branch is selected
