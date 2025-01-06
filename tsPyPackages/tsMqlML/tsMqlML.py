@@ -259,7 +259,7 @@ class CMqlWindowGenerator():
     # usage: mql data
     # /pdlsplit data
     #--------------------------------------------------------------------
-    def split_window(self, data, input_size, output_size, stride):
+    def split_window0(self, data, input_size, output_size, stride):
         """Splits data into windows for time series forecasting.
 
         Args:
@@ -298,7 +298,7 @@ class CMqlWindowGenerator():
     # usage: mql data
     # /pdlsplit data
     #--------------------------------------------------------------------
-    def make_dataset(self, data, batch_size=32, total_window_size=24, shuffle=True, targets=1, output_size=1, stride=1, **kwargs):
+    def make_dataset0(self, data, batch_size=32, total_window_size=24, shuffle=True, targets=1, output_size=1, stride=1, **kwargs):
         data = np.array(data, dtype=np.float32)
 
         # Ensure targets is an integer and within the valid range
@@ -343,7 +343,10 @@ class CMqlWindowGenerator():
             return self.make_dataset(self.test_df, batch_size=32, total_window_size=24, shuffle=True, targets=None)
 
 
-    def split_window1(self, data, input_size, output_size, stride):
+    
+
+
+    def split_window(self, data, input_size, output_size, stride):
         """Splits data into windows for time series forecasting.
 
         Args:
@@ -377,4 +380,32 @@ class CMqlWindowGenerator():
         labels = ds.map(lambda input_data, output_data: output_data)
 
         return inputs, labels
+
+    def make_dataset(self, data, batch_size=32, total_window_size=24, shuffle=True, targets=1, output_size=1, stride=1, **kwargs):
+        data = np.array(data, dtype=np.float32)
+
+        # Ensure targets is an integer and within the valid range
+        if not isinstance(targets, int) or targets <= 0 or targets >= len(data):
+            raise ValueError("Targets must be a positive integer less than the length of the data.")
+
+        # Create the dataset
+        inputs, labels = self.split_window(data, input_size=total_window_size - output_size, output_size=output_size, stride=stride)
+
+        # Zip the inputs and labels into a single dataset
+        ds = tf.data.Dataset.zip((inputs, labels))
+
+        # Shuffle and batch the dataset
+        if shuffle:
+            ds = ds.shuffle(buffer_size=len(data))
+        ds = ds.batch(batch_size)
+
+        # Debugging outputs
+        print("Data type:", type(data))
+        print("Data shape:", data.shape)
+        print("Batch size:", batch_size)
+        print("Total window size:", total_window_size)
+        print("Stride:", stride)
+        print("Output size:", output_size)
+
+        return ds
 
