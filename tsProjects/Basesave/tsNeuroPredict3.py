@@ -362,10 +362,9 @@ mp_feature_columns = ['close']  # Example column names for feature independent v
 mp_label_columns = ['target']   # Example column names for label dependent variables
 mp_num_features = len(mp_feature_columns) # Number of features
 mp_num_labels = len(mp_label_columns) # Number of labels
-mp_label_count = len(mp_label_columns)
 
 
-print("Window Paramas: input_width:",mp_past_inputwidth_timewindow, "label_width:",mp_num_labels, "shift:",mp_future_offsetwidth_timewindow, "label_columns:",mp_feature_columns,"mp_label_count",mp_label_count)
+print("Window Paramas: input_width:",mp_past_inputwidth_timewindow, "label_width:",mp_num_labels, "shift:",mp_future_offsetwidth_timewindow, "label_columns:",mp_feature_columns)
 win_X1_i24_o24_l1 = CMqlWindowGenerator(
     input_width=mp_past_inputwidth_timewindow,
     label_width=mp_num_labels,
@@ -403,20 +402,20 @@ mp_feature_columns = ['close']  # Example column names for feature independent v
 mp_label_columns = ['target']   # Example column names for label dependent variables
 mp_num_features = len(mp_feature_columns) # Number of features
 mp_num_labels = len(mp_label_columns) # Number of labels
-targets=mp_label_count
+
 
 print("Window Paramas: input_width:",mp_past_inputwidth_timewindow, "label_width:",mp_num_labels, "shift:",mp_future_offsetwidth_timewindow, "label_columns:",mp_feature_columns)
-win_X1_i6_o1_l1 = CMqlWindowGenerator(
+win_X2_i6_o1_l1 = CMqlWindowGenerator(
     input_width=mp_past_inputwidth_timewindow,
     label_width=mp_num_labels,
     shift=mp_future_offsetwidth_timewindow,
-    train_df=X_train,
-    val_df=X_val,
-    test_df=X_test,
+    train_df=y_train,
+    val_df=y_val,
+    test_df=y_test,
     label_columns=mp_label_columns
 )
 
-win_y1_i6_o1_l1 = CMqlWindowGenerator(
+win_y2_i6_o1_l1 = CMqlWindowGenerator(
    input_width=mp_past_inputwidth_timewindow,
     label_width=mp_num_labels,
     shift=mp_future_offsetwidth_timewindow,
@@ -426,10 +425,10 @@ win_y1_i6_o1_l1 = CMqlWindowGenerator(
     label_columns=mp_label_columns
 )
 
-print(win_X1_i6_o1_l1)
-print(win_y1_i6_o1_l1)
-print("win_X1_i6_o1_l1.total_window_size: ",win_X1_i6_o1_l1.total_window_size)
-print("win_y1_i6_o1_l1).total_window_size: ",win_y1_i6_o1_l1.total_window_size)
+print(win_X2_i6_o1_l1)
+print(win_y2_i6_o1_l1)
+print("win_X2_i6_o1_l1.total_window_size: ",win_X2_i6_o1_l1.total_window_size)
+print("win_y2_i6_o1_l1).total_window_size: ",win_y2_i6_o1_l1.total_window_size)
 
 # +-------------------------------------------------------------------
 # End  Establish Windows for the data
@@ -439,130 +438,91 @@ print("win_y1_i6_o1_l1).total_window_size: ",win_y1_i6_o1_l1.total_window_size)
 # +-------------------------------------------------------------------
 # Split the data into windows split into inputs and labels
 # +-------------------------------------------------------------------
-# X 24 x 24 x 1
-shift_size = 100
-window_size = win_X1_i24_o24_l1.total_window_size / (60 * 60 * 2)
-train_df = X_train
-train_df = train_df.to_numpy(dtype=np.float32)
-print("X 24 x 24 x 1 train_df.shape:",train_df.shape)
-# slice
-train_slice_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.window_slicer(train_df, window_size, shift_size)
-# split window
-input_size = mp_days / (60 * 60 )
-output_size = mp_days / (60 * 60 )
-stride = output_size // 2  # Use integer division to ensure stride is an integer
-print("X 24 x 24 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
-inputs_train_slice_win_X1_i24_o24_l1, labels_train_slice_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.split_window(train_slice_win_X1_i24_o24_l1, input_size, output_size, stride)
 
-print('All shapes are: (batch, time, features)')
-print(f'Window shape: {train_slice_win_X1_i24_o24_l1.shape}')
-#print(f'Inputs shape: {inputs_train_slice_win_X1_i24_o24_l1}')
-#print(f'Labels shape: {labels_train_slice_win_X1_i24_o24_l1}')
-
-# y 24 x 24 x 1
-shift_size = 100
-window_size=win_y1_i24_o24_l1.total_window_size / (60 * 60 * 2)
-train_df = y_train
-train_df = train_df.to_numpy(dtype=np.float32)
-print("y 24 x 24 x 1 train_df.shape:",train_df.shape)
-#slice
-train_slice_win_y1_i24_o24_l1=win_y1_i24_o24_l1.window_slicer(train_df,window_size,shift_size)
-#split window
-input_size=mp_days / (60 * 60 )
-output_size=mp_days / (60 * 60 )
-stride = output_size // 2  # Use integer division to ensure stride is an integer
-print("y 24 x 24 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
-inputs_train_slice_win_y1_i24_o24_l1, labels_train_slice_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.split_window(train_slice_win_y1_i24_o24_l1, input_size, output_size, stride)
-
-print('All shapes are: (batch, time, features)')
-print(f'Window shape: {train_slice_win_y1_i24_o24_l1.shape}')
-#print(f'Inputs shape: {inputs_train_slice_win_y1_i24_o24_l1}')
-#print(f'Labels shape: {labels_train_slice_win_y1_i24_o24_l1}')
-
-#Create TF datasets
 # 24 x 1 x 1
-train_ds_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.make_dataset(train_slice_win_X1_i24_o24_l1, batch_size=16,total_window_size=win_X1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+inputs_train_slice_win_X1_i24_o24_l1, labels_train_slice_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.window_slicer(X_train, window_size=win_X1_i24_o24_l1.total_window_size, shift_size=100)
+inputs_val_slice_win_X1_i24_o24_l1, labels_val_slice_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.window_slicer(X_val, window_size=win_X1_i24_o24_l1.total_window_size, shift_size=100)
+inputs_test_slice_win_X1_i24_o24_l1, labels_test_slice_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.window_slicer(X_test, window_size=win_X1_i24_o24_l1.total_window_size, shift_size=100)
+
+inputs_train_slice_win_y1_i24_o24_l1,labels_train_slice_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.window_slicer(y_train, window_size=win_y1_i24_o24_l1.total_window_size, shift_size=100)
+inputs_val_slice_win_y1_i24_o24_l1,labels_val_slice_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.window_slicer(y_val, window_size=win_y1_i24_o24_l1.total_window_size, shift_size=100)
+inputs_test_slice_win_y1_i24_o24_l1,labels_test_slice_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.window_slicer(y_test, window_size=win_y1_i24_o24_l1.total_window_size, shift_size=100)
+
+print('All shapes are: (batch, time, features)')
+print(f'Window shape: {win_X1_i24_o24_l1.shape}')
+print(f'Inputs shape: {inputs_train_slice_win_y1_i24_o24_l1.shape}')
+print(f'Labels shape: {labels_train_slice_win_X1_i24_o24_l1.shape}')
+
+print('All shapes are: (batch, time, features)')
+print(f'Window shape: {win_y1_i24_o24_l1.shape}')
+print(f'Inputs shape: {inputs_train_slice_win_y1_i24_o24_l1.shape}')
+print(f'Labels shape: {labels_train_slice_win_y1_i24_o24_l1.shape}')
+
+
+# 6 x 1 x 1
+inputs_train_slice_win_X2_i6_o1_l1,labels__train_slice_win_X2_i6_o1_l1 = win_X2_i6_o1_l1.window_slicer(X_train, window_size=win_X2_i6_o1_l1.total_window_size, shift_size=100)
+inputs_val_slice_win_X2_i6_o1_l1,labels_val_slice_win_X2_i6_o1_l1 = win_X2_i6_o1_l1.window_slicer(X_val, window_size=win_X2_i6_o1_l1.total_window_size, shift_size=100)
+inputs_test_slice_win_X2_i6_o1_l1,labels_test_slice_win_X2_i6_o1_l1 = win_X2_i6_o1_l1.window_slicer(X_test, window_size=win_X2_i6_o1_l1.total_window_size, shift_size=100)
+
+inputs_train_slice_win_y2_i6_o1_l1,labels_train_slice_win_y2_i6_o1_l1 = win_y2_i6_o1_l1.window_slicer(y_train, window_size=win_y2_i6_o1_l1.total_window_size, shift_size=100)
+inputs_val_slice_win_y2_i6_o1_l1,labels_val_slice_win_y2_i6_o1_l1 = win_y2_i6_o1_l1.window_slicer(y_val, window_size=win_y2_i6_o1_l1.total_window_size, shift_size=100)
+inputs_test_slice_win_y2_i6_o1_l1,labels_test_slice_win_y2_i6_o1_l1 = win_y2_i6_o1_l1.window_slicer(y_test, window_size=win_y2_i6_o1_l1.total_window_size, shift_size=100)
+
+print('All shapes are: (batch, time, features)')
+print(f'Window shape: {win_X2_i6_o1_l1.shape}')
+print(f'Inputs shape: {inputs_train_slice_win_y2_i6_o1_l1.shape}')
+print(f'Labels shape: {labels_train_slice_win_X2_i6_o1_l1.shape}')
+
+print('All shapes are: (batch, time, features)')
+print(f'Window shape: {win_y2_i6_o1_l1.shape}')
+print(f'Inputs shape: {inputs_train_slice_win_y2_i6_o1_l1.shape}')
+print(f'Labels shape: {labels_train_slice_win_y2_i6_o1_l1.shape}')
+
+
+# +-------------------------------------------------------------------
+# End Split the data into windows split into inputs and labels
+# +-------------------------------------------------------------------
+
+# +-------------------------------------------------------------------
+# TF datasets
+# +-------------------------------------------------------------------
+
+# 24 x 1 x 1
+train_ds_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.make_dataset(train_slice_win_X1_i24_o24_l1, batch_size=16,total_window_size=win_X1_i24_o24_l1.total_window_size, shuffle=False, targets=mp_label_columns[0])
+val_ds_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.make_dataset(val_slice_win_X1_i24_o24_l1, batch_size=16,total_window_size=win_X1_i24_o24_l1.total_window_size, shuffle=False, targets=mp_label_columns[0])
+test_ds_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.make_dataset(test_slice_win_X1_i24_o24_l1, batch_size=16,total_window_size=win_X1_i24_o24_l1.total_window_size, shuffle=False, targets=mp_label_columns[0])
 
 for train_ds_win_X1_i24_o24_l1 in train_ds_win_X1_i24_o24_l1.take(1):
     print(f'Inputs shape: {train_ds_win_X1_i24_o24_l1[0].shape}')
     print(f'Labels shape: {train_ds_win_X1_i24_o24_l1[1].shape}')
 
-train_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(train_slice_win_y1_i24_o24_l1, batch_size=16,total_window_size=win_y1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+train_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(train_slice_win_y1_i24_o24_l1, batch_size=16,total_window_size=win_y1_i24_o24_l1.total_window_size, shuffle=False, targets=mp_label_columns[0])
+val_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(val_slice_win_y1_i24_o24_l1, batch_size=16,total_window_size=win_y1_i24_o24_l1.total_window_size, shuffle=False, targets=mp_label_columns[0])
+test_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(test_slice_win_y1_i24_o24_l1, batch_size=16,total_window_size=win_y1_i24_o24_l1.total_window_size, shuffle=False, targets=mp_label_columns[0])
 
 for train_ds_win_y1_i24_o24_l1 in train_ds_win_y1_i24_o24_l1.take(1):
     print(f'Inputs shape: {train_ds_win_y1_i24_o24_l1[0].shape}')
     print(f'Labels shape: {train_ds_win_y1_i24_o24_l1[1].shape}')
 
 
-"""
-# X 6 x 1 x 1
-shift_size = 100
-window_size=win_X1_i6_o1_l1.total_window_size / (60 * 60 * 2)
-train_df = X_train
-train_df = train_df.to_numpy(dtype=np.float32)
-print("X 6 x 1 x 1 train_df.shape:",train_df.shape)
-#slice
-train_slice_win_X1_i6_o1_l1=win_X1_i6_o1_l1.window_slicer(train_df,window_size,shift_size)
-#split window
-input_size=mp_hours * 6 / (60 * 60 )
-output_size=mp_hours  / (60 * 60 )
-if output_size //2 > 1:
-    stride = output_size // 2  # Use integer division to ensure stride is an integer
-else:
-    stride = 1
-
-print("X 6 x 1 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
-inputs_train_slice_win_y1_i6_o1_l1, labels_train_slice_win_y1_i6_o1_l1 = win_X1_i6_o1_l1.split_window(train_slice_win_X1_i6_o1_l1, input_size, output_size, stride)
-
-#print('All shapes are: (batch, time, features)')
-#print(f'Window shape: {train_slice_win_X1_i6_o1_l1.shape}')
-#print(f'Inputs shape: {inputs_train_slice_win_X1_i6_o1_l1}')
-#print(f'Labels shape: {labels_train_slice_win_X1_i6_o1_l1}')
-
-# y 6 x 1 x 1
-shift_size = 100
-# Corrected window_size calculation
-window_size = win_y1_i6_o1_l1.total_window_size / (60 * 60 * 2)
-train_df = y_train
-train_df = train_df.to_numpy(dtype=np.float32)
-print("y 6 x 1 x 1 train_df.shape:",train_df.shape)
-#slice
-train_slice_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.window_slicer(train_df, window_size, shift_size)
-#split window
-input_size=mp_hours * 6 / (60 * 60 )
-output_size=mp_hours  / (60 * 60 )
-if output_size //2 > 1:
-    stride = output_size // 2  # Use integer division to ensure stride is an integer
-else:
-    stride = 1
-
-print("y 6 x 1 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
-inputs_train_slice_win_y1_i6_o1_l1, labels_train_slice_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.split_window(train_slice_win_y1_i6_o1_l1, input_size, output_size, stride)
-
-print('All shapes are: (batch, time, features)')
-print(f'Window shape: {train_slice_win_y1_i6_o1_l1.shape}')
-print(f'Inputs shape: {inputs_train_slice_win_y1_i6_o1_l1}')
-print(f'Labels shape: {labels_train_slice_win_y1_i6_o1_l1}')
-
-#Create TF datasets
 # 6 x 1 x 1
-train_ds_win_X1_i6_o1_l1 = win_X1_i6_o1_l1.make_dataset(train_slice_win_X1_i6_o1_l1, batch_size=16,total_window_size=win_X1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+train_ds_win_X2_i6_o1_l1 = win_X2_i6_o1_l1.make_dataset(train_slice_win_X2_i6_o1_l1, batch_size=16,total_window_size=win_X2_i6_o1_l1.total_window_size, shuffle=False, targets=mp_label_columns[0])
+val_ds_win_X2_i6_o1_l1 = win_X2_i6_o1_l1.make_dataset(val_slice_win_X2_i6_o1_l1,batch_size=16,total_window_size=win_X2_i6_o1_l1.total_window_size, shuffle=False, targets=mp_label_columns[0])
+test_ds_win_X2_i6_o1_l1 = win_X2_i6_o1_l1.make_dataset(test_slice_win_X2_i6_o1_l1, batch_size=16,total_window_size=win_X2_i6_o1_l1.total_window_size, shuffle=False, targets=mp_label_columns[0])
 
-for train_ds_win_X1_i6_o1_l1 in train_ds_win_X1_i6_o1_l1.take(1):
-    print(f'Inputs shape: {train_ds_win_X1_i6_o1_l1[0].shape}')
-    print(f'Labels shape: {train_ds_win_X1_i6_o1_l1[1].shape}')
+for train_ds_win_X2_i6_o1_l1 in train_ds_win_X2_i6_o1_l1.take(1):
+    print(f'Inputs shape: {train_ds_win_X2_i6_o1_l1[0].shape}')
+    print(f'Labels shape: {train_ds_win_X2_i6_o1_l1[1].shape}')
 
-train_ds_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.make_dataset(train_slice_win_y1_i6_o1_l1, batch_size=16,total_window_size=win_y1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+train_ds_win_y2_i6_o1_l1 = win_y2_i6_o1_l1.make_dataset(train_slice_win_y2_i6_o1_l1, batch_size=16,total_window_size=win_y2_i6_o1_l1.total_window_size, shuffle=False, targets=mp_label_columns[0])
+val_ds_win_y2_i6_o1_l1 = win_y2_i6_o1_l1.make_dataset(val_slice_win_y2_i6_o1_l1, batch_size=16,total_window_size=win_y2_i6_o1_l1.total_window_size, shuffle=False, targets=mp_label_columns[0])
+test_ds_win_y2_i6_o1_l1 = win_y2_i6_o1_l1.make_dataset(test_slice_win_y2_i6_o1_l1, batch_size=16,total_window_size=win_y2_i6_o1_l1.total_window_size, shuffle=False, targets=mp_label_columns[0])
 
-for train_ds_win_y1_i6_o1_l1 in train_ds_win_y1_i6_o1_l1.take(1):
-    print(f'Inputs shape: {train_ds_win_y1_i6_o1_l1[0].shape}')
-    print(f'Labels shape: {train_ds_win_y1_i6_o1_l1[1].shape}')
+for train_ds_win_y2_i6_o1_l1 in train_ds_win_y2_i6_o1_l1.take(1):
+    print(f'Inputs shape: {train_ds_win_y2_i6_o1_l1[0].shape}')
+    print(f'Labels shape: {train_ds_win_y2_i6_o1_l1[1].shape}')
 
-# +-------------------------------------------------------------------
-# End Split the data into windows split into inputs and labels
-# +-------------------------------------------------------------------
-
-
+"""
 # +-------------------------------------------------------------------
 # Hyperparameter tuning and model setup
 # +-------------------------------------------------------------------
@@ -578,12 +538,12 @@ mp_run_single_input_model = True
 mp_run_single_input_submodels = False # not implemented yet     
 
 # define inputshapes
-print("train.shape[1]:", train_ds_win_X1_i24_o24_l1[0].shape[0])
-mp_lstm_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[1]
-mp_cnn_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[2]
-mp_gru_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[3]
-mp_single_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[4]
-mp_transformer_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[5]
+print("train.shape[1]:",train_ds_win_X1_i24_o24_l1[0].shape[0])
+mp_lstm_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[0]
+mp_cnn_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[0]
+mp_gru_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[0]
+mp_single_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[0]
+mp_transformer_input_shape = train_ds_win_X1_i24_o24_l1[0].shape[0]
 
 # define features
 mp_null = None
@@ -594,7 +554,7 @@ mp_gru_features = 1
 mp_transformer_features = 1
 
 # Hypermodel parameters
-mp_activation1 = 'relu'
+mp_activation1= 'relu'     
 mp_activation2 = 'linear'
 mp_activation3 = 'softmax'
 mp_activation4 = 'sigmoid'     
