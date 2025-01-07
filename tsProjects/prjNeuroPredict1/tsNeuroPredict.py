@@ -86,9 +86,9 @@ mp_rows = 1000
 mp_rowcount = 10000
 MPDATAFILE1 =  "tickdata1.csv"
 MPDATAFILE2 =  "ratesdata1.csv"
-mp_batch_size = 16 
-
-#Set time constants
+mp_batch_size = 70 
+mp_shape=2 # rows, batches, timesteps, features
+mp_tensor_shape = True
 config = CMqlTimeConfig()
 constants = config.get_constants()
 
@@ -786,6 +786,8 @@ mt = CMdtuner(
     multiactivate=True,
     tf1=False,
     tf2=False,
+    shape=mp_shape,
+    tensorshape=mp_tensorshape,
 )
 
 
