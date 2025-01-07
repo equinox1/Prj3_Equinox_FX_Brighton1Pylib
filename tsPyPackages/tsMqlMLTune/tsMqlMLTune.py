@@ -13,7 +13,7 @@ class CMdtuner:
     def __init__(self, **kwargs):
         # Load dataset and model configuration parameters
         
-        self.traindataset = kwargs['traindatset'] if 'traindataset' in kwargs else None
+        self.traindataset = kwargs['traindataset'] if 'traindataset' in kwargs else None
         self.valdataset = kwargs['valdataset'] if 'valdataset' in kwargs else None
         self.testdataset = kwargs['testdataset'] if 'testdataset' in kwargs else None
 
@@ -82,16 +82,22 @@ class CMdtuner:
         # Define inputs
         self.inputs = kwargs.get('inputs')
         print("tunemodel self.inputs", self.inputs)
-        print("tunemodel self.inputs[1] Batch size:", self.inputs[1])
-        print("tunemodel self.inputs[2] Timesteps:", self.inputs[2])
-        print("tunemodel self.inputs[3] Features:", self.inputs[3])
+        print("tunemodel self.inputs[0] Batch size: None is dynamic: ", self.inputs[0])
+        print("tunemodel self.inputs[1] Timesteps or Sequence Length):", self.inputs[1])
+        print("tunemodel self.inputs[2] Features or Observations per Timestep:", self.inputs[2])
+        print("tunemodel self.inputs[3] Channels or Categories:", self.inputs[3])
+
       
-        batches = self.inputs[1]
-        timesteps = self.inputs[2]
-        features = self.inputs[3]   
+        # Define the tuner
+
+        batches = self.inputs[0]
+        timesteps = self.inputs[1]
+        features = self.inputs[2]
+        channels = self.inputs[3]
+
         self.inputs = (batches, timesteps, features)
         print("tunemodel self.inputs", self.inputs)
-        input_tensor = Input(shape=(timesteps, features))  # The shape does not include the batch size
+        input_tensor = Input(shape=(batches,timesteps, features))  # The shape does not include the batch size
         self.inputs = input_tensor
 
         # Define and configure the tuner
