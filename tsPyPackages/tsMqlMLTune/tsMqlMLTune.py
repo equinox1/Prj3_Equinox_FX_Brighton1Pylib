@@ -71,34 +71,63 @@ class CMdtuner:
         self.multiactivate = kwargs['multiactivate'] if 'multiactivate' in kwargs else False
         self.tf1 = kwargs['tf1'] if 'tf1' in kwargs else False
         self.tf2 = kwargs['tf2'] if 'tf2' in kwargs else False
+        self.shape = kwargs['shape'] if 'shape' in kwargs else 0
+        self.tensorshape = kwargs['tensorshape'] if 'tensorshape' in kwargs else False
 
         # Enable tensorflow debugging
         if self.tf1: tf.debugging.set_log_device_placement(self.tf1)
         if self.tf2: tf.debugging.enable_check_numerics()
-
+        
         # Ensure the output directory exists
         os.makedirs(self.basepath, exist_ok=True)
 
         # Define inputs
         self.inputs = kwargs.get('inputs')
-        print("tunemodel self.inputs", self.inputs)
-        print("tunemodel self.inputs[0] Batch size: None is dynamic: ", self.inputs[0])
-        print("tunemodel self.inputs[1] Timesteps or Sequence Length):", self.inputs[1])
-        print("tunemodel self.inputs[2] Features or Observations per Timestep:", self.inputs[2])
-        print("tunemodel self.inputs[3] Channels or Categories:", self.inputs[3])
+        print("tunemodel confirm shape (batch_size, timesteps, features)")
+        print("tunemodel train_dataset.shape", self.traindataset.shape)
+        print("tunemodel val_dataset.shape", self.valdataset.shape)
+        print("tunemodel test_dataset.shape", self.testdataset.shape)
 
+        print("tunemodel self.inputs", self.inputs)
+        print("tunemodel self.inputs[0] Rows:  ", self.inputs[0])
+        print("tunemodel self.inputs[0] Batch size: None is dynamic: ", self.inputs[1])
+        print("tunemodel self.inputs[1] Timesteps or Sequence Length):", self.inputs[2])
+        print("tunemodel self.inputs[2] Features or Observations per Timestep:", self.inputs[3])
+        
       
         # Define the tuner
+        
+        rows = self.inputs[0]
+        batches = self.inputs[1]
+        timesteps = self.inputs[2]
+        features = self.inputs[3]
+        print("tunemodel inputs", self.inputs)
+        print("tunemodel rows", rows), print("tunemodel batches", batches), print("tunemodel timesteps", timesteps), print("tunemodel features", features)
+        # Correct the input shape to include the channels dimension
+        if self.shape == 1:
+            self.inputs = (features) 
+        if self.shape == 2:
+            self.inputs = (timesteps, features)
+        if self.shape == 3:
+            self.inputs = (batches, timesteps, features)
+        if self.shape == 4:
+            self.inputs = (rows,batches, timesteps, features)
+        if self.shape == 5:
+            self.inputs = (1,timesteps, features)
+        if self.shape == 6:
+            self.inputs = (1,1,timesteps, features)
+        if self.shape == 7:
+            batches=self.batch_size
+            self.inputs = (batches, timesteps, features)
 
-        batches = self.inputs[0]
-        timesteps = self.inputs[1]
-        features = self.inputs[2]
-        channels = self.inputs[3]
-
-        self.inputs = (batches, timesteps, features)
         print("tunemodel self.inputs", self.inputs)
-        input_tensor = Input(shape=(batches,timesteps, features))  # The shape does not include the batch size
+        input_tensor = Input(shape=(self.inputs))  # The shape does not include the batch size
         self.inputs = input_tensor
+
+        if tensorreshape:
+            self.traindataset = self.traindataset.map(lambda x, y: (tf.reshape(x, (timesteps,features)), y))
+
+
 
         # Define and configure the tuner
         self.tuner = kt.Hyperband(
