@@ -787,7 +787,7 @@ mt = CMdtuner(
     tf1=False,
     tf2=False,
     shape=mp_shape,
-    tensorshape=mp_tensorshape,
+    tensorshape=mp_tensor_shape,
 )
 
 

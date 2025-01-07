@@ -83,10 +83,7 @@ class CMdtuner:
 
         # Define inputs
         self.inputs = kwargs.get('inputs')
-        print("tunemodel confirm shape (batch_size, timesteps, features)")
-        print("tunemodel train_dataset.shape", self.traindataset.shape)
-        print("tunemodel val_dataset.shape", self.valdataset.shape)
-        print("tunemodel test_dataset.shape", self.testdataset.shape)
+        
 
         print("tunemodel self.inputs", self.inputs)
         print("tunemodel self.inputs[0] Rows:  ", self.inputs[0])
@@ -124,8 +121,8 @@ class CMdtuner:
         input_tensor = Input(shape=(self.inputs))  # The shape does not include the batch size
         self.inputs = input_tensor
 
-        if tensorreshape:
-            self.traindataset = self.traindataset.map(lambda x, y: (tf.reshape(x, (timesteps,features)), y))
+        if self.tensorshape:
+            self.traindataset = self.traindataset.map(lambda x, y: (tf.reshape(x, (-1,timesteps,features)), y))
 
 
 
