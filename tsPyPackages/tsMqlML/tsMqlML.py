@@ -426,4 +426,20 @@ class CMqlWindowGenerator():
         
         # Return a list of shapes and dtypes
         return shapes, dtypes
+
+    def mergeXyTensor(self, X, y, batch_size=32):
+        X = tf.expand_dims(X, axis=0)
+        y = tf.expand_dims(y, axis=0)
+    
+        try:
+            df = tf.data.Dataset.from_tensor_slices(
+                 (X, y)
+            ).batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+            print("Slice DF merge:", df)
+        except ValueError as e:
+                print(f"Error: {e}")
+                print(f"Merge issue X: {X.shape}")
+                print(f"Merge issue y: {y.shape}")
+    
+        return df
     
