@@ -88,7 +88,7 @@ MPDATAFILE1 =  "tickdata1.csv"
 MPDATAFILE2 =  "ratesdata1.csv"
 mp_batch_size = 70 
 mp_shape=2 # rows, batches, timesteps, features
-mp_tensor_shape = True
+mp_tensor_shape = False
 config = CMqlTimeConfig()
 constants = config.get_constants()
 
@@ -796,6 +796,11 @@ print("Running Main call to tuner")
 best_model = mt.tuner.get_best_models()
 best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
 best_model[0].summary()
+
+
+#tensorboard command line
+#tensorboard --logdir=<basepath>/logs
+
 
 # +-------------------------------------------------------------------
 # Scale the data
