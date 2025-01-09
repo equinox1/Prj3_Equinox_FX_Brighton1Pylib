@@ -87,11 +87,12 @@ mp_rowcount = 10000
 MPDATAFILE1 =  "tickdata1.csv"
 MPDATAFILE2 =  "ratesdata1.csv"
 mp_batch_size = 16
-mp_shape=2 # rows, batches, timesteps, features
+mp_shape=6 # rows, batches, timesteps, features
 mp_cnn_shape=2 # rows, batches, timesteps, features
 mp_lstm_shape=2 # rows, batches, timesteps, features
 mp_gru_shape=2 # rows, batches, timesteps, features
 mp_transformer_shape = 2 # rows, batches, timesteps, features
+mp_multi_inputs = False
 
 
 mp_tensor_shape = False
@@ -517,8 +518,12 @@ train_dataset_24241 = train_dataset_24241.batch(mp_batch_size)
 val_dataset_24241 = val_dataset_24241.batch(mp_batch_size)
 test_dataset_24241 = test_dataset_24241.batch(mp_batch_size)
 
+# create shapes of data inputs
+dstrainshape_24241 = train_slice_win_X1_i24_o24_l1.shape
+dsvalshape_24241 = train_slice_win_X1_i24_o24_l1.shape
+dstestshape_24241 = train_slice_win_X1_i24_o24_l1.shape
 
-
+print("Final DS shape: train.dataset_24241.shape",dstrainshape_24241, "val.dataset_24241.shape",dsvalshape_24241, "test.dataset_24241.shape",dstestshape_24241)
 
 
 # X 6 x 1 x 1
@@ -593,6 +598,13 @@ train_dataset_611 = train_dataset_611.batch(mp_batch_size)
 val_dataset_611 = val_dataset_611.batch(mp_batch_size)
 test_dataset_611 = test_dataset_611.batch(mp_batch_size)
 
+# create shapes of data inputs
+dstrainshape_611 = train_slice_win_X1_i6_o1_l1.shape
+dsvalshape_611 = train_slice_win_X1_i6_o1_l1.shape
+dstestshape_611 = train_slice_win_X1_i6_o1_l1.shape
+
+print("Final DS shape: train.dataset_611.shape",dstrainshape_611, "val.dataset_611.shape",dsvalshape_611, "test.dataset_611.shape",dstestshape_611)
+
 
 # +-------------------------------------------------------------------
 # End Split the data into windows split into inputs and labels
@@ -605,6 +617,9 @@ if winmodel == '24_24_1':
     train_dataset = train_dataset_24241
     val_dataset = val_dataset_24241
     test_dataset = test_dataset_24241
+    train_shape = dstrainshape_24241
+    val_shape = dsvalshape_24241
+    test_shape = dstestshape_24241
 elif winmodel == '6_1_1':
     windowx = win_X1_i6_o1_l1
     dswindowx = train_ds_win_X1_i6_o1_l1
@@ -613,6 +628,9 @@ elif winmodel == '6_1_1':
     train_dataset = train_dataset_611
     val_dataset = val_dataset_611
     test_dataset = test_dataset_611
+    train_shape = dstrainshape_611
+    val_shape = dsvalshape_611
+    test_shape = dstestshape_611
 
 print("winmodel:", winmodel,"windowx:", windowx, "windowy:", windowy )
 
@@ -753,9 +771,14 @@ if mp_test:
 # Create an instance of the tuner class
 print("Creating an instance of the tuner class")
 mt = CMdtuner(
+    # Data
     traindataset=train_dataset,
     valdataset=val_dataset,
     testdataset=test_dataset,
+    trainshape=train_shape,
+    valshape=val_shape,
+    testshape=test_shape,
+    # Model
     inputs=bxmp_inputs,
     cnn_model=mp_cnn_model,
     lstm_model=mp_lstm_model,
@@ -813,6 +836,7 @@ mt = CMdtuner(
     lstm_shape=mp_lstm_shape,
     gru_shape=mp_gru_shape,
     transformer_shape=mp_transformer_shape,
+    multi_inputs=mp_multi_inputs,
 )
 
 
