@@ -86,8 +86,14 @@ mp_rows = 1000
 mp_rowcount = 10000
 MPDATAFILE1 =  "tickdata1.csv"
 MPDATAFILE2 =  "ratesdata1.csv"
-mp_batch_size = 70 
+mp_batch_size = 16
 mp_shape=2 # rows, batches, timesteps, features
+mp_cnn_shape=2 # rows, batches, timesteps, features
+mp_lstm_shape=2 # rows, batches, timesteps, features
+mp_gru_shape=2 # rows, batches, timesteps, features
+mp_transformer_shape = 2 # rows, batches, timesteps, features
+
+
 mp_tensor_shape = False
 config = CMqlTimeConfig()
 constants = config.get_constants()
@@ -500,10 +506,18 @@ val_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(train_slice_win_y1_i24
 test_ds_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.make_dataset(train_slice_win_X1_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_X1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
 test_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(train_slice_win_y1_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_y1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
 
+
 #Merge dataset
-train_dataset_24241=win_X1_i24_o24_l1.mergeXyTensor(train_slice_win_X1_i24_o24_l1, train_slice_win_y1_i24_o24_l1, batch_size=mp_batch_size)
-val_dataset_24241=win_X1_i24_o24_l1.mergeXyTensor(train_slice_win_X1_i24_o24_l1, train_slice_win_y1_i24_o24_l1, batch_size=mp_batch_size)
-test_dataset_24241=win_X1_i24_o24_l1.mergeXyTensor(train_slice_win_X1_i24_o24_l1, train_slice_win_y1_i24_o24_l1, batch_size=mp_batch_size)
+train_dataset_24241=win_X1_i24_o24_l1.mergeXyTensor(train_slice_win_X1_i24_o24_l1, train_slice_win_y1_i24_o24_l1)
+val_dataset_24241=win_X1_i24_o24_l1.mergeXyTensor(train_slice_win_X1_i24_o24_l1, train_slice_win_y1_i24_o24_l1)
+test_dataset_24241=win_X1_i24_o24_l1.mergeXyTensor(train_slice_win_X1_i24_o24_l1, train_slice_win_y1_i24_o24_l1)
+
+# Batch it
+train_dataset_24241 = train_dataset_24241.batch(mp_batch_size)
+val_dataset_24241 = val_dataset_24241.batch(mp_batch_size)
+test_dataset_24241 = test_dataset_24241.batch(mp_batch_size)
+
+
 
 
 
@@ -569,9 +583,16 @@ test_ds_win_X1_i6_o1_l1 = win_X1_i6_o1_l1.make_dataset(train_slice_win_X1_i6_o1_
 test_ds_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.make_dataset(train_slice_win_y1_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_y1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
 
 #Merge dataset
-train_dataset_611=win_X1_i6_o1_l1.mergeXyTensor(train_slice_win_X1_i6_o1_l1, train_slice_win_y1_i6_o1_l1, batch_size=mp_batch_size)
-val_dataset_611=win_X1_i6_o1_l1.mergeXyTensor(train_slice_win_X1_i6_o1_l1, train_slice_win_y1_i6_o1_l1, batch_size=mp_batch_size)
-test_dataset_611=win_X1_i6_o1_l1.mergeXyTensor(train_slice_win_X1_i6_o1_l1, train_slice_win_y1_i6_o1_l1, batch_size=mp_batch_size)
+
+train_dataset_611=win_X1_i6_o1_l1.mergeXyTensor(train_slice_win_X1_i6_o1_l1, train_slice_win_y1_i6_o1_l1)
+val_dataset_611=win_X1_i6_o1_l1.mergeXyTensor(train_slice_win_X1_i6_o1_l1, train_slice_win_y1_i6_o1_l1)
+test_dataset_611=win_X1_i6_o1_l1.mergeXyTensor(train_slice_win_X1_i6_o1_l1, train_slice_win_y1_i6_o1_l1)
+
+# Batch it
+train_dataset_611 = train_dataset_611.batch(mp_batch_size)
+val_dataset_611 = val_dataset_611.batch(mp_batch_size)
+test_dataset_611 = test_dataset_611.batch(mp_batch_size)
+
 
 # +-------------------------------------------------------------------
 # End Split the data into windows split into inputs and labels
@@ -786,8 +807,12 @@ mt = CMdtuner(
     multiactivate=True,
     tf1=False,
     tf2=False,
-    shape=mp_shape,
     tensorshape=mp_tensor_shape,
+    shape=mp_shape,
+    cnn_shape=mp_cnn_shape,
+    lstm_shape=mp_lstm_shape,
+    gru_shape=mp_gru_shape,
+    transformer_shape=mp_transformer_shape,
 )
 
 
@@ -797,7 +822,7 @@ best_model = mt.tuner.get_best_models()
 best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
 best_model[0].summary()
 
-
+"""
 #tensorboard command line
 #tensorboard --logdir=<basepath>/logs
 
@@ -899,3 +924,4 @@ from onnx import checker
 checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
+"""
