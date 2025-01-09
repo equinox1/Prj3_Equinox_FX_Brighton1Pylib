@@ -21,6 +21,9 @@ class CMdtuner:
         self.traindataset = kwargs.get('traindataset')
         self.valdataset = kwargs.get('valdataset')
         self.testdataset = kwargs.get('testdataset')
+        self.trainshape = kwargs.get('trainshape')
+        self.valshape = kwargs.get('valshape')
+        self.testshape = kwargs.get('testshape')
 
         # Model-configuration booleans
         self.cnn_model = kwargs.get('cnn_model', False)
@@ -77,7 +80,7 @@ class CMdtuner:
         self.tf2 = kwargs.get('tf2', False)
         self.tensorshape = kwargs.get('tensorshape', False)
         self.shape = kwargs.get('shape', 2)
-        self.modelshapes = kwargs.get('modelshapes', 2)
+        
 
         # Shape arguments for each branch
         # (these specify which "predefined shape index" to use)
@@ -92,7 +95,14 @@ class CMdtuner:
         self.lstm_inputs = None
         self.gru_inputs = None
         self.transformer_inputs = None
+        
+        self.multi_inputs = kwargs.get('multi_inputs', False)
+        self.traindatainput1 = kwargs.get('traindatainput1', 70)
+        self.traindatainput2 = kwargs.get('traindatainput2', 3)
+        self.traindatainput3 = kwargs.get('traindatainput3', 7)
 
+
+        
         # If user provided something like `[None, None, 24, 7]` or `(24, 7)`,
         # store it in self.input_shape. Otherwise default to None, and
         # `prepare_shapes()` will fill it in.
@@ -288,8 +298,18 @@ class CMdtuner:
         if self.transformer_model and self.transformer_inputs is not None:
             all_inputs.append(self.transformer_inputs)
 
-        model = Model(inputs=all_inputs, outputs=output)
-        return self.compile_model(model, hp)
+        # If we have multiple inputs, concatenate them
+        if self.multi_inputs:
+            model = Model(
+                inputs=[self.cnn_inputs, self.lstm_inputs, self.gru_inputs, self.transformer_inputs],
+                outputs=output
+            )
+            print("Model with multiple inputs created.")
+            return self.compile_model(model, hp)
+        else:
+            model = Model(inputs=self.inputs, outputs=output)
+            print("Model with single input created.")
+            return self.compile_model(model, hp)
 
     def compile_model(self, model, hp):
         model.compile(
@@ -367,12 +387,47 @@ class CMdtuner:
         print(f"Requested LSTM shape index: {self.lstm_shape}")
         print(f"Requested GRU shape index: {self.gru_shape}")
         print(f"Requested Transformer shape index: {self.transformer_shape}")
+        print(f"Requested batch_size: {self.batch_size}")
+
+        # data shape columns
+        if self.trainshape[0]: 
+            self.traindatainput1 = self.trainshape[0]
+        if self.trainshape[1]:
+            self.traindatainput2 = self.trainshape[1]
+        if self.trainshape[2]:
+            self.traindatainput3 = self.trainshape[2]
+        
+        print(f"Train data shape: {self.traindatainput1}, {self.traindatainput2}, {self.traindatainput3}")
+        
+        # Input shape is columns, batches, timesteps, features, channels
+        if len(self.input_shape) == 4:
+            self.rows=self.input_shape[0]
+            self.batches=self.input_shape[1]
+            self.timesteps=self.input_shape[2]
+            self.features=self.input_shape[3]
+            if len(self.input_shape) > 4: 
+                self.channels = self.input_shape[4]
+            else:
+                self.channels = 1
+
+            print(f"Parameter shapes: Rows: {self.rows} Batches: {self.batches}, Timesteps: {self.timesteps}, Features: {self.features}, Channels: {self.channels}")
+            
+        self.rows=self.input_shape[0]
+        self.batches=self.input_shape[1]
+        self.timesteps=self.input_shape[2]
+        self.features=self.input_shape[3]
+        if len(self.input_shape) > 4: 
+            self.channels = self.input_shape[4]
+        else:
+            self.channels = 1
+
+        print(f"Parameter shapes: Rows: {self.rows}, Batches: {self.batches}, Timesteps: {self.timesteps}, Features: {self.features}, Channels: {self.channels}")   
 
         # If user didn't provide a shape, set a default (e.g. shape=2 -> (timesteps, features))
         if self.input_shape is None:
             # default shape = #2 => (timesteps, features)
             # or something that matches your data, e.g. (24, 7)
-            self.input_shape = (24, 7)
+            self.input_shape = (timesteps, features)
 
         # 1) Main shape (if self.shape is valid)
         if (self.shape in valid_shapes):
@@ -381,9 +436,9 @@ class CMdtuner:
                 batch_size=self.batch_size,
                 rows=None,      # can pass None if not needed
                 batches=None,   # can pass None
-                timesteps=24,   # or glean from self.input_shape
-                features=7,     # or glean from self.input_shape
-                channels=1
+                timesteps=self.timesteps,   # or glean from self.input_shape
+                features=self.features,     # or glean from self.input_shape
+                channels=self.channels      # or glean from self.input_shape
             )
             self.input_shape = shape_tuple
             print(f"[SHAPE] Final main input_shape = {self.input_shape}")
@@ -396,9 +451,9 @@ class CMdtuner:
                 batch_size=self.batch_size,
                 rows=None,
                 batches=None,
-                timesteps=24,
-                features=7,
-                channels=1
+                timesteps=self.timesteps,   # should use self.timesteps
+                features=self.features,     # should use self.features
+                channels=self.channels      # should use self.channels
             )
             self.cnn_input_shape = shape_tuple
             print(f"[CNN] Final cnn_input_shape = {self.cnn_input_shape}")
@@ -411,9 +466,9 @@ class CMdtuner:
                 batch_size=self.batch_size,
                 rows=None,
                 batches=None,
-                timesteps=24,
-                features=7,
-                channels=1
+                timesteps=self.timesteps,   # should use self.timesteps
+                features=self.features,     # should use self.features
+                channels=self.channels      # should use self.channels
             )
             self.lstm_input_shape = shape_tuple
             print(f"[LSTM] Final lstm_input_shape = {self.lstm_input_shape}")
@@ -426,9 +481,9 @@ class CMdtuner:
                 batch_size=self.batch_size,
                 rows=None,
                 batches=None,
-                timesteps=24,
-                features=7,
-                channels=1
+                timesteps=self.timesteps,   # should use self.timesteps
+                features=self.features,     # should use self.features
+                channels=self.channels      # should use self.channels
             )
             self.gru_input_shape = shape_tuple
             print(f"[GRU] Final gru_input_shape = {self.gru_input_shape}")
@@ -441,9 +496,9 @@ class CMdtuner:
                 batch_size=self.batch_size,
                 rows=None,
                 batches=None,
-                timesteps=24,
-                features=7,
-                channels=1
+                timesteps=self.timesteps,   # should use self.timesteps
+                features=self.features,     # should use self.features
+                channels=self.channels      # should use self.channels
             )
             self.transformer_input_shape = shape_tuple
             print(f"[TRANSFORMER] Final transformer_input_shape = {self.transformer_input_shape}")
@@ -468,10 +523,10 @@ class CMdtuner:
             (timesteps, features),                 # shape=2
             (batches, timesteps, features),        # shape=3
             (rows, batches, timesteps, features),  # shape=4
-            (1, timesteps, features),              # shape=5
-            (1, 1, timesteps, features),           # shape=6
+            (self.traindatainput1  ,timesteps, features),              # shape=5
+            (self.traindatainput1  ,batches,timesteps, features),           # shape=6
             (batch_size, timesteps, features),     # shape=7 (usually not used in Input)
-            (batch_size, timesteps, features, channels),  # shape=8
-            (None, timesteps),                     # shape=9
+            (batches, timesteps, features, channels),  # shape=8
+            (batches,self.traindatainput1  ,timesteps, features),        # shape=9
         ]
         return shapes[idx - 1]
