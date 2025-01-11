@@ -223,7 +223,7 @@ mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d
 mv_tdata1apiticks=d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False)
 mv_tdata1apirates=d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False)
 mv_tdata1loadticks=d1.wrangle_time(mv_tdata1loadticks, mp_unit,mp_filesrc= "ticks2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True)
-mv_tdata1loadrates=d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False)
+mv_tdata1loadrates=d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True)
 
 #Create the target label column
 mv_tdata1apiticks = d1.create_target(df=mv_tdata1apiticks,lookahead_seconds=mp_seconds,bid_column='T1_Bid_Price', ask_column='T1_Ask_Price', column_in='T1_Bid_Price',column_out1='close',column_out2='target', run_mode=1)
@@ -846,7 +846,7 @@ best_model = mt.tuner.get_best_models()
 best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
 best_model[0].summary()
 
-"""
+
 #tensorboard command line
 #tensorboard --logdir=<basepath>/logs
 
@@ -948,4 +948,3 @@ from onnx import checker
 checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
-"""
