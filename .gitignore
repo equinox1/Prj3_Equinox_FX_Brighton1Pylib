@@ -134,7 +134,8 @@ tsEquinox1//-env/
 #Models
 tsModelData/**/*
 tsModelData/
-
+tsEquinox1-env/Lib/site-packages/*
+tsEquinox1-env/*
 
 # Spyder project settings
 .spyderproject
@@ -209,3 +210,9 @@ Thumbs.db
 
 
 tsEquinox1-env/Lib/site-packages/*
+tsProjects/ExampleModel/EURUSD_ratesdata1-LAPTOP-5H9JUASS.csv
+tsProjects/ExampleModel/EURUSD_ratesdata1.csv
+tsProjects/ExampleModel/EURUSD_ratesdata1.csv
+tsProjects/TfWeather/datasets/*.csv
+tsProjects/TfWeather/datasets/*.zip
+tsProjects/TfWeather/datasets/*extracted
