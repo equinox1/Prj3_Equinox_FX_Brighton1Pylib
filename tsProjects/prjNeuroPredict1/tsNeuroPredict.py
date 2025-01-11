@@ -6,112 +6,53 @@
 # property copyright "Tony Shepherd"
 # property link      "https://www.xercescloud.co.uk"
 # property version   "1.01"
-
-####################################################################
-# PARAMS
-####################################################################
-# Login
-BROKER1 = "xerces_icm"
-BROKER2 = "xerces_meta"
-MPBROKPATH1 = r"Brokers/ICMarkets/terminal64.exe"
-MPBROKPATH2 = r"Brokers/Metaquotes/terminal64.exe"
-SERVER1 = "ICMarketsSC-Demo"
-SERVER2 = "MetaQuotes-Demo"
-# Parameters for connecting to MT5 terminal
-MBROKER = BROKER2
-MKBROKPATH=MPBROKPATH2
-MSERVER = SERVER2
-
-# Parameters for connecting to MT5 terminal
-MPBASEPATH = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/mql5/"
-MPBROKPATH1 = MKBROKPATH
-MPPATH = MPBASEPATH + MPBROKPATH
-MPPASS = str(password)
-MPSERVER = MSERVER
-MPTIMEOUT = 60000
-MPPORTABLE = True
-#Test mode
-mp_test = False
-# Shift the data by a specified time interval (e.g., 60 seconds)
-SECONDS = 1
-MINUTES = 60
-HOURS = 60 * MINUTES
-DAYS = 24 * HOURS
-WEEKS = 7 * DAYS
-YEARS = 365 * DAYS
-mp_datatype = 'M1' # Data type: M1, M5, M15, M30, H1, H4, D1, W1, MN1
-
-mp_seconds = MINUTES # Shift the data by 60 second interval
-mp_unit = 's' # Shift the data by 60 seconds
-
-# Set parameters for data extraction
-mp_symbol_primary = "EURUSD"
-mp_symbol_secondary = "GBPUSD"
-mp_year = 2024
-mp_month = 1
-mp_day = 1
-mp_timezone = 'etc/UTC'
-mp_rows = 100000
-mp_rowcount = 100000
-
-mp_dfName = "df_rates"
-mv_manual = True
-mp_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/Mql5Data"
-
-lpfileid = "tickdata1"
-mp_filename = f"{mp_symbol_primary}_{lpfileid}.csv"
-
-# Set parameters for the model
-mp_param_steps = 1
-mp_param_max_epochs=10
-mp_param_min_epochs=1
-mp_param_epochs = 200
-mp_param_chk_patience = 3
-
-mp_multiactivate=True  
-####################################################################
-
 # +-------------------------------------------------------------------
 # Import standard Python packages
 # +-------------------------------------------------------------------
+# Data import Tick data evry minute and rates data every minute M1
+#
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+import pathlib
+from pathlib import Path, PurePosixPath
+import posixpath
+import sys
+import time
+import json
 import keyring as kr
-from tabulate import tabulate
+
 from datetime import datetime, date
-# +-------------------------------------------------------------------
-# Import MetaTrader 5 (MT5) and other necessary packages
-# +-------------------------------------------------------------------
-import MetaTrader5 as mt5
-import numpy as np
-import pandas as pd
+import pytz
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import mean_squared_error
-from sklearn.metrics import mean_absolute_error
-from sklearn.metrics import r2_score
-
-from sklearn.preprocessing import StandardScaler
-scaler = StandardScaler()
-# Import custom modules for MT5 and AI-related functionality
-
-from tsMqlConnect import CMqlinitdemo
+import logging
+# Import MetaTrader 5 (MT5) and other necessary packages
+import MetaTrader5 as mt5
+# import python ML packages
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler ,StandardScaler, RobustScaler, QuantileTransformer, PowerTransformer
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+# Import dataclasses for data manipulation
+import pandas as pd
+from dataclasses import dataclass
+# Import equinox functionality
+from tsMqlConnect import CMqlinit, CMqlBrokerConfig
 from tsMqlData import CMqldatasetup
-from tsMqlML import CMqlmlsetup
+from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
 from tsMqlMLTune import CMdtuner
-
-
-# +-------------------------------------------------------------------
+from tsMqlReference import CMqlTimeConfig
 # Import TensorFlow for machine learning
-# +-------------------------------------------------------------------
 import tensorflow as tf
 import onnx
 import tf2onnx
 import onnxruntime
 import onnxruntime.backend as backend
 import onnxruntime.tools.symbolic_shape_infer as symbolic_shape_infer
-
+import warnings
+from numpy import concatenate
+# set values for libs
+warnings.filterwarnings("ignore")
+scaler = StandardScaler()
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppress TensorFlow warnings
 tf.compat.v1.reset_default_graph()  # Ensure compatibility with TensorFlow v1 functions
 print("Tensorflow Version", tf.__version__)
 
@@ -125,14 +66,98 @@ if gpus:
     except RuntimeError as e:
         print(e)
 
+# +-------------------------------------------------------------------
+# start of set variables
+# +-------------------------------------------------------------------
+loadtensor = True
+loadtemporian = False
+winmodel = '24_24_1' # '24_24_1' or '6_1_1'
+broker = "METAQUOTES" # "ICM" or "METAQUOTES"
+mp_test = False
+show_dtype = False
+mp_dfName1 = "df_rates1"
+mp_dfName2 = "df_rates2"
+mv_loadapiticks = True
+mv_loadapirates = True
+mv_loadfileticks = True
+mv_loadfilerates = True
+mv_usedata = 'loadfileticks' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
+mp_rows = 1000
+mp_rowcount = 10000
+MPDATAFILE1 =  "tickdata1.csv"
+MPDATAFILE2 =  "ratesdata1.csv"
+mp_batch_size = 16
+mp_shape=2 # rows, batches, timesteps, features
+mp_cnn_shape=2 # rows, batches, timesteps, features
+mp_lstm_shape=2 # rows, batches, timesteps, features
+mp_gru_shape=2 # rows, batches, timesteps, features
+mp_transformer_shape = 2 # rows, batches, timesteps, features
+mp_multi_inputs = False
+
+
+mp_tensor_shape = False
+config = CMqlTimeConfig()
+constants = config.get_constants()
+
+# Set the parameters for data import
+mp_history_size = 5 # Number of years of data to fetch
+mp_symbol_primary = constants['SYMBOLS'][0]
+print("1:mp_symbol_primary: ", mp_symbol_primary)
+mp_symbol_secondary = constants['SYMBOLS'][1]
+print("2:mp_symbol_secondary: ", mp_symbol_secondary)
+mp_shiftvalue = constants['DATATYPE']['MINUTE']
+print("1:mp_shiftvalue: ", mp_shiftvalue)
+mp_unit = constants['UNIT'][0]
+print("1:mp_unit: ", mp_unit)
+mp_seconds = constants['TIMEVALUE']['SECONDS']
+mp_minutes = constants['TIMEVALUE']['MINUTES']
+mp_hours = constants['TIMEVALUE']['HOURS']
+mp_days = constants['TIMEVALUE']['DAYS']
+
+print("1:mp_seconds: ", mp_seconds)
+mp_timezone = constants['TIMEZONES'][0]
+print("1:mp_timezone: ", mp_timezone)
+mp_timeframe = constants['TIMEFRAME']['H4']
+print("1:mp_timeframe: ", mp_timeframe)
+mp_year = datetime.now().year
+print("1:mp_year: ", mp_year)
+mp_day = datetime.now().day
+print("1:mp_day: ", mp_day)
+mp_month = datetime.now().month
+print("1:mp_month: ", mp_month)
+
+# Set parameters for the Tensorflow model
+mp_param_steps = 1
+mp_param_max_epochs=10
+mp_param_min_epochs=1
+mp_param_epochs = 200
+mp_param_chk_patience = 3
+mp_multiactivate=True  
+# +-------------------------------------------------------------------
+# End of start of set variables
+# +-------------------------------------------------------------------
 
 # +-------------------------------------------------------------------
 # Start MetaTrader 5 (MQL) terminal login
 # +-------------------------------------------------------------------
+c0 = CMqlBrokerConfig(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
+broker_config = c0.set_mql_broker()
+
+BROKER = broker_config['BROKER']
+MPPATH = broker_config['MPPATH']
+MPBASEPATH = broker_config['MPBASEPATH']
+MPDATAPATH = broker_config['MPDATAPATH']
+MPFILEVALUE1 = broker_config['MPFILEVALUE1']
+MPFILEVALUE2 = broker_config['MPFILEVALUE2']
+MKFILES = broker_config['MKFILES']
+MPSERVER = broker_config['MPSERVER']
+MPTIMEOUT = broker_config['MPTIMEOUT']
+MPPORTABLE = broker_config['MPPORTABLE']
+MPENV = broker_config['MPENV']
+print(f"Broker: {BROKER}")
+
 # Fetch credentials from keyring for metaquotes and xerces_meta
-
-
-cred = kr.get_credential(MBROKER, "")
+cred = kr.get_credential(BROKER, "")
 if cred is None:
     raise ValueError("Credentials not found in keyring")
 
@@ -141,30 +166,36 @@ password = cred.password
 # Check if the credentials are fetched successfully
 if not username or not password:
     raise ValueError("Username or password not found in keyring")
-
 # Ensure username is a valid integer
 try:
     MPLOGIN = int(username)
 except ValueError:
     raise ValueError("Username is not a valid integer")
-
-
-
+MPPASS = str(password)
+print(f"Login: {MPLOGIN}")
 
 # Initialize and login to the MT5 terminal
-c1 = CMqlinitdemo(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
-login_success = c1.run_mql_login(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE)
+c1 = CMqlinit(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV)
+login_success = c1.run_mql_login(MPPATH, MPLOGIN, MPPASS, MPSERVER, MPTIMEOUT, MPPORTABLE, MPENV)
 if not login_success:
     raise ConnectionError("Failed to login to MT5 terminal")
 
 terminal_info = mt5.terminal_info()
 print(terminal_info)
-file_path=terminal_info.data_path +r"/MQL5/Files/"
-print(f"MQL file_path:" ,file_path)
 
-#data_path to save model
-mp_data_path=file_path
+# Set the data path for MQL files
+MQLFILES=r"/MQL5/Files/"
+mql_file_path=os.path.join(MPBASEPATH,MKFILES)
+
+print(f"MQL file_path:" ,mql_file_path)
+
+#data_path to save models
+mp_data_path=mql_file_path
 print(f"data_path to save onnx model: ",mp_data_path)
+# +-------------------------------------------------------------------
+# End of Login to MetaTrader 5 (MQL) terminal
+# +-------------------------------------------------------------------
+
 # +-------------------------------------------------------------------
 # Import data from MQL
 # +-------------------------------------------------------------------
@@ -172,80 +203,481 @@ print(f"data_path to save onnx model: ",mp_data_path)
 # Set up dataset
 d1 = CMqldatasetup()
 mp_command = mt5.COPY_TICKS_ALL
-mv_utc_from = d1.set_mql_timezone(mp_year, mp_month, mp_day, mp_timezone)
-print(f"Timezone Set to: {mv_utc_from}")
-print(f"mp_path Set to: {mp_path}")
-print(f"mp_filename Set to: {mp_filename}")
+mv_utc_from = d1.set_mql_timezone(mp_year-mp_history_size, mp_month, mp_day, mp_timezone)
+mv_utc_to = d1.set_mql_timezone(mp_year, mp_month, mp_day, mp_timezone)
 
+print("mv_utc_from set to : ",mv_utc_from, "mv_utc_to set to : ",mv_utc_to)
+mp_path=MPDATAPATH
+mp_filename1=MPFILEVALUE1
+mp_filename2=MPFILEVALUE2
+print(f"Year: {mp_year}, Month: {mp_month}, Day: {mp_day}")
+print(f"Timezone Set to: {mv_utc_from}")
+print(f"mp_path Set to: {MPDATAPATH}")
+print(f"mp_filename1 Set to: {MPFILEVALUE1}")
+print(f"mp_filename2 Set to: {MPFILEVALUE2}")
 
 # Load tick data from MQL
-mv_ticks1 = d1.run_load_from_mql(mv_manual, mp_dfName, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename)
-if not isinstance(mv_ticks1, pd.DataFrame) or mv_ticks1.empty:
-    raise ValueError("Failed to load tick data from MQL")
+mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks, mv_loadapirates, mv_loadfileticks, mv_loadfilerates, mp_dfName1, mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1, mp_filename2, mp_timeframe)
+
+#wrangle the data 
+mv_tdata1apiticks=d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False)
+mv_tdata1apirates=d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False)
+mv_tdata1loadticks=d1.wrangle_time(mv_tdata1loadticks, mp_unit,mp_filesrc= "ticks2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True)
+mv_tdata1loadrates=d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False)
+
+#Create the target label column
+mv_tdata1apiticks = d1.create_target(df=mv_tdata1apiticks,lookahead_seconds=mp_seconds,bid_column='T1_Bid_Price', ask_column='T1_Ask_Price', column_in='T1_Bid_Price',column_out1='close',column_out2='target', run_mode=1)
+mv_tdata1apirates = d1.create_target(df=mv_tdata1apirates,lookahead_seconds=mp_seconds,bid_column='R1_Bid_Price', ask_column='R1_Ask_Price', column_in='R1_Close',column_out1='close',column_out2='target', run_mode=2)
+mv_tdata1loadticks = d1.create_target(df=mv_tdata1loadticks,lookahead_seconds=mp_seconds,bid_column='T2_Bid_Price', ask_column='T2_Ask_Price', column_in='T2_Bid_Price',column_out1='close',column_out2='target', run_mode=3)
+mv_tdata1loadrates = d1.create_target(df=mv_tdata1loadrates,lookahead_seconds=mp_seconds,bid_column='R2_Bid_Price', ask_column='R2_Ask_Price', column_in='R2_Close',column_out1='close',column_out2='target', run_mode=4)
+
+print("SHAPE0: mv_tdata1apiticks shape:", mv_tdata1apiticks.shape, "mv_tdata1apiticks.shape[0] :", mv_tdata1apiticks.shape[0], "mv_tdata1apiticks.shape[1] :", mv_tdata1apiticks.shape[1])  
+print("SHAPE0: mv_tdata1apirates shape:", mv_tdata1apirates.shape, "mv_tdata1apirates.shape[0] :", mv_tdata1apirates.shape[0], "mv_tdata1apirates.shape[1] :", mv_tdata1apirates.shape[1])
+print("SHAPE0: mv_tdata1loadticks shape:", mv_tdata1loadticks.shape, "mv_tdata1loadticks.shape[0] :", mv_tdata1loadticks.shape[0], "mv_tdata1loadticks.shape[1] :", mv_tdata1loadticks.shape[1])
+print("SHAPE0: mv_tdata1loadrates shape:", mv_tdata1loadrates.shape, "mv_tdata1loadrates.shape[0] :", mv_tdata1loadrates.shape[0], "mv_tdata1loadrates.shape[1] :", mv_tdata1loadrates.shape[1])
+
+# Display the first few rows of the data for verification
+d1.run_mql_print(mv_tdata1apiticks,10)
+d1.run_mql_print(mv_tdata1apirates,10)
+d1.run_mql_print(mv_tdata1loadticks,10)
+d1.run_mql_print(mv_tdata1loadrates,10)
 
 # +-------------------------------------------------------------------
 # Prepare and process the data
 # +-------------------------------------------------------------------
-mv_ticks2 = mv_ticks1.copy()  # Copy the tick data for further processing
+#format Minute data to hours
 
-mv_X_ticks3, mv_y_ticks3 = d1.run_shift_data2(mv_ticks2, mp_seconds, mp_unit)  # Ensure the method name is correct
-if mv_X_ticks3 is None or mv_y_ticks3 is None:
-    raise ValueError("Shifted data is invalid. Check the `run_shift_data2` method.")
+mv_X_tdata2a = mv_tdata1apiticks.copy()  # Copy the data for further processing
+mv_y_tdata2a = mv_tdata1apiticks.copy()  # Copy the data for further processing
 
-# Check if the data is a pandas DataFrame or a NumPy array
-df = mv_X_ticks3
-# Check if df is a pandas DataFrame
-if isinstance(df, pd.DataFrame):
-    print("df is a pandas DataFrame")
-# Check if df is a NumPy array
-elif isinstance(df, np.ndarray):
-    df = pd.DataFrame(df[:, :, 0])  # Assuming the first element is required
-    mv_X_ticks3 = pd.DataFrame(df)
-else:
-    print("df is neither a pandas DataFrame nor a NumPy array")
+mv_X_tdata2b = mv_tdata1apirates.copy()  # Copy the data for further processing
+mv_y_tdata2b = mv_tdata1apirates.copy()  # Copy the data for further processing
 
-mv_X_ticks3 = pd.DataFrame(mv_X_ticks3)
-mv_y_ticks3 = pd.DataFrame(mv_y_ticks3)
+mv_X_tdata2c = mv_tdata1loadticks.copy()  # Copy the data for further processing
+mv_y_tdata2c = mv_tdata1loadticks.copy()  # Copy the data for further processing
 
-# Display the first few rows of the data for verification
-print(tabulate(mv_ticks1.head(10), showindex=False, headers=mv_ticks1.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print(tabulate(mv_ticks2.head(10), showindex=False, headers=mv_ticks2.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print(tabulate(mv_X_ticks3.head(10), showindex=False, headers=mv_X_ticks3.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-print(tabulate(mv_y_ticks3.head(10), showindex=False, headers=mv_y_ticks3.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+mv_X_tdata2d = mv_tdata1loadrates.copy()  # Copy the data for further processing
+mv_y_tdata2d = mv_tdata1loadrates.copy()  # Copy the data for further processing
 
+# Check the switch of which file to use
+if mv_usedata == 'loadapiticks':
+    print("Using API Tick data")
+    mv_X_tdata2 = mv_X_tdata2a
+    mv_y_tdata2 = mv_y_tdata2a
 
-print("1:Start Shapes of DataFrames:")
-print(f"mv_ticks1: {mv_ticks1.shape}")
-print(f"mv_ticks2: {mv_ticks2.shape}")
-print(f"mv_ticks3: {mv_X_ticks3.shape}")
-print(f"mv_ticks3: {mv_y_ticks3.shape}")
-print("1:End Shapes of DataFrames:")
+elif mv_usedata == 'loadapirates':
+    print("Using API Rates data")
+    mv_X_tdata2 = mv_X_tdata2b
+    mv_y_tdata2 = mv_y_tdata2b
 
+elif mv_usedata == 'loadfileticks':
+    print("Using File Tick data")
+    mv_X_tdata2 = mv_X_tdata2c
+    mv_y_tdata2 = mv_y_tdata2c
+
+elif mv_usedata == 'loadfilerates':
+    print("Using File Rates data")
+    mv_X_tdata2 = mv_X_tdata2d
+    mv_y_tdata2 = mv_y_tdata2d
+
+# print shapes of X and y
+print("SHAPE: mv_X_tdata2 shape:", mv_X_tdata2.shape)
+print("SHAPE: mv_y_tdata2 shape:", mv_y_tdata2.shape)
 
 # +-------------------------------------------------------------------
-# Split the data into training and test sets
+# Split the data into training and test sets FIXED Partitioning
+#--------------------------------------------------------------------
+# If the time series contains seasonality, we want to ensure that each period contains a whole number
+# of seasons # (i.e. at least one year if it has annual seasonality).
+# We then train our model on the training period and evaluate it on the validation period. 
+# After tuning the model's hyperparameters to get the desired performance, youcan retrain it on the training 
+# and validation data, and then test on the unseen test data.
+# Another way to train and test forecasting models is by starting with a short training period and gradually
+# increasing it over time. This is referred to as roll-forwardpartitioning.
+#
+# +-------------------------------------------------------------------
+# Split the data into training and test sets through sequences
 # +-------------------------------------------------------------------
 m1 = CMqlmlsetup()
-mp_train_split = 0.8
-mp_test_split = 0.2
+mp_train_split = 0.7
+mp_validation_split = 0.2
+mp_test_split = 0.1
+mp_gap=1-mp_test_split
 mp_shuffle = False
 
-mv_X_train, mv_X_test, mv_y_train, mv_y_test = m1.dl_split_data_sets(mv_X_ticks3, mv_y_ticks3, mp_train_split, mp_test_split, mp_shuffle)
-if mv_X_train.empty or mv_X_test.empty or mv_y_train.empty or mv_y_test.empty:
-    raise ValueError("Failed to split data into training and test sets")
+n = len(mv_X_tdata2)
+X_train = mv_X_tdata2[0:int(n*mp_train_split)] #features close
+y_train = mv_y_tdata2[0:int(n*mp_train_split)] #labels target
 
-print("2:Start Shapes of split data DataFrames:")
-print(f"mv_X_train shape: {mv_X_train.shape}")
-print(f"mv_X_test shape: {mv_X_test.shape}")
-print(f"mv_y_train shape: {mv_y_train.shape}")
-print(f"mv_y_test shape: {mv_y_test.shape}")
-print("2:End Shapes of split data DataFrames:")
+X_val = mv_X_tdata2[int(n*mp_train_split):int(n*mp_gap)]
+y_val = mv_y_tdata2[int(n*mp_train_split):int(n*mp_gap)]
 
-# define the input shape for the model
-mp_X_train_input_shape = mv_X_train.shape
-mp_X_test_input_shape = mv_X_test.shape
-mp_y_train_input_shape = mv_y_train.shape
-mp_y_test_input_shape = mv_y_test.shape
+X_test = mv_X_tdata2[int(n*mp_gap):]
+y_test = mv_y_tdata2[int(n*mp_gap):]
+# +-------------------------------------------------------------------
+# End Split the data into training and test sets
+# +-------------------------------------------------------------------
+# +-------------------------------------------------------------------
+# Normalize the data
+# +-------------------------------------------------------------------
+X_train_mean = X_train.mean()
+X_train_std = X_train.std()
+
+y_train_mean = y_train.mean()
+y_train_std = y_train.std()
+
+X_val_mean = X_val.mean()
+X_val_std = X_val.std()
+
+y_val_mean = y_val.mean()
+y_val_std = y_val.std()
+
+X_test_mean = X_test.mean()
+X_test_std = X_test.std()
+
+y_test_mean = y_test.mean()
+y_test_std = y_test.std()
+
+X_train = (X_train - X_train_mean) / X_train_std
+X_val = (X_val - X_train_mean) / X_train_std
+X_test = (X_test - X_train_mean) / X_train_std
+
+y_train = (y_train - y_train_mean) / y_train_std
+y_val = (y_val - y_train_mean) / y_train_std
+y_test = (y_test - y_train_mean) / y_train_std
+
+# +-------------------------------------------------------------------
+# End Normalize the data
+# +-------------------------------------------------------------------
+# +-------------------------------------------------------------------
+# Data windowing
+# +-------------------------------------------------------------------
+#The models will make a set of predictions based on a window of consecutive samples from the data.
+#The main features of the input windows are:
+
+#The width (number of time steps) of the input and label windows.
+#The time offset between them.
+#Which features are used as inputs, labels, or both.
+#This script builds a variety of models (including Linear, DNN, CNN and RNN models), and uses them for both:
+
+#Single-output, and multi-output predictions.
+#Single-time-step and multi-time-step predictions.
+#This section focuses on implementing the data windowing so that it can be reused for all of those models.
+
+# +-------------------------------------------------------------------
+# Establish Windows for the data
+# +-------------------------------------------------------------------
+
+# +-------------------------------------------------------------------
+# 1:24 hour/24 hour/1 hour prediction window
+# +-------------------------------------------------------------------
+mp_past_inputwidth_timewindow = mp_days    # 24 hours of history data INPUT WIDTH
+mp_future_offsetwidth_timewindow =  mp_days # one LABEL=1  prediction 24 hours in the future Offset 24 hours
+print("mp_past_inputwidth_timewindow:",mp_past_inputwidth_timewindow, "mp_future_offsetwidth_timewindow:",mp_future_offsetwidth_timewindow)
+# Ensure mp_feature_columns is defined and is a list
+mp_feature_columns = ['close']  # Example column names for feature independent variables
+mp_label_columns = ['target']   # Example column names for label dependent variables
+mp_num_features = len(mp_feature_columns) # Number of features
+mp_num_labels = len(mp_label_columns) # Number of labels
+mp_label_count = len(mp_label_columns)
+
+
+print("Window Paramas: input_width:",mp_past_inputwidth_timewindow, "label_width:",mp_num_labels, "shift:",mp_future_offsetwidth_timewindow, "label_columns:",mp_feature_columns,"mp_label_count",mp_label_count)
+win_X1_i24_o24_l1 = CMqlWindowGenerator(
+    input_width=mp_past_inputwidth_timewindow,
+    label_width=mp_num_labels,
+    shift=mp_future_offsetwidth_timewindow,
+    train_df=X_train,
+    val_df=X_val,
+    test_df=X_test,
+    label_columns=mp_label_columns
+)
+
+win_y1_i24_o24_l1 = CMqlWindowGenerator(
+   input_width=mp_past_inputwidth_timewindow,
+    label_width=mp_num_labels,
+    shift=mp_future_offsetwidth_timewindow,
+    train_df=y_train,
+    val_df=y_val,
+    test_df=y_test,
+    label_columns=mp_label_columns
+)
+
+print(win_X1_i24_o24_l1)
+print(win_y1_i24_o24_l1)
+print("win_X1_i24_o24_l1.total_window_size: ",win_X1_i24_o24_l1.total_window_size)
+print("win_y1_i24_o24_l1).total_window_size: ",win_y1_i24_o24_l1.total_window_size)
+
+
+# +-------------------------------------------------------------------
+# 2:6 hour/1 hour /1 hour prediction window
+# +-------------------------------------------------------------------
+mp_past_inputwidth_timewindow = mp_hours * 6    # 24 hours of history data INPUT WIDTH
+mp_future_offsetwidth_timewindow =  mp_hours # one LABEL=1  prediction 24 hours in the future Offset 24 hours
+print("mp_past_inputwidth_timewindow:",mp_past_inputwidth_timewindow, "mp_future_offsetwidth_timewindow:",mp_future_offsetwidth_timewindow)
+# Ensure mp_feature_columns is defined and is a list
+mp_feature_columns = ['close']  # Example column names for feature independent variables
+mp_label_columns = ['target']   # Example column names for label dependent variables
+mp_num_features = len(mp_feature_columns) # Number of features
+mp_num_labels = len(mp_label_columns) # Number of labels
+targets=mp_label_count
+
+print("Window Paramas: input_width:",mp_past_inputwidth_timewindow, "label_width:",mp_num_labels, "shift:",mp_future_offsetwidth_timewindow, "label_columns:",mp_feature_columns)
+win_X1_i6_o1_l1 = CMqlWindowGenerator(
+    input_width=mp_past_inputwidth_timewindow,
+    label_width=mp_num_labels,
+    shift=mp_future_offsetwidth_timewindow,
+    train_df=X_train,
+    val_df=X_val,
+    test_df=X_test,
+    label_columns=mp_label_columns
+)
+
+win_y1_i6_o1_l1 = CMqlWindowGenerator(
+   input_width=mp_past_inputwidth_timewindow,
+    label_width=mp_num_labels,
+    shift=mp_future_offsetwidth_timewindow,
+    train_df=y_train,
+    val_df=y_val,
+    test_df=y_test,
+    label_columns=mp_label_columns
+)
+
+print(win_X1_i6_o1_l1)
+print(win_y1_i6_o1_l1)
+print("win_X1_i6_o1_l1.total_window_size: ",win_X1_i6_o1_l1.total_window_size)
+print("win_y1_i6_o1_l1).total_window_size: ",win_y1_i6_o1_l1.total_window_size)
+
+# +-------------------------------------------------------------------
+# End  Establish Windows for the data
+# +-------------------------------------------------------------------
+
+
+# +-------------------------------------------------------------------
+# Split the data into windows split into inputs and labels
+# +-------------------------------------------------------------------
+# X 24 x 24 x 1
+shift_size = 100
+window_size = win_X1_i24_o24_l1.total_window_size / (60 * 60 * 2)
+train_df = X_train
+train_df = train_df.to_numpy(dtype=np.float32)
+print("X 24 x 24 x 1 train_df.shape:",train_df.shape)
+# slice
+train_slice_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.window_slicer(train_df, window_size, shift_size)
+# split window
+input_size = mp_days / (60 * 60 )
+output_size = mp_days / (60 * 60 )
+stride = output_size // 2  # Use integer division to ensure stride is an integer
+print("X 24 x 24 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
+inputs_train_slice_win_X1_i24_o24_l1, labels_train_slice_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.split_window(train_slice_win_X1_i24_o24_l1, input_size, output_size, stride)
+
+print('All shapes are: (batch, time, features)')
+print(f'Window shape: {train_slice_win_X1_i24_o24_l1.shape}')
+print(f'Inputs shape: {inputs_train_slice_win_X1_i24_o24_l1}')
+print(f'Labels shape: {labels_train_slice_win_X1_i24_o24_l1}')
+
+# y 24 x 24 x 1
+shift_size = 100
+window_size=win_y1_i24_o24_l1.total_window_size / (60 * 60 * 2)
+train_df = y_train
+train_df = train_df.to_numpy(dtype=np.float32)
+print("y 24 x 24 x 1 train_df.shape:",train_df.shape)
+#slice
+train_slice_win_y1_i24_o24_l1=win_y1_i24_o24_l1.window_slicer(train_df,window_size,shift_size)
+#split window
+input_size=mp_days / (60 * 60 )
+output_size=mp_days / (60 * 60 )
+stride = output_size // 2  # Use integer division to ensure stride is an integer
+print("y 24 x 24 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
+inputs_train_slice_win_y1_i24_o24_l1, labels_train_slice_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.split_window(train_slice_win_y1_i24_o24_l1, input_size, output_size, stride)
+
+print('All shapes are: (batch, time, features)')
+print(f'Window shape: {train_slice_win_y1_i24_o24_l1.shape}')
+print(f'Inputs shape: {inputs_train_slice_win_y1_i24_o24_l1}')
+print(f'Labels shape: {labels_train_slice_win_y1_i24_o24_l1}')
+
+#Create TF datasets
+# 24 x 1 x 1
+train_ds_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.make_dataset(train_slice_win_X1_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_X1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+train_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(train_slice_win_y1_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_y1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+
+val_ds_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.make_dataset(train_slice_win_X1_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_X1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+val_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(train_slice_win_y1_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_y1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+
+test_ds_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.make_dataset(train_slice_win_X1_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_X1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+test_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(train_slice_win_y1_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_y1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+
+
+#Merge dataset
+train_dataset_24241=win_X1_i24_o24_l1.mergeXyTensor(train_slice_win_X1_i24_o24_l1, train_slice_win_y1_i24_o24_l1)
+val_dataset_24241=win_X1_i24_o24_l1.mergeXyTensor(train_slice_win_X1_i24_o24_l1, train_slice_win_y1_i24_o24_l1)
+test_dataset_24241=win_X1_i24_o24_l1.mergeXyTensor(train_slice_win_X1_i24_o24_l1, train_slice_win_y1_i24_o24_l1)
+
+# Batch it
+train_dataset_24241 = train_dataset_24241.batch(mp_batch_size)
+val_dataset_24241 = val_dataset_24241.batch(mp_batch_size)
+test_dataset_24241 = test_dataset_24241.batch(mp_batch_size)
+
+# create shapes of data inputs
+dstrainshape_24241 = train_slice_win_X1_i24_o24_l1.shape
+dsvalshape_24241 = train_slice_win_X1_i24_o24_l1.shape
+dstestshape_24241 = train_slice_win_X1_i24_o24_l1.shape
+
+print("Final DS shape: train.dataset_24241.shape",dstrainshape_24241, "val.dataset_24241.shape",dsvalshape_24241, "test.dataset_24241.shape",dstestshape_24241)
+
+
+# X 6 x 1 x 1
+shift_size = 100
+window_size=win_X1_i6_o1_l1.total_window_size / (60 * 60 * 2)
+train_df = X_train
+train_df = train_df.to_numpy(dtype=np.float32)
+print("X 6 x 1 x 1 train_df.shape:",train_df.shape)
+#slice
+train_slice_win_X1_i6_o1_l1=win_X1_i6_o1_l1.window_slicer(train_df,window_size,shift_size)
+#split window
+input_size=mp_hours * 6 / (60 * 60 )
+output_size=mp_hours  / (60 * 60 )
+if output_size //2 > 1:
+    stride = output_size // 2  # Use integer division to ensure stride is an integer
+else:
+    stride = 1
+
+print("X 6 x 1 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
+inputs_train_slice_win_y1_i6_o1_l1, labels_train_slice_win_y1_i6_o1_l1 = win_X1_i6_o1_l1.split_window(train_slice_win_X1_i6_o1_l1, input_size, output_size, stride)
+
+print('All shapes are: (batch, time, features)')
+print(f'Window shape: {train_slice_win_X1_i6_o1_l1.shape}')
+print(f'Inputs shape: {inputs_train_slice_win_y1_i6_o1_l1}')
+print(f'Labels shape: {labels_train_slice_win_y1_i6_o1_l1}')
+
+
+# y 6 x 1 x 1
+shift_size = 100
+# Corrected window_size calculation
+window_size = win_y1_i6_o1_l1.total_window_size / (60 * 60 * 2)
+train_df = y_train
+train_df = train_df.to_numpy(dtype=np.float32)
+print("y 6 x 1 x 1 train_df.shape:",train_df.shape)
+#slice
+train_slice_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.window_slicer(train_df, window_size, shift_size)
+#split window
+input_size=mp_hours * 6 / (60 * 60 )
+output_size=mp_hours  / (60 * 60 )
+if output_size //2 > 1:
+    stride = output_size // 2  # Use integer division to ensure stride is an integer
+else:
+    stride = 1
+
+print("y 6 x 1 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
+inputs_train_slice_win_y1_i6_o1_l1, labels_train_slice_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.split_window(train_slice_win_y1_i6_o1_l1, input_size, output_size, stride)
+
+print('All shapes are: (batch, time, features)')
+print(f'Window shape: {train_slice_win_y1_i6_o1_l1.shape}')
+print(f'Inputs shape: {inputs_train_slice_win_y1_i6_o1_l1}')
+print(f'Labels shape: {labels_train_slice_win_y1_i6_o1_l1}')
+
+#Create TF datasets
+# 6 x 1 x 1
+train_ds_win_X1_i6_o1_l1 = win_X1_i6_o1_l1.make_dataset(train_slice_win_X1_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_X1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+train_ds_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.make_dataset(train_slice_win_y1_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_y1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+
+val_ds_win_X1_i6_o1_l1 = win_X1_i6_o1_l1.make_dataset(train_slice_win_X1_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_X1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+val_ds_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.make_dataset(train_slice_win_y1_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_y1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+
+test_ds_win_X1_i6_o1_l1 = win_X1_i6_o1_l1.make_dataset(train_slice_win_X1_i6_o1_l1, 6,total_window_size=win_X1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+test_ds_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.make_dataset(train_slice_win_y1_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_y1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+
+#Merge dataset
+
+train_dataset_611=win_X1_i6_o1_l1.mergeXyTensor(train_slice_win_X1_i6_o1_l1, train_slice_win_y1_i6_o1_l1)
+val_dataset_611=win_X1_i6_o1_l1.mergeXyTensor(train_slice_win_X1_i6_o1_l1, train_slice_win_y1_i6_o1_l1)
+test_dataset_611=win_X1_i6_o1_l1.mergeXyTensor(train_slice_win_X1_i6_o1_l1, train_slice_win_y1_i6_o1_l1)
+
+# Batch it
+train_dataset_611 = train_dataset_611.batch(mp_batch_size)
+val_dataset_611 = val_dataset_611.batch(mp_batch_size)
+test_dataset_611 = test_dataset_611.batch(mp_batch_size)
+
+# create shapes of data inputs
+dstrainshape_611 = train_slice_win_X1_i6_o1_l1.shape
+dsvalshape_611 = train_slice_win_X1_i6_o1_l1.shape
+dstestshape_611 = train_slice_win_X1_i6_o1_l1.shape
+
+print("Final DS shape: train.dataset_611.shape",dstrainshape_611, "val.dataset_611.shape",dsvalshape_611, "test.dataset_611.shape",dstestshape_611)
+
+
+# +-------------------------------------------------------------------
+# End Split the data into windows split into inputs and labels
+# +-------------------------------------------------------------------
+if winmodel == '24_24_1':
+    windowx = win_X1_i24_o24_l1
+    dswindowx = train_ds_win_X1_i24_o24_l1
+    windowy = win_y1_i24_o24_l1
+    dswindowy = train_ds_win_y1_i24_o24_l1
+    train_dataset = train_dataset_24241
+    val_dataset = val_dataset_24241
+    test_dataset = test_dataset_24241
+    train_shape = dstrainshape_24241
+    val_shape = dsvalshape_24241
+    test_shape = dstestshape_24241
+elif winmodel == '6_1_1':
+    windowx = win_X1_i6_o1_l1
+    dswindowx = train_ds_win_X1_i6_o1_l1
+    windowy = win_y1_i6_o1_l1
+    dswindowy = train_ds_win_y1_i6_o1_l1
+    train_dataset = train_dataset_611
+    val_dataset = val_dataset_611
+    test_dataset = test_dataset_611
+    train_shape = dstrainshape_611
+    val_shape = dsvalshape_611
+    test_shape = dstestshape_611
+
+print("winmodel:", winmodel,"windowx:", windowx, "windowy:", windowy )
+
+
+
+# Print elements of dswindowx
+print("dswindowx:", dswindowx)
+#read tensor spec
+print("dswindowx element_spec:")
+for xspec in dswindowx.element_spec:
+    print(f"Shape: {xspec.shape}, Dtype: {xspec.dtype}")
+
+# Print elements of dswindowy
+print("dswindowy:", dswindowy)
+#read tensor spec
+print("dswindowy element_spec:")
+for yspec in dswindowy.element_spec:
+    print(f"Shape: {yspec.shape}, Dtype: {yspec.dtype}")
+
+
+# Initialize input shapes with Xspec
+xmp_inputs = xspec.shape if xspec else None
+xmp_lstm_input_shape = xspec.shape if xspec else None
+xmp_cnn_input_shape = xspec.shape if xspec else None
+xmp_gru_input_shape = xspec.shape if xspec else None
+xmp_single_input_shape = xspec.shape if xspec else None
+xmp_transformer_input_shape = xspec.shape if xspec else None
+
+# Initialize input shapes with Yspec
+ymp_inputs = yspec.shape if yspec else None
+ymp_lstm_input_shape = yspec.shape if yspec else None
+ymp_cnn_input_shape = yspec.shape if yspec else None
+ymp_gru_input_shape = yspec.shape if yspec else None
+ymp_single_input_shape = yspec.shape if yspec else None
+ymp_transformer_input_shape = yspec.shape if yspec else None
+
+axmp_inputs= xmp_inputs[2],xmp_inputs[3]
+aymp_inputs= ymp_inputs[2], ymp_inputs[3]
+print("axmp_inputs:", axmp_inputs)
+print("aymp_inputs:", aymp_inputs)
+
+bxmp_inputs= xmp_inputs[0],xmp_inputs[1],xmp_inputs[2],xmp_inputs[3]
+bymp_inputs= ymp_inputs[0], ymp_inputs[1], ymp_inputs[2], ymp_inputs[3]
+print("bxmp_inputs:", bxmp_inputs)
+print("bymp_inputs:", bymp_inputs)
+
+
 
 # +-------------------------------------------------------------------
 # Hyperparameter tuning and model setup
@@ -254,21 +686,22 @@ mp_y_test_input_shape = mv_y_test.shape
 #
 # Select Model 
 mp_cnn_model = True
-mp_lstm_model = True   
+mp_lstm_model = True
+#plot = win_X1_i24_o24_l1.plot(plot_col='close', model=None, max_subplots=3)
 mp_gru_model = True
 mp_transformer_model = True
 mp_run_single_input_model = True
-mp_run_single_input_submodels = False # not implemented yet     
+mp_run_single_input_submodels = False # not implemented yet    
 
-# define inputshapes
-mp_single_input_shape = mp_X_train_input_shape[1],
-mp_lstm_input_shape = mp_X_train_input_shape[1]
-mp_cnn_input_shape = mp_X_train_input_shape[1]
-mp_gru_input_shape = mp_X_train_input_shape[1]
-mp_transformer_input_shape = mp_X_train_input_shape[1]
+# define inputs
+mp_single_input_shape = axmp_inputs
+mp_lstm_input_shape = axmp_inputs
+mp_cnn_input_shape = axmp_inputs
+mp_gru_input_shape = axmp_inputs
+mp_transformer_input_shape = axmp_inputs
 
 # define features
-mp_null=None
+mp_null = None
 mp_single_features = 1
 mp_lstm_features = 1
 mp_cnn_features = 1
@@ -276,7 +709,7 @@ mp_gru_features = 1
 mp_transformer_features = 1
 
 # Hypermodel parameters
-mp_activation1= 'relu'     
+mp_activation1 = 'relu'
 mp_activation2 = 'linear'
 mp_activation3 = 'softmax'
 mp_activation4 = 'sigmoid'     
@@ -288,12 +721,12 @@ mp_seed = 42
 mp_hyperband_iterations = 1
 mp_tune_new_entries = False
 mp_allow_new_entries = False
-mp_max_retries_per_trial = 1
-mp_max_consecutive_failed_trials = 1
+mp_max_retries_per_trial = 5
+mp_max_consecutive_failed_trials = 6
 # base tuner parameters
 mp_validation_split = 0.2
 mp_epochs = mp_param_epochs 
-mp_batch_size = 16   
+mp_batch_size = mp_batch_size  
 mp_dropout = 0.2
 mp_oracle = None
 mp_hypermodel = None
@@ -325,29 +758,28 @@ mp_random = np.random.randint(0, 1000)
 print("mp_random:", mp_random)
 print("mp_today:", mp_today)
 mp_baseuniq=str(1) # str(mp_random)
+
 mp_basepath = os.path.join(mp_modeldatapath, mp_directory,mp_baseuniq)
-mp_checkpoint_filepath = os.path.join(mp_modeldatapath,mp_directory,mp_basepath, mp_project_name)
+
+mp_checkpoint_filepath = posixpath.join(mp_modeldatapath, mp_directory, mp_project_name)
 print("mp_checkpoint_filepath:", mp_checkpoint_filepath)
 # Switch directories for testing if in test mode
 if mp_test:
     mp_directory = f"tshybrid_ensemble_tuning_test"
     mp_project_name = "prjEquinox1_test"
 
-# Run the tuner to find the best model configuration
-print("Running tuner1 with mp_X_train_input_scaled input shape:", mv_X_train.shape)
-print("Running tuner2 with mp_X_train_input_scaled scaled data: Rows:", mv_X_train.shape[0], "Columns:", mv_X_train.shape[1])
-print("Running tuner3 with mp_X_train_input_scaled input shape:", mv_X_train.shape)
-mp_inputs = Input(shape=(mv_X_train.shape[1],1) ) 
-print("Running tuner4 with mp_X_train_input_scaled input shape:", mp_inputs)
-
 # Create an instance of the tuner class
 print("Creating an instance of the tuner class")
 mt = CMdtuner(
-    X_train=mv_X_train,
-    y_train=mv_y_train,
-    X_test=mv_X_test,
-    y_test=mv_y_test,
-    inputs=mp_inputs,
+    # Data
+    traindataset=train_dataset,
+    valdataset=val_dataset,
+    testdataset=test_dataset,
+    trainshape=train_shape,
+    valshape=val_shape,
+    testshape=test_shape,
+    # Model
+    inputs=bxmp_inputs,
     cnn_model=mp_cnn_model,
     lstm_model=mp_lstm_model,
     gru_model=mp_gru_model,
@@ -395,34 +827,45 @@ mt = CMdtuner(
     checkpoint_filepath=mp_checkpoint_filepath,
     modeldatapath=mp_modeldatapath,
     step=mp_param_steps,
-    multiactivate=mp_multiactivate
+    multiactivate=True,
+    tf1=False,
+    tf2=False,
+    tensorshape=mp_tensor_shape,
+    shape=mp_shape,
+    cnn_shape=mp_cnn_shape,
+    lstm_shape=mp_lstm_shape,
+    gru_shape=mp_gru_shape,
+    transformer_shape=mp_transformer_shape,
+    multi_inputs=mp_multi_inputs,
 )
 
 
-      
 # Run the tuner to find the best model configuration
 print("Running Main call to tuner")
 best_model = mt.tuner.get_best_models()
 best_params = mt.tuner.get_best_hyperparameters(num_trials=1)[0]
 best_model[0].summary()
 
+"""
+#tensorboard command line
+#tensorboard --logdir=<basepath>/logs
+
+
 # +-------------------------------------------------------------------
 # Scale the data
 # +-------------------------------------------------------------------
 scaler = StandardScaler()
-mv_X_train = scaler.fit_transform(mv_X_train)
-mv_X_test = scaler.transform(mv_X_test)
+mv_X_train = scaler.fit_transform(train_ds_win_X1_i24_o24_l1)
+mv_X_val = scaler.transform(val_ds_win_X1_i24_o24_l1)
+mv_X_test = scaler.transform(test_ds_win_X1_i24_o24_l1)
 
 # +-------------------------------------------------------------------
 # Train and evaluate the model
 # +-------------------------------------------------------------------
 
-best_model[0].fit(mv_X_train, mv_y_train, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
-best_model[0].evaluate(mv_X_test, mv_y_test)
+best_model[0].fit(mv_X_train,mv_X_test, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
+best_model[0].evaluate(mv_X_val, mv_X_test)
 
-# Assuming mv_X_train is your training data
-scaler = StandardScaler()
-scaler.fit(mv_X_train)  # Fit the scaler on your training data
 
 # +-------------------------------------------------------------------
 # Predict the test data using the trained model
@@ -451,7 +894,6 @@ target_scaler.fit(mv_y_train.values.reshape(-1, 1))
 mv_y_test_reshaped = mv_y_test.values.reshape(-1, 1)  # Reshape to match the scaler's input shape
 real_fx_price = target_scaler.inverse_transform(mv_y_test_reshaped)  # Inverse transform to get actual prices
 
-#print(real_fx_price)
 
 # Evaluation and visualization
 #Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values. 
@@ -475,7 +917,8 @@ plt.xlabel('Time')
 plt.ylabel('FX Price')
 plt.legend()
 plt.savefig(mp_basepath + '//' + 'plot.png')
-
+plt.show()
+print("Plot Model saved to ",mp_basepath + '//' + 'plot.png')
 
 # +-------------------------------------------------------------------
 # Save model to ONNX
@@ -484,6 +927,9 @@ plt.savefig(mp_basepath + '//' + 'plot.png')
 
 mp_output_path = mp_data_path + "model_" + mp_symbol_primary + "_" + mp_datatype + "_" + str(mp_seconds) + ".onnx"
 print(f"output_path: ",mp_output_path)
+onnx_model, _ = tf2onnx.convert.from_keras(best_model[0], opset=self.batch_size)
+onnx.save_model(onnx_model, mp_output_path)
+print(f"model saved to ",mp_output_path)
 
 # Assuming your model has a single input
 
@@ -502,4 +948,4 @@ from onnx import checker
 checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
-plt.show()
+"""
