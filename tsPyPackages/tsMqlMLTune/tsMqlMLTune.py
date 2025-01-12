@@ -60,6 +60,9 @@ class CMdtuner:
         self.directory = kwargs.get('directory')
         self.basepath = kwargs.get('basepath')
         self.project_name = kwargs.get('project_name')
+        print(f"Basepath: {self.basepath}")
+        print(f"Project name: {self.project_name}")
+        print(f"Directory: {self.directory}")
         self.logger = kwargs.get('logger')
         self.tuner_id = kwargs.get('tuner_id')
         self.overwrite = kwargs.get('overwrite', False)
@@ -74,22 +77,23 @@ class CMdtuner:
         self.chk_patience = kwargs.get('chk_patience', 0)
         self.checkpoint_filepath = kwargs.get('checkpoint_filepath')
         self.modeldatapath = kwargs.get('modeldatapath')
+        print(f"Model data path: {self.modeldatapath}")
+        print(f"Checkpoint filepath: {self.checkpoint_filepath}")
+        
         self.step = kwargs.get('step', 5)
         self.multiactivate = kwargs.get('multiactivate', False)
         self.tf1 = kwargs.get('tf1', False)
         self.tf2 = kwargs.get('tf2', False)
         self.tensorshape = kwargs.get('tensorshape', False)
         self.shape = kwargs.get('shape', 2)
-        
 
         # Shape arguments for each branch
-        # (these specify which "predefined shape index" to use)
         self.cnn_shape = kwargs.get('cnn_shape')
         self.lstm_shape = kwargs.get('lstm_shape')
         self.gru_shape = kwargs.get('gru_shape')
         self.transformer_shape = kwargs.get('transformer_shape')
 
-        # We will store the final Input layers in these:
+        # Will store final Input layers:
         self.inputs = None
         self.cnn_inputs = None
         self.lstm_inputs = None
@@ -97,15 +101,11 @@ class CMdtuner:
         self.transformer_inputs = None
         
         self.multi_inputs = kwargs.get('multi_inputs', False)
-        self.traindatainput1 = kwargs.get('traindatainput1', 70)
-        self.traindatainput2 = kwargs.get('traindatainput2', 3)
-        self.traindatainput3 = kwargs.get('traindatainput3', 7)
-
-
+        self.traindatainput1 = kwargs.get('traindatainput1')
+        self.traindatainput2 = kwargs.get('traindatainput2')
+        self.traindatainput3 = kwargs.get('traindatainput3')
         
-        # If user provided something like `[None, None, 24, 7]` or `(24, 7)`,
-        # store it in self.input_shape. Otherwise default to None, and
-        # `prepare_shapes()` will fill it in.
+        # User-provided or default input shape
         self.input_shape = kwargs.get('inputs', None)
 
         # Enable TF debugging if requested
@@ -117,14 +117,11 @@ class CMdtuner:
         # Ensure base path exists
         os.makedirs(self.basepath, exist_ok=True)
 
-        # -------------
         # 2) Prepare shapes
-        # -------------
-        self.prepare_shapes()  # This will define e.g. self.input_shape, self.cnn_input_shape, etc.
+        self.prepare_shapes()
 
-        # -------------
-        # 3) Create actual Keras Input(...) layers
-        # -------------
+        # 3) Create Input layers
+        # Note: Only create if shape is defined
         if self.input_shape is not None:
             self.inputs = Input(shape=self.input_shape, name="main_input")
 
@@ -144,9 +141,7 @@ class CMdtuner:
 
         # If user wants dynamic reshaping for the dataset:
         if self.tensorshape and self.traindataset is not None and self.valdataset is not None:
-            # For example, force each x to (-1, timesteps, features)
-            # (You need to make sure timesteps/features is known.)
-            # This is just an example usage:
+            # For example, force each x to [batch, timesteps, features]
             timesteps = self.input_shape[0] if len(self.input_shape) >= 1 else 24
             features = self.input_shape[1] if len(self.input_shape) >= 2 else 7
 
@@ -157,11 +152,9 @@ class CMdtuner:
                 lambda x, y: (tf.reshape(x, (-1, timesteps, features)), y)
             )
 
-        # ---------------
         # 4) Define the Tuner
-        # ---------------
         self.tuner = kt.Hyperband(
-            hypermodel=self.build_model,  # calls self.build_model(hp)
+            hypermodel=self.build_model,
             objective=self.objective,
             max_epochs=self.max_epochs,
             factor=self.factor,
@@ -171,15 +164,14 @@ class CMdtuner:
         )
         self.tuner.oracle.max_fail_streak = self.max_consecutive_failed_trials
 
-        # Display search space summary
         self.tuner.search_space_summary()
 
         # 5) Start search
-        # You can define epochs/batch_size as hyperparams in .search() or inside build_model
         hp = HyperParameters()
         self.tuner.search(
             self.traindataset,
             validation_data=self.valdataset,
+            # Tuning epochs and batch_size as an example
             epochs=hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step),
             batch_size=hp.Int('batch_size', min_value=16, max_value=128, step=16),
             callbacks=self.get_callbacks(),
@@ -193,7 +185,7 @@ class CMdtuner:
         if not any([self.cnn_model, self.lstm_model, self.gru_model, self.transformer_model]):
             raise ValueError("At least one model branch must be specified (CNN, LSTM, GRU, or Transformer).")
 
-        # We will collect each branch's output in a list, then Concatenate if > 1
+        # Collect branch outputs
         branches = []
 
         # CNN branch
@@ -235,10 +227,11 @@ class CMdtuner:
             key_dim = hp.Int('key_dim', min_value=32, max_value=128, step=32, default=64)
             num_heads = hp.Int('num_heads', min_value=2, max_value=4, step=1, default=2)
 
-            seq_len = self.transformer_input_shape[0]  # e.g., timesteps
+            seq_len = self.transformer_input_shape[0]
+            # If shape is (seq_len, feat_dim), handle that:
             feat_dim = self.transformer_input_shape[1] if len(self.transformer_input_shape) >= 2 else 7
 
-            # If needed, project inputs from 'feat_dim' to 'key_dim'
+            # Project inputs if needed
             if feat_dim != key_dim:
                 inputs_projected = Dense(units=key_dim)(self.transformer_inputs)
             else:
@@ -246,8 +239,7 @@ class CMdtuner:
 
             # Add positional encoding
             pos_encoding = self.positional_encoding(seq_len, key_dim)
-            # Expand dims so we can broadcast over the batch axis
-            pos_encoding = tf.expand_dims(pos_encoding, axis=0)
+            pos_encoding = tf.expand_dims(pos_encoding, axis=0)  # for broadcasting
             inputs_projected = inputs_projected + pos_encoding
 
             # Basic transformer block
@@ -258,7 +250,7 @@ class CMdtuner:
             x_trans = GlobalAveragePooling1D()(x_trans)
             branches.append(x_trans)
 
-        # If we have multiple branches, concatenate them; else use single
+        # If multiple branches, concatenate them
         if len(branches) > 1:
             combined = Concatenate()(branches)
         else:
@@ -272,44 +264,43 @@ class CMdtuner:
         if self.multiactivate:
             output = Dense(
                 1,
-                activation=hp.Choice('output_activation', [
-                    self.activation2, self.activation3, self.activation4
-                ])
+                activation=hp.Choice(
+                    'output_activation',
+                    [self.activation2, self.activation3, self.activation4]
+                )
             )(x)
         else:
             output = Dense(1, activation=self.activation2)(x)
 
-        # If you also want to incorporate self.inputs in final model:
-        # In many designs, you might want a "main_input" merged with others,
-        # but that depends on your use case. Here, we assume each branch
-        # has its own input. If you also want `self.inputs` to feed something,
-        # you can combine them as well.
-
-        # Gather all "active" input layers
+        # Gather active inputs
         all_inputs = []
         if self.inputs is not None:
             all_inputs.append(self.inputs)
-        if self.cnn_model and self.cnn_inputs is not None:
+        if self.cnn_inputs is not None:
             all_inputs.append(self.cnn_inputs)
-        if self.lstm_model and self.lstm_inputs is not None:
+        if self.lstm_inputs is not None:
             all_inputs.append(self.lstm_inputs)
-        if self.gru_model and self.gru_inputs is not None:
+        if self.gru_inputs is not None:
             all_inputs.append(self.gru_inputs)
-        if self.transformer_model and self.transformer_inputs is not None:
+        if self.transformer_inputs is not None:
             all_inputs.append(self.transformer_inputs)
 
-        # If we have multiple inputs, concatenate them
-        if self.multi_inputs:
-            model = Model(
-                inputs=[self.cnn_inputs, self.lstm_inputs, self.gru_inputs, self.transformer_inputs],
-                outputs=output
-            )
+        # Filter out any Nones (in case a user sets multi_inputs=True but 
+        # not all branches are active).
+        all_inputs = [inp for inp in all_inputs if inp is not None]
+
+        # If multi_inputs is True, pass all active inputs to the model
+        if self.multi_inputs and len(all_inputs) > 1:
+            model = Model(inputs=all_inputs, outputs=output)
             print("Model with multiple inputs created.")
-            return self.compile_model(model, hp)
         else:
-            model = Model(inputs=self.inputs, outputs=output)
+            # Single-input model (just pick the first or use self.inputs)
+            if len(all_inputs) == 0:
+                raise ValueError("No valid input layers found.")
+            model = Model(inputs=all_inputs[0], outputs=output)
             print("Model with single input created.")
-            return self.compile_model(model, hp)
+
+        return self.compile_model(model, hp)
 
     def compile_model(self, model, hp):
         model.compile(
@@ -324,7 +315,6 @@ class CMdtuner:
         return model
 
     def get_callbacks(self):
-        """Returns the list of callbacks used during model training."""
         checkpoint_filepath = os.path.join(self.basepath, 'best_model.keras')
         log_dir = os.path.join(self.basepath, 'logs')
         tensorboard_callback = TensorBoard(log_dir=log_dir, histogram_freq=1)
@@ -335,7 +325,7 @@ class CMdtuner:
                 filepath=checkpoint_filepath,
                 save_best_only=True,
                 verbose=1,
-                monitor=self.chk_monitor  # or self.objective
+                monitor=self.chk_monitor
             ),
             tensorboard_callback
         ]
@@ -371,13 +361,13 @@ class CMdtuner:
         return pos_encoding
 
     # ----------------------------------------
-    #  prepare_shapes() and get_predefined_shape()
+    # prepare_shapes() and get_predefined_shape()
     # ----------------------------------------
     def prepare_shapes(self):
         """
         Determine the final shape for each branch (main, CNN, LSTM, GRU, Transformer)
         using self.get_predefined_shape(...).
-        Then store them in e.g. self.input_shape, self.cnn_input_shape, etc.
+        Then store them in self.input_shape, self.cnn_input_shape, etc.
         """
         valid_shapes = range(1, 10)
         print("prepare_shapes() called.")
@@ -397,111 +387,114 @@ class CMdtuner:
         if self.trainshape[2]:
             self.traindatainput3 = self.trainshape[2]
         
-        print(f"Train data shape: {self.traindatainput1}, {self.traindatainput2}, {self.traindatainput3}")
+        print(f"FOUND data shape: {self.traindatainput1}, {self.traindatainput2}, {self.traindatainput3}")
         
-        # Input shape is columns, batches, timesteps, features, channels
-        if len(self.input_shape) == 4:
-            self.rows=self.input_shape[0]
-            self.batches=self.input_shape[1]
-            self.timesteps=self.input_shape[2]
-            self.features=self.input_shape[3]
-            if len(self.input_shape) > 4: 
-                self.channels = self.input_shape[4]
-            else:
-                self.channels = 1
-
-            print(f"Parameter shapes: Rows: {self.rows} Batches: {self.batches}, Timesteps: {self.timesteps}, Features: {self.features}, Channels: {self.channels}")
-            
-        self.rows=self.input_shape[0]
-        self.batches=self.input_shape[1]
-        self.timesteps=self.input_shape[2]
-        self.features=self.input_shape[3]
-        if len(self.input_shape) > 4: 
-            self.channels = self.input_shape[4]
-        else:
-            self.channels = 1
-
-        print(f"Parameter shapes: Rows: {self.rows}, Batches: {self.batches}, Timesteps: {self.timesteps}, Features: {self.features}, Channels: {self.channels}")   
-
-        # If user didn't provide a shape, set a default (e.g. shape=2 -> (timesteps, features))
+        # If no input_shape was provided, default to shape #2 => (timesteps, features)
         if self.input_shape is None:
-            # default shape = #2 => (timesteps, features)
-            # or something that matches your data, e.g. (24, 7)
-            self.input_shape = (timesteps, features)
+            self.input_shape = (24, 7)  # or something that fits your data
 
-        # 1) Main shape (if self.shape is valid)
+        # Attempt to parse out up to 4 dimensions from the user-provided shape
+        shape_len = len(self.input_shape)
+        if shape_len >= 1:
+            self.rows = self.input_shape[0]
+        if shape_len >= 2:
+            self.batches = self.input_shape[1]
+        if shape_len >= 3:
+            self.timesteps = self.input_shape[2]
+        if shape_len >= 4:
+            self.features = self.input_shape[3]
+            if shape_len == 5:
+                self.channels = self.input_shape[4]
+        else:
+            # If user only gave e.g. (24,7), let's define them as timesteps=24, features=7
+            # and keep row/batches = None
+            self.timesteps = self.input_shape[0] if shape_len == 2 else 24
+            self.features = self.input_shape[1] if shape_len == 2 else 7
+        # Channels default to 1 if not specified
+        self.channels = 1
+        if shape_len == 5:
+            self.channels = self.input_shape[4]
+
+        print(f"Parameter shapes => Rows: {getattr(self, 'rows', None)}, "
+              f"Batches: {getattr(self, 'batches', None)}, "
+              f"Timesteps: {getattr(self, 'timesteps', None)}, "
+              f"Features: {getattr(self, 'features', None)}, "
+              f"Channels: {getattr(self, 'channels', None)}")
+
+        # 1) Main shape
         if (self.shape in valid_shapes):
             shape_tuple = self.get_predefined_shape(
                 idx=self.shape,
-                batch_size=self.batch_size,
-                rows=None,      # can pass None if not needed
-                batches=None,   # can pass None
-                timesteps=self.timesteps,   # or glean from self.input_shape
-                features=self.features,     # or glean from self.input_shape
-                channels=self.channels      # or glean from self.input_shape
+                timesteps=self.timesteps,
+                batches=self.batches,
+                rows=self.rows,
+                batch_size=self.batches,
+                features=self.features,
+                channels=self.channels
             )
             self.input_shape = shape_tuple
-            print(f"[SHAPE] Final main input_shape = {self.input_shape}")
+            print(f"[SHAPE] EXPECTED main input_shape = {self.input_shape}")
+          
 
         # 2) CNN shape
         self.cnn_input_shape = None
         if self.cnn_model and (self.cnn_shape in valid_shapes):
             shape_tuple = self.get_predefined_shape(
                 idx=self.cnn_shape,
-                batch_size=self.batch_size,
-                rows=None,
-                batches=None,
-                timesteps=self.timesteps,   # should use self.timesteps
-                features=self.features,     # should use self.features
-                channels=self.channels      # should use self.channels
+                batches=self.batches,
+                rows=self.rows,
+                batch_size=self.batches,
+                timesteps=self.timesteps,
+                features=self.features,
+                channels=self.channels
             )
             self.cnn_input_shape = shape_tuple
-            print(f"[CNN] Final cnn_input_shape = {self.cnn_input_shape}")
+            print(f"[CNN] EXPECTED cnn_input_shape = {self.cnn_input_shape}")
 
         # 3) LSTM shape
         self.lstm_input_shape = None
         if self.lstm_model and (self.lstm_shape in valid_shapes):
             shape_tuple = self.get_predefined_shape(
                 idx=self.lstm_shape,
-                batch_size=self.batch_size,
-                rows=None,
-                batches=None,
-                timesteps=self.timesteps,   # should use self.timesteps
-                features=self.features,     # should use self.features
-                channels=self.channels      # should use self.channels
+                batches=self.batches,
+                rows=self.rows,
+                batch_size=self.batches,
+                timesteps=self.timesteps,
+                features=self.features,
+                channels=self.channels
             )
             self.lstm_input_shape = shape_tuple
-            print(f"[LSTM] Final lstm_input_shape = {self.lstm_input_shape}")
+            print(f"[LSTM] EXPECTED lstm_input_shape = {self.lstm_input_shape}")
 
         # 4) GRU shape
         self.gru_input_shape = None
         if self.gru_model and (self.gru_shape in valid_shapes):
             shape_tuple = self.get_predefined_shape(
                 idx=self.gru_shape,
-                batch_size=self.batch_size,
-                rows=None,
-                batches=None,
-                timesteps=self.timesteps,   # should use self.timesteps
-                features=self.features,     # should use self.features
-                channels=self.channels      # should use self.channels
+                batches=self.batches,
+                rows=self.rows,
+                batch_size=self.batches,
+                timesteps=self.timesteps,
+                features=self.features,
+                channels=self.channels
             )
             self.gru_input_shape = shape_tuple
-            print(f"[GRU] Final gru_input_shape = {self.gru_input_shape}")
+            print(f"[GRU] EXPECTED gru_input_shape = {self.gru_input_shape}")
 
         # 5) Transformer shape
         self.transformer_input_shape = None
         if self.transformer_model and (self.transformer_shape in valid_shapes):
             shape_tuple = self.get_predefined_shape(
                 idx=self.transformer_shape,
-                batch_size=self.batch_size,
-                rows=None,
-                batches=None,
-                timesteps=self.timesteps,   # should use self.timesteps
-                features=self.features,     # should use self.features
-                channels=self.channels      # should use self.channels
+                batches=self.batches,
+                rows=self.rows,
+                batch_size=self.batches,
+                timesteps=self.timesteps,
+                features=self.features,
+                channels=self.channels
             )
             self.transformer_input_shape = shape_tuple
-            print(f"[TRANSFORMER] Final transformer_input_shape = {self.transformer_input_shape}")
+            print(f"[TRANSFORMER] EXPECTED transformer_input_shape = {self.transformer_input_shape}")
 
     def get_predefined_shape(
         self,
@@ -514,19 +507,24 @@ class CMdtuner:
         channels: int
     ):
         """
-        Return a shape tuple for the given index.
-        Typically you do NOT include the batch dimension in this shape,
-        because Keras Input(...) defaults to (None, *shape).
+        Return a shape tuple for the given index. We do NOT include the batch dimension
+        as part of the Input shape. Keras uses (None, *shape) internally.
         """
+        # For demonstration, we define a few typical shapes:
         shapes = [
-            (features,),                           # shape=1
-            (timesteps, features),                 # shape=2
-            (batches, timesteps, features),        # shape=3
-            (rows, batches, timesteps, features),  # shape=4
-            (self.traindatainput1  ,timesteps, features),              # shape=5
-            (self.traindatainput1  ,batches,timesteps, features),           # shape=6
-            (batch_size, timesteps, features),     # shape=7 (usually not used in Input)
-            (batches, timesteps, features, channels),  # shape=8
-            (batches,self.traindatainput1  ,timesteps, features),        # shape=9
+            (features,),                   # shape=1
+            (timesteps, features),         # shape=2
+            (None, timesteps, features),   # shape=3 -> Not common for Input(), but example
+            (None, None, timesteps, features),  # shape=4
+            (self.traindatainput1, timesteps, features),      # shape=5
+            (None,self.traindatainput1, timesteps, features),  # shape=6
+            # shape=7 or beyond can be custom; just examples:
+            (None,self.traindatainput1, timesteps, features),    # shape=7
+            (self.traindatainput1, timesteps, features),  # shape=8
+            (self.traindatainput1, timesteps, features, channels),  # shape=9
         ]
-        return shapes[idx - 1]
+        # Ensure idx-1 is in range
+        idx_minus_one = idx - 1
+        if not (0 <= idx_minus_one < len(shapes)):
+            raise ValueError(f"Shape index {idx} not implemented.")
+        return shapes[idx_minus_one]
