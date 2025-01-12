@@ -9,8 +9,7 @@
 # +-------------------------------------------------------------------
 # Import standard Python packages
 # +-------------------------------------------------------------------
-# Data import Tick data evry minute and rates data every minute M1
-#
+# import os
 import os
 import pathlib
 from pathlib import Path, PurePosixPath
@@ -19,7 +18,6 @@ import sys
 import time
 import json
 import keyring as kr
-
 from datetime import datetime, date
 import pytz
 import matplotlib.pyplot as plt
@@ -34,12 +32,6 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 # Import dataclasses for data manipulation
 import pandas as pd
 from dataclasses import dataclass
-# Import equinox functionality
-from tsMqlConnect import CMqlinit, CMqlBrokerConfig
-from tsMqlData import CMqldatasetup
-from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
-from tsMqlMLTune import CMdtuner
-from tsMqlReference import CMqlTimeConfig
 # Import TensorFlow for machine learning
 import tensorflow as tf
 import onnx
@@ -49,6 +41,13 @@ import onnxruntime.backend as backend
 import onnxruntime.tools.symbolic_shape_infer as symbolic_shape_infer
 import warnings
 from numpy import concatenate
+# Import equinox functionality
+from tsMqlConnect import CMqlinit, CMqlBrokerConfig
+from tsMqlData import CMqldatasetup
+from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
+from tsMqlMLTune import CMdtuner
+from tsMqlReference import CMqlTimeConfig
+
 # set values for libs
 warnings.filterwarnings("ignore")
 scaler = StandardScaler()
@@ -86,15 +85,21 @@ mp_rows = 1000
 mp_rowcount = 10000
 MPDATAFILE1 =  "tickdata1.csv"
 MPDATAFILE2 =  "ratesdata1.csv"
-mp_batch_size = 16
-mp_shape=2 # rows, batches, timesteps, features
-mp_cnn_shape=2 # rows, batches, timesteps, features
-mp_lstm_shape=2 # rows, batches, timesteps, features
-mp_gru_shape=2 # rows, batches, timesteps, features
-mp_transformer_shape = 2 # rows, batches, timesteps, features
+
+#Batch size is the number of model samples used in the training of a neural network before the gradient gets updated.
+#The batch size is a hyperparameter that defines the number of samples to work through before updating the internal model parameters.
+#The batch size is a number of samples processed before the model is updated.
+#By convention can take a value between 2 to 32, called a mini batch. Other common values are 64 and 128
+#The larger it is, the faster to train over a GPU. However, as downside, this results in more training error than a smaller batch
+mp_batch_size = 32
+
+# Set the shape of the data
+mp_shape=4 # rows, batches, timesteps, features
+mp_cnn_shape=4 # rows, batches, timesteps, features
+mp_lstm_shape=6 # rows, batches, timesteps, features
+mp_gru_shape=7 # rows, batches, timesteps, features
+mp_transformer_shape = 8 # rows, batches, timesteps, features
 mp_multi_inputs = False
-
-
 mp_tensor_shape = False
 config = CMqlTimeConfig()
 constants = config.get_constants()
@@ -142,7 +147,6 @@ mp_multiactivate=True
 # +-------------------------------------------------------------------
 c0 = CMqlBrokerConfig(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
 broker_config = c0.set_mql_broker()
-
 BROKER = broker_config['BROKER']
 MPPATH = broker_config['MPPATH']
 MPBASEPATH = broker_config['MPBASEPATH']
@@ -216,6 +220,7 @@ print(f"mp_path Set to: {MPDATAPATH}")
 print(f"mp_filename1 Set to: {MPFILEVALUE1}")
 print(f"mp_filename2 Set to: {MPFILEVALUE2}")
 
+
 # Load tick data from MQL
 mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks, mv_loadapirates, mv_loadfileticks, mv_loadfilerates, mp_dfName1, mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1, mp_filename2, mp_timeframe)
 
@@ -225,12 +230,17 @@ mv_tdata1apirates=d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1
 mv_tdata1loadticks=d1.wrangle_time(mv_tdata1loadticks, mp_unit,mp_filesrc= "ticks2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True)
 mv_tdata1loadrates=d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True)
 
-#Create the target label column
-mv_tdata1apiticks = d1.create_target(df=mv_tdata1apiticks,lookahead_seconds=mp_seconds,bid_column='T1_Bid_Price', ask_column='T1_Ask_Price', column_in='T1_Bid_Price',column_out1='close',column_out2='target', run_mode=1)
-mv_tdata1apirates = d1.create_target(df=mv_tdata1apirates,lookahead_seconds=mp_seconds,bid_column='R1_Bid_Price', ask_column='R1_Ask_Price', column_in='R1_Close',column_out1='close',column_out2='target', run_mode=2)
-mv_tdata1loadticks = d1.create_target(df=mv_tdata1loadticks,lookahead_seconds=mp_seconds,bid_column='T2_Bid_Price', ask_column='T2_Ask_Price', column_in='T2_Bid_Price',column_out1='close',column_out2='target', run_mode=3)
-mv_tdata1loadrates = d1.create_target(df=mv_tdata1loadrates,lookahead_seconds=mp_seconds,bid_column='R2_Bid_Price', ask_column='R2_Ask_Price', column_in='R2_Close',column_out1='close',column_out2='target', run_mode=4)
+shiftin=1
+mp_mawindowin=14 # 14 days typical indicator window
+#Create the target label column  and close column with or without avg for tick and rates data
+mv_tdata1apiticks = d1.create_target(df=mv_tdata1apiticks,lookahead_seconds=mp_seconds,mawindowin=mp_mawindowin,bid_column='T1_Bid_Price', ask_column='T1_Ask_Price', column_in='T1_Bid_Price',column_out1='close',column_out2='target', open_column='R1_Open',high_column='R1_High',low_column='R1_Low',close_column='R1_Close',run_mode=1,runavg=False,runma=False,logstationary=False,acol1='HLAvg',acol2='MA',acol3='Returns',shiftin=shiftin)
+mv_tdata1apirates = d1.create_target(df=mv_tdata1apirates,lookahead_seconds=mp_seconds,mawindowin=mp_mawindowin,bid_column='R1_Bid_Price', ask_column='R1_Ask_Price', column_in='R1_Close',column_out1='close',column_out2='target', open_column='R1_Open',high_column='R1_High',low_column='R1_Low',close_column='R1_Close',run_mode=2,runavg=True,runma=True,logstationary=False,acol1='HLAvg',acol2='MA',acol3='Returns',shiftin=shiftin)
+mv_tdata1loadticks = d1.create_target(df=mv_tdata1loadticks,lookahead_seconds=mp_seconds,mawindowin=mp_mawindowin,bid_column='T2_Bid_Price', ask_column='T2_Ask_Price', column_in='T2_Bid_Price',column_out1='close',column_out2='target', open_column='R2_Open',high_column='R2_High',low_column='R2_Low',close_column='R2_Close',run_mode=3,runavg=False,runma=False,logstationary=False,acol1='HLAvg',acol2='MA',acol3='Returns',shiftin=shiftin)
+mv_tdata1loadrates = d1.create_target(df=mv_tdata1loadrates,lookahead_seconds=mp_seconds,mawindowin=mp_mawindowin,bid_column='R2_Bid_Price', ask_column='R2_Ask_Price', column_in='R2_Close',column_out1='close',column_out2='target', open_column='R2_Open',high_column='R2_High',low_column='R2_Low',close_column='R2_Close',run_mode=4,runavg=True,runma=True,logstationary=False,acol1='HLAvg',acol2='MA',acol3='Returns',shiftin=shiftin)
 
+
+
+# print shapes of data
 print("SHAPE0: mv_tdata1apiticks shape:", mv_tdata1apiticks.shape, "mv_tdata1apiticks.shape[0] :", mv_tdata1apiticks.shape[0], "mv_tdata1apiticks.shape[1] :", mv_tdata1apiticks.shape[1])  
 print("SHAPE0: mv_tdata1apirates shape:", mv_tdata1apirates.shape, "mv_tdata1apirates.shape[0] :", mv_tdata1apirates.shape[0], "mv_tdata1apirates.shape[1] :", mv_tdata1apirates.shape[1])
 print("SHAPE0: mv_tdata1loadticks shape:", mv_tdata1loadticks.shape, "mv_tdata1loadticks.shape[0] :", mv_tdata1loadticks.shape[0], "mv_tdata1loadticks.shape[1] :", mv_tdata1loadticks.shape[1])
@@ -296,24 +306,49 @@ print("SHAPE: mv_y_tdata2 shape:", mv_y_tdata2.shape)
 # increasing it over time. This is referred to as roll-forwardpartitioning.
 #
 # +-------------------------------------------------------------------
+# Batch size alignment   
+# +-------------------------------------------------------------------
+batch_size = mp_batch_size
+mv_X_tdata2 = mv_X_tdata2[mv_X_tdata2.shape[0] % batch_size:]
+mv_y_tdata2 = mv_y_tdata2[mv_y_tdata2.shape[0] % batch_size:]
+print("Batch size alignment: mv_X_tdata2 shape:", mv_X_tdata2.shape, "mv_y_tdata2 shape:", mv_y_tdata2.shape)
+
+# batch size constraint to reduce the complexity of the arithmetic required when working with the LSTM model.
+
+# +-------------------------------------------------------------------
 # Split the data into training and test sets through sequences
 # +-------------------------------------------------------------------
-m1 = CMqlmlsetup()
+#Note that val_size, test_size and window_size are also all multiples of batch_size
+total_size = len(mv_X_tdata2)
+batched_total_size = total_size - total_size % batch_size   # Ensure total_size is a multiple of batch_size
+print("total_size:",total_size, "batched_total_size:",batched_total_size)
 mp_train_split = 0.7
 mp_validation_split = 0.2
 mp_test_split = 0.1
-mp_gap=1-mp_test_split
+
+train_size = int(batched_total_size * mp_train_split)
+val_size = int(batched_total_size * mp_validation_split)
+test_size = batched_total_size - train_size - val_size
+print("train_size:",train_size, "val_size:",val_size, "test_size:",test_size)
+
+# init object
+m1 = CMqlmlsetup()
 mp_shuffle = False
+shiftin=1
+shiftout=1
+# Split the data into training and test sets
 
-n = len(mv_X_tdata2)
-X_train = mv_X_tdata2[0:int(n*mp_train_split)] #features close
-y_train = mv_y_tdata2[0:int(n*mp_train_split)] #labels target
+X_train = mv_X_tdata2[0:int(train_size)] #features close
+y_train = mv_y_tdata2[0:int(train_size)] #labels target
 
-X_val = mv_X_tdata2[int(n*mp_train_split):int(n*mp_gap)]
-y_val = mv_y_tdata2[int(n*mp_train_split):int(n*mp_gap)]
+X_val = mv_X_tdata2[int(val_size)]
+y_val = mv_y_tdata2[int(val_size)]
 
-X_test = mv_X_tdata2[int(n*mp_gap):]
-y_test = mv_y_tdata2[int(n*mp_gap):]
+X_test = mv_X_tdata2[int(test_size):]
+y_test = mv_y_tdata2[int(test_size):]
+print("len(X_train) ",len(X_train),"len(X_val) " ,len(X_val), "len(X_test)", len(X_test))
+print("len(y_train) ",len(y_train),"len(y_val) " ,len(y_val), "len(y_test)", len(y_test))
+
 # +-------------------------------------------------------------------
 # End Split the data into training and test sets
 # +-------------------------------------------------------------------
@@ -525,7 +560,6 @@ dstestshape_24241 = train_slice_win_X1_i24_o24_l1.shape
 
 print("Final DS shape: train.dataset_24241.shape",dstrainshape_24241, "val.dataset_24241.shape",dsvalshape_24241, "test.dataset_24241.shape",dstestshape_24241)
 
-
 # X 6 x 1 x 1
 shift_size = 100
 window_size=win_X1_i6_o1_l1.total_window_size / (60 * 60 * 2)
@@ -633,8 +667,6 @@ elif winmodel == '6_1_1':
     test_shape = dstestshape_611
 
 print("winmodel:", winmodel,"windowx:", windowx, "windowy:", windowy )
-
-
 
 # Print elements of dswindowx
 print("dswindowx:", dswindowx)

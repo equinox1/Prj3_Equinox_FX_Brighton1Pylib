@@ -337,8 +337,7 @@ class CMqldatasetup:
         return df
 
 
-    def create_target(self, df, lookahead_seconds, bid_column, ask_column,
-                      column_in=None, column_out1='close', column_out2='target', run_mode=1):
+    def create_target(self, df, lookahead_seconds, mawindowin,bid_column, ask_column, column_in=None, column_out1='close', column_out2='target', open_column=None, high_column=None, low_column=None, close_column=None, acol1='HLAvg', acol2='MA', acol3='Returns', shiftin=1, run_mode=1, runavg=False):
 
         """
         Creates a target column in the DataFrame by calculating mid prices or shifting a specified column.
@@ -346,20 +345,35 @@ class CMqldatasetup:
         Parameters:
             df (pd.DataFrame): Input DataFrame containing market data.
             lookahead_seconds (int): Number of seconds to shift for the target.
+            mawindowin (int): Number of periods for the moving average.
             bid_column (str): Name of the column with bid prices.
             ask_column (str): Name of the column with ask prices.
+            open_column (str): Name of the column with open prices.
+            high_column (str): Name of the column with high prices.
+            low_column (str): Name of the column with low prices.
+            close_column (str): Name of the column with close prices.
             column_in (str, optional): Column to use for mid-price calculation (optional).
             column_out1 (str): Name of the output column for the close price (default: 'close').
             column_out2 (str): Name of the output column for the target (default: 'target').
             run_mode (int): Specifies the operation mode (1, 2, 3, or 4).
+            runavg (bool): Whether to calculate the average of bid and ask prices or high and low prices.
+            logstationary (bool): Whether to calculate the log returns of the target column.
+
+
+
+            It is a common practice to use the closing price out of the OHLC prices as the target for regression models.
+            The target is calculated by shifting the closing price by a specified number of seconds into the future.
+
+            Hlavg mode: The average of high and low prices can be used as the target for regression models.
+
 
         Returns:
             pd.DataFrame: DataFrame with the target column added.
 
         Raises:
-            ValueError: If `column_in` is not provided for run modes 2/4.
+            ValueError: If `column_in` is not provided for run modes 1/3 or 2/4.
             ValueError: If `run_mode` is not in {1, 2, 3, 4}.
-         """
+        """
         if not isinstance(df, pd.DataFrame):
             raise TypeError("The input `df` must be a pandas DataFrame.")
         if not isinstance(lookahead_seconds, int) or lookahead_seconds <= 0:
@@ -367,32 +381,64 @@ class CMqldatasetup:
 
         if run_mode in {1, 3}:
             if column_in is None:
-                column_in = 'mid_price'
-                df[column_in] = (df[bid_column] + df[ask_column]) / 2
-                logging.info(f"Mid-price column `{column_in}` calculated.")
+                raise ValueError("`column_in` must be provided for run modes 1 or 3.")
+            if runavg:
+                df[acol1] = (df[bid_column] + df[ask_column]) / 2 # calc HL Avg column and also the close price
+                df[column_in] = df[acol1] # Close price as HLavg
+                if runma:
+                    logging.info(f"Tick Mode:Run Mode: {run_mode} and Run Avg: {runavg} and runma: {runma}")
+                    df[acol2] = df[column_in].rolling(window=mawindowin).mean() #set MA column
+                    df[column_in] = df[acol2] # add MA column to Close price
+                    if logstationary:
+                        df[acol2] = np.log(df[column_in] / df[column_in].shift(1)) # log MA for stationary
+                        df[column_in] = df[acol2] # copy stationary to Close price
+                        logging.info(f"Tick Mode:Run Mode: {run_mode} and Run Avg: {runavg} and runma: {runma} and logstationary: {logstationary}")
+                        if runreturns:
+                            df[acol3] = np.log(df[column_in]/df[column_in].shift(shiftin)) # add Returns column
+                            logging.info(f"Tick Mode:Run Mode: {run_mode} and Run Avg: {runavg} and runma: {runma} and logstationary: {logstationary} and runreturns: {runreturns}")    
+                
+                df[column_out1] = df[column_in] # Close price
+                logging.info(f"Tick Mode: Avg Mid-price column `{column_in}` calculated.")
+            else:
+                df[column_in] = (df[bid_column] + df[ask_column]) / 2 # Close price
+                logging.info(f"Tick Mode: Mid-price column `{column_in}` calculated.")
 
-            df[column_out1] = df[column_in]
-            df[column_out2] = df[column_in].shift(-lookahead_seconds)
-
-            logging.info("Target column created for run mode 1 or 3.")
+            df[column_out1] = df[column_in] # Close price
+            df[column_out2] = df[column_in].shift(-lookahead_seconds) # Target price
+            
+            logging.info(f"Tick Mode: Target column created for run mode {run_mode}. df[column_out1]: {df[column_out1]}, df[column_out2]: {df[column_out2]}, Run Avg: {runavg}")
+            logging.info("Tick Mode: Target column created for run mode 1 or 3.")
 
         elif run_mode in {2, 4}:
             if column_in is None:
                 raise ValueError("`column_in` must be provided for run modes 2 or 4.")
+            if runavg:
+                df[col1] = (df[high_column] + df[low_column]) / 2
+                df[column_in] = df[col1]
+                if runma:
+                    df[col2] = df[column_in].rolling(window=windowin).mean()
+                    df[column_in] = df[col2]
+                    logging.info(f"Rates Run Mode: {run_mode} and Run Avg: {runavg} and runma: {runma}")
+                    if logstationary:
+                        df[col2] = np.log(df[column_in] / df[column_in].shift(1))
+                        df[column_in] = df[col2]
+                        logging.info(f"Rates Run Mode: {run_mode} and Run Avg: {runavg} and runma: {runma} and logstationary: {logstationary}")
+                        if runreturns:
+                            df[col3] = np.log(df[column_in]/df[column_in].shift(shiftin))
+                            logging.info(f"Rates OHLC Mode: Avg Mid-price column `{column_in}` calculated. and runreturns: {runreturns}")
+            else:
+                df[column_out1] = df[close_column] # Close price
+                logging.info(f"Rates OHLC Mode: Close price column `{close_column}` calculated.")
 
-            df[column_out1] = df[column_in]
-            df[column_out2] = df[column_in].shift(-lookahead_seconds)
-            logging.info("Target column created for run mode 2 or 4.")
+            df[column_out1] = df[column_in] # Close price
+            df[column_out2] = df[column_in].shift(-lookahead_seconds) # Target price
+            logging.info(f"Rates OHLC Mode: Target column created for run mode {run_mode}. df[column_out1]: {df[column_out1]}, df[column_out2]: {df[column_out2]}, Run Avg: {runavg}")
+            logging.info("Rates OHLC Mode: Target column created for run mode 2 or 4.")
 
         else:
             raise ValueError(f"Invalid `run_mode`: {run_mode}. Must be one of {{1, 2, 3, 4}}.")
 
-        # Optionally display the last few rows for debugging
-        logging.debug(f"Last 10 rows of the DataFrame:\n{df.tail(10)}")
-
         return df
-
-        
 
 
     # create method  "run_shift_data1()".
@@ -522,4 +568,3 @@ class CMqldatasetup:
     def run_mql_print(self, df, hrows):
         print("Start First few rows of the  data:Count",len(df))
         print(tabulate(df.head(hrows), showindex=False, headers=df.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
-           
