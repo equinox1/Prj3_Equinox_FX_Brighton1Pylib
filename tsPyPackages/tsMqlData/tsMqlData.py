@@ -344,10 +344,10 @@ class CMqldatasetup:
         df["SMA"] = df["SMA"].fillna(method="bfill")  # or "ffill"
         df = df.dropna(subset=["SMA"])
 
-        df['EMA'] = df[column].ewm(span=min_periods).mean()        # Exponential Moving Average with span=5
-        df['CMA'] = df[column].expanding().mean()        # Cumulative Moving Average 
+        #df['EMA'] = df[column].ewm(span=min_periods).mean()        # Exponential Moving Average with span=14
+        #df['CMA'] = df[column].expanding().mean()        # Cumulative Moving Average 
 
-        return df['SMA'], df['EMA'], df['CMA']
+        return df['SMA']
 
     
 
@@ -381,14 +381,15 @@ class CMqldatasetup:
         low_column=None,
         close_column=None,
         hl_avg_col='HLAvg',
-        ma_col='MA',
+        ma_col='SMA',
         returns_col='Returns',
         shift_in=1,
         run_mode=1,
         run_avg=False,
         run_ma=False,
         log_stationary=False,
-        run_returns=False
+        run_returns=False,
+        run_future_returns=False
     ):
         """
         Creates a target column in the DataFrame by calculating mid prices or shifting a specified column.
@@ -415,6 +416,7 @@ class CMqldatasetup:
             run_ma (bool): Whether to calculate the moving average of the input column.
             log_stationary (bool): Whether to calculate log returns for stationarity.
             run_returns (bool): Whether to calculate returns based on the input column.
+            run_future_returns (bool): Whether to calculate future returns based on the input column.
 
         Returns:
             pd.DataFrame: DataFrame with the target column added.
@@ -457,8 +459,8 @@ class CMqldatasetup:
 
         # Apply moving average if required
         if run_ma:
-            df['SMA'], df['EMA'], df['CMA'] = self.calculate_moving_average(df, hl_avg_col, ma_window, min_periods=14)
-            logging.info("Moving averages calculated: SMA, EMA, CMA.")
+            df['SMA']= self.calculate_moving_average(df, hl_avg_col, ma_window, min_periods=14)
+            logging.info("Moving averages calculated: SMA")
 
         # Apply log stationary transformation if required
         if log_stationary:
@@ -469,6 +471,13 @@ class CMqldatasetup:
         if run_returns:
             df[returns_col] = self.calculate_log_returns(df, ma_col, shift_in)
             logging.info("Returns calculated.")
+
+        # Calculate future returns if required
+        if run_future_returns:
+            df[ma_col] = df[ma_col].mul(np.exp(df[returns_col].shift(-1))).shift(1)
+            logging.info("Future Returns calculated.")
+
+        
 
         # Set output columns
         df[column_out1] = df[column_out1] 

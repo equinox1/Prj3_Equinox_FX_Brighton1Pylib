@@ -256,7 +256,8 @@ mv_tdata1apiticks = d1.create_target(
     run_mode=1, 
     run_avg=True, 
     run_ma=True,
-    run_returns=False,
+    run_returns=True,
+    run_future_returns=True,
     log_stationary=False, 
     hl_avg_col='HLAvg', 
     ma_col='SMA', 
@@ -280,7 +281,8 @@ mv_tdata1apirates = d1.create_target(
     run_mode=2, 
     run_avg=True, 
     run_ma=True,
-    run_returns=False,
+    run_returns=True,
+    run_future_returns=True,
     log_stationary=False, 
     hl_avg_col='HLAvg', 
     ma_col='SMA', 
@@ -304,7 +306,8 @@ mv_tdata1loadticks = d1.create_target(
     run_mode=3, 
     run_avg=True, 
     run_ma=True,
-    run_returns=False,
+    run_returns=True,
+    run_future_returns=True,
     log_stationary=False, 
     hl_avg_col='HLAvg', 
     ma_col='SMA', 
@@ -328,7 +331,8 @@ mv_tdata1loadrates = d1.create_target(
     run_mode=4, 
     run_avg=True, 
     run_ma=True,
-    run_returns=False,
+    run_returns=True,
+    run_future_returns=True,
     log_stationary=False, 
     hl_avg_col='HLAvg', 
     ma_col='SMA', 
@@ -336,6 +340,10 @@ mv_tdata1loadrates = d1.create_target(
     shift_in=mp_shiftin
 )
 
+mv_tdata1apiticks.dropna(inplace=True)
+mv_tdata1apirates.dropna(inplace=True)
+mv_tdata1loadticks.dropna(inplace=True)
+mv_tdata1loadrates.dropna(inplace=True)
 
 
 # print shapes of data
@@ -345,10 +353,11 @@ print("SHAPE0: mv_tdata1loadticks shape:", mv_tdata1loadticks.shape, "mv_tdata1l
 print("SHAPE0: mv_tdata1loadrates shape:", mv_tdata1loadrates.shape, "mv_tdata1loadrates.shape[0] :", mv_tdata1loadrates.shape[0], "mv_tdata1loadrates.shape[1] :", mv_tdata1loadrates.shape[1])
 
 # Display the first few rows of the data for verification
-d1.run_mql_print(mv_tdata1apiticks,10)
-d1.run_mql_print(mv_tdata1apirates,10)
-d1.run_mql_print(mv_tdata1loadticks,10)
-d1.run_mql_print(mv_tdata1loadrates,10)
+rows = 100
+d1.run_mql_print(mv_tdata1apiticks,rows)
+d1.run_mql_print(mv_tdata1apirates,rows)
+d1.run_mql_print(mv_tdata1loadticks,rows)
+d1.run_mql_print(mv_tdata1loadrates,rows)
 
 # +-------------------------------------------------------------------
 # Prepare and process the data
