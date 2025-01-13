@@ -271,7 +271,6 @@ class CMqldatasetup:
         
         conv_columns = {
             'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 's', 'b'),
-            'ticks1': ('T1_Time_Msc', '%Y%m%d %H:%M:%S.%f', 's', 'b'),
             'rates1': ('R1_Date', '%Y%m%d %H:%M:%S.%f', 's', 'b'),
             'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
             'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
@@ -337,15 +336,67 @@ class CMqldatasetup:
         return df
 
 
-    def create_target(self, df, lookahead_seconds, mawindowin,bid_column, ask_column, column_in=None, column_out1='close', column_out2='target', open_column=None, high_column=None, low_column=None, close_column=None, acol1='HLAvg', acol2='MA', acol3='Returns', shiftin=1, run_mode=1, runavg=False):
 
+    def calculate_moving_average(self,df, column, window,min_periods=1):
+        print("Calculating moving average for column:", column, " with window:", window)
+        # Calculate Moving Averages
+        df['SMA'] = df[column].rolling(window=min_periods).mean()  # 14-day Simple Moving Average
+        df["SMA"] = df["SMA"].fillna(method="bfill")  # or "ffill"
+        df = df.dropna(subset=["SMA"])
+
+        df['EMA'] = df[column].ewm(span=min_periods).mean()        # Exponential Moving Average with span=5
+        df['CMA'] = df[column].expanding().mean()        # Cumulative Moving Average 
+
+        return df['SMA'], df['EMA'], df['CMA']
+
+    
+
+    def calculate_log_returns(self, df, column, shift):
+        print("Calculating log returns for column:", column, "with shift:", shift)
+        # Check for valid values
+        if df[column].isna().sum() > 0:
+            print("Warning: Column contains NaN values. Filling missing values.")
+            df[column] = df[column].fillna(method='ffill')
+
+        if (df[column] <= 0).sum() > 0:
+            raise ValueError(f"Column '{column}' contains non-positive values, which are invalid for log returns.")
+
+        # Ensure shift is applied before calculating log returns
+        shifted_column = df[column].shift(shift)
+        return np.log(df[column] / shifted_column).dropna()
+
+
+    def create_target(
+        self,
+        df,
+        lookahead_periods,
+        ma_window,
+        bid_column,
+        ask_column,
+        column_in=None,
+        column_out1='close',
+        column_out2='target',
+        open_column=None,
+        high_column=None,
+        low_column=None,
+        close_column=None,
+        hl_avg_col='HLAvg',
+        ma_col='MA',
+        returns_col='Returns',
+        shift_in=1,
+        run_mode=1,
+        run_avg=False,
+        run_ma=False,
+        log_stationary=False,
+        run_returns=False
+    ):
         """
         Creates a target column in the DataFrame by calculating mid prices or shifting a specified column.
 
         Parameters:
             df (pd.DataFrame): Input DataFrame containing market data.
-            lookahead_seconds (int): Number of seconds to shift for the target.
-            mawindowin (int): Number of periods for the moving average.
+            lookahead_periods (int): Number of seconds to shift for the target.
+            ma_window (int): Number of periods for the moving average.
             bid_column (str): Name of the column with bid prices.
             ask_column (str): Name of the column with ask prices.
             open_column (str): Name of the column with open prices.
@@ -355,17 +406,15 @@ class CMqldatasetup:
             column_in (str, optional): Column to use for mid-price calculation (optional).
             column_out1 (str): Name of the output column for the close price (default: 'close').
             column_out2 (str): Name of the output column for the target (default: 'target').
+            hl_avg_col (str): Column name for high-low average (default: 'HLAvg').
+            ma_col (str): Column name for moving average (default: 'MA').
+            returns_col (str): Column name for returns (default: 'Returns').
+            shift_in (int): Number of periods to shift for returns calculation (default: 1).
             run_mode (int): Specifies the operation mode (1, 2, 3, or 4).
-            runavg (bool): Whether to calculate the average of bid and ask prices or high and low prices.
-            logstationary (bool): Whether to calculate the log returns of the target column.
-
-
-
-            It is a common practice to use the closing price out of the OHLC prices as the target for regression models.
-            The target is calculated by shifting the closing price by a specified number of seconds into the future.
-
-            Hlavg mode: The average of high and low prices can be used as the target for regression models.
-
+            run_avg (bool): Whether to calculate the average of bid and ask prices or high and low prices.
+            run_ma (bool): Whether to calculate the moving average of the input column.
+            log_stationary (bool): Whether to calculate log returns for stationarity.
+            run_returns (bool): Whether to calculate returns based on the input column.
 
         Returns:
             pd.DataFrame: DataFrame with the target column added.
@@ -374,71 +423,60 @@ class CMqldatasetup:
             ValueError: If `column_in` is not provided for run modes 1/3 or 2/4.
             ValueError: If `run_mode` is not in {1, 2, 3, 4}.
         """
+
         if not isinstance(df, pd.DataFrame):
-            raise TypeError("The input `df` must be a pandas DataFrame.")
-        if not isinstance(lookahead_seconds, int) or lookahead_seconds <= 0:
-            raise ValueError("The `lookahead_seconds` must be a positive integer.")
+            raise TypeError("The input `data` must be a pandas DataFrame.")
+        if not isinstance(lookahead_periods, int) or lookahead_periods <= 0:
+            raise ValueError("The `lookahead_periods` must be a positive integer.")
 
-        if run_mode in {1, 3}:
-            if column_in is None:
-                raise ValueError("`column_in` must be provided for run modes 1 or 3.")
-            if runavg:
-                df[acol1] = (df[bid_column] + df[ask_column]) / 2 # calc HL Avg column and also the close price
-                df[column_in] = df[acol1] # Close price as HLavg
-                if runma:
-                    logging.info(f"Tick Mode:Run Mode: {run_mode} and Run Avg: {runavg} and runma: {runma}")
-                    df[acol2] = df[column_in].rolling(window=mawindowin).mean() #set MA column
-                    df[column_in] = df[acol2] # add MA column to Close price
-                    if logstationary:
-                        df[acol2] = np.log(df[column_in] / df[column_in].shift(1)) # log MA for stationary
-                        df[column_in] = df[acol2] # copy stationary to Close price
-                        logging.info(f"Tick Mode:Run Mode: {run_mode} and Run Avg: {runavg} and runma: {runma} and logstationary: {logstationary}")
-                        if runreturns:
-                            df[acol3] = np.log(df[column_in]/df[column_in].shift(shiftin)) # add Returns column
-                            logging.info(f"Tick Mode:Run Mode: {run_mode} and Run Avg: {runavg} and runma: {runma} and logstationary: {logstationary} and runreturns: {runreturns}")    
-                
-                df[column_out1] = df[column_in] # Close price
-                logging.info(f"Tick Mode: Avg Mid-price column `{column_in}` calculated.")
+        if run_mode not in {1, 2, 3, 4}:
+            raise ValueError("`run_mode` must be one of {1, 2, 3, 4}.")
+
+        if run_mode in {1, 3} and column_in is None:
+            raise ValueError("`column_in` must be provided for run modes 1 or 3.")
+
+        if run_mode in {2, 4} and column_in is None:
+            raise ValueError("`column_in` must be provided for run modes 2 or 4.")
+
+        # Calculate base column based on run mode
+        if run_mode in {1, 3}:  # Bid-ask average
+            if run_avg:
+                df[column_out1] =(df[bid_column] + df[ask_column]) / 2
+                df[hl_avg_col] = (df[bid_column] + df[ask_column]) / 2
+                logging.info("Bid-ask average calculated.")
             else:
-                df[column_in] = (df[bid_column] + df[ask_column]) / 2 # Close price
-                logging.info(f"Tick Mode: Mid-price column `{column_in}` calculated.")
+                df[column_out1] = (df[bid_column] + df[ask_column]) / 2
 
-            df[column_out1] = df[column_in] # Close price
-            df[column_out2] = df[column_in].shift(-lookahead_seconds) # Target price
-            
-            logging.info(f"Tick Mode: Target column created for run mode {run_mode}. df[column_out1]: {df[column_out1]}, df[column_out2]: {df[column_out2]}, Run Avg: {runavg}")
-            logging.info("Tick Mode: Target column created for run mode 1 or 3.")
-
-        elif run_mode in {2, 4}:
-            if column_in is None:
-                raise ValueError("`column_in` must be provided for run modes 2 or 4.")
-            if runavg:
-                df[col1] = (df[high_column] + df[low_column]) / 2
-                df[column_in] = df[col1]
-                if runma:
-                    df[col2] = df[column_in].rolling(window=windowin).mean()
-                    df[column_in] = df[col2]
-                    logging.info(f"Rates Run Mode: {run_mode} and Run Avg: {runavg} and runma: {runma}")
-                    if logstationary:
-                        df[col2] = np.log(df[column_in] / df[column_in].shift(1))
-                        df[column_in] = df[col2]
-                        logging.info(f"Rates Run Mode: {run_mode} and Run Avg: {runavg} and runma: {runma} and logstationary: {logstationary}")
-                        if runreturns:
-                            df[col3] = np.log(df[column_in]/df[column_in].shift(shiftin))
-                            logging.info(f"Rates OHLC Mode: Avg Mid-price column `{column_in}` calculated. and runreturns: {runreturns}")
+        elif run_mode in {2, 4}:  # High-low average
+            if run_avg:
+                df[column_out1] = (df[high_column] + df[low_column]) / 2
+                df[hl_avg_col] = (df[high_column] + df[low_column]) / 2
+                logging.info("High-low average calculated.")
             else:
-                df[column_out1] = df[close_column] # Close price
-                logging.info(f"Rates OHLC Mode: Close price column `{close_column}` calculated.")
+                df[column_out1] = df[close_column]
 
-            df[column_out1] = df[column_in] # Close price
-            df[column_out2] = df[column_in].shift(-lookahead_seconds) # Target price
-            logging.info(f"Rates OHLC Mode: Target column created for run mode {run_mode}. df[column_out1]: {df[column_out1]}, df[column_out2]: {df[column_out2]}, Run Avg: {runavg}")
-            logging.info("Rates OHLC Mode: Target column created for run mode 2 or 4.")
+        # Apply moving average if required
+        if run_ma:
+            df['SMA'], df['EMA'], df['CMA'] = self.calculate_moving_average(df, hl_avg_col, ma_window, min_periods=14)
+            logging.info("Moving averages calculated: SMA, EMA, CMA.")
 
-        else:
-            raise ValueError(f"Invalid `run_mode`: {run_mode}. Must be one of {{1, 2, 3, 4}}.")
+        # Apply log stationary transformation if required
+        if log_stationary:
+            df[ma_col] = self.calculate_log_returns(df, ma_col, 1)
+            logging.info("Log stationary transformation applied.")
+
+        # Calculate returns if required
+        if run_returns:
+            df[returns_col] = self.calculate_log_returns(df, ma_col, shift_in)
+            logging.info("Returns calculated.")
+
+        # Set output columns
+        df[column_out1] = df[column_out1] 
+        df[column_out2] = df[column_in].shift(-lookahead_periods)
+        logging.info("Target column created.")
 
         return df
+
 
 
     # create method  "run_shift_data1()".
