@@ -92,6 +92,8 @@ MPDATAFILE2 =  "ratesdata1.csv"
 #By convention can take a value between 2 to 32, called a mini batch. Other common values are 64 and 128
 #The larger it is, the faster to train over a GPU. However, as downside, this results in more training error than a smaller batch
 mp_batch_size = 32
+mp_period24 = 24
+mp_period6 = 6
 
 # Set the shape of the data
 mp_shape=4 # rows, batches, timesteps, features
@@ -115,11 +117,13 @@ print("1:mp_shiftvalue: ", mp_shiftvalue)
 mp_unit = constants['UNIT'][0]
 print("1:mp_unit: ", mp_unit)
 mp_seconds = constants['TIMEVALUE']['SECONDS']
+print("1:mp_seconds: ", mp_seconds)
 mp_minutes = constants['TIMEVALUE']['MINUTES']
+print("1:mp_minutes: ", mp_minutes)
 mp_hours = constants['TIMEVALUE']['HOURS']
+print("1:mp_hours: ", mp_hours)
 mp_days = constants['TIMEVALUE']['DAYS']
 
-print("1:mp_seconds: ", mp_seconds)
 mp_timezone = constants['TIMEZONES'][0]
 print("1:mp_timezone: ", mp_timezone)
 mp_timeframe = constants['TIMEFRAME']['H4']
@@ -230,13 +234,107 @@ mv_tdata1apirates=d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1
 mv_tdata1loadticks=d1.wrangle_time(mv_tdata1loadticks, mp_unit,mp_filesrc= "ticks2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True)
 mv_tdata1loadrates=d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True)
 
-shiftin=1
+mp_shiftin=1
 mp_mawindowin=14 # 14 days typical indicator window
+mp_period=24 # 24 hours
 #Create the target label column  and close column with or without avg for tick and rates data
-mv_tdata1apiticks = d1.create_target(df=mv_tdata1apiticks,lookahead_seconds=mp_seconds,mawindowin=mp_mawindowin,bid_column='T1_Bid_Price', ask_column='T1_Ask_Price', column_in='T1_Bid_Price',column_out1='close',column_out2='target', open_column='R1_Open',high_column='R1_High',low_column='R1_Low',close_column='R1_Close',run_mode=1,runavg=False,runma=False,logstationary=False,acol1='HLAvg',acol2='MA',acol3='Returns',shiftin=shiftin)
-mv_tdata1apirates = d1.create_target(df=mv_tdata1apirates,lookahead_seconds=mp_seconds,mawindowin=mp_mawindowin,bid_column='R1_Bid_Price', ask_column='R1_Ask_Price', column_in='R1_Close',column_out1='close',column_out2='target', open_column='R1_Open',high_column='R1_High',low_column='R1_Low',close_column='R1_Close',run_mode=2,runavg=True,runma=True,logstationary=False,acol1='HLAvg',acol2='MA',acol3='Returns',shiftin=shiftin)
-mv_tdata1loadticks = d1.create_target(df=mv_tdata1loadticks,lookahead_seconds=mp_seconds,mawindowin=mp_mawindowin,bid_column='T2_Bid_Price', ask_column='T2_Ask_Price', column_in='T2_Bid_Price',column_out1='close',column_out2='target', open_column='R2_Open',high_column='R2_High',low_column='R2_Low',close_column='R2_Close',run_mode=3,runavg=False,runma=False,logstationary=False,acol1='HLAvg',acol2='MA',acol3='Returns',shiftin=shiftin)
-mv_tdata1loadrates = d1.create_target(df=mv_tdata1loadrates,lookahead_seconds=mp_seconds,mawindowin=mp_mawindowin,bid_column='R2_Bid_Price', ask_column='R2_Ask_Price', column_in='R2_Close',column_out1='close',column_out2='target', open_column='R2_Open',high_column='R2_High',low_column='R2_Low',close_column='R2_Close',run_mode=4,runavg=True,runma=True,logstationary=False,acol1='HLAvg',acol2='MA',acol3='Returns',shiftin=shiftin)
+# Define the configurations for each data set processing
+
+mv_tdata1apiticks = d1.create_target(
+    df=mv_tdata1apiticks,  # Explicitly name this argument
+    lookahead_periods=mp_period, 
+    ma_window=mp_mawindowin,
+    bid_column='T1_Bid_Price', 
+    ask_column='T1_Ask_Price',
+    column_in='T1_Bid_Price', 
+    column_out1='close', 
+    column_out2='target',
+    open_column='R1_Open', 
+    high_column='R1_High', 
+    low_column='R1_Low',
+    close_column='R1_Close', 
+    run_mode=1, 
+    run_avg=True, 
+    run_ma=True,
+    run_returns=False,
+    log_stationary=False, 
+    hl_avg_col='HLAvg', 
+    ma_col='SMA', 
+    returns_col='Returns',
+    shift_in=mp_shiftin
+)
+
+mv_tdata1apirates = d1.create_target(
+    df=mv_tdata1apirates,  # Explicitly name this argument
+    lookahead_periods=mp_period, 
+    ma_window=mp_mawindowin,
+    bid_column='R1_Bid_Price', 
+    ask_column='R1_Ask_Price',
+    column_in='R1_Close', 
+    column_out1='close', 
+    column_out2='target',
+    open_column='R1_Open', 
+    high_column='R1_High', 
+    low_column='R1_Low',
+    close_column='R1_Close', 
+    run_mode=2, 
+    run_avg=True, 
+    run_ma=True,
+    run_returns=False,
+    log_stationary=False, 
+    hl_avg_col='HLAvg', 
+    ma_col='SMA', 
+    returns_col='Returns',
+    shift_in=mp_shiftin
+)
+
+mv_tdata1loadticks = d1.create_target(
+    df=mv_tdata1loadticks,  # Explicitly name this argument
+    lookahead_periods=mp_period, 
+    ma_window=mp_mawindowin,
+    bid_column='T2_Bid_Price', 
+    ask_column='T2_Ask_Price',
+    column_in='T2_Bid_Price', 
+    column_out1='close', 
+    column_out2='target',
+    open_column='R2_Open', 
+    high_column='R2_High', 
+    low_column='R2_Low',
+    close_column='R2_Close', 
+    run_mode=3, 
+    run_avg=True, 
+    run_ma=True,
+    run_returns=False,
+    log_stationary=False, 
+    hl_avg_col='HLAvg', 
+    ma_col='SMA', 
+    returns_col='Returns',
+    shift_in=mp_shiftin
+)
+
+mv_tdata1loadrates = d1.create_target(
+    df=mv_tdata1loadrates,  # Explicitly name this argument
+    lookahead_periods=mp_period, 
+    ma_window=mp_mawindowin,
+    bid_column='R2_Bid_Price', 
+    ask_column='R2_Ask_Price',
+    column_in='R2_Close', 
+    column_out1='close', 
+    column_out2='target',
+    open_column='R2_Open', 
+    high_column='R2_High', 
+    low_column='R2_Low',
+    close_column='R2_Close', 
+    run_mode=4, 
+    run_avg=True, 
+    run_ma=True,
+    run_returns=False,
+    log_stationary=False, 
+    hl_avg_col='HLAvg', 
+    ma_col='SMA', 
+    returns_col='Returns',
+    shift_in=mp_shiftin
+)
 
 
 
@@ -341,11 +439,11 @@ shiftout=1
 X_train = mv_X_tdata2[0:int(train_size)] #features close
 y_train = mv_y_tdata2[0:int(train_size)] #labels target
 
-X_val = mv_X_tdata2[int(val_size)]
-y_val = mv_y_tdata2[int(val_size)]
+X_val = mv_X_tdata2[int(train_size):int(train_size) + int(val_size)]
+y_val = mv_y_tdata2[int(train_size):int(train_size) + int(val_size)]
 
-X_test = mv_X_tdata2[int(test_size):]
-y_test = mv_y_tdata2[int(test_size):]
+X_test = mv_X_tdata2[int(train_size) + int(val_size):]
+y_test = mv_y_tdata2[int(train_size) + int(val_size):]
 print("len(X_train) ",len(X_train),"len(X_val) " ,len(X_val), "len(X_test)", len(X_test))
 print("len(y_train) ",len(y_train),"len(y_val) " ,len(y_val), "len(y_test)", len(y_test))
 
