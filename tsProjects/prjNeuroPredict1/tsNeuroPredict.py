@@ -465,22 +465,23 @@ print("len(y_train) ",len(y_train),"len(y_val) " ,len(y_val), "len(y_test)", len
 # +-------------------------------------------------------------------
 
 # Normalize the data via MaxMinScaler
-scaler = MinMaxScaler()
-return_col = 'SMA'
-X_train = scaler.fit_transform(X_train[[return_col]].values)
-X_val = scaler.transform(X_val[[return_col]].values)
-X_test = scaler.transform(X_test[[return_col]].values)
+#scaler = MinMaxScaler()
+#return_col = 'SMA'
+#X_train = scaler.fit_transform(X_train[[return_col]].values)
+#X_val = scaler.transform(X_val[[return_col]].values)
+#X_test = scaler.transform(X_test[[return_col]].values)
 
 #y_train = scaler.fit_transform(y_train[return_col].values)
 #y_val = scaler.transform(y_val[return_col].values)
 #y_test = scaler.transform(y_test[return_col].values)
 
 
-X_train = pd.DataFrame(X_train, columns=[return_col], index=mv_X_tdata2.index[0:int(train_size)])
-X_val = pd.DataFrame(X_val, columns=[return_col], index=mv_X_tdata2.index[int(train_size):int(train_size) + int(val_size)])
-X_test = pd.DataFrame(X_test, columns=[return_col], index=mv_X_tdata2.index[int(train_size) + int(val_size):])
-print("X_train.head()",X_train.head())
+#X_train = pd.DataFrame(X_train, columns=[return_col], index=mv_X_tdata2.index[0:int(train_size)])
+#X_val = pd.DataFrame(X_val, columns=[return_col], index=mv_X_tdata2.index[int(train_size):int(train_size) + int(val_size)])
+#X_test = pd.DataFrame(X_test, columns=[return_col], index=mv_X_tdata2.index[int(train_size) + int(val_size):])
 
+d1.run_mql_print(X_train,10)
+print("X_train.dtypes",X_train.dtypes)
 
 """
 # +-------------------------------------------------------------------
