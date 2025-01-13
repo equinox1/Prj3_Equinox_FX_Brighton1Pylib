@@ -534,8 +534,8 @@ class CMqldatasetup:
         return X, y
 
 
-        #Time series data TEMPORIAN
-        # create method  "run_load_from_mql()".
+    #Time series data TEMPORIAN
+    # create method  "run_load_from_mql()".
     # class: cmqldatasetup      
     # usage: mql data
     # /param  var                          
