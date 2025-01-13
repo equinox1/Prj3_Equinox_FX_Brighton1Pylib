@@ -237,6 +237,7 @@ mv_tdata1loadrates=d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rate
 mp_shiftin=1
 mp_mawindowin=14 # 14 days typical indicator window
 mp_period=24 # 24 hours
+mp_returncol='Returns'
 #Create the target label column  and close column with or without avg for tick and rates data
 # Define the configurations for each data set processing
 
@@ -353,7 +354,7 @@ print("SHAPE0: mv_tdata1loadticks shape:", mv_tdata1loadticks.shape, "mv_tdata1l
 print("SHAPE0: mv_tdata1loadrates shape:", mv_tdata1loadrates.shape, "mv_tdata1loadrates.shape[0] :", mv_tdata1loadrates.shape[0], "mv_tdata1loadrates.shape[1] :", mv_tdata1loadrates.shape[1])
 
 # Display the first few rows of the data for verification
-rows = 100
+rows = 10
 d1.run_mql_print(mv_tdata1apiticks,rows)
 d1.run_mql_print(mv_tdata1apirates,rows)
 d1.run_mql_print(mv_tdata1loadticks,rows)
@@ -462,32 +463,26 @@ print("len(y_train) ",len(y_train),"len(y_val) " ,len(y_val), "len(y_test)", len
 # +-------------------------------------------------------------------
 # Normalize the data
 # +-------------------------------------------------------------------
-X_train_mean = X_train.mean()
-X_train_std = X_train.std()
 
-y_train_mean = y_train.mean()
-y_train_std = y_train.std()
+# Normalize the data via MaxMinScaler
+scaler = MinMaxScaler()
+return_col = 'SMA'
+X_train = scaler.fit_transform(X_train[[return_col]].values)
+X_val = scaler.transform(X_val[[return_col]].values)
+X_test = scaler.transform(X_test[[return_col]].values)
 
-X_val_mean = X_val.mean()
-X_val_std = X_val.std()
+#y_train = scaler.fit_transform(y_train[return_col].values)
+#y_val = scaler.transform(y_val[return_col].values)
+#y_test = scaler.transform(y_test[return_col].values)
 
-y_val_mean = y_val.mean()
-y_val_std = y_val.std()
 
-X_test_mean = X_test.mean()
-X_test_std = X_test.std()
+X_train = pd.DataFrame(X_train, columns=[return_col], index=mv_X_tdata2.index[0:int(train_size)])
+X_val = pd.DataFrame(X_val, columns=[return_col], index=mv_X_tdata2.index[int(train_size):int(train_size) + int(val_size)])
+X_test = pd.DataFrame(X_test, columns=[return_col], index=mv_X_tdata2.index[int(train_size) + int(val_size):])
+print("X_train.head()",X_train.head())
 
-y_test_mean = y_test.mean()
-y_test_std = y_test.std()
 
-X_train = (X_train - X_train_mean) / X_train_std
-X_val = (X_val - X_train_mean) / X_train_std
-X_test = (X_test - X_train_mean) / X_train_std
-
-y_train = (y_train - y_train_mean) / y_train_std
-y_val = (y_val - y_train_mean) / y_train_std
-y_test = (y_test - y_train_mean) / y_train_std
-
+"""
 # +-------------------------------------------------------------------
 # End Normalize the data
 # +-------------------------------------------------------------------
@@ -1087,3 +1082,4 @@ from onnx import checker
 checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
+"""
