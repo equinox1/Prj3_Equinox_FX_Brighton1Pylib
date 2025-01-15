@@ -58,6 +58,8 @@ class CMqldatasetup:
         self.lp_seconds = kwargs.get('lp_seconds', None)
         self.lp_timeframe = kwargs.get('lp_timeframe', 'mt5.TIMEFRAME_M1')
         self.lp_run = kwargs.get('lp_run', 1)
+        
+
        
        
     logging.basicConfig(level=logging.INFO)
@@ -421,7 +423,9 @@ class CMqldatasetup:
         run_ma=False,
         log_stationary=False,
         run_returns=False,
-        run_future_returns=False
+        run_future_returns=False,
+        remove_zeros=False,
+        rownumber=False
     ):
         """
         Creates a target column in the DataFrame by calculating mid prices or shifting a specified column.
@@ -475,7 +479,7 @@ class CMqldatasetup:
         # Calculate base column based on run mode
         if run_mode in {1, 3}:  # Bid-ask average
             if run_avg:
-                df[column_out1] =(df[bid_column] + df[ask_column]) / 2
+                df[column_out1] = (df[bid_column] + df[ask_column]) / 2
                 df[hl_avg_col] = (df[bid_column] + df[ask_column]) / 2
                 logging.info("Bid-ask average calculated.")
             else:
@@ -491,7 +495,7 @@ class CMqldatasetup:
 
         # Apply moving average if required
         if run_ma:
-            df['SMA']= self.calculate_moving_average(df, hl_avg_col, ma_window, min_periods=14)
+            df[ma_col] = self.calculate_moving_average(df, hl_avg_col, ma_window, min_periods=14)
             logging.info("Moving averages calculated: SMA")
 
         # Apply log stationary transformation if required
@@ -510,12 +514,19 @@ class CMqldatasetup:
             logging.info("Future Returns calculated.")
 
         # Set output columns
-        df[column_out1] = df[column_out1] 
         df[column_out2] = df[column_in].shift(-lookahead_periods)
+        df.dropna(inplace=True)
         logging.info("Target column created.")
 
-        return df
+        if remove_zeros:
+            if returns_col in df.columns:
+                df = df[df[returns_col] != 0]
+        if rownumber:
+            df['RowNumber'] = range(1, len(df) + 1)
+            # Rearrange columns if needed
+            df = df[['RowNumber'] + list(df.columns[:-1])]
 
+        return df
 
 
     # create method  "run_shift_data1()".
@@ -645,7 +656,7 @@ class CMqldatasetup:
 
 
 
-    def run_mql_print(self, df, hrows,colwidth):
+    def run_mql_print(self, df, hrows,colwidth,tablefmt = "pretty",floatfmt = ".5f",numalign = "left",stralign = "left"):
         print("Start First few rows of the data: Count", len(df))
         
         # Wrap long text in columns
@@ -658,9 +669,16 @@ class CMqldatasetup:
             df.head(hrows), 
             showindex=False,
             headers=df.columns,
-            tablefmt="pretty",
+            tablefmt="pretty", # "plain", "grid", "pipe", "orgtbl", "jira", "presto", "pretty", "psql", "rst", "mediawiki", "moinmoin", "youtrack", "html", "unsafehtml", "latex", "latex_raw", "latex_booktabs", "textile"
             numalign="left",
             stralign="left", 
             maxcolwidths=[colwidth] * len(df.columns),  # Limit column widths to 10
-            floatfmt=".1f"
+            floatfmt=".5f"
         ))
+
+
+
+    # Reorder columns to move the target column to the end
+    def move_col_to_end(self,df, last_col):
+        cols = [col for col in df.columns if col != last_col] + [last_col]
+        return df[cols]

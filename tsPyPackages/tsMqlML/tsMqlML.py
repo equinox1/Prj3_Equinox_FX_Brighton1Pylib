@@ -442,4 +442,14 @@ class CMqlWindowGenerator():
                 print(f"Merge issue y: {y.shape}")
     
         return df
+
+    def convert_raw_samples_to_model_samples(scd_log_rtns, window_size):
+    X, y = [], []
+    len_log_rtns = len(scd_log_rtns)
+    for i in range(window_size, len_log_rtns):
+        X.append(values[i-window_size:i])
+        y.append(values[i])
+    X, y = np.asarray(X), np.asarray(y)
+    X = np.reshape(X, (X.shape[0], X.shape[1], 1))
+    return X, y
     

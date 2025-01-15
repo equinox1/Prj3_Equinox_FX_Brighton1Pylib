@@ -70,7 +70,7 @@ if gpus:
 # +-------------------------------------------------------------------
 loadtensor = True
 loadtemporian = False
-winmodel = '24_24_1' # '24_24_1' or '6_1_1'
+winmodel = '6_1_1' # '24_24_1' or '6_1_1'
 broker = "METAQUOTES" # "ICM" or "METAQUOTES"
 mp_test = False
 show_dtype = False
@@ -86,9 +86,9 @@ mp_rowcount = 10000
 MPDATAFILE1 =  "tickdata1.csv"
 MPDATAFILE2 =  "ratesdata1.csv"
 
-#Batch size is the number of model samples used in the training of a neural network before the gradient gets updated.
-#The batch size is a hyperparameter that defines the number of samples to work through before updating the internal model parameters.
-#The batch size is a number of samples processed before the model is updated.
+#Batch size is the number of model smples used in the training of a neural network before the gradient gets updated.
+#The batch size is a hyperparameter that defines the number of smples to work through before updating the internal model parameters.
+#The batch size is a number of smples processed before the model is updated.
 #By convention can take a value between 2 to 32, called a mini batch. Other common values are 64 and 128
 #The larger it is, the faster to train over a GPU. However, as downside, this results in more training error than a smaller batch
 mp_batch_size = 32
@@ -229,10 +229,10 @@ print(f"mp_filename2 Set to: {MPFILEVALUE2}")
 mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks, mv_loadapirates, mv_loadfileticks, mv_loadfilerates, mp_dfName1, mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1, mp_filename2, mp_timeframe)
 
 #wrangle the data 
-mv_tdata1apiticks=d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False,mp_drop=True)
-mv_tdata1apirates=d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False,mp_drop=True)
-mv_tdata1loadticks=d1.wrangle_time(mv_tdata1loadticks, mp_unit,mp_filesrc= "ticks2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True,mp_drop=True)
-mv_tdata1loadrates=d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True, mp_drop=True)
+mv_tdata1apiticks = d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
+mv_tdata1apirates = d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
+mv_tdata1loadticks = d1.wrangle_time(mv_tdata1loadticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
+mv_tdata1loadrates = d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
 
 mp_shiftin=1
 mp_mawindowin=14 # 14 days typical indicator window
@@ -262,8 +262,10 @@ mv_tdata1apiticks = d1.create_target(
     log_stationary=False, 
     hl_avg_col='HLAvg', 
     ma_col='SMA', 
-    returns_col='Returns',
-    shift_in=mp_shiftin
+    returns_col='LogReturns',
+    shift_in=mp_shiftin,
+    remove_zeros=True,
+    rownumber=True
 )
 
 mv_tdata1apirates = d1.create_target(
@@ -287,8 +289,10 @@ mv_tdata1apirates = d1.create_target(
     log_stationary=False, 
     hl_avg_col='HLAvg', 
     ma_col='SMA', 
-    returns_col='Returns',
-    shift_in=mp_shiftin
+    returns_col='LogReturns',
+    shift_in=mp_shiftin,
+    remove_zeros=True,
+    rownumber=True
 )
 
 mv_tdata1loadticks = d1.create_target(
@@ -312,8 +316,10 @@ mv_tdata1loadticks = d1.create_target(
     log_stationary=False, 
     hl_avg_col='HLAvg', 
     ma_col='SMA', 
-    returns_col='Returns',
-    shift_in=mp_shiftin
+    returns_col='LogReturns',
+    shift_in=mp_shiftin,
+    remove_zeros=True,
+    rownumber=True
 )
 
 mv_tdata1loadrates = d1.create_target(
@@ -337,8 +343,10 @@ mv_tdata1loadrates = d1.create_target(
     log_stationary=False, 
     hl_avg_col='HLAvg', 
     ma_col='SMA', 
-    returns_col='Returns',
-    shift_in=mp_shiftin
+    returns_col='LogReturns',
+    shift_in=mp_shiftin,
+    remove_zeros=True,
+    rownumber=True
 )
 
 mv_tdata1apiticks.dropna(inplace=True)
@@ -356,52 +364,46 @@ print("SHAPE0: mv_tdata1loadrates shape:", mv_tdata1loadrates.shape, "mv_tdata1l
 # Display the first few rows of the data for verification
 rows = 10
 width=30
-d1.run_mql_print(mv_tdata1apiticks,rows,width)
-d1.run_mql_print(mv_tdata1apirates,rows,width)
-d1.run_mql_print(mv_tdata1loadticks,rows,width)
-d1.run_mql_print(mv_tdata1loadrates,rows,width)
+
+# Display the first few rows of the data for verification
+# format: "plain", "grid", "pipe", "orgtbl", "jira", "presto", "pretty", "psql", "rst", "mediawiki", 
+# "moinmoin", "youtrack", "html", "unsafehtml", "latex", "latex_raw", "latex_booktabs", "textile"
+d1.run_mql_print(mv_tdata1apiticks,rows,width, "plain",floatfmt=".5f",numalign="left",stralign="left")
+d1.run_mql_print(mv_tdata1apirates,rows,width, "plain",floatfmt=".5f",numalign="left",stralign="left")
+d1.run_mql_print(mv_tdata1loadticks,rows,width, "plain",floatfmt=".5f",numalign="left",stralign="left")
+d1.run_mql_print(mv_tdata1loadrates,rows,width, "plain",floatfmt=".5f",numalign="left",stralign="left")
 
 # +-------------------------------------------------------------------
 # Prepare and process the data
 # +-------------------------------------------------------------------
 #format Minute data to hours
 
-mv_X_tdata2a = mv_tdata1apiticks.copy()  # Copy the data for further processing
-mv_y_tdata2a = mv_tdata1apiticks.copy()  # Copy the data for further processing
+mv_tdata2a = mv_tdata1apiticks.copy()  # Copy the data for further processing
+mv_tdata2b = mv_tdata1apirates.copy()  # Copy the data for further processing
+mv_tdata2c = mv_tdata1loadticks.copy()  # Copy the data for further processing
+mv_tdata2d = mv_tdata1loadrates.copy()  # Copy the data for further processing
 
-mv_X_tdata2b = mv_tdata1apirates.copy()  # Copy the data for further processing
-mv_y_tdata2b = mv_tdata1apirates.copy()  # Copy the data for further processing
-
-mv_X_tdata2c = mv_tdata1loadticks.copy()  # Copy the data for further processing
-mv_y_tdata2c = mv_tdata1loadticks.copy()  # Copy the data for further processing
-
-mv_X_tdata2d = mv_tdata1loadrates.copy()  # Copy the data for further processing
-mv_y_tdata2d = mv_tdata1loadrates.copy()  # Copy the data for further processing
 
 # Check the switch of which file to use
 if mv_usedata == 'loadapiticks':
     print("Using API Tick data")
-    mv_X_tdata2 = mv_X_tdata2a
-    mv_y_tdata2 = mv_y_tdata2a
-
+    mv_tdata2 = mv_tdata2a
+   
 elif mv_usedata == 'loadapirates':
     print("Using API Rates data")
-    mv_X_tdata2 = mv_X_tdata2b
-    mv_y_tdata2 = mv_y_tdata2b
+    mv_tdata2 = mv_tdata2b
 
 elif mv_usedata == 'loadfileticks':
     print("Using File Tick data")
-    mv_X_tdata2 = mv_X_tdata2c
-    mv_y_tdata2 = mv_y_tdata2c
+    mv_tdata2 = mv_tdata2c
 
 elif mv_usedata == 'loadfilerates':
     print("Using File Rates data")
-    mv_X_tdata2 = mv_X_tdata2d
-    mv_y_tdata2 = mv_y_tdata2d
+    mv_tdata2 = mv_tdata2d
+
 
 # print shapes of X and y
-print("SHAPE: mv_X_tdata2 shape:", mv_X_tdata2.shape)
-print("SHAPE: mv_y_tdata2 shape:", mv_y_tdata2.shape)
+print("SHAPE: mv_tdata2 shape:", mv_tdata2.shape)
 
 # +-------------------------------------------------------------------
 # Split the data into training and test sets FIXED Partitioning
@@ -418,9 +420,9 @@ print("SHAPE: mv_y_tdata2 shape:", mv_y_tdata2.shape)
 # Batch size alignment   
 # +-------------------------------------------------------------------
 batch_size = mp_batch_size
-mv_X_tdata2 = mv_X_tdata2[mv_X_tdata2.shape[0] % batch_size:]
-mv_y_tdata2 = mv_y_tdata2[mv_y_tdata2.shape[0] % batch_size:]
-print("Batch size alignment: mv_X_tdata2 shape:", mv_X_tdata2.shape, "mv_y_tdata2 shape:", mv_y_tdata2.shape)
+mv_tdata2 = mv_tdata2[mv_tdata2.shape[0] % batch_size:]
+
+print("Batch size alignment: mv_tdata2 shape:", mv_tdata2.shape)
 
 # batch size constraint to reduce the complexity of the arithmetic required when working with the LSTM model.
 
@@ -428,7 +430,7 @@ print("Batch size alignment: mv_X_tdata2 shape:", mv_X_tdata2.shape, "mv_y_tdata
 # Split the data into training and test sets through sequences
 # +-------------------------------------------------------------------
 #Note that val_size, test_size and window_size are also all multiples of batch_size
-total_size = len(mv_X_tdata2)
+total_size = len(mv_tdata2)
 batched_total_size = total_size - total_size % batch_size   # Ensure total_size is a multiple of batch_size
 print("total_size:",total_size, "batched_total_size:",batched_total_size)
 mp_train_split = 0.7
@@ -447,51 +449,58 @@ shiftin=1
 shiftout=1
 # Split the data into training and test sets
 
-X_train = mv_X_tdata2[0:int(train_size)] #features close
-y_train = mv_y_tdata2[0:int(train_size)] #labels target
+mv_train = mv_tdata2[0:int(train_size)] #features close
+mv_val = mv_tdata2[int(train_size):int(train_size) + int(val_size)]
+mv_test = mv_tdata2[int(train_size) + int(val_size):]
 
-X_val = mv_X_tdata2[int(train_size):int(train_size) + int(val_size)]
-y_val = mv_y_tdata2[int(train_size):int(train_size) + int(val_size)]
-
-X_test = mv_X_tdata2[int(train_size) + int(val_size):]
-y_test = mv_y_tdata2[int(train_size) + int(val_size):]
-print("len(X_train) ",len(X_train),"len(X_val) " ,len(X_val), "len(X_test)", len(X_test))
-print("len(y_train) ",len(y_train),"len(y_val) " ,len(y_val), "len(y_test)", len(y_test))
+print("len(mv_train) ",len(mv_train),"len(mv_val) " ,len(mv_val), "len(mv_test)", len(mv_test))
 
 # +-------------------------------------------------------------------
 # End Split the data into training and test sets
 # +-------------------------------------------------------------------
+
 # +-------------------------------------------------------------------
 # Normalize the data
 # +-------------------------------------------------------------------
-
 # Normalize the data via MaxMinScaler
 #scaler = MinMaxScaler()
-#return_col = 'SMA'
-#X_train = scaler.fit_transform(X_train[[return_col]].values)
-#X_val = scaler.transform(X_val[[return_col]].values)
-#X_test = scaler.transform(X_test[[return_col]].values)
+return_col = 'LogReturns'
+return_col_scaled = 'LogReturns scaled'
 
-#y_train = scaler.fit_transform(y_train[return_col].values)
-#y_val = scaler.transform(y_val[return_col].values)
-#y_test = scaler.transform(y_test[return_col].values)
+# Initialize scalers for features and targets
+feature_scaler = MinMaxScaler()
 
+# Scaling features (X)
+mv_train_scaled = feature_scaler.fit_transform(mv_train[[return_col]].values)
+mv_val_scaled = feature_scaler.transform(mv_val[[return_col]].values)
+mv_test_scaled = feature_scaler.transform(mv_test[[return_col]].values)
 
-#X_train = pd.DataFrame(X_train, columns=[return_col], index=mv_X_tdata2.index[0:int(train_size)])
-#X_val = pd.DataFrame(X_val, columns=[return_col], index=mv_X_tdata2.index[int(train_size):int(train_size) + int(val_size)])
-#X_test = pd.DataFrame(X_test, columns=[return_col], index=mv_X_tdata2.index[int(train_size) + int(val_size):])
+# convert to pd
+mv_train_scaled = pd.DataFrame(mv_train_scaled, columns=[return_col_scaled], index=mv_train.index)
+mv_val_scaled = pd.DataFrame(mv_val_scaled, columns=[return_col_scaled], index=mv_val.index)
+mv_test_scaled = pd.DataFrame(mv_test_scaled, columns=[return_col_scaled], index=mv_test.index)
 
-d1.run_mql_print(X_train,rows,width)
-print("X_train.dtypes",X_train.dtypes)
+# Move the target column to the end of the DataFrame
+last_col = 'target'
+# Assuming mv_train and mv_train_scaled are pandas DataFrames
+mv_train_combined = d1.move_col_to_end(pd.concat([mv_train, mv_train_scaled], axis=1), last_col)
+mv_val_combined = d1.move_col_to_end(pd.concat([mv_val, mv_val_scaled], axis=1), last_col)
+mv_test_combined = d1.move_col_to_end(pd.concat([mv_test, mv_test_scaled], axis=1), last_col)
 
-"""
+mv_train = mv_train_combined
+mv_val = mv_val_combined
+mv_test = mv_test_combined
+
+d1.run_mql_print(mv_train,rows,width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
+print("mv_train.shape",mv_train.shape)
+
 # +-------------------------------------------------------------------
 # End Normalize the data
 # +-------------------------------------------------------------------
 # +-------------------------------------------------------------------
 # Data windowing
 # +-------------------------------------------------------------------
-#The models will make a set of predictions based on a window of consecutive samples from the data.
+#The models will make a set of predictions based on a window of consecutive smples from the data.
 #The main features of the input windows are:
 
 #The width (number of time steps) of the input and label windows.
@@ -503,89 +512,70 @@ print("X_train.dtypes",X_train.dtypes)
 #Single-time-step and multi-time-step predictions.
 #This section focuses on implementing the data windowing so that it can be reused for all of those models.
 
+#A window size, also known as “look-back period” is the amount of past smples, in our case minutes, 
+# that you want to take into consideration at a point of time to predict the next smple. Think of it
+# as the relevant immediate past smples that you want to rely on to decide if the financial instrument
+# will go up or down.
 # +-------------------------------------------------------------------
 # Establish Windows for the data
 # +-------------------------------------------------------------------
-
+print("Minutes data entries per time frame: mp_minutes:",mp_minutes/60, "mp_hours:",mp_hours/60, "mp_days:",mp_days/60)
 # +-------------------------------------------------------------------
 # 1:24 hour/24 hour/1 hour prediction window
 # +-------------------------------------------------------------------
-mp_past_inputwidth_timewindow = mp_days    # 24 hours of history data INPUT WIDTH
+mp_past_inputwidth_timewindow = (mp_day/60) * 1 # 24 hours of history data INPUT WIDTH
 mp_future_offsetwidth_timewindow =  mp_days # one LABEL=1  prediction 24 hours in the future Offset 24 hours
 print("mp_past_inputwidth_timewindow:",mp_past_inputwidth_timewindow, "mp_future_offsetwidth_timewindow:",mp_future_offsetwidth_timewindow)
 # Ensure mp_feature_columns is defined and is a list
-mp_feature_columns = ['close']  # Example column names for feature independent variables
-mp_label_columns = ['target']   # Example column names for label dependent variables
+mp_feature_columns = ['close']  # Exmple column names for feature independent variables
+mp_label_columns = ['target']   # Exmple column names for label dependent variables
 mp_num_features = len(mp_feature_columns) # Number of features
 mp_num_labels = len(mp_label_columns) # Number of labels
 mp_label_count = len(mp_label_columns)
 
 
 print("Window Paramas: input_width:",mp_past_inputwidth_timewindow, "label_width:",mp_num_labels, "shift:",mp_future_offsetwidth_timewindow, "label_columns:",mp_feature_columns,"mp_label_count",mp_label_count)
-win_X1_i24_o24_l1 = CMqlWindowGenerator(
-    input_width=mp_past_inputwidth_timewindow,
-    label_width=mp_num_labels,
-    shift=mp_future_offsetwidth_timewindow,
-    train_df=X_train,
-    val_df=X_val,
-    test_df=X_test,
+win_i24_o24_l1 = CMqlWindowGenerator(
+    input_width=int(mp_past_inputwidth_timewindow),
+    label_width=int(mp_num_labels),
+    shift=int(mp_future_offsetwidth_timewindow),
+    train_df=mv_train,
+    val_df=mv_val,
+    test_df=mv_test,
     label_columns=mp_label_columns
 )
 
-win_y1_i24_o24_l1 = CMqlWindowGenerator(
-   input_width=mp_past_inputwidth_timewindow,
-    label_width=mp_num_labels,
-    shift=mp_future_offsetwidth_timewindow,
-    train_df=y_train,
-    val_df=y_val,
-    test_df=y_test,
-    label_columns=mp_label_columns
-)
+print(win_i24_o24_l1)
+print("win_i24_o24_l1.total_window_size: ",win_i24_o24_l1.total_window_size)
 
-print(win_X1_i24_o24_l1)
-print(win_y1_i24_o24_l1)
-print("win_X1_i24_o24_l1.total_window_size: ",win_X1_i24_o24_l1.total_window_size)
-print("win_y1_i24_o24_l1).total_window_size: ",win_y1_i24_o24_l1.total_window_size)
-
-
+#timeframes
+print("Minutes data entries per time frame: mp_minutes:",mp_minutes/60, "mp_hours:",mp_hours/60, "mp_days:",mp_days/60)
 # +-------------------------------------------------------------------
 # 2:6 hour/1 hour /1 hour prediction window
 # +-------------------------------------------------------------------
-mp_past_inputwidth_timewindow = mp_hours * 6    # 24 hours of history data INPUT WIDTH
+mp_past_inputwidth_timewindow = (mp_hours/60) *6    # 6 mins of history data INPUT WIDTH
 mp_future_offsetwidth_timewindow =  mp_hours # one LABEL=1  prediction 24 hours in the future Offset 24 hours
 print("mp_past_inputwidth_timewindow:",mp_past_inputwidth_timewindow, "mp_future_offsetwidth_timewindow:",mp_future_offsetwidth_timewindow)
 # Ensure mp_feature_columns is defined and is a list
-mp_feature_columns = ['close']  # Example column names for feature independent variables
-mp_label_columns = ['target']   # Example column names for label dependent variables
+mp_feature_columns = ['close']  # Exmple column names for feature independent variables
+mp_label_columns = ['target']   # Exmple column names for label dependent variables
 mp_num_features = len(mp_feature_columns) # Number of features
 mp_num_labels = len(mp_label_columns) # Number of labels
 targets=mp_label_count
 
 print("Window Paramas: input_width:",mp_past_inputwidth_timewindow, "label_width:",mp_num_labels, "shift:",mp_future_offsetwidth_timewindow, "label_columns:",mp_feature_columns)
-win_X1_i6_o1_l1 = CMqlWindowGenerator(
-    input_width=mp_past_inputwidth_timewindow,
-    label_width=mp_num_labels,
-    shift=mp_future_offsetwidth_timewindow,
-    train_df=X_train,
-    val_df=X_val,
-    test_df=X_test,
+win_i6_o1_l1 = CMqlWindowGenerator(
+    input_width=int(mp_past_inputwidth_timewindow),
+    label_width=int(mp_num_labels),
+    shift=int(mp_future_offsetwidth_timewindow),
+    train_df=mv_train,
+    val_df=mv_val,
+    test_df=mv_test,
     label_columns=mp_label_columns
 )
 
-win_y1_i6_o1_l1 = CMqlWindowGenerator(
-   input_width=mp_past_inputwidth_timewindow,
-    label_width=mp_num_labels,
-    shift=mp_future_offsetwidth_timewindow,
-    train_df=y_train,
-    val_df=y_val,
-    test_df=y_test,
-    label_columns=mp_label_columns
-)
-
-print(win_X1_i6_o1_l1)
-print(win_y1_i6_o1_l1)
-print("win_X1_i6_o1_l1.total_window_size: ",win_X1_i6_o1_l1.total_window_size)
-print("win_y1_i6_o1_l1).total_window_size: ",win_y1_i6_o1_l1.total_window_size)
+print(win_i6_o1_l1)
+print("win_i6_o1_l1.total_window_size: ",win_i6_o1_l1.total_window_size)
 
 # +-------------------------------------------------------------------
 # End  Establish Windows for the data
@@ -593,85 +583,50 @@ print("win_y1_i6_o1_l1).total_window_size: ",win_y1_i6_o1_l1.total_window_size)
 
 
 # +-------------------------------------------------------------------
-# Split the data into windows split into inputs and labels
+# Split the data into windows split into input features and labels
 # +-------------------------------------------------------------------
 # X 24 x 24 x 1
 shift_size = 100
-window_size = win_X1_i24_o24_l1.total_window_size / (60 * 60 * 2)
-train_df = X_train
+window_size = win_i24_o24_l1.total_window_size / (60 * 60 * 2)
+train_df = mv_train
 train_df = train_df.to_numpy(dtype=np.float32)
 print("X 24 x 24 x 1 train_df.shape:",train_df.shape)
 # slice
-train_slice_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.window_slicer(train_df, window_size, shift_size)
+train_slice_win_i24_o24_l1 = win_i24_o24_l1.window_slicer(train_df, window_size, shift_size)
 # split window
 input_size = mp_days / (60 * 60 )
 output_size = mp_days / (60 * 60 )
 stride = output_size // 2  # Use integer division to ensure stride is an integer
-print("X 24 x 24 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
-inputs_train_slice_win_X1_i24_o24_l1, labels_train_slice_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.split_window(train_slice_win_X1_i24_o24_l1, input_size, output_size, stride)
+print("win 24 x 24 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
+inputs_train_slice_win_i24_o24_l1, labels_train_slice_win_i24_o24_l1 = win_i24_o24_l1.split_window(train_slice_win_i24_o24_l1, input_size, output_size, stride)
 
 print('All shapes are: (batch, time, features)')
-print(f'Window shape: {train_slice_win_X1_i24_o24_l1.shape}')
-print(f'Inputs shape: {inputs_train_slice_win_X1_i24_o24_l1}')
-print(f'Labels shape: {labels_train_slice_win_X1_i24_o24_l1}')
-
-# y 24 x 24 x 1
-shift_size = 100
-window_size=win_y1_i24_o24_l1.total_window_size / (60 * 60 * 2)
-train_df = y_train
-train_df = train_df.to_numpy(dtype=np.float32)
-print("y 24 x 24 x 1 train_df.shape:",train_df.shape)
-#slice
-train_slice_win_y1_i24_o24_l1=win_y1_i24_o24_l1.window_slicer(train_df,window_size,shift_size)
-#split window
-input_size=mp_days / (60 * 60 )
-output_size=mp_days / (60 * 60 )
-stride = output_size // 2  # Use integer division to ensure stride is an integer
-print("y 24 x 24 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
-inputs_train_slice_win_y1_i24_o24_l1, labels_train_slice_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.split_window(train_slice_win_y1_i24_o24_l1, input_size, output_size, stride)
-
-print('All shapes are: (batch, time, features)')
-print(f'Window shape: {train_slice_win_y1_i24_o24_l1.shape}')
-print(f'Inputs shape: {inputs_train_slice_win_y1_i24_o24_l1}')
-print(f'Labels shape: {labels_train_slice_win_y1_i24_o24_l1}')
+print(f'Window shape: {train_slice_win_i24_o24_l1.shape}')
+print(f'Inputs shape: {inputs_train_slice_win_i24_o24_l1}')
+print(f'Labels shape: {labels_train_slice_win_i24_o24_l1}')
 
 #Create TF datasets
 # 24 x 1 x 1
-train_ds_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.make_dataset(train_slice_win_X1_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_X1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-train_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(train_slice_win_y1_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_y1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+train_ds_win_i24_o24_l1 = win_i24_o24_l1.make_dataset(train_slice_win_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+val_ds_win_i24_o24_l1 = win_i24_o24_l1.make_dataset(train_slice_win_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+test_ds_win_i24_o24_l1 = win_i24_o24_l1.make_dataset(train_slice_win_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
 
-val_ds_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.make_dataset(train_slice_win_X1_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_X1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-val_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(train_slice_win_y1_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_y1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-
-test_ds_win_X1_i24_o24_l1 = win_X1_i24_o24_l1.make_dataset(train_slice_win_X1_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_X1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-test_ds_win_y1_i24_o24_l1 = win_y1_i24_o24_l1.make_dataset(train_slice_win_y1_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_y1_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-
-
-#Merge dataset
-train_dataset_24241=win_X1_i24_o24_l1.mergeXyTensor(train_slice_win_X1_i24_o24_l1, train_slice_win_y1_i24_o24_l1)
-val_dataset_24241=win_X1_i24_o24_l1.mergeXyTensor(train_slice_win_X1_i24_o24_l1, train_slice_win_y1_i24_o24_l1)
-test_dataset_24241=win_X1_i24_o24_l1.mergeXyTensor(train_slice_win_X1_i24_o24_l1, train_slice_win_y1_i24_o24_l1)
-
-# Batch it
-train_dataset_24241 = train_dataset_24241.batch(mp_batch_size)
-val_dataset_24241 = val_dataset_24241.batch(mp_batch_size)
-test_dataset_24241 = test_dataset_24241.batch(mp_batch_size)
 
 # create shapes of data inputs
-dstrainshape_24241 = train_slice_win_X1_i24_o24_l1.shape
-dsvalshape_24241 = train_slice_win_X1_i24_o24_l1.shape
-dstestshape_24241 = train_slice_win_X1_i24_o24_l1.shape
+dstrainshape_24241 = train_slice_win_i24_o24_l1.shape
+dsvalshape_24241 = train_slice_win_i24_o24_l1.shape
+dstestshape_24241 = train_slice_win_i24_o24_l1.shape
 
 print("Final DS shape: train.dataset_24241.shape",dstrainshape_24241, "val.dataset_24241.shape",dsvalshape_24241, "test.dataset_24241.shape",dstestshape_24241)
 
 # X 6 x 1 x 1
 shift_size = 100
-window_size=win_X1_i6_o1_l1.total_window_size / (60 * 60 * 2)
-train_df = X_train
+window_size=win_i6_o1_l1.total_window_size / (60 * 60 * 2)
+train_df = mv_train
 train_df = train_df.to_numpy(dtype=np.float32)
 print("X 6 x 1 x 1 train_df.shape:",train_df.shape)
 #slice
-train_slice_win_X1_i6_o1_l1=win_X1_i6_o1_l1.window_slicer(train_df,window_size,shift_size)
+train_slice_win_i6_o1_l1=win_i6_o1_l1.window_slicer(train_df,window_size,shift_size)
 #split window
 input_size=mp_hours * 6 / (60 * 60 )
 output_size=mp_hours  / (60 * 60 )
@@ -681,140 +636,73 @@ else:
     stride = 1
 
 print("X 6 x 1 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
-inputs_train_slice_win_y1_i6_o1_l1, labels_train_slice_win_y1_i6_o1_l1 = win_X1_i6_o1_l1.split_window(train_slice_win_X1_i6_o1_l1, input_size, output_size, stride)
+inputs_train_slice_win_y1_i6_o1_l1, labels_train_slice_win_y1_i6_o1_l1 = win_i6_o1_l1.split_window(train_slice_win_i6_o1_l1, input_size, output_size, stride)
 
 print('All shapes are: (batch, time, features)')
-print(f'Window shape: {train_slice_win_X1_i6_o1_l1.shape}')
-print(f'Inputs shape: {inputs_train_slice_win_y1_i6_o1_l1}')
-print(f'Labels shape: {labels_train_slice_win_y1_i6_o1_l1}')
-
-
-# y 6 x 1 x 1
-shift_size = 100
-# Corrected window_size calculation
-window_size = win_y1_i6_o1_l1.total_window_size / (60 * 60 * 2)
-train_df = y_train
-train_df = train_df.to_numpy(dtype=np.float32)
-print("y 6 x 1 x 1 train_df.shape:",train_df.shape)
-#slice
-train_slice_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.window_slicer(train_df, window_size, shift_size)
-#split window
-input_size=mp_hours * 6 / (60 * 60 )
-output_size=mp_hours  / (60 * 60 )
-if output_size //2 > 1:
-    stride = output_size // 2  # Use integer division to ensure stride is an integer
-else:
-    stride = 1
-
-print("y 6 x 1 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
-inputs_train_slice_win_y1_i6_o1_l1, labels_train_slice_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.split_window(train_slice_win_y1_i6_o1_l1, input_size, output_size, stride)
-
-print('All shapes are: (batch, time, features)')
-print(f'Window shape: {train_slice_win_y1_i6_o1_l1.shape}')
+print(f'Window shape: {train_slice_win_i6_o1_l1.shape}')
 print(f'Inputs shape: {inputs_train_slice_win_y1_i6_o1_l1}')
 print(f'Labels shape: {labels_train_slice_win_y1_i6_o1_l1}')
 
 #Create TF datasets
 # 6 x 1 x 1
-train_ds_win_X1_i6_o1_l1 = win_X1_i6_o1_l1.make_dataset(train_slice_win_X1_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_X1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-train_ds_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.make_dataset(train_slice_win_y1_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_y1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-
-val_ds_win_X1_i6_o1_l1 = win_X1_i6_o1_l1.make_dataset(train_slice_win_X1_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_X1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-val_ds_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.make_dataset(train_slice_win_y1_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_y1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-
-test_ds_win_X1_i6_o1_l1 = win_X1_i6_o1_l1.make_dataset(train_slice_win_X1_i6_o1_l1, 6,total_window_size=win_X1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-test_ds_win_y1_i6_o1_l1 = win_y1_i6_o1_l1.make_dataset(train_slice_win_y1_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_y1_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-
-#Merge dataset
-
-train_dataset_611=win_X1_i6_o1_l1.mergeXyTensor(train_slice_win_X1_i6_o1_l1, train_slice_win_y1_i6_o1_l1)
-val_dataset_611=win_X1_i6_o1_l1.mergeXyTensor(train_slice_win_X1_i6_o1_l1, train_slice_win_y1_i6_o1_l1)
-test_dataset_611=win_X1_i6_o1_l1.mergeXyTensor(train_slice_win_X1_i6_o1_l1, train_slice_win_y1_i6_o1_l1)
-
-# Batch it
-train_dataset_611 = train_dataset_611.batch(mp_batch_size)
-val_dataset_611 = val_dataset_611.batch(mp_batch_size)
-test_dataset_611 = test_dataset_611.batch(mp_batch_size)
+train_ds_win_i6_o1_l1 = win_i6_o1_l1.make_dataset(train_slice_win_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+val_ds_win_i6_o1_l1 = win_i6_o1_l1.make_dataset(train_slice_win_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+test_ds_win_i6_o1_l1 = win_i6_o1_l1.make_dataset(train_slice_win_i6_o1_l1, 6,total_window_size=win_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
 
 # create shapes of data inputs
-dstrainshape_611 = train_slice_win_X1_i6_o1_l1.shape
-dsvalshape_611 = train_slice_win_X1_i6_o1_l1.shape
-dstestshape_611 = train_slice_win_X1_i6_o1_l1.shape
+dstrainshape_611 = train_slice_win_i6_o1_l1.shape
+dsvalshape_611 = train_slice_win_i6_o1_l1.shape
+dstestshape_611 = train_slice_win_i6_o1_l1.shape
 
 print("Final DS shape: train.dataset_611.shape",dstrainshape_611, "val.dataset_611.shape",dsvalshape_611, "test.dataset_611.shape",dstestshape_611)
-
 
 # +-------------------------------------------------------------------
 # End Split the data into windows split into inputs and labels
 # +-------------------------------------------------------------------
 if winmodel == '24_24_1':
-    windowx = win_X1_i24_o24_l1
-    dswindowx = train_ds_win_X1_i24_o24_l1
-    windowy = win_y1_i24_o24_l1
-    dswindowy = train_ds_win_y1_i24_o24_l1
-    train_dataset = train_dataset_24241
-    val_dataset = val_dataset_24241
-    test_dataset = test_dataset_24241
+    window = win_i24_o24_l1
+    dswindow = train_ds_win_i24_o24_l1
+    train_dataset = train_ds_win_i24_o24_l1
+    val_dataset = val_ds_win_i24_o24_l1
+    test_dataset = test_ds_win_i24_o24_l1
     train_shape = dstrainshape_24241
     val_shape = dsvalshape_24241
     test_shape = dstestshape_24241
 elif winmodel == '6_1_1':
-    windowx = win_X1_i6_o1_l1
-    dswindowx = train_ds_win_X1_i6_o1_l1
-    windowy = win_y1_i6_o1_l1
-    dswindowy = train_ds_win_y1_i6_o1_l1
-    train_dataset = train_dataset_611
-    val_dataset = val_dataset_611
-    test_dataset = test_dataset_611
+    window = win_i6_o1_l1
+    dswindow = train_ds_win_i6_o1_l1
+    train_dataset = train_ds_win_i6_o1_l1
+    val_dataset = val_ds_win_i6_o1_l1
+    test_dataset = test_ds_win_i6_o1_l1
     train_shape = dstrainshape_611
     val_shape = dsvalshape_611
     test_shape = dstestshape_611
 
-print("winmodel:", winmodel,"windowx:", windowx, "windowy:", windowy )
+print("winmodel:", winmodel,"window:", window, "dswindow:",dswindow )
 
-# Print elements of dswindowx
-print("dswindowx:", dswindowx)
+# Print elements of dswindow
+print("dswindow:", dswindow)
 #read tensor spec
-print("dswindowx element_spec:")
-for xspec in dswindowx.element_spec:
-    print(f"Shape: {xspec.shape}, Dtype: {xspec.dtype}")
-
-# Print elements of dswindowy
-print("dswindowy:", dswindowy)
-#read tensor spec
-print("dswindowy element_spec:")
-for yspec in dswindowy.element_spec:
-    print(f"Shape: {yspec.shape}, Dtype: {yspec.dtype}")
-
+print("dswindow element_spec:")
+for spec in dswindow.element_spec:
+    print(f"Shape: {spec.shape}, Dtype: {spec.dtype}")
 
 # Initialize input shapes with Xspec
-xmp_inputs = xspec.shape if xspec else None
-xmp_lstm_input_shape = xspec.shape if xspec else None
-xmp_cnn_input_shape = xspec.shape if xspec else None
-xmp_gru_input_shape = xspec.shape if xspec else None
-xmp_single_input_shape = xspec.shape if xspec else None
-xmp_transformer_input_shape = xspec.shape if xspec else None
+amp_inputs = spec.shape if spec else None
+amp_lstm_input_shape = spec.shape if spec else None
+amp_cnn_input_shape = spec.shape if spec else None
+amp_gru_input_shape = spec.shape if spec else None
+amp_single_input_shape = spec.shape if spec else None
+amp_transformer_input_shape = spec.shape if spec else None
 
-# Initialize input shapes with Yspec
-ymp_inputs = yspec.shape if yspec else None
-ymp_lstm_input_shape = yspec.shape if yspec else None
-ymp_cnn_input_shape = yspec.shape if yspec else None
-ymp_gru_input_shape = yspec.shape if yspec else None
-ymp_single_input_shape = yspec.shape if yspec else None
-ymp_transformer_input_shape = yspec.shape if yspec else None
+bmp_inputs= amp_inputs[1],amp_inputs[2]
+print("bmp_inputs:", bmp_inputs)
 
-axmp_inputs= xmp_inputs[2],xmp_inputs[3]
-aymp_inputs= ymp_inputs[2], ymp_inputs[3]
-print("axmp_inputs:", axmp_inputs)
-print("aymp_inputs:", aymp_inputs)
-
-bxmp_inputs= xmp_inputs[0],xmp_inputs[1],xmp_inputs[2],xmp_inputs[3]
-bymp_inputs= ymp_inputs[0], ymp_inputs[1], ymp_inputs[2], ymp_inputs[3]
-print("bxmp_inputs:", bxmp_inputs)
-print("bymp_inputs:", bymp_inputs)
+cmp_inputs= amp_inputs[0],amp_inputs[1],amp_inputs[2]
+print("cmp_inputs:", cmp_inputs)
 
 
-
+"""
 # +-------------------------------------------------------------------
 # Hyperparameter tuning and model setup
 # +-------------------------------------------------------------------
@@ -823,18 +711,18 @@ print("bymp_inputs:", bymp_inputs)
 # Select Model 
 mp_cnn_model = True
 mp_lstm_model = True
-#plot = win_X1_i24_o24_l1.plot(plot_col='close', model=None, max_subplots=3)
+#plot = win_i24_o24_l1.plot(plot_col='close', model=None, max_subplots=3)
 mp_gru_model = True
 mp_transformer_model = True
 mp_run_single_input_model = True
 mp_run_single_input_submodels = False # not implemented yet    
 
 # define inputs
-mp_single_input_shape = axmp_inputs
-mp_lstm_input_shape = axmp_inputs
-mp_cnn_input_shape = axmp_inputs
-mp_gru_input_shape = axmp_inputs
-mp_transformer_input_shape = axmp_inputs
+mp_single_input_shape = amp_inputs
+mp_lstm_input_shape = amp_inputs
+mp_cnn_input_shape = amp_inputs
+mp_gru_input_shape = amp_inputs
+mp_transformer_input_shape = amp_inputs
 
 # define features
 mp_null = None
@@ -915,7 +803,7 @@ mt = CMdtuner(
     valshape=val_shape,
     testshape=test_shape,
     # Model
-    inputs=bxmp_inputs,
+    inputs=bmp_inputs,
     cnn_model=mp_cnn_model,
     lstm_model=mp_lstm_model,
     gru_model=mp_gru_model,
@@ -991,32 +879,32 @@ best_model[0].summary()
 # Scale the data
 # +-------------------------------------------------------------------
 scaler = StandardScaler()
-mv_X_train = scaler.fit_transform(train_ds_win_X1_i24_o24_l1)
-mv_X_val = scaler.transform(val_ds_win_X1_i24_o24_l1)
-mv_X_test = scaler.transform(test_ds_win_X1_i24_o24_l1)
+mv_mv_train = scaler.fit_transform(train_ds_win_i24_o24_l1)
+mv_mv_val = scaler.transform(val_ds_win_i24_o24_l1)
+mv_mv_test = scaler.transform(test_ds_win_i24_o24_l1)
 
 # +-------------------------------------------------------------------
 # Train and evaluate the model
 # +-------------------------------------------------------------------
 
-best_model[0].fit(mv_X_train,mv_X_test, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
-best_model[0].evaluate(mv_X_val, mv_X_test)
+best_model[0].fit(mv_mv_train,mv_mv_test, validation_split=mp_validation_split, epochs=mp_epochs, batch_size=mp_batch_size)
+best_model[0].evaluate(mv_mv_val, mv_mv_test)
 
 
 # +-------------------------------------------------------------------
 # Predict the test data using the trained model
 # +-------------------------------------------------------------------
-# Assuming mv_X_train had 60 features, and the target is one of them (let's say the last one)
+# Assuming mv_mv_train had 60 features, and the target is one of them (let's say the last one)
 scaler = StandardScaler()
-scaler.fit(mv_X_train)  # Fit scaler on training data (number of seconds features)
-predicted_fx_price = best_model[0].predict(mv_X_test)
+scaler.fit(mv_mv_train)  # Fit scaler on training data (number of seconds features)
+predicted_fx_price = best_model[0].predict(mv_mv_test)
 
 # If predicted_fx_price is only 1D, reshape to 2D
 predicted_fx_price = predicted_fx_price.reshape(-1, 1)
 
 # Inverse transform only the target column
 predicted_fx_price = scaler.inverse_transform(
-    np.hstack([np.zeros((predicted_fx_price.shape[0], mv_X_train.shape[1] - 1)), predicted_fx_price])
+    np.hstack([np.zeros((predicted_fx_price.shape[0], mv_mv_train.shape[1] - 1)), predicted_fx_price])
 )[:, -1]  # Extract only the target column after inverse transform
 
 
