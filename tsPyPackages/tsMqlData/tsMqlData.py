@@ -18,7 +18,9 @@ import arrow
 import pytz
 from sklearn.preprocessing import MinMaxScaler
 import logging
+import tabulate
 from tabulate import tabulate
+import textwrap
 #--------------------------------------------------------------------
 # create class  "CMqldatasetup"
 # usage: mql data services
@@ -145,7 +147,7 @@ class CMqldatasetup:
         return lp_rates1 , lp_rates2, lp_rates3, lp_rates4
 
 
-    def wrangle_time(self, df: pd.DataFrame, lp_unit: str, mp_filesrc: str, filter_int: bool, filter_flt: bool, filter_obj: bool, filter_dtmi: bool, filter_dtmf: bool, mp_dropna: bool,mp_merge: bool, mp_convert: bool):
+    def wrangle_time(self, df: pd.DataFrame, lp_unit: str, mp_filesrc: str, filter_int: bool, filter_flt: bool, filter_obj: bool, filter_dtmi: bool, filter_dtmf: bool, mp_dropna: bool, mp_merge: bool, mp_convert: bool):
         """
         Wrangles time-related data in the DataFrame.
 
@@ -168,23 +170,32 @@ class CMqldatasetup:
             valid_renames = {old: new for old, new in mapping.items() if old in df.columns}
             df.rename(columns=valid_renames, inplace=True)
        
-        def merge_datetime(df, col1, col2, mcol, mfmt1,mfmt2,mp_filesrc): 
+        def merge_datetime(df, col1, col2, mcol, mfmt1, mfmt2, mp_filesrc): 
             if col1 in df.columns and col2 in df.columns:
                 try:
                     print(f"Merging {mp_filesrc} {col1} and {col2} to {mcol}")
                     df[mcol] = pd.to_datetime(df[col1].dt.strftime('%Y-%m-%d') + ' ' + df[col2].dt.strftime('%H:%M:%S.%f'), format='%Y-%m-%d %H:%M:%S.%f', errors='coerce', utc=True)
-                    print("Sort Merged datetime columns")
+                    df.drop([col1, col2], axis=1, inplace=True)
                     # Reorder columns
-                    print("Sorting merged datetime column")
-                    df = df[[mcol] + [col for col in df.columns if col not in {col1, col2, mcol}]]
+                    print("MDatetimeColumns: mcol",mcol,"col1",col1,"col2",col2,"filesrc",mp_filesrc)
+                    datetime_col = mcol if mcol in df.columns else df.columns[0]
+                    print("Reordering columns with datetime first mcol:", mcol)
+                    df = df[[datetime_col] + [col for col in df.columns if col != datetime_col]]
+                    print("Reordered columns with datetime first")
                     print("Columns:", df.columns)
                 except Exception as e:
                     print(f"Error merging {mp_filesrc} {col1} and {col2} to {mcol}: {e}")
             return df
 
+        def resort_columns(df, col1, col2, mcol, mfmt1, mfmt2, mp_filesrc) -> pd.DataFrame:
+            if mcol in df.columns:
+                datetime_col = mcol if mcol in df.columns else df.columns[0]
+                df = df[[datetime_col] + [col for col in df.columns if col != datetime_col]]
+                print("Reordered columns with datetime first")
+                print("Columns:", df.columns)
+            return df
 
         def convert_datetime(df: pd.DataFrame, column: str, fmt: str = None, unit: str = None, type: str = None) -> None:
-           # print("Converting: datetime columns:", column," with format:", fmt, " and unit:", unit, " and type:",type)
             if column in df.columns:
                 try:
                     if type == 'a':
@@ -207,6 +218,10 @@ class CMqldatasetup:
                     elif type == 'f':
                         print(f"Converting:f {mp_filesrc} {column} to datetime with unit {unit}: type {type} and format {fmt}")
                         df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce', utc=True)
+                    elif type == 'g':
+                        print(f"Dropping:g {mp_filesrc} {column} with type {type}")
+                        if column in df.columns:
+                            df.drop(column, axis=1, inplace=True)
                 except Exception as e:
                     print(f"Error converting {mp_filesrc} {column} {type}: {e}")
 
@@ -221,6 +236,41 @@ class CMqldatasetup:
                 'flags': 'T1_Flags',
                 'volume_real': 'T1_Real_Volume'
             },
+
+            'ticks2': {
+                'time': 'T1_Date',
+                'bid': 'T1_Bid_Price',
+                'ask': 'T1_Ask_Price',
+                'last': 'T1_Last Price',
+                'volume': 'T1_Volume',
+                'time_msc': 'T1_Time_Msc',
+                'flags': 'T1_Flags',
+                'volume_real': 'T1_Real_Volume'
+            },
+
+             'ticks3': {
+                'time': 'T1_Date',
+                'bid': 'T1_Bid_Price',
+                'ask': 'T1_Ask_Price',
+                'last': 'T1_Last Price',
+                'volume': 'T1_Volume',
+                'time_msc': 'T1_Time_Msc',
+                'flags': 'T1_Flags',
+                'volume_real': 'T1_Real_Volume'
+            },
+
+             'ticks4': {
+                'time': 'T1_Date',
+                'bid': 'T1_Bid_Price',
+                'ask': 'T1_Ask_Price',
+                'last': 'T1_Last Price',
+                'volume': 'T1_Volume',
+                'time_msc': 'T1_Time_Msc',
+                'flags': 'T1_Flags',
+                'volume_real': 'T1_Real_Volume'
+            },
+            
+
             'rates1': {
                 'time': 'R1_Date',
                 'open': 'R1_Open',
@@ -264,7 +314,10 @@ class CMqldatasetup:
         }
 
         time_columns = {
-            'ticks1': ('time_msc', '%Y%m%d %H:%M:%S', 'ms', 'f'),
+            'ticks1': ('time_msc', '%Y%m%d %H:%M:%S', 'ms', 'g'),
+            'ticks2': ('flags', '%Y%m%d %H:%M:%S', 'ms', 'g'),
+            'ticks3': ('last', '%Y%m%d %H:%M:%S', 'ms', 'g'),
+            'ticks4': ('volume', '%Y%m%d %H:%M:%S', 'ms', 'g'),
             'ticks2': ('Timestamp', '%H:%M:%S', 'ms', 'a'),
             'rates2': ('Timestamp', '%H:%M:%S', 's', 'a'),
         }
@@ -294,6 +347,7 @@ class CMqldatasetup:
 
             if mp_filesrc in time_columns:
                 column, fmt, unit, type = time_columns[mp_filesrc]
+                print("Columns Time:", column, "Format:", fmt, "Unit:", unit, "Type:", type, "Filesrc:", mp_filesrc)
                 convert_datetime(df, column, fmt=fmt, unit=unit, type=type)
 
             # Rename columns
@@ -301,10 +355,10 @@ class CMqldatasetup:
                 
             # Merge datetime columns
             if mp_filesrc in merge_columns and mp_merge:
-                col1, col2, mcol,mfmt1,mfmt2 = merge_columns[mp_filesrc]
-                df = merge_datetime(df, col1, col2, mcol,mfmt1,mfmt2, mp_filesrc)
+                col1, col2, mcol, mfmt1, mfmt2 = merge_columns[mp_filesrc]
+                df = merge_datetime(df, col1, col2, mcol, mfmt1, mfmt2, mp_filesrc)
 
-            # Convert datetime columns wiyh tf
+            # Convert datetime columns with tf
             if mp_filesrc in conv_columns and mp_convert:
                 column, fmt, unit, type = conv_columns[mp_filesrc]
                 convert_datetime(df, column, fmt=fmt, unit=unit, type=type)
@@ -333,9 +387,11 @@ class CMqldatasetup:
                 df.fillna(0, inplace=True)
                 print("Dropped NaN values")
             
+             # final sort
+            if mp_filesrc in merge_columns and mp_merge:
+                col1, col2, mcol, mfmt1, mfmt2 = merge_columns[mp_filesrc]
+                df = resort_columns(df, col1, col2, mcol, mfmt1, mfmt2, mp_filesrc) 
         return df
-
-
 
     def calculate_moving_average(self,df, column, window,min_periods=1):
         print("Calculating moving average for column:", column, " with window:", window)
@@ -343,13 +399,7 @@ class CMqldatasetup:
         df['SMA'] = df[column].rolling(window=min_periods).mean()  # 14-day Simple Moving Average
         df["SMA"] = df["SMA"].fillna(method="bfill")  # or "ffill"
         df = df.dropna(subset=["SMA"])
-
-        #df['EMA'] = df[column].ewm(span=min_periods).mean()        # Exponential Moving Average with span=14
-        #df['CMA'] = df[column].expanding().mean()        # Cumulative Moving Average 
-
         return df['SMA']
-
-    
 
     def calculate_log_returns(self, df, column, shift):
         print("Calculating log returns for column:", column, "with shift:", shift)
@@ -476,8 +526,6 @@ class CMqldatasetup:
         if run_future_returns:
             df[ma_col] = df[ma_col].mul(np.exp(df[returns_col].shift(-1))).shift(1)
             logging.info("Future Returns calculated.")
-
-        
 
         # Set output columns
         df[column_out1] = df[column_out1] 
@@ -612,6 +660,25 @@ class CMqldatasetup:
         return lp_rates1 , lp_rates2, lp_rates3, lp_rates4
 
 
-    def run_mql_print(self, df, hrows):
-        print("Start First few rows of the  data:Count",len(df))
-        print(tabulate(df.head(hrows), showindex=False, headers=df.columns, tablefmt="pretty", numalign="left", stralign="left", floatfmt=".4f"))
+
+
+
+    def run_mql_print(self, df, hrows,colwidth):
+        print("Start First few rows of the data: Count", len(df))
+        
+        # Wrap long text in columns
+        def wrap_column_data(column, width):
+            return column.apply(lambda x: '\n'.join(textwrap.wrap(str(x), width)))
+        
+        df = df.apply(lambda col: wrap_column_data(col, colwidth))  # Adjust width as needed
+
+        print(tabulate(
+            df.head(hrows), 
+            showindex=False,
+            headers=df.columns,
+            tablefmt="pretty",
+            numalign="left",
+            stralign="left", 
+            maxcolwidths=[colwidth] * len(df.columns),  # Limit column widths to 10
+            floatfmt=".1f"
+        ))
