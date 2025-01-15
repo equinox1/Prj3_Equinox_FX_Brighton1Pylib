@@ -219,11 +219,11 @@ class CMqldatasetup:
                     df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce', utc=True)
                 elif type == 'g':
                     print(f"Dropping:g {mp_filesrc} {column} with type {type}")
-                    print("Columns to drop:", dcol1, dcol2, dcol3, dcol4)
+                    print("Columns to drop:", dcol1, dcol2, dcol3, dcol4,dcol5)
                     print("Columns:", df.columns)
                     if column in df.columns:
                         print(f"Dropping column: {column} found in ", df.columns)
-                        columns_to_drop = [col for col in [dcol1, dcol2, dcol3, dcol4] if col in df.columns]
+                        columns_to_drop = [col for col in [dcol1, dcol2, dcol3, dcol4,dcol5] if col in df.columns]
                         if columns_to_drop:
                             print(f"Dropping columns: {columns_to_drop} from", df.columns)
                             df.drop(columns_to_drop, axis=1, inplace=True)
@@ -298,7 +298,7 @@ class CMqldatasetup:
         }
 
         drop_columns = {
-           'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g','T1_Time_Msc', 'T1_Flags', 'T1_Last Price', 'T1_Volume', 'T1_Real_Volume'),
+           'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g','T1_Time_Msc', 'T1_Flags', 'T1_Last Price','T1_Real_Volume', 'T1_Volume' ),
            'rates1': ('R1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g','R1_Tick_Volume', 'R1_spread', 'R1_Real_Volume', None,None),
            'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 'ms', 'g','T2_Timestamp', 'T2_Volume', 'T2_Last_Price', None, None),
            'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 'ms', 'g','R2_Timestamp', 'R2_Volume', 'R2_Vol1', None, None),
