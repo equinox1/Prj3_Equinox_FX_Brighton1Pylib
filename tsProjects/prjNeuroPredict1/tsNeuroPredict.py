@@ -80,7 +80,7 @@ mv_loadapiticks = True
 mv_loadapirates = True
 mv_loadfileticks = True
 mv_loadfilerates = True
-mv_usedata = 'loadfileticks' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
+mv_usedata = 'loadfilerates' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
 mp_rows = 1000
 mp_rowcount = 10000
 MPDATAFILE1 =  "tickdata1.csv"
@@ -355,10 +355,11 @@ print("SHAPE0: mv_tdata1loadrates shape:", mv_tdata1loadrates.shape, "mv_tdata1l
 
 # Display the first few rows of the data for verification
 rows = 10
-d1.run_mql_print(mv_tdata1apiticks,rows)
-d1.run_mql_print(mv_tdata1apirates,rows)
-d1.run_mql_print(mv_tdata1loadticks,rows)
-d1.run_mql_print(mv_tdata1loadrates,rows)
+width=30
+d1.run_mql_print(mv_tdata1apiticks,rows,30)
+d1.run_mql_print(mv_tdata1apirates,rows,15)
+d1.run_mql_print(mv_tdata1loadticks,rows,width)
+d1.run_mql_print(mv_tdata1loadrates,rows,width)
 
 # +-------------------------------------------------------------------
 # Prepare and process the data
@@ -480,7 +481,7 @@ print("len(y_train) ",len(y_train),"len(y_val) " ,len(y_val), "len(y_test)", len
 #X_val = pd.DataFrame(X_val, columns=[return_col], index=mv_X_tdata2.index[int(train_size):int(train_size) + int(val_size)])
 #X_test = pd.DataFrame(X_test, columns=[return_col], index=mv_X_tdata2.index[int(train_size) + int(val_size):])
 
-d1.run_mql_print(X_train,10)
+d1.run_mql_print(X_train,rows,width)
 print("X_train.dtypes",X_train.dtypes)
 
 """
