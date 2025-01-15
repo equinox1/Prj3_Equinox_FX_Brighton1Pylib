@@ -229,10 +229,10 @@ print(f"mp_filename2 Set to: {MPFILEVALUE2}")
 mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks, mv_loadapirates, mv_loadfileticks, mv_loadfilerates, mp_dfName1, mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1, mp_filename2, mp_timeframe)
 
 #wrangle the data 
-mv_tdata1apiticks=d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False)
-mv_tdata1apirates=d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False)
-mv_tdata1loadticks=d1.wrangle_time(mv_tdata1loadticks, mp_unit,mp_filesrc= "ticks2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True)
-mv_tdata1loadrates=d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True)
+mv_tdata1apiticks=d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False,mp_drop=True)
+mv_tdata1apirates=d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=False,mp_convert=False,mp_drop=True)
+mv_tdata1loadticks=d1.wrangle_time(mv_tdata1loadticks, mp_unit,mp_filesrc= "ticks2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True,mp_drop=True)
+mv_tdata1loadrates=d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False,  filter_dtmi=False, filter_dtmf=False,mp_dropna=False,mp_merge=True,mp_convert=True, mp_drop=True)
 
 mp_shiftin=1
 mp_mawindowin=14 # 14 days typical indicator window
@@ -356,8 +356,8 @@ print("SHAPE0: mv_tdata1loadrates shape:", mv_tdata1loadrates.shape, "mv_tdata1l
 # Display the first few rows of the data for verification
 rows = 10
 width=30
-d1.run_mql_print(mv_tdata1apiticks,rows,30)
-d1.run_mql_print(mv_tdata1apirates,rows,15)
+d1.run_mql_print(mv_tdata1apiticks,rows,width)
+d1.run_mql_print(mv_tdata1apirates,rows,width)
 d1.run_mql_print(mv_tdata1loadticks,rows,width)
 d1.run_mql_print(mv_tdata1loadrates,rows,width)
 

@@ -147,7 +147,7 @@ class CMqldatasetup:
         return lp_rates1 , lp_rates2, lp_rates3, lp_rates4
 
 
-    def wrangle_time(self, df: pd.DataFrame, lp_unit: str, mp_filesrc: str, filter_int: bool, filter_flt: bool, filter_obj: bool, filter_dtmi: bool, filter_dtmf: bool, mp_dropna: bool, mp_merge: bool, mp_convert: bool):
+    def wrangle_time(self, df: pd.DataFrame, lp_unit: str, mp_filesrc: str, filter_int: bool, filter_flt: bool, filter_obj: bool, filter_dtmi: bool, filter_dtmf: bool, mp_dropna: bool, mp_merge: bool, mp_convert: bool, mp_drop: bool) -> pd.DataFrame:
         """
         Wrangles time-related data in the DataFrame.
 
@@ -195,35 +195,40 @@ class CMqldatasetup:
                 print("Columns:", df.columns)
             return df
 
-        def convert_datetime(df: pd.DataFrame, column: str, fmt: str = None, unit: str = None, type: str = None) -> None:
-            if column in df.columns:
-                try:
-                    if type == 'a':
-                        print(f"Converting:a {mp_filesrc} {column} to datetime with stfttime hours string: type {type} and format {fmt}")
-                        df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
-                        df[column] = pd.to_datetime(df[column].dt.strftime('%H:%M:%S.%f'), format='%H:%M:%S.%f', errors='coerce', utc=True)
-                    elif type == 'b':
-                        print(f"Converting:b {mp_filesrc} {column} to datetime with tf date model: type {type} and format {fmt}")
-                        df[column] = pd.to_datetime(df.pop(column), format=fmt, errors='coerce')
-                    elif type == 'c':
-                        print(f"Converting:c {mp_filesrc} {column} to datetime with stfttime years string: type {type} and format {fmt}")
-                        df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
-                        df[column] = pd.to_datetime(df[column].dt.strftime('%d/%m/%y %H:%M:%S.%f'), format='%d/%m/%y %H:%M:%S.%f', errors='coerce', utc=True)
-                    elif type == 'd':
-                        print(f"Converting:d {mp_filesrc} {column} to datetime with tf time: type {type} and format {fmt}")
-                        df[column] = df[column].map(pd.Timestamp.timestamp)
-                    elif type == 'e':
-                        print(f"Converting:e {mp_filesrc} {column} to datetime with format {fmt}: type {type} and format {fmt}")
-                        df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
-                    elif type == 'f':
-                        print(f"Converting:f {mp_filesrc} {column} to datetime with unit {unit}: type {type} and format {fmt}")
-                        df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce', utc=True)
-                    elif type == 'g':
-                        print(f"Dropping:g {mp_filesrc} {column} with type {type}")
-                        if column in df.columns:
-                            df.drop(column, axis=1, inplace=True)
-                except Exception as e:
-                    print(f"Error converting {mp_filesrc} {column} {type}: {e}")
+        def convert_datetime(df: pd.DataFrame, column: str, fmt: str = None, unit: str = None, type: str = None,dcol1 = None, dcol2 = None, dcol3 = None, dcol4= None,dcol5 = None) -> None:
+            try:
+                if type == 'a':
+                    print(f"Converting:a {mp_filesrc} {column} to datetime with stfttime hours string: type {type} and format {fmt}")
+                    df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
+                    df[column] = pd.to_datetime(df[column].dt.strftime('%H:%M:%S.%f'), format='%H:%M:%S.%f', errors='coerce', utc=True)
+                elif type == 'b':
+                    print(f"Converting:b {mp_filesrc} {column} to datetime with tf date model: type {type} and format {fmt}")
+                    df[column] = pd.to_datetime(df.pop(column), format=fmt, errors='coerce')
+                elif type == 'c':
+                    print(f"Converting:c {mp_filesrc} {column} to datetime with stfttime years string: type {type} and format {fmt}")
+                    df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
+                    df[column] = pd.to_datetime(df[column].dt.strftime('%d/%m/%y %H:%M:%S.%f'), format='%d/%m/%y %H:%M:%S.%f', errors='coerce', utc=True)
+                elif type == 'd':
+                    print(f"Converting:d {mp_filesrc} {column} to datetime with tf time: type {type} and format {fmt}")
+                    df[column] = df[column].map(pd.Timestamp.timestamp)
+                elif type == 'e':
+                    print(f"Converting:e {mp_filesrc} {column} to datetime with format {fmt}: type {type} and format {fmt}")
+                    df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
+                elif type == 'f':
+                    print(f"Converting:f {mp_filesrc} {column} to datetime with unit {unit}: type {type} and format {fmt}")
+                    df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce', utc=True)
+                elif type == 'g':
+                    print(f"Dropping:g {mp_filesrc} {column} with type {type}")
+                    print("Columns to drop:", dcol1, dcol2, dcol3, dcol4)
+                    print("Columns:", df.columns)
+                    if column in df.columns:
+                        print(f"Dropping column: {column} found in ", df.columns)
+                        columns_to_drop = [col for col in [dcol1, dcol2, dcol3, dcol4] if col in df.columns]
+                        if columns_to_drop:
+                            print(f"Dropping columns: {columns_to_drop} from", df.columns)
+                            df.drop(columns_to_drop, axis=1, inplace=True)
+            except Exception as e:
+                print(f"Error converting {mp_filesrc} {column} {type}: {e}")
 
         mappings = {
             'ticks1': {
@@ -236,40 +241,6 @@ class CMqldatasetup:
                 'flags': 'T1_Flags',
                 'volume_real': 'T1_Real_Volume'
             },
-
-            'ticks2': {
-                'time': 'T1_Date',
-                'bid': 'T1_Bid_Price',
-                'ask': 'T1_Ask_Price',
-                'last': 'T1_Last Price',
-                'volume': 'T1_Volume',
-                'time_msc': 'T1_Time_Msc',
-                'flags': 'T1_Flags',
-                'volume_real': 'T1_Real_Volume'
-            },
-
-             'ticks3': {
-                'time': 'T1_Date',
-                'bid': 'T1_Bid_Price',
-                'ask': 'T1_Ask_Price',
-                'last': 'T1_Last Price',
-                'volume': 'T1_Volume',
-                'time_msc': 'T1_Time_Msc',
-                'flags': 'T1_Flags',
-                'volume_real': 'T1_Real_Volume'
-            },
-
-             'ticks4': {
-                'time': 'T1_Date',
-                'bid': 'T1_Bid_Price',
-                'ask': 'T1_Ask_Price',
-                'last': 'T1_Last Price',
-                'volume': 'T1_Volume',
-                'time_msc': 'T1_Time_Msc',
-                'flags': 'T1_Flags',
-                'volume_real': 'T1_Real_Volume'
-            },
-            
 
             'rates1': {
                 'time': 'R1_Date',
@@ -314,10 +285,7 @@ class CMqldatasetup:
         }
 
         time_columns = {
-            'ticks1': ('time_msc', '%Y%m%d %H:%M:%S', 'ms', 'g'),
-            'ticks2': ('flags', '%Y%m%d %H:%M:%S', 'ms', 'g'),
-            'ticks3': ('last', '%Y%m%d %H:%M:%S', 'ms', 'g'),
-            'ticks4': ('volume', '%Y%m%d %H:%M:%S', 'ms', 'g'),
+            'ticks1': ('time_msc', '%Y%m%d %H:%M:%S', 'ms', 'f'),
             'ticks2': ('Timestamp', '%H:%M:%S', 'ms', 'a'),
             'rates2': ('Timestamp', '%H:%M:%S', 's', 'a'),
         }
@@ -327,6 +295,14 @@ class CMqldatasetup:
             'rates1': ('R1_Date', '%Y%m%d %H:%M:%S.%f', 's', 'b'),
             'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
             'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
+        }
+
+        drop_columns = {
+           'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g','T1_Time_Msc', 'T1_Flags', 'T1_Last Price', 'T1_Volume', 'T1_Real_Volume'),
+           'rates1': ('R1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g','R1_Tick_Volume', 'R1_spread', 'R1_Real_Volume', None,None),
+           'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 'ms', 'g','T2_Timestamp', 'T2_Volume', 'T2_Last_Price', None, None),
+           'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 'ms', 'g','R2_Timestamp', 'R2_Volume', 'R2_Vol1', None, None),
+
         }
 
         # Columns are renamed before merging
@@ -362,6 +338,12 @@ class CMqldatasetup:
             if mp_filesrc in conv_columns and mp_convert:
                 column, fmt, unit, type = conv_columns[mp_filesrc]
                 convert_datetime(df, column, fmt=fmt, unit=unit, type=type)
+
+            # drop columns 
+            if mp_filesrc in drop_columns and mp_drop:
+                column, fmt, unit, type,col1,col2,col3,col4,col5 = drop_columns[mp_filesrc]
+                print("Columns Drop:", column, "Format:", fmt, "Unit:", unit, "Type:", type, "Filesrc:", mp_filesrc, "Columns:", col1, col2, col3, col4, col5)
+                convert_datetime(df, column, fmt=fmt, unit=unit, type=type,dcol1=col1,dcol2=col2,dcol3=col3,dcol4=col4,dcol5=col5)
                 
             if filter_int:
                 for col in df.select_dtypes(include=['int64']).columns:
