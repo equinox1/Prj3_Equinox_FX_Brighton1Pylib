@@ -483,7 +483,7 @@ class CMqldatasetup:
 
         elif run_mode in {2, 4}:  # High-low average
             if run_avg:
-                df[column_out1] = close_column
+                df[column_out1] = df[close_column]
                 df[hl_avg_col] = (df[high_column] + df[low_column]) / 2
                 logging.info("High-low average calculated.")
             else:
