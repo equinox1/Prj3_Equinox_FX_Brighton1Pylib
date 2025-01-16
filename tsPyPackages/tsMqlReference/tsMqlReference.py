@@ -19,7 +19,7 @@ class CMqlTimeConfig:
 
     @staticmethod
     def get_constants():
-        # Constant Definitions
+        # Constant Definitions all from seconds so for example 1 minute = 60 seconds
         TIMEVALUE = {
             'SECONDS': 1,
             'MINUTES': 60,

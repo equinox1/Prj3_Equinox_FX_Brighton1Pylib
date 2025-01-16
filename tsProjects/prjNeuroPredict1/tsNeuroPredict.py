@@ -68,6 +68,9 @@ if gpus:
 # +-------------------------------------------------------------------
 # start of set variables
 # +-------------------------------------------------------------------
+mp_label_feattopredict = {'close'} # the feature to predict
+mp_rownumber = True
+###########################################################
 loadtensor = True
 loadtemporian = False
 winmodel = '6_1_1' # '24_24_1' or '6_1_1'
@@ -118,11 +121,11 @@ mp_unit = constants['UNIT'][0]
 print("1:mp_unit: ", mp_unit)
 mp_seconds = constants['TIMEVALUE']['SECONDS']
 print("1:mp_seconds: ", mp_seconds)
-mp_minutes = constants['TIMEVALUE']['MINUTES']
+mp_minutes = constants['TIMEVALUE']['MINUTES'] / 60 # divide 60 as base in seconds
 print("1:mp_minutes: ", mp_minutes)
-mp_hours = constants['TIMEVALUE']['HOURS']
+mp_hours = constants['TIMEVALUE']['HOURS'] / 60 # divide 60 as base in seconds
 print("1:mp_hours: ", mp_hours)
-mp_days = constants['TIMEVALUE']['DAYS']
+mp_days = constants['TIMEVALUE']['DAYS'] / 60 # divide 60 as base in seconds
 
 mp_timezone = constants['TIMEZONES'][0]
 print("1:mp_timezone: ", mp_timezone)
@@ -265,7 +268,7 @@ mv_tdata1apiticks = d1.create_target(
     returns_col='LogReturns',
     shift_in=mp_shiftin,
     remove_zeros=True,
-    rownumber=True
+    rownumber=mp_rownumber
 )
 
 mv_tdata1apirates = d1.create_target(
@@ -292,7 +295,7 @@ mv_tdata1apirates = d1.create_target(
     returns_col='LogReturns',
     shift_in=mp_shiftin,
     remove_zeros=True,
-    rownumber=True
+    rownumber=mp_rownumber
 )
 
 mv_tdata1loadticks = d1.create_target(
@@ -319,7 +322,7 @@ mv_tdata1loadticks = d1.create_target(
     returns_col='LogReturns',
     shift_in=mp_shiftin,
     remove_zeros=True,
-    rownumber=True
+    rownumber=mp_rownumber
 )
 
 mv_tdata1loadrates = d1.create_target(
@@ -346,7 +349,7 @@ mv_tdata1loadrates = d1.create_target(
     returns_col='LogReturns',
     shift_in=mp_shiftin,
     remove_zeros=True,
-    rownumber=True
+    rownumber=mp_rownumber
 )
 
 mv_tdata1apiticks.dropna(inplace=True)
@@ -519,51 +522,77 @@ print("mv_train.shape",mv_train.shape)
 # +-------------------------------------------------------------------
 # Establish Windows for the data
 # +-------------------------------------------------------------------
-print("Minutes data entries per time frame: mp_minutes:",mp_minutes/60, "mp_hours:",mp_hours/60, "mp_days:",mp_days/60)
 # +-------------------------------------------------------------------
 # 1:24 hour/24 hour/1 hour prediction window
 # +-------------------------------------------------------------------
-mp_past_inputwidth_timewindow = (mp_day/60) * 1 # 24 hours of history data INPUT WIDTH
-mp_future_offsetwidth_timewindow =  mp_days # one LABEL=1  prediction 24 hours in the future Offset 24 hours
-print("mp_past_inputwidth_timewindow:",mp_past_inputwidth_timewindow, "mp_future_offsetwidth_timewindow:",mp_future_offsetwidth_timewindow)
+#timeframes
+print("1:Minutes data entries per time frame: mp_minutes:",mp_minutes, "mp_hours:",mp_minutes * 60, "mp_days:",mp_minutes * 60 * 24)
+# Establish Windows for the data
+timeval = mp_minutes * 60 # hours
+timeperiods=24 # 24 hours
+predtimeperiods=24 # no hours
+print("timeval:",timeval,"timeperiods:",timeperiods)
+mp_past_inputwidth_timewindow = (timeval) * timeperiods # minutes of history data INPUT WIDTH
+mp_future_offsetwidth_timewindow =  (timeval) * predtimeperiods # future minutes
+
 # Ensure mp_feature_columns is defined and is a list
-mp_feature_columns = ['close']  # Exmple column names for feature independent variables
-mp_label_columns = ['target']   # Exmple column names for label dependent variables
-mp_num_features = len(mp_feature_columns) # Number of features
-mp_num_labels = len(mp_label_columns) # Number of labels
-mp_label_count = len(mp_label_columns)
+mp_feature_columns = list(mv_train.columns)
+# Ensure 'RowNumber' exists in the list before attempting to remove it
+if 'RowNumber' in mp_feature_columns:
+    mp_feature_columns.remove('RowNumber')
+print("1:Feature Columns: ",mp_feature_columns)
+
+mp_label_columns =mp_label_feattopredict  # column names for label dependent variables
+mp_num_features = len(mp_feature_columns) # feature independent variables x
+mp_num_labels = len(mp_label_columns) # Number of labels dependent variable y
 
 
-print("Window Paramas: input_width:",mp_past_inputwidth_timewindow, "label_width:",mp_num_labels, "shift:",mp_future_offsetwidth_timewindow, "label_columns:",mp_feature_columns,"mp_label_count",mp_label_count)
+print("1:Window Params: input_width:",mp_past_inputwidth_timewindow, "label_width:",mp_num_labels, "shift:",mp_future_offsetwidth_timewindow, "label_columns:",mp_label_columns,"mp_num_labels",mp_num_labels)
+print("1:Feature Columns: ",mp_feature_columns)
+print("1:Label Columns: ",mp_label_columns)
+print("1:Num Features: ",mp_num_features)
+print("1:Num Labels: ",mp_num_labels)
+print("mp_past_inputwidth_timewindow:",mp_past_inputwidth_timewindow, "mp_future_offsetwidth_timewindow:",mp_future_offsetwidth_timewindow)
+
 win_i24_o24_l1 = CMqlWindowGenerator(
-    input_width=int(mp_past_inputwidth_timewindow),
-    label_width=int(mp_num_labels),
-    shift=int(mp_future_offsetwidth_timewindow),
+    input_width=(mp_past_inputwidth_timewindow),
+    label_width=(mp_num_labels),
+    shift=(mp_future_offsetwidth_timewindow),
     train_df=mv_train,
     val_df=mv_val,
     test_df=mv_test,
     label_columns=mp_label_columns
 )
-
-print(win_i24_o24_l1)
-print("win_i24_o24_l1.total_window_size: ",win_i24_o24_l1.total_window_size)
-
-#timeframes
-print("Minutes data entries per time frame: mp_minutes:",mp_minutes/60, "mp_hours:",mp_hours/60, "mp_days:",mp_days/60)
+print("1: win_i24_o24_l1.total_window_size: ",win_i24_o24_l1.total_window_size)
 # +-------------------------------------------------------------------
 # 2:6 hour/1 hour /1 hour prediction window
 # +-------------------------------------------------------------------
-mp_past_inputwidth_timewindow = (mp_hours/60) *6    # 6 mins of history data INPUT WIDTH
-mp_future_offsetwidth_timewindow =  mp_hours # one LABEL=1  prediction 24 hours in the future Offset 24 hours
-print("mp_past_inputwidth_timewindow:",mp_past_inputwidth_timewindow, "mp_future_offsetwidth_timewindow:",mp_future_offsetwidth_timewindow)
-# Ensure mp_feature_columns is defined and is a list
-mp_feature_columns = ['close']  # Exmple column names for feature independent variables
-mp_label_columns = ['target']   # Exmple column names for label dependent variables
-mp_num_features = len(mp_feature_columns) # Number of features
-mp_num_labels = len(mp_label_columns) # Number of labels
-targets=mp_label_count
+print("2:Minutes data entries per time frame: mp_minutes:",mp_minutes, "mp_hours:",mp_minutes * 60, "mp_days:",mp_minutes * 60 * 24)
 
-print("Window Paramas: input_width:",mp_past_inputwidth_timewindow, "label_width:",mp_num_labels, "shift:",mp_future_offsetwidth_timewindow, "label_columns:",mp_feature_columns)
+timeval = mp_minutes * 60 # hours
+timeperiods=6
+predtimeperiods=1
+print("timeval:",timeval,"timeperiods:",timeperiods)
+mp_past_inputwidth_timewindow = (timeval) * timeperiods # 6 hours of history data INPUT WIDTH
+mp_future_offsetwidth_timewindow =  (timeval) * predtimeperiods # one LABEL=1  prediction 1 hours in the future Offset 6 hours
+
+# Ensure mp_feature_columns is defined and is a list
+mp_feature_columns = list(mv_train.columns)
+# Ensure 'RowNumber' exists in the list before attempting to remove it
+if 'RowNumber' in mp_feature_columns:
+    mp_feature_columns.remove('RowNumber')
+print("1:Feature Columns: ",mp_feature_columns)
+
+mp_label_columns =mp_label_feattopredict  # column names for label dependent variables
+mp_num_features = len(mp_feature_columns) # feature independent variables x
+mp_num_labels = len(mp_label_columns) # Number of labels dependent variable y
+
+print("2:Minutes data entries per time frame: mp_minutes:",mp_minutes, "mp_hours:",mp_minutes * 60, "mp_days:",mp_minutes * 60 * 24)
+print("2:Feature Columns: ",mp_feature_columns)
+print("2:Label Columns: ",mp_label_columns)
+print("2:Num Features: ",mp_num_features)
+print("2:Num Labels: ",mp_num_labels)
+
 win_i6_o1_l1 = CMqlWindowGenerator(
     input_width=int(mp_past_inputwidth_timewindow),
     label_width=int(mp_num_labels),
@@ -574,88 +603,70 @@ win_i6_o1_l1 = CMqlWindowGenerator(
     label_columns=mp_label_columns
 )
 
-print(win_i6_o1_l1)
-print("win_i6_o1_l1.total_window_size: ",win_i6_o1_l1.total_window_size)
-
+print("2: win_i6_o1_l1.total_window_size: ",win_i6_o1_l1.total_window_size)
 # +-------------------------------------------------------------------
 # End  Establish Windows for the data
 # +-------------------------------------------------------------------
-
 
 # +-------------------------------------------------------------------
 # Split the data into windows split into input features and labels
 # +-------------------------------------------------------------------
 # X 24 x 24 x 1
-shift_size = 100
-window_size = win_i24_o24_l1.total_window_size / (60 * 60 * 2)
+shift_size = 100 # value to start the next window splitting the total window size
+window_size = win_i24_o24_l1.total_window_size # fullobject window size
 train_df = mv_train
 train_df = train_df.to_numpy(dtype=np.float32)
 print("X 24 x 24 x 1 train_df.shape:",train_df.shape)
-# slice
-train_slice_win_i24_o24_l1 = win_i24_o24_l1.window_slicer(train_df, window_size, shift_size)
-# split window
-input_size = mp_days / (60 * 60 )
-output_size = mp_days / (60 * 60 )
-stride = output_size // 2  # Use integer division to ensure stride is an integer
-print("win 24 x 24 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
-inputs_train_slice_win_i24_o24_l1, labels_train_slice_win_i24_o24_l1 = win_i24_o24_l1.split_window(train_slice_win_i24_o24_l1, input_size, output_size, stride)
+# slice windowsize into 3 window subset
+train_slice_win_i24_o24_l1 = win_i24_o24_l1.slice_window(train_df, window_size, shift_size)
+print("train_slice_win_i24_o24_l1.shape",train_slice_win_i24_o24_l1.shape)
+
+#split window
+inputs_train_slice_win_i24_o24_l1, labels_train_slice_win_i24_o24_l1 = win_i24_o24_l1.split_window(train_slice_win_i24_o24_l1)
 
 print('All shapes are: (batch, time, features)')
 print(f'Window shape: {train_slice_win_i24_o24_l1.shape}')
-print(f'Inputs shape: {inputs_train_slice_win_i24_o24_l1}')
-print(f'Labels shape: {labels_train_slice_win_i24_o24_l1}')
+print(f'Inputs (Features: ind var X) shape: {inputs_train_slice_win_i24_o24_l1}')
+print(f'Labels (Labels dep var y) shape: {labels_train_slice_win_i24_o24_l1}')
+print("total_window_size=win_i24_o24_l1.total_window_size",win_i24_o24_l1.total_window_size)
 
 #Create TF datasets
-# 24 x 1 x 1
-train_ds_win_i24_o24_l1 = win_i24_o24_l1.make_dataset(train_slice_win_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-val_ds_win_i24_o24_l1 = win_i24_o24_l1.make_dataset(train_slice_win_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-test_ds_win_i24_o24_l1 = win_i24_o24_l1.make_dataset(train_slice_win_i24_o24_l1, batch_size=mp_batch_size,total_window_size=win_i24_o24_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+# 24 x 1 x 1cls
+targets=None
 
+train_ds_win_i24_o24_l1 = win_i24_o24_l1.make_dataset(train_slice_win_i24_o24_l1)
+val_ds_win_i24_o24_l1 = win_i24_o24_l1.make_dataset(train_slice_win_i24_o24_l1)
+test_ds_win_i24_o24_l1 = win_i24_o24_l1.make_dataset(train_slice_win_i24_o24_l1)
 
-# create shapes of data inputs
-dstrainshape_24241 = train_slice_win_i24_o24_l1.shape
-dsvalshape_24241 = train_slice_win_i24_o24_l1.shape
-dstestshape_24241 = train_slice_win_i24_o24_l1.shape
-
-print("Final DS shape: train.dataset_24241.shape",dstrainshape_24241, "val.dataset_24241.shape",dsvalshape_24241, "test.dataset_24241.shape",dstestshape_24241)
 
 # X 6 x 1 x 1
-shift_size = 100
-window_size=win_i6_o1_l1.total_window_size / (60 * 60 * 2)
+shift_size = 100 # value to start the next window splitting the total window size
+window_size = win_i6_o1_l1.total_window_size # fullobject window size
 train_df = mv_train
 train_df = train_df.to_numpy(dtype=np.float32)
-print("X 6 x 1 x 1 train_df.shape:",train_df.shape)
-#slice
-train_slice_win_i6_o1_l1=win_i6_o1_l1.window_slicer(train_df,window_size,shift_size)
-#split window
-input_size=mp_hours * 6 / (60 * 60 )
-output_size=mp_hours  / (60 * 60 )
-if output_size //2 > 1:
-    stride = output_size // 2  # Use integer division to ensure stride is an integer
-else:
-    stride = 1
+print("X 6 x 6 x 1 train_df.shape:",train_df.shape)
+# slice windowsize into 3 window subset
+train_slice_win_i6_o1_l1 = win_i6_o1_l1.slice_window(train_df, window_size, shift_size)
+print("train_slice_win_i6_o1_l1.shape",train_slice_win_i6_o1_l1.shape)
 
-print("X 6 x 1 x 1 input_size:",input_size, "output_size:",output_size, "stride:",stride)
-inputs_train_slice_win_y1_i6_o1_l1, labels_train_slice_win_y1_i6_o1_l1 = win_i6_o1_l1.split_window(train_slice_win_i6_o1_l1, input_size, output_size, stride)
+#split window
+inputs_train_slice_win_i6_o1_l1, labels_train_slice_win_i6_o1_l1 = win_i6_o1_l1.split_window(train_slice_win_i6_o1_l1)
 
 print('All shapes are: (batch, time, features)')
 print(f'Window shape: {train_slice_win_i6_o1_l1.shape}')
-print(f'Inputs shape: {inputs_train_slice_win_y1_i6_o1_l1}')
-print(f'Labels shape: {labels_train_slice_win_y1_i6_o1_l1}')
+print(f'Inputs (Features: ind var X) shape: {inputs_train_slice_win_i6_o1_l1}')
+print(f'Labels (Labels dep var y) shape: {labels_train_slice_win_i6_o1_l1}')
+print("total_window_size=win_i6_o1_l1.total_window_size",win_i6_o1_l1.total_window_size)
 
 #Create TF datasets
-# 6 x 1 x 1
-train_ds_win_i6_o1_l1 = win_i6_o1_l1.make_dataset(train_slice_win_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-val_ds_win_i6_o1_l1 = win_i6_o1_l1.make_dataset(train_slice_win_i6_o1_l1, batch_size=mp_batch_size,total_window_size=win_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
-test_ds_win_i6_o1_l1 = win_i6_o1_l1.make_dataset(train_slice_win_i6_o1_l1, 6,total_window_size=win_i6_o1_l1.total_window_size, shuffle=False, targets=targets,input_size=input_size, output_size=output_size, stride=stride)
+# 6 x 1 x 1cls
+targets=None
 
-# create shapes of data inputs
-dstrainshape_611 = train_slice_win_i6_o1_l1.shape
-dsvalshape_611 = train_slice_win_i6_o1_l1.shape
-dstestshape_611 = train_slice_win_i6_o1_l1.shape
+train_ds_win_i6_o1_l1 = win_i6_o1_l1.make_dataset(train_slice_win_i6_o1_l1)
+val_ds_win_i6_o1_l1 = win_i6_o1_l1.make_dataset(train_slice_win_i6_o1_l1)
+test_ds_win_i6_o1_l1 = win_i6_o1_l1.make_dataset(train_slice_win_i6_o1_l1)
 
-print("Final DS shape: train.dataset_611.shape",dstrainshape_611, "val.dataset_611.shape",dsvalshape_611, "test.dataset_611.shape",dstestshape_611)
-
+"""
 # +-------------------------------------------------------------------
 # End Split the data into windows split into inputs and labels
 # +-------------------------------------------------------------------
@@ -702,7 +713,6 @@ cmp_inputs= amp_inputs[0],amp_inputs[1],amp_inputs[2]
 print("cmp_inputs:", cmp_inputs)
 
 
-"""
 # +-------------------------------------------------------------------
 # Hyperparameter tuning and model setup
 # +-------------------------------------------------------------------

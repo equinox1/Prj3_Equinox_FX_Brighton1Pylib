@@ -112,16 +112,25 @@ class CMqlmlsetup:
 #----------------------------------------------------
 # Class CMqlWindowGenerator
 #+--------------------------------------------------
-class CMqlWindowGenerator():
+class CMqlWindowGenerator:
     def __init__(self, input_width, label_width, shift,
                  train_df, val_df, test_df,
                  label_columns=None, **kwargs):
+        # Convert to integers
+        self.input_width = int(input_width)
+        self.label_width = int(label_width)
+        self.shift = int(shift)
+        self.total_window_size = self.input_width + self.shift
+        
+        print("winobj:input_width", self.input_width)
+        print("winobj:label_width", self.label_width)
+        print("winobj:total_window_size", self.total_window_size)
+
         # Store the raw data.
         self.train_df = train_df
         self.val_df = val_df
         self.test_df = test_df
-
-        # Work out the label column indices.
+        
         self.label_columns = label_columns
         if label_columns is not None:
             self.label_columns_indices = {name: i for i, name in 
@@ -129,14 +138,8 @@ class CMqlWindowGenerator():
         self.column_indices = {name: i for i, name in 
                                enumerate(train_df.columns)}
 
-        # Work out the window parameters.
-        self.input_width = input_width
-        self.label_width = label_width
-        self.shift = shift
-
-        self.total_window_size = input_width + shift
-
-        self.input_slice = slice(0, input_width)
+        # Define slices and indices
+        self.input_slice = slice(0, self.input_width)
         self.input_indices = np.arange(self.total_window_size)[self.input_slice]
 
         self.label_start = self.total_window_size - self.label_width
@@ -202,7 +205,7 @@ class CMqlWindowGenerator():
     # usage: mql data
     # /pdlsplit data
     #--------------------------------------------------------------------
-    def Sequential_Input(df, input_sequence):
+    def Sequential_Input(self,df, input_sequence):
         """
         Prepare sequential input data for an LSTM model.
         
@@ -224,190 +227,94 @@ class CMqlWindowGenerator():
         return np.array(X), np.array(y)
 
     #--------------------------------------------------------------------
-    # create method  window_slicer".
+    # create method  slice_window".
     # class:cmqlmlsetup
     # usage: mql data
     # /pdlsplit data
     #--------------------------------------------------------------------
-    def window_slicer(self, df, window_size, shift_size):
+    def slice_window(self, df, window_size, shift_size):
         print("length of df", len(df), "window_size", window_size, "shift_size", shift_size)
+        
         # Ensure the input is compatible
         if isinstance(df, np.ndarray):
             data = df
-        elif hasattr(df, "values"):  # For Pandas DataFrame or Series
+        elif hasattr(df, "values"):
             data = df.values
         else:
             raise TypeError("Input must be a Pandas DataFrame, Series, or NumPy array.")
-        # Ensure the data length is sufficient
+        
+        # Check if data length is sufficient
         if 2 * shift_size + window_size > len(data):
-            raise ValueError("Data is too small for the given window and shift sizes.")
-        # Convert window_size to an integer
-        window_size = int(window_size)
+            window_size = len(data) - 2 * shift_size
+            if window_size <= 0:
+                raise ValueError("Adjusted window_size is invalid: data length is too small.")
+            print(f"Adjusted window_size to {window_size} due to data constraints.")
+        
+        window_size = int(window_size)  # Ensure integer window size
+        
         # Create slices using NumPy slicing
         slices = []
         for start_idx in range(0, len(data) - window_size + 1, shift_size):
             end_idx = start_idx + window_size
             slices.append(data[start_idx:end_idx])
+        
         # Ensure all slices are of the same shape
         min_length = min(len(s) for s in slices)
         varwin = tf.stack([s[:min_length] for s in slices])
         return varwin
 
+
     #--------------------------------------------------------------------
-    # create method  "split_window".
+    # create method  "split window".
     # class:cmqlmlsetup
     # usage: mql data
     # /pdlsplit data
     #--------------------------------------------------------------------
-    def split_window0(self, data, input_size, output_size, stride):
-        """Splits data into windows for time series forecasting.
+    def split_window(self, features):
+        inputs = features[:, self.input_slice, :]
+        labels = features[:, self.labels_slice, :]
+        if self.label_columns is not None:
+            labels = tf.stack(
+                [labels[:, :, self.column_indices[name]] for name in self.label_columns],
+                axis=-1)
 
-        Args:
-            data: A NumPy array or TensorFlow Dataset containing the time series data.
-            input_size: The number of time steps in the input window.
-            output_size: The number of time steps in the output window.
-            stride: The number of time steps to shift the window.
+        # Slicing doesn't preserve static shape information, so set the shapes
+        # manually. This way the `tf.data.Datasets` are easier to inspect.
+        #inputs.set_shape([None, self.input_width, None])
+        #labels.set_shape([None, self.label_width, None])
 
-        Returns:
-            A TensorFlow Dataset of input-output pairs.
-        """
-
-        # Ensure input_size, output_size, and stride are integers
-        input_size = int(input_size)
-        output_size = int(output_size)
-        stride = int(stride)
-
-        ds = tf.data.Dataset.from_tensor_slices(data)
-
-        def _split_window(window):
-            """Internal function to create a single input-output pair."""
-            input_data = window[:input_size]
-            output_data = window[input_size:input_size + output_size]
-            return input_data, output_data
-
-        ds = ds.window(input_size + output_size, shift=stride, drop_remainder=True)
-        ds = ds.flat_map(lambda window: window.batch(input_size + output_size))
-        ds = ds.map(_split_window)
-
-        return ds
+        return inputs, labels
 
 
-     #--------------------------------------------------------------------
+
+
+    #--------------------------------------------------------------------
     # create method  "make_dataset".
     # class:cmqlmlsetup
     # usage: mql data
     # /pdlsplit data
     #--------------------------------------------------------------------
-    def make_dataset0(self, data, batch_size=32, total_window_size=24, shuffle=True, targets=1, output_size=1, stride=1, **kwargs):
+    def make_dataset(self, data):
         data = np.array(data, dtype=np.float32)
+        ds = tf.keras.utils.timeseries_dataset_from_array(
+            data=data,
+            targets=None,
+            sequence_length=self.total_window_size,
+            sequence_stride=1,
+            shuffle=True,
+            batch_size=32,)
 
-        # Ensure targets is an integer and within the valid range
-        if not isinstance(targets, int) or targets <= 0 or targets >= len(data):
-            raise ValueError("Targets must be a positive integer less than the length of the data.")
-
-        # Create the dataset
-        ds = self.split_window(data, input_size=total_window_size - output_size, output_size=output_size, stride=stride)
-        
-        # Shuffle and batch the dataset
-        if shuffle:
-            ds = ds.shuffle(buffer_size=len(data))
-        ds = ds.batch(batch_size)
-
-        # Debugging outputs
-        print("Data type:", type(data))
-        print("Data shape:", data.shape)
-        print("Batch size:", batch_size)
-        print("Total window size:", total_window_size)
-        print("Stride:", stride)
-        print("Output size:", output_size)
+        ds = ds.map(self.split_window)
 
         return ds
 
 
     #--------------------------------------------------------------------
-    # create method  tf Datasets".
+    # create method  print_dataset_elements".
     # class:cmqlmlsetup
     # usage: mql data
     # /pdlsplit data
     #--------------------------------------------------------------------
-    @property
-    def train(self):
-            return self.make_dataset(self.train_df,batch_size=32,total_window_size=24,shuffle=True,targets=None)
-
-    @property
-    def val(self):
-            return self.make_dataset(self.val_df, batch_size=32, total_window_size=24, shuffle=True, targets=None)
-
-    @property
-    def test(self):
-            return self.make_dataset(self.test_df, batch_size=32, total_window_size=24, shuffle=True, targets=None)
-
-
-    
-
-
-    def split_window(self, data, input_size, output_size, stride):
-        """Splits data into windows for time series forecasting.
-
-        Args:
-            data: A NumPy array or TensorFlow Dataset containing the time series data.
-            input_size: The number of time steps in the input window.
-            output_size: The number of time steps in the output window.
-            stride: The number of time steps to shift the window.
-
-        Returns:
-            A tuple containing two TensorFlow Datasets: inputs and labels.
-        """
-
-        # Ensure input_size, output_size, and stride are integers
-        input_size = int(input_size)
-        output_size = int(output_size)
-        stride = int(stride)
-
-        ds = tf.data.Dataset.from_tensor_slices(data)
-
-        def _split_window(window):
-            """Internal function to create a single input-output pair."""
-            input_data = window[:input_size]
-            output_data = window[input_size:input_size + output_size]
-            return input_data, output_data
-
-        ds = ds.window(input_size + output_size, shift=stride, drop_remainder=True)
-        ds = ds.flat_map(lambda window: window.batch(input_size + output_size))
-        ds = ds.map(_split_window)
-
-        inputs = ds.map(lambda input_data, output_data: input_data)
-        labels = ds.map(lambda input_data, output_data: output_data)
-
-        return inputs, labels
-
-    def make_dataset(self, data, batch_size=32, total_window_size=24, shuffle=True, targets=1, output_size=1, stride=1, **kwargs):
-        data = np.array(data, dtype=np.float32)
-
-        # Ensure targets is an integer and within the valid range
-        if not isinstance(targets, int) or targets <= 0 or targets >= len(data):
-            raise ValueError("Targets must be a positive integer less than the length of the data.")
-
-        # Create the dataset
-        inputs, labels = self.split_window(data, input_size=total_window_size - output_size, output_size=output_size, stride=stride)
-
-        # Zip the inputs and labels into a single dataset
-        ds = tf.data.Dataset.zip((inputs, labels))
-
-        # Shuffle and batch the dataset
-        if shuffle:
-            ds = ds.shuffle(buffer_size=len(data))
-        ds = ds.batch(batch_size)
-
-        # Debugging outputs
-        print("Data type:", type(data))
-        print("Data shape:", data.shape)
-        print("Batch size:", batch_size)
-        print("Total window size:", total_window_size)
-        print("Stride:", stride)
-        print("Output size:", output_size)
-        return ds
-
     # Function to print elements in a dataset
     def print_dataset_elements(self, dataset, num_elements=1):
         shapes = []
@@ -427,6 +334,12 @@ class CMqlWindowGenerator():
         # Return a list of shapes and dtypes
         return shapes, dtypes
 
+    #--------------------------------------------------------------------
+    # create method  "mergeXyTensor".
+    # class:cmqlmlsetup
+    # usage: mql data
+    # /pdlsplit data
+    #--------------------------------------------------------------------
     def mergeXyTensor(self, X, y, batch_size=32):
         X = tf.expand_dims(X, axis=0)
         y = tf.expand_dims(y, axis=0)
@@ -442,14 +355,38 @@ class CMqlWindowGenerator():
                 print(f"Merge issue y: {y.shape}")
     
         return df
-
-    def convert_raw_samples_to_model_samples(scd_log_rtns, window_size):
-    X, y = [], []
-    len_log_rtns = len(scd_log_rtns)
-    for i in range(window_size, len_log_rtns):
-        X.append(values[i-window_size:i])
-        y.append(values[i])
-    X, y = np.asarray(X), np.asarray(y)
-    X = np.reshape(X, (X.shape[0], X.shape[1], 1))
-    return X, y
     
+    #--------------------------------------------------------------------
+    # create method  convert_raw_samples_to_model_samples".
+    # class:cmqlmlsetup
+    # usage: mql data
+    # /pdlsplit data
+    #--------------------------------------------------------------------
+    def convert_raw_samples_to_model_samples(scd_log_rtns, window_size):
+        X, y = [], []
+        len_log_rtns = len(scd_log_rtns)
+        for i in range(window_size, len_log_rtns):
+            X.append(values[i-window_size:i])
+            y.append(values[i])
+        X, y = np.asarray(X), np.asarray(y)
+        X = np.reshape(X, (X.shape[0], X.shape[1], 1))
+        return X, y
+        
+    #--------------------------------------------------------------------
+    # create method  tf Datasets".
+    # class:cmqlmlsetup
+    # usage: mql data
+    # /pdlsplit data
+    #--------------------------------------------------------------------
+    @property
+    def train(self):
+            return self.make_dataset(self.train_df,batch_size=32,total_window_size=24,shuffle=True,targets=None)
+
+    @property
+    def val(self):
+            return self.make_dataset(self.val_df, batch_size=32, total_window_size=24, shuffle=True, targets=None)
+
+    @property
+    def test(self):
+            return self.make_dataset(self.test_df, batch_size=32, total_window_size=24, shuffle=True, targets=None)
+
