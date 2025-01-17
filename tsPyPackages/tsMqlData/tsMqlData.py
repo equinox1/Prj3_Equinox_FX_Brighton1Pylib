@@ -13,7 +13,7 @@
 import MetaTrader5 as mt5
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import arrow
 import pytz
 from sklearn.preprocessing import MinMaxScaler
@@ -61,8 +61,6 @@ class CMqldatasetup:
         
 
        
-       
-    logging.basicConfig(level=logging.INFO)
     # create method  "setmql_timezone()".
     # class: cmqldatasetup      
     # usage: mql data
@@ -76,23 +74,25 @@ class CMqldatasetup:
     # class: cmqldatasetup      
     # usage: mql data
     # /param  var                          
-    def run_load_from_mql(self, lp_loadapiticks, lp_loadapirates, lp_loadfileticks, lp_loadfilerates, lp_rates1, lp_rates2, lp_utc_from, lp_symbol, lp_rows, lp_rowcount, lp_command, lp_path, lp_filename1, lp_filename2, lp_timeframe):
+    def run_load_from_mql(self, lp_loadapiticks, lp_loadapirates, lp_loadfileticks, lp_loadfilerates, lp_rates1, lp_rates2, lp_utc_from, lp_symbol, lp_rows, lp_rowcount, lp_command_ticks,lp_command_rates, lp_path, lp_filename1, lp_filename2, lp_timeframe):
         
         #Reset the dataframes
         lp_rates1 = pd.DataFrame()
         lp_rates2 = pd.DataFrame()
         lp_rates3 = pd.DataFrame()
         lp_rates4 = pd.DataFrame()
+
         print("mp_unit", self.mp_unit, "mp_seconds", self.mp_seconds)
         if lp_loadapiticks:
             try:
                 print("Running Tick load from Mql")
                 print("===========================")
+                print("lp_symbol", lp_symbol)
                 print("lp_utc_from", lp_utc_from)
                 print("lp_rows", lp_rows)
-                print("lp_symbol", lp_symbol)
-                print("lp_command", lp_command)
-                lp_rates1 = mt5.copy_ticks_from(lp_symbol, lp_utc_from, lp_rows, lp_command)
+                print("lp_command", lp_command_ticks)
+
+                lp_rates1 = mt5.copy_ticks_from(lp_symbol, lp_utc_from, lp_rows, lp_command_ticks)
                 lp_rates1 = pd.DataFrame(lp_rates1)
                 
                 if lp_rates1.empty:
@@ -101,6 +101,7 @@ class CMqldatasetup:
                     print("Api tick data received:", len(lp_rates1))
             except Exception as e:
                 print(f"Mt5 api ticks exception: {e}")
+    
 
         if lp_loadapirates:
             try:
@@ -110,7 +111,8 @@ class CMqldatasetup:
                 print("lp_timeframe", lp_timeframe)
                 print("lp_utc_from", lp_utc_from)
                 print("lp_rows", lp_rows)
-                lp_rates2 = mt5.copy_rates_from(lp_symbol,lp_timeframe ,lp_utc_from, lp_rows)
+                
+                lp_rates2 = mt5.copy_rates_from(lp_symbol, eval(lp_timeframe), lp_utc_from, lp_rows)
                 lp_rates2 = pd.DataFrame(lp_rates2)
                 
                 if lp_rates2.empty:
@@ -119,6 +121,8 @@ class CMqldatasetup:
                     print("Api rates data received:", len(lp_rates2))   
             except Exception as e:
                 print(f"Mt5 api rates exception: {e}")
+
+                
 
         if lp_loadfileticks:    
             lpmergepath = lp_path + "//" + lp_filename1
@@ -144,8 +148,17 @@ class CMqldatasetup:
                     print("File rate data received:", len(lp_rates4))
             except Exception as e:
                 print(f"Fileload rates exception: {e}")
+                # Drop duplicates
+                lp_rates1 = lp_rates1.drop_duplicates(subset=['time'], keep='first')
+                lp_rates2 = lp_rates2.drop_duplicates(subset=['time'], keep='first')
+                lp_rates3 = lp_rates3.drop_duplicates(subset=['time'], keep='first')
+                lp_rates4 = lp_rates4.drop_duplicates(subset=['time'], keep='first')
+                # Drop NaN values
+                lp_rates1.dropna(inplace=True)
+                lp_rates2.dropna(inplace=True)
+                lp_rates3.dropna(inplace=True)
+                lp_rates4.dropna(inplace=True)
 
-            
         return lp_rates1 , lp_rates2, lp_rates3, lp_rates4
 
 
@@ -334,9 +347,9 @@ class CMqldatasetup:
             # Merge datetime columns
             if mp_filesrc in merge_columns and mp_merge:
                 col1, col2, mcol, mfmt1, mfmt2 = merge_columns[mp_filesrc]
+                df = merge_datetime(df, col1, col2, mcol, mfmt1, mfmt2, mp_filesrc)
                 df.set_index(mcol, inplace=True)
                 df.sort_index(inplace=True)
-                df = merge_datetime(df, col1, col2, mcol, mfmt1, mfmt2, mp_filesrc)
 
             # Convert datetime columns with tf
             if mp_filesrc in conv_columns and mp_convert:
@@ -400,136 +413,6 @@ class CMqldatasetup:
         # Ensure shift is applied before calculating log returns
         shifted_column = df[column].shift(shift)
         return np.log(df[column] / shifted_column).dropna()
-
-
-    def create_target(
-        self,
-        df,
-        lookahead_periods,
-        ma_window,
-        bid_column,
-        ask_column,
-        column_in=None,
-        column_out1='close',
-        column_out2='target',
-        open_column=None,
-        high_column=None,
-        low_column=None,
-        close_column=None,
-        hl_avg_col='HLAvg',
-        ma_col='SMA',
-        returns_col='Returns',
-        shift_in=1,
-        run_mode=1,
-        run_avg=False,
-        run_ma=False,
-        log_stationary=False,
-        run_returns=False,
-        run_future_returns=False,
-        remove_zeros=False,
-        rownumber=False
-    ):
-        """
-        Creates a target column in the DataFrame by calculating mid prices or shifting a specified column.
-
-        Parameters:
-            df (pd.DataFrame): Input DataFrame containing market data.
-            lookahead_periods (int): Number of seconds to shift for the target.
-            ma_window (int): Number of periods for the moving average.
-            bid_column (str): Name of the column with bid prices.
-            ask_column (str): Name of the column with ask prices.
-            open_column (str): Name of the column with open prices.
-            high_column (str): Name of the column with high prices.
-            low_column (str): Name of the column with low prices.
-            close_column (str): Name of the column with close prices.
-            column_in (str, optional): Column to use for mid-price calculation (optional).
-            column_out1 (str): Name of the output column for the close price (default: 'close').
-            column_out2 (str): Name of the output column for the target (default: 'target').
-            hl_avg_col (str): Column name for high-low average (default: 'HLAvg').
-            ma_col (str): Column name for moving average (default: 'MA').
-            returns_col (str): Column name for returns (default: 'Returns').
-            shift_in (int): Number of periods to shift for returns calculation (default: 1).
-            run_mode (int): Specifies the operation mode (1, 2, 3, or 4).
-            run_avg (bool): Whether to calculate the average of bid and ask prices or high and low prices.
-            run_ma (bool): Whether to calculate the moving average of the input column.
-            log_stationary (bool): Whether to calculate log returns for stationarity.
-            run_returns (bool): Whether to calculate returns based on the input column.
-            run_future_returns (bool): Whether to calculate future returns based on the input column.
-
-        Returns:
-            pd.DataFrame: DataFrame with the target column added.
-
-        Raises:
-            ValueError: If `column_in` is not provided for run modes 1/3 or 2/4.
-            ValueError: If `run_mode` is not in {1, 2, 3, 4}.
-        """
-
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError("The input `data` must be a pandas DataFrame.")
-        if not isinstance(lookahead_periods, int) or lookahead_periods <= 0:
-            raise ValueError("The `lookahead_periods` must be a positive integer.")
-
-        if run_mode not in {1, 2, 3, 4}:
-            raise ValueError("`run_mode` must be one of {1, 2, 3, 4}.")
-
-        if run_mode in {1, 3} and column_in is None:
-            raise ValueError("`column_in` must be provided for run modes 1 or 3.")
-
-        if run_mode in {2, 4} and column_in is None:
-            raise ValueError("`column_in` must be provided for run modes 2 or 4.")
-
-        # Calculate base column based on run mode
-        if run_mode in {1, 3}:  # Bid-ask average
-            if run_avg:
-                df[column_out1] = (df[bid_column] + df[ask_column]) / 2
-                df[hl_avg_col] = (df[bid_column] + df[ask_column]) / 2
-                logging.info("Bid-ask average calculated.")
-            else:
-                df[column_out1] = (df[bid_column] + df[ask_column]) / 2
-
-        elif run_mode in {2, 4}:  # High-low average
-            if run_avg:
-                df[column_out1] = df[close_column]
-                df[hl_avg_col] = (df[high_column] + df[low_column]) / 2
-                logging.info("High-low average calculated.")
-            else:
-                df[column_out1] = df[close_column]
-
-        # Apply moving average if required
-        if run_ma:
-            df[ma_col] = self.calculate_moving_average(df, hl_avg_col, ma_window, min_periods=14)
-            logging.info("Moving averages calculated: SMA")
-
-        # Apply log stationary transformation if required
-        if log_stationary:
-            df[ma_col] = self.calculate_log_returns(df, ma_col, 1)
-            logging.info("Log stationary transformation applied.")
-
-        # Calculate returns if required
-        if run_returns:
-            df[returns_col] = self.calculate_log_returns(df, ma_col, shift_in)
-            logging.info("Returns calculated.")
-
-        # Calculate future returns if required
-        if run_future_returns:
-            df[ma_col] = df[ma_col].mul(np.exp(df[returns_col].shift(-1))).shift(1)
-            logging.info("Future Returns calculated.")
-
-        # Set output columns
-        df[column_out2] = df[column_in].shift(-lookahead_periods)
-        df.dropna(inplace=True)
-        logging.info("Target column created.")
-
-        if remove_zeros:
-            if returns_col in df.columns:
-                df = df[df[returns_col] != 0]
-        if rownumber:
-            df['RowNumber'] = range(1, len(df) + 1)
-            # Rearrange columns if needed
-            df = df[['RowNumber'] + list(df.columns[:-1])]
-
-        return df
-
 
     # create method  "run_shift_data1()".
     # class: cmqldatasetup      
@@ -651,13 +534,13 @@ class CMqldatasetup:
             except Exception as e:
                 print(f"Fileload rates exception: {e}")
 
-            
         return lp_rates1 , lp_rates2, lp_rates3, lp_rates4
 
 
-
-
-
+    # create method  "run_mql_print".
+    # class: cmqldatasetup      
+    # usage: mql data
+    # /param  var    
     def run_mql_print(self, df, hrows,colwidth,tablefmt = "pretty",floatfmt = ".5f",numalign = "left",stralign = "left"):
         print("Start First few rows of the data: Count", len(df))
         
@@ -678,9 +561,178 @@ class CMqldatasetup:
             floatfmt=".5f"
         ))
 
-
-
+    # create method  "move_col_to_end".
+    # class: cmqldatasetup      
+    # usage: mql data
+    # /param  var    
     # Reorder columns to move the target column to the end
     def move_col_to_end(self,df, last_col):
         cols = [col for col in df.columns if col != last_col] + [last_col]
         return df[cols]
+
+
+    # create method  "create_target_wrapper()".
+    # class: cmqldatasetup      
+    # usage: mql data
+    # /param  var           
+    def create_target_wrapper(
+        self,
+        df,
+        lookahead_periods,
+        ma_window,
+        bid_column,
+        ask_column,
+        column_in,
+        column_out1,
+        column_out2,
+        open_column,
+        high_column,
+        low_column,
+        close_column,
+        run_mode,
+        hl_avg_col,
+        ma_col,
+        returns_col,
+        shift_in,
+        rownumber,
+        run_avg=True,
+        run_ma=True,
+        run_returns=True,
+        run_future_returns=True,
+        log_stationary=False,
+        remove_zeros=True,
+    ):
+        """
+        Wrapper function for `create_target` to handle the creation of target variables.
+
+        Args:
+            See `create_target` method for parameter details.
+
+        Returns:
+            The output of the `create_target` function.
+        """
+        params = {
+            "df": df,
+            "lookahead_periods": lookahead_periods,
+            "ma_window": ma_window,
+            "bid_column": bid_column,
+            "ask_column": ask_column,
+            "column_in": column_in,
+            "column_out1": column_out1,
+            "column_out2": column_out2,
+            "open_column": open_column,
+            "high_column": high_column,
+            "low_column": low_column,
+            "close_column": close_column,
+            "run_mode": run_mode,
+            "hl_avg_col": hl_avg_col,
+            "ma_col": ma_col,
+            "returns_col": returns_col,
+            "shift_in": shift_in,
+            "rownumber": rownumber,
+            "run_avg": run_avg,
+            "run_ma": run_ma,
+            "run_returns": run_returns,
+            "run_future_returns": run_future_returns,
+            "log_stationary": log_stationary,
+            "remove_zeros": remove_zeros,
+        }
+
+        return self.create_target(**params)
+
+    def create_target(
+        self,
+        df,
+        lookahead_periods,
+        ma_window,
+        bid_column,
+        ask_column,
+        column_in=None,
+        column_out1='close',
+        column_out2='target',
+        open_column=None,
+        high_column=None,
+        low_column=None,
+        close_column=None,
+        hl_avg_col='HLAvg',
+        ma_col='SMA',
+        returns_col='Returns',
+        shift_in=1,
+        run_mode=1,
+        run_avg=False,
+        run_ma=False,
+        log_stationary=False,
+        run_returns=False,
+        run_future_returns=False,
+        remove_zeros=False,
+        rownumber=False,
+    ):
+        """
+        Creates a target column in the DataFrame by calculating mid prices or shifting a specified column.
+
+        Parameters:
+            See docstring of `create_target_wrapper`.
+
+        Returns:
+            pd.DataFrame: DataFrame with the target column added.
+        """
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("The input `df` must be a pandas DataFrame.")
+        if not isinstance(lookahead_periods, int) or lookahead_periods <= 0:
+            raise ValueError("`lookahead_periods` must be a positive integer.")
+        if run_mode not in {1, 2, 3, 4}:
+            raise ValueError("`run_mode` must be one of {1, 2, 3, 4}.")
+        if run_mode in {1, 3} and column_in is None:
+            raise ValueError("`column_in` must be provided for run modes 1 or 3.")
+        if run_mode in {2, 4} and column_in is None:
+            raise ValueError("`column_in` must be provided for run modes 2 or 4.")
+
+        # Calculate base column based on run mode
+        if run_mode in {1, 3}:  # Bid-ask average
+            df[column_out1] = (df[bid_column] + df[ask_column]) / 2
+            if run_avg:
+                df[hl_avg_col] = df[column_out1]
+                logging.info("Bid-ask average calculated.")
+
+        elif run_mode in {2, 4}:  # High-low average
+            if close_column is None:
+                raise ValueError("`close_column` must be provided for run modes 2 or 4.")
+            df[column_out1] = df[close_column]
+            if run_avg:
+                df[hl_avg_col] = (df[high_column] + df[low_column]) / 2
+                logging.info("High-low average calculated.")
+
+        # Apply moving average if required
+        if run_ma:
+            df[ma_col] = df[hl_avg_col].rolling(window=ma_window, min_periods=1).mean()
+            logging.info("Moving averages calculated.")
+
+        # Apply log stationary transformation if required
+        if log_stationary:
+            df[ma_col] = np.log(df[ma_col]).diff().fillna(0)
+            logging.info("Log stationary transformation applied.")
+
+        # Calculate returns if required
+        if run_returns:
+            df[returns_col] = df[column_out1].pct_change(periods=shift_in).fillna(0)
+            logging.info("Returns calculated.")
+
+        # Calculate future returns if required
+        if run_future_returns:
+            df[returns_col] = (df[column_out1].shift(-lookahead_periods) / df[column_out1]) - 1
+            logging.info("Future Returns calculated.")
+
+        # Set target column
+        df[column_out2] = df[column_in].shift(-lookahead_periods)
+        df.dropna(inplace=True)
+        logging.info("Target column created.")
+
+        # Remove rows with zeros in the returns column if required
+        if remove_zeros and returns_col in df.columns:
+            df = df[df[returns_col] != 0]
+
+        # Add row numbers if required
+        if rownumber:
+            df['RowNumber'] = range(1, len(df) + 1)
+
+        return df
