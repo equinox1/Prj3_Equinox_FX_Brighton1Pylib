@@ -334,6 +334,8 @@ class CMqldatasetup:
             # Merge datetime columns
             if mp_filesrc in merge_columns and mp_merge:
                 col1, col2, mcol, mfmt1, mfmt2 = merge_columns[mp_filesrc]
+                df.set_index(mcol, inplace=True)
+                df.sort_index(inplace=True)
                 df = merge_datetime(df, col1, col2, mcol, mfmt1, mfmt2, mp_filesrc)
 
             # Convert datetime columns with tf
