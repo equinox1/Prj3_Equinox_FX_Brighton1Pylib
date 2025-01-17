@@ -74,7 +74,7 @@ tm = CMqlTimeConfig()
 mp_symbol_primary = tm.TIME_CONSTANTS['SYMBOLS'][0]
 mp_symbol_secondary = tm.TIME_CONSTANTS['SYMBOLS'][1]
 mp_shiftvalue = tm.TIME_CONSTANTS['DATATYPE']['MINUTE']
-mp_unit = tm.TIME_CONSTANTS['UNIT'][0] 
+mp_unit = tm.TIME_CONSTANTS['UNIT'][1] 
 print("mp_symbol_primary:",mp_symbol_primary, "mp_symbol_secondary:",mp_symbol_secondary, "mp_shiftvalue:",mp_shiftvalue, "mp_unit:",mp_unit)
 MPDATAFILE1 =  "tickdata1.csv"
 MPDATAFILE2 =  "ratesdata1.csv"

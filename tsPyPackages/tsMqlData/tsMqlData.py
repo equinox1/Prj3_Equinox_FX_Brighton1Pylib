@@ -148,16 +148,7 @@ class CMqldatasetup:
                     print("File rate data received:", len(lp_rates4))
             except Exception as e:
                 print(f"Fileload rates exception: {e}")
-                # Drop duplicates
-                lp_rates1 = lp_rates1.drop_duplicates(subset=['time'], keep='first')
-                lp_rates2 = lp_rates2.drop_duplicates(subset=['time'], keep='first')
-                lp_rates3 = lp_rates3.drop_duplicates(subset=['time'], keep='first')
-                lp_rates4 = lp_rates4.drop_duplicates(subset=['time'], keep='first')
-                # Drop NaN values
-                lp_rates1.dropna(inplace=True)
-                lp_rates2.dropna(inplace=True)
-                lp_rates3.dropna(inplace=True)
-                lp_rates4.dropna(inplace=True)
+                
 
         return lp_rates1 , lp_rates2, lp_rates3, lp_rates4
 
@@ -348,8 +339,7 @@ class CMqldatasetup:
             if mp_filesrc in merge_columns and mp_merge:
                 col1, col2, mcol, mfmt1, mfmt2 = merge_columns[mp_filesrc]
                 df = merge_datetime(df, col1, col2, mcol, mfmt1, mfmt2, mp_filesrc)
-                df.set_index(mcol, inplace=True)
-                df.sort_index(inplace=True)
+                
 
             # Convert datetime columns with tf
             if mp_filesrc in conv_columns and mp_convert:
