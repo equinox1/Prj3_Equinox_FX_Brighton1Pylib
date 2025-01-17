@@ -69,8 +69,10 @@ if gpus:
 # start of set variables
 # +-------------------------------------------------------------------
 mp_label_feattopredict = {'close'} # the feature to predict
+mp_X_input_features = {'close'} # the feature to predict
+mp_X_input_features_scaled = mp_X_input_features + '_scaled'  # the feature to predict
 mp_rownumber = True
-###########################################################
+
 loadtensor = True
 loadtemporian = False
 winmodel = '6_1_1' # '24_24_1' or '6_1_1'
@@ -208,7 +210,7 @@ print(f"data_path to save onnx model: ",mp_data_path)
 # +-------------------------------------------------------------------
 
 # +-------------------------------------------------------------------
-# Import data from MQL
+# Step 1.1 Data Preparation : Load the data: Use pandas to load and preprocess the data.
 # +-------------------------------------------------------------------
 
 # Set up dataset
@@ -227,10 +229,8 @@ print(f"mp_path Set to: {MPDATAPATH}")
 print(f"mp_filename1 Set to: {MPFILEVALUE1}")
 print(f"mp_filename2 Set to: {MPFILEVALUE2}")
 
-
 # Load tick data from MQL
 mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mv_loadapiticks, mv_loadapirates, mv_loadfileticks, mv_loadfilerates, mp_dfName1, mp_dfName2, mv_utc_from, mp_symbol_primary, mp_rows, mp_rowcount, mp_command, mp_path, mp_filename1, mp_filename2, mp_timeframe)
-
 #wrangle the data 
 mv_tdata1apiticks = d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
 mv_tdata1apirates = d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
@@ -357,7 +357,6 @@ mv_tdata1apirates.dropna(inplace=True)
 mv_tdata1loadticks.dropna(inplace=True)
 mv_tdata1loadrates.dropna(inplace=True)
 
-
 # print shapes of data
 print("SHAPE0: mv_tdata1apiticks shape:", mv_tdata1apiticks.shape, "mv_tdata1apiticks.shape[0] :", mv_tdata1apiticks.shape[0], "mv_tdata1apiticks.shape[1] :", mv_tdata1apiticks.shape[1])  
 print("SHAPE0: mv_tdata1apirates shape:", mv_tdata1apirates.shape, "mv_tdata1apirates.shape[0] :", mv_tdata1apirates.shape[0], "mv_tdata1apirates.shape[1] :", mv_tdata1apirates.shape[1])
@@ -385,7 +384,6 @@ mv_tdata2a = mv_tdata1apiticks.copy()  # Copy the data for further processing
 mv_tdata2b = mv_tdata1apirates.copy()  # Copy the data for further processing
 mv_tdata2c = mv_tdata1loadticks.copy()  # Copy the data for further processing
 mv_tdata2d = mv_tdata1loadrates.copy()  # Copy the data for further processing
-
 
 # Check the switch of which file to use
 if mv_usedata == 'loadapiticks':
@@ -473,15 +471,17 @@ return_col_scaled = 'LogReturns scaled'
 # Initialize scalers for features and targets
 feature_scaler = MinMaxScaler()
 
+# Scale the Close column
+  
 # Scaling features (X)
-mv_train_scaled = feature_scaler.fit_transform(mv_train[[return_col]].values)
-mv_val_scaled = feature_scaler.transform(mv_val[[return_col]].values)
-mv_test_scaled = feature_scaler.transform(mv_test[[return_col]].values)
+mv_train_scaled = feature_scaler.fit_transform(mv_train[[mp_X_input_features]].values)
+mv_val_scaled = feature_scaler.transform(mv_val[[mp_X_input_features]].values)
+mv_test_scaled = feature_scaler.transform(mv_test[[mp_X_input_features]].values)
 
 # convert to pd
-mv_train_scaled = pd.DataFrame(mv_train_scaled, columns=[return_col_scaled], index=mv_train.index)
-mv_val_scaled = pd.DataFrame(mv_val_scaled, columns=[return_col_scaled], index=mv_val.index)
-mv_test_scaled = pd.DataFrame(mv_test_scaled, columns=[return_col_scaled], index=mv_test.index)
+mv_train_scaled = pd.DataFrame(mv_train_scaled, columns=[mp_X_input_features_scaled], index=mv_train.index)
+mv_val_scaled = pd.DataFrame(mv_val_scaled, columns=[mp_X_input_features_scaled], index=mv_val.index)
+mv_test_scaled = pd.DataFrame(mv_test_scaled, columns=[mp_X_input_features_scaled], index=mv_test.index)
 
 # Move the target column to the end of the DataFrame
 last_col = 'target'
@@ -666,30 +666,27 @@ train_ds_win_i6_o1_l1 = win_i6_o1_l1.make_dataset(train_slice_win_i6_o1_l1)
 val_ds_win_i6_o1_l1 = win_i6_o1_l1.make_dataset(train_slice_win_i6_o1_l1)
 test_ds_win_i6_o1_l1 = win_i6_o1_l1.make_dataset(train_slice_win_i6_o1_l1)
 
-"""
+
 # +-------------------------------------------------------------------
 # End Split the data into windows split into inputs and labels
 # +-------------------------------------------------------------------
 if winmodel == '24_24_1':
     window = win_i24_o24_l1
     dswindow = train_ds_win_i24_o24_l1
-    train_dataset = train_ds_win_i24_o24_l1
-    val_dataset = val_ds_win_i24_o24_l1
-    test_dataset = test_ds_win_i24_o24_l1
-    train_shape = dstrainshape_24241
-    val_shape = dsvalshape_24241
-    test_shape = dstestshape_24241
+    train_dataset = train_ds_win_i6_o1_l1
+    val_dataset = val_ds_win_i6_o1_l1
+    test_dataset = test_ds_win_i6_o1_l1
+    
 elif winmodel == '6_1_1':
     window = win_i6_o1_l1
     dswindow = train_ds_win_i6_o1_l1
     train_dataset = train_ds_win_i6_o1_l1
     val_dataset = val_ds_win_i6_o1_l1
     test_dataset = test_ds_win_i6_o1_l1
-    train_shape = dstrainshape_611
-    val_shape = dsvalshape_611
-    test_shape = dstestshape_611
+    
 
 print("winmodel:", winmodel,"window:", window, "dswindow:",dswindow )
+print("train_dataset:", train_dataset, "val_dataset:", val_dataset, "test_dataset:", test_dataset)
 
 # Print elements of dswindow
 print("dswindow:", dswindow)
@@ -706,13 +703,13 @@ amp_gru_input_shape = spec.shape if spec else None
 amp_single_input_shape = spec.shape if spec else None
 amp_transformer_input_shape = spec.shape if spec else None
 
-bmp_inputs= amp_inputs[1],amp_inputs[2]
+bmp_inputs= amp_inputs[2],amp_inputs[3]
 print("bmp_inputs:", bmp_inputs)
 
-cmp_inputs= amp_inputs[0],amp_inputs[1],amp_inputs[2]
+cmp_inputs= amp_inputs[0],amp_inputs[1],amp_inputs[2],amp_inputs[3]
 print("cmp_inputs:", cmp_inputs)
 
-
+"""
 # +-------------------------------------------------------------------
 # Hyperparameter tuning and model setup
 # +-------------------------------------------------------------------

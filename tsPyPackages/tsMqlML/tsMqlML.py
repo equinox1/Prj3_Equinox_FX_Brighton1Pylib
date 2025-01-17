@@ -380,13 +380,13 @@ class CMqlWindowGenerator:
     #--------------------------------------------------------------------
     @property
     def train(self):
-            return self.make_dataset(self.train_df,batch_size=32,total_window_size=24,shuffle=True,targets=None)
+            return self.make_dataset(self.train_df)
 
     @property
     def val(self):
-            return self.make_dataset(self.val_df, batch_size=32, total_window_size=24, shuffle=True, targets=None)
+            return self.make_dataset(self.val_df)
 
     @property
     def test(self):
-            return self.make_dataset(self.test_df, batch_size=32, total_window_size=24, shuffle=True, targets=None)
+            return self.make_dataset(self.test_df)
 
