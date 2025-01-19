@@ -38,8 +38,8 @@ class CMqlTimeConfig:
             ('Hours', 'h'), ('Days', 'd'), ('Weeks', 'w'), ('Months', 'm')
         ],
         "DATATYPE": {
-            'TICKS': 'TICKS', 'MINUTE': 'MINUTE', 'HOUR': 'HOUR',
-            'DAY': 'DAY', 'WEEK': 'WEEK', 'MONTH': 'MONTH', 'YEAR': 'YEAR'
+            'TICKS': 'TICKS', 'MINUTES': 'MINUTES', 'HOURS': 'HOURS',
+            'DAYS': 'DAYS', 'WEEKS': 'WEEKS', 'MONTHS': 'MONTHS', 'YEARS': 'YEARS'
         },
         "SYMBOLS": [
             "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD",
