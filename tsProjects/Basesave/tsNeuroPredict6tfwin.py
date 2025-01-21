@@ -165,6 +165,9 @@ mp_ml_multiactivate=True
 #For example, in a univariate time series (e.g., predicting stock prices), X is a sequence of past prices,
 # and y is the price at the next time step.
 
+
+
+
 mp_ml_input_keyfeat = {'Close'} # the feature to predict
 mp_ml_output_target = {'Target_Label'} # the feature to predict
 mp_ml_input_keyfeat_scaled = {feat + '_Scaled' for feat in mp_ml_input_keyfeat}  # the feature to predict
@@ -199,7 +202,7 @@ mp_ml_cfg_period2=6 # 6 HOURS
 mp_ml_cfg_period=1 # 1 HOURS
 
 # Set the shape of the data
-mp_ml_input_shape=2 # mp_data_tab_rows, batches, timesteps, features
+mp_ml_input_shape=3 # mp_data_tab_rows, batches, timesteps, features
 mp_ml_input_cnn_shape=2 # mp_data_tab_rows, batches, timesteps, features
 mp_ml_input_lstm_shape=2 # mp_data_tab_rows, batches, timesteps, features
 mp_ml_input_gru_shape=2 # mp_data_tab_rows, batches, timesteps, features
@@ -445,13 +448,9 @@ future_width = futuretimeperiods * timeval
 pred_width = predtimeperiods * timeval
 print("past_width:",past_width, "future_width:",future_width, "pred_width:",pred_width)
 
-
 #  Create the input features (X) and target values (y)
 print("list(mp_ml_input_keyfeat_scaled)",list(mp_ml_input_keyfeat_scaled))
-# Windowing the data
-window_size = past_width
-target_steps = future_width
-mv_tdata2_X,mv_tdata2_y=m1.create_Xy_time_windows(mv_tdata2, window_size, target_steps)
+mv_tdata2_X,mv_tdata2_y=m1.create_Xy_time_windows(mv_tdata2, past_width, future_width)
 print("mv_tdata2_X.shape",mv_tdata2_X.shape, "mv_tdata2_y.shape",mv_tdata2_y.shape)
 
 # +-------------------------------------------------------------------
@@ -481,21 +480,138 @@ print("Training set shape:", X_train.shape, y_train.shape)
 print("Validation set shape:", X_val.shape, y_val.shape)
 print("Test set shape:", X_test.shape, y_test.shape)
 
+"""
+
+
 # +-------------------------------------------------------------------
-# STEP: convert numpy arrays to TF datasets
+# STEP: Window Generator and Data Slicing
 # +-------------------------------------------------------------------
-# initiate the object using a window generatorwindow is not  used in this model
+
+X_win_i24_o24_l1 = CMqlWindowGenerator(
+    input_width=past_width,
+    shift=future_width,
+    label_width=pred_width,
+    train_df=X_train,
+    val_df=X_val,
+    test_df=X_test,
+    label_columns=mp_ml_label,
+    batch_size=mp_ml_batch_size
+)
+
+print("X_win_i24_o24_l1:", X_win_i24_o24_l1.total_window_size)
+
+y_win_i24_o24_l1 = CMqlWindowGenerator(
+    input_width=past_width,
+    shift=future_width,
+    label_width=pred_width,
+    train_df=y_train,
+    val_df=y_val,
+    test_df=y_test,
+    label_columns=mp_ml_label,
+    batch_size=mp_ml_batch_size
+)
+
+# 2: 6 HOURS/1 HOURS prediction window
+print("2: MINUTES data entries per time frame: MINUTES:", MINUTES, "HOURS:", MINUTES * 60, "DAYS:", MINUTES * 60 * 24)
+timeval = MINUTES * 60 # hours
+pasttimeperiods = 6
+futuretimeperiods = 1
+predtimeperiods = 1
+past_width = pasttimeperiods * timeval
+future_width = futuretimeperiods * timeval
+pred_width = predtimeperiods * timeval
+
+X_win_i6_o1_l1 = CMqlWindowGenerator(
+    input_width=past_width,
+    shift=future_width,
+    label_width=pred_width,
+    train_df=X_train,
+    val_df=X_val,
+    test_df=X_test,
+    label_columns=mp_ml_label,
+    batch_size=mp_ml_batch_size
+)
+print("X_win_i6_o1_l1:", X_win_i6_o1_l1.total_window_size)
+
+y_win_i6_o1_l1 = CMqlWindowGenerator(
+    input_width=past_width,
+    shift=future_width,
+    label_width=pred_width,
+    train_df=y_train,
+    val_df=y_val,
+    test_df=y_test,
+    label_columns=mp_ml_label,
+    batch_size=mp_ml_batch_size
+)
+print("y_win_i6_o1_l1:", y_win_i6_o1_l1.total_window_size)
+
+# +-------------------------------------------------------------------
+# STEP: Data Slice and Split within windows
+# +-------------------------------------------------------------------
+# 1: Slice the data into sample sets # X 24 x 24 x 1
+shift_size = 100
+train_slice_win_i24_o24_l1 = win_i24_o24_l1.slice_window(mv_tdata2, win_i24_o24_l1.total_window_size, shift_size)
+
+# 2: Slice the data into sample sets # X 6 x 1 x 1
+train_slice_win_i6_o1_l1 = win_i6_o1_l1.slice_window(mv_tdata2, win_i6_o1_l1.total_window_size, shift_size)
 
 
+# +-------------------------------------------------------------------
+# STEP: Split the data into windows split into inputs and labels
+# +-------------------------------------------------------------------
+#1: 24 x 24 x1 split window into features and labels
+inputs_train_split_win_i24_o24_l1, labels_train_split_win_i24_o24_l1 = win_i24_o24_l1.split_window(train_slice_win_i24_o24_l1)
 
-# Parameters
-tf_batch_size = mp_ml_batch_size
+print('All shapes are: (batch, time, features)')
+print(f'inputs (Features: ind var X) shape: {inputs_train_split_win_i24_o24_l1.shape}')
+print(f'Labels (Labels dep var y) shape: {labels_train_split_win_i24_o24_l1.shape}')
+print("total_window_size=win_i24_o24_l1.total_window_size", win_i24_o24_l1.total_window_size)
 
-# Create datasets
-train_dataset = m1.create_tf_dataset(X_train, y_train, batch_size=batch_size, shuffle=True)
-val_dataset = m1.create_tf_dataset(X_val, y_val, batch_size=batch_size, shuffle=False)
-test_dataset = m1.create_tf_dataset(X_test, y_test, batch_size=tf_batch_size, shuffle=False)
+#2: 24 x 24 x1 split window into features and labels
+inputs_train_split_win_i6_o1_l1, labels_train_split_win_i6_o1_l1 = win_i6_o1_l1.split_window(train_slice_win_i6_o1_l1)
 
+print('All shapes are: (batch, time, features)')
+print(f'inputs (Features: ind var X) shape: {inputs_train_split_win_i6_o1_l1.shape}')
+print(f'Labels (Labels dep var y) shape: {labels_train_split_win_i6_o1_l1.shape}')
+print("total_window_size=win_i6_o1_l1.total_window_size", win_i6_o1_l1.total_window_size)
+
+# +-------------------------------------------------------------------
+# STEP: Create TF datasets
+# +-------------------------------------------------------------------
+
+# 24 x 24 x 1 Create TF datasets
+#train_ds_win_i24_o24_l1, val_ds_win_i24_o24_l1, test_ds_win_i24_o24_l1 = win_i24_o24_l1.make_dataset(win_i24_o24_l1)
+
+win_i24_o24_l1.train 
+win_i24_o24_l1.val
+win_i24_o24_l1.test
+
+# 6 x 1 x 1 Create TF datasets
+#train_ds_win_i6_o1_l1, val_ds_win_i6_o1_l1, test_ds_win_i6_o1_l1 = win_i6_o1_l1.make_dataset(win_i6_o1_l1)
+win_i6_o1_l1.train
+win_i6_o1_l1.val
+win_i6_o1_l1.test
+
+# +-------------------------------------------------------------------
+# STEP: Window config selection
+# +-------------------------------------------------------------------
+#set the window model switch
+if mp_ml_windowmodel == '24_24_1':
+    window = win_i24_o24_l1
+    features_shape=inputs_train_split_win_i24_o24_l1.shape
+    labels_shape=labels_train_split_win_i24_o24_l1.shape
+    train_dataset = win_i24_o24_l1.train
+    val_dataset = win_i24_o24_l1.val
+    test_dataset = win_i24_o24_l1.test
+    
+elif mp_ml_windowmodel == '6_1_1':
+    window = win_i6_o1_l1
+    features_shape=inputs_train_split_win_i6_o1_l1.shape
+    train_dataset = win_i6_o1_l1.train
+    val_dataset = win_i6_o1_l1.val
+    test_dataset = win_i6_o1_l1.test
+    
+print("mp_ml_windowmodel:", mp_ml_windowmodel,"window:", window)
 
 # +-------------------------------------------------------------------
 # STEP: add tensor values for model input
@@ -512,16 +628,27 @@ for dataset, name in zip([train_dataset, val_dataset, test_dataset], ['train', '
         elif name == 'test':
             test_shape = spec.shape
 
-# +-------------------------------------------------------------------
-# STEP: Final shape summaries
-# +-------------------------------------------------------------------
 # Final summary of shapes
 print(f"Train shape: {train_shape}")
 print(f"Val shape: {val_shape}")
 print(f"Test shape: {test_shape}")
 input_shape = train_shape
-print(f"Input shape: {input_shape}")
-#print(f"Batch Size: {batch_size}",f"Batches:{input_shape[0]}",f"Time steps: {input_shape[1]}",f"Features: {input_shape[2]}")
+print("TrainSum:","shape:", train_shape,"Rows:",len(train_dataset),"window.winsize:",window.total_window_size,"window.input_width:",window.input_width,"window.shift:",window.shift,"window.label_width:",window.label_width,"features_shape:",features_shape,"labels_shape:",labels_shape)
+print("ValSum:","shape:", val_shape,"Rows:",len(val_dataset),"window.windsize:",window.total_window_size,"window.input_width:",window.input_width,"window.shift:",window.shift,"window.label_width:",window.label_width,"features_shape:",features_shape,"labels_shape:",labels_shape)
+print("TestSum:","shape:", test_shape,"Rows:",len(test_dataset),"window.winsize:",window.total_window_size,"window.input_width:",window.input_width,"window.shift:",window.shift,"window.label_width:",window.label_width,"features_shape:",features_shape,"labels_shape:",labels_shape)
+
+#found shape=(None, 1440, 11) 11 features is the dataset columns 1440 is the 24 hrs in minutes
+
+#Example: if you have 30 images of 50x50 pixels in RGB (3 channels), the shape of your input data is (30,50,50,3). 
+#Then your input layer tensor, must have this shape (see details in the "shapes in keras" section).
+#Earlier, I gave an example of 30 images, 50x50 pixels and 3 channels, having an input shape of (30,50,50,3)
+#Since the input shape is the only one you need to define, Keras will demand it in the first layer.
+#But in this definition, Keras ignores the first dimension, which is the batch size. Your model should be able 
+#to deal with any batch size, so you define only the other dimensions:
+#input_shape = (50,50,3) regardless of how many images I have, each image has this shape   
+#Optionally, or when it's required by certain kinds of models, you can pass the shape containing the batch 
+#size via batch_input_shape=(30,50,50,3) or batch_shape=(30,50,50,3). This limits your training possibilities
+#to this unique batch size, so it should be used only when really required.
 
 # +-------------------------------------------------------------------
 # STEP: Tune best model Hyperparameter tuning and model setup
@@ -582,7 +709,7 @@ def log_config(hypermodel_params):
     print(f"mp_checkpoint_filepath: {hypermodel_params['checkpoint_filepath']}")
 
 # Initialize the tuner class
-def initialize_tuner(hypermodel_params, train_dataset, val_dataset, test_dataset):
+def initialize_tuner(hypermodel_params):
     try:
         print("Creating an instance of the tuner class")
         mt = CMdtuner(
@@ -672,7 +799,7 @@ hypermodel_params = get_hypermodel_params()
 log_config(hypermodel_params)
 
 # Initialize tuner
-mt = initialize_tuner(hypermodel_params,train_dataset, val_dataset, test_dataset)
+mt = initialize_tuner(hypermodel_params)
 
 
 #--------------------------------------------------
@@ -768,3 +895,4 @@ from onnx import checker
 checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
+"""

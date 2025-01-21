@@ -37,6 +37,71 @@ class CMqlmlsetup:
         y_train, y_test = y[:train_size], y[train_size:]
         return X_train, X_test, y_train, y_test
 
+    def create_Xy(self, data, target_column, lookback_minutes=60):
+        # Create the input features (X) and target values (y)
+            X, y = [], []
+            for i in range(len(data) - lookback_minutes * 2):
+                X.append(data[target_column].iloc[i:i + lookback_minutes].values)
+                y.append(data[target_column].iloc[i + lookback_minutes])
+
+            X = np.array(X)
+            y = np.array(y)
+            return X, y
+
+    
+    def create_Xy_time_windows(self,data, window_size = 24, target_steps=1):
+        """
+        Creates input (X) and target (y) datasets from a time series.
+        
+        Parameters:
+        - data: The time-series data (1D array or list).
+        - window_size: The number of time steps for each input window.
+        - target_steps: The number of steps ahead for the target.
+
+        Returns:
+        - X: 2D array of shape (num_samples, window_size).
+        - y: 1D or 2D array of shape (num_samples, target_steps).
+        """
+        print("create_Xy_time_windows:window_size", window_size)
+        print("create_Xy_time_windows:target_steps", target_steps)
+      
+        X, y = [], []
+        for i in range(len(data) - window_size - target_steps + 1):
+            X.append(data[i:i + window_size])
+            y.append(data[i + window_size:i + window_size + target_steps])
+        return np.array(X), np.array(y)
+
+    def create_tf_dataset(self,features, labels=None, batch_size=32, shuffle=False):
+        """
+        Creates a TensorFlow dataset from features and labels.
+
+        Args:
+            features (numpy array or tensor): The input features.
+            labels (numpy array or tensor, optional): The labels. Default is None for datasets without labels.
+            batch_size (int): Batch size for the dataset.
+            shuffle (bool): Whether to shuffle the dataset.
+
+        Returns:
+            tf.data.Dataset: A TensorFlow dataset ready for training, validation, or testing.
+        """
+        features = tf.convert_to_tensor(features, dtype=tf.float32)
+        labels = tf.convert_to_tensor(labels, dtype=tf.float32) if labels is not None else None
+        batch_size = batch_size
+        shuffle = shuffle
+        
+        if labels is not None:
+            dataset = tf.data.Dataset.from_tensor_slices((features, labels))
+        else:
+            dataset = tf.data.Dataset.from_tensor_slices(features)
+
+        if shuffle:
+            dataset = dataset.shuffle(buffer_size=len(features))
+
+        dataset = dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        return dataset
+
+
+    
     def scale_data(self, data, fit=False, scaler=None):
         if scaler is None:
             scaler = StandardScaler()
@@ -87,8 +152,10 @@ class CMqlWindowGenerator:
         self.train_df = self.train_df
         self.val_df = self.val_df
         self.test_df = self.test_df
+
+        # Work out the label column indices.
         
-        self.label_columns = self.label_columns
+        
         if self.label_columns is not None:
             self.label_columns_indices = {name: i for i, name in 
                                          enumerate(self.label_columns)}
@@ -180,6 +247,8 @@ class CMqlWindowGenerator:
         slices = [s[:min_length] for s in slices]
         slices = tf.stack(slices)
         return slices
+
+
 
     @property
     def train(self):

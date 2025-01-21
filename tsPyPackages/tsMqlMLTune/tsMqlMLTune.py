@@ -15,21 +15,58 @@ from keras_tuner import HyperParameters
 class CMdtuner:
     def __init__(self, **kwargs):
         # ---------------------
-        # 1) Read kwargs
+        # 1) Read kwargs named args rather than positional args
         # ---------------------
+
         # Required datasets
         self.traindataset = kwargs.get('traindataset')
         self.valdataset = kwargs.get('valdataset')
         self.testdataset = kwargs.get('testdataset')
+
+        # Data shape
+        self.traindatainput1 = kwargs.get('traindatainput1')
+        self.traindatainput2 = kwargs.get('traindatainput2')
+        self.traindatainput3 = kwargs.get('traindatainput3')
+        self.tensorshape = kwargs.get('tensorshape', False) # True if reshaping is needed
+
+        #shape variables
+        self.rows = kwargs.get('rows')
+        self.batches = kwargs.get('batches')
+        self.timesteps = kwargs.get('timesteps')
+        self.features = kwargs.get('features')
+        self.channels = kwargs.get('channels')
+
+
+        # Data input source shapes
         self.trainshape = kwargs.get('trainshape')
         self.valshape = kwargs.get('valshape')
         self.testshape = kwargs.get('testshape')
+        self.batch_size = kwargs.get('batch_size', 32)
 
-        # Model-configuration booleans
+        # Model input shapes
+        self.multi_inputs = kwargs.get('multi_inputs', False)
+        self.shape = kwargs.get('shape', 2)
+        self.inputswitch = None
+
+        #shape arguments for each branch
+        self.input_shape = kwargs.get('inputs', None)
+        self.cnn_inputs = None
+        self.lstm_inputs = None
+        self.gru_inputs = None
+        self.transformer_inputs = None
+        # Shape arguments for each branch
+
+        self.cnn_shape = kwargs.get('cnn_shape')
+        self.lstm_shape = kwargs.get('lstm_shape')
+        self.gru_shape = kwargs.get('gru_shape')
+        self.transformer_shape = kwargs.get('transformer_shape')
+
+        # Model-configuration booleans to enable/disable branches
         self.cnn_model = kwargs.get('cnn_model', False)
         self.lstm_model = kwargs.get('lstm_model', False)
         self.gru_model = kwargs.get('gru_model', False)
         self.transformer_model = kwargs.get('transformer_model', False)
+        self.multiactivate = kwargs.get('multiactivate', False)
 
         # Hyperband / Tuner configs
         self.objective = kwargs.get('objective', 'val_loss')
@@ -44,7 +81,6 @@ class CMdtuner:
         self.max_retries_per_trial = kwargs.get('max_retries_per_trial', 3)
         self.max_consecutive_failed_trials = kwargs.get('max_consecutive_failed_trials', 30)
         self.validation_split = kwargs.get('validation_split', 0.2)
-        self.batch_size = kwargs.get('batch_size', 32)
         self.dropout = kwargs.get('dropout', 0.3)
         self.oracle = kwargs.get('oracle', 'hyperband')
         self.activation1 = kwargs.get('activation1', 'relu')
@@ -57,16 +93,24 @@ class CMdtuner:
         self.loss = kwargs.get('loss', 'mean_squared_error')
         self.metrics = kwargs.get('metrics', ['mean_absolute_error'])
         self.distribution_strategy = kwargs.get('distribution_strategy')
+        self.executions_per_trial = kwargs.get('executions_per_trial', 1)
+
+        # Directory and project name
         self.directory = kwargs.get('directory')
         self.basepath = kwargs.get('basepath')
         self.project_name = kwargs.get('project_name')
+        self.modeldatapath = kwargs.get('modeldatapath')
+        self.overwrite = kwargs.get('overwrite', False)
         print(f"Basepath: {self.basepath}")
         print(f"Project name: {self.project_name}")
         print(f"Directory: {self.directory}")
+        print(f"Model data path: {self.modeldatapath}")
+
+        # Logging
         self.logger = kwargs.get('logger')
         self.tuner_id = kwargs.get('tuner_id')
-        self.overwrite = kwargs.get('overwrite', False)
-        self.executions_per_trial = kwargs.get('executions_per_trial', 1)
+        self.tf1 = kwargs.get('tf1', False)
+        self.tf2 = kwargs.get('tf2', False)
 
         # Checkpoint configs
         self.chk_fullmodel = kwargs.get('chk_fullmodel', False)
@@ -76,54 +120,24 @@ class CMdtuner:
         self.chk_sav_freq = kwargs.get('chk_sav_freq', 'epoch')
         self.chk_patience = kwargs.get('chk_patience', 0)
         self.checkpoint_filepath = kwargs.get('checkpoint_filepath')
-        self.modeldatapath = kwargs.get('modeldatapath')
-        print(f"Model data path: {self.modeldatapath}")
-        print(f"Checkpoint filepath: {self.checkpoint_filepath}")
-        
         self.step = kwargs.get('step', 5)
-        self.multiactivate = kwargs.get('multiactivate', False)
-        self.tf1 = kwargs.get('tf1', False)
-        self.tf2 = kwargs.get('tf2', False)
-        self.tensorshape = kwargs.get('tensorshape', False)
-        self.shape = kwargs.get('shape', 2)
+        print(f"Checkpoint filepath: {self.checkpoint_filepath}")
 
-        # Shape arguments for each branch
-        self.cnn_shape = kwargs.get('cnn_shape')
-        self.lstm_shape = kwargs.get('lstm_shape')
-        self.gru_shape = kwargs.get('gru_shape')
-        self.transformer_shape = kwargs.get('transformer_shape')
-
-        # Will store final Input layers:
-        self.inputs = None
-        self.cnn_inputs = None
-        self.lstm_inputs = None
-        self.gru_inputs = None
-        self.transformer_inputs = None
-        
-        self.multi_inputs = kwargs.get('multi_inputs', False)
-        self.traindatainput1 = kwargs.get('traindatainput1')
-        self.traindatainput2 = kwargs.get('traindatainput2')
-        self.traindatainput3 = kwargs.get('traindatainput3')
-        
-        # User-provided or default input shape
-        self.input_shape = kwargs.get('inputs', None)
-
-        # Enable TF debugging if requested
+        # 1) Enable TF debugging if requested
         if self.tf1:
             tf.debugging.set_log_device_placement(self.tf1)
         if self.tf2:
             tf.debugging.enable_check_numerics()
-
         # Ensure base path exists
         os.makedirs(self.basepath, exist_ok=True)
 
-        # 2) Prepare shapes
+        # 2) Prepare shapes for each branch
         self.prepare_shapes()
 
         # 3) Create Input layers
         # Note: Only create if shape is defined
         if self.input_shape is not None:
-            self.inputs = Input(shape=self.input_shape, name="main_input")
+            self.inputswitch = Input(shape=self.input_shape, name="main_input")
 
         if self.cnn_model and (self.cnn_input_shape is not None):
             self.cnn_inputs = Input(shape=self.cnn_input_shape, name="cnn_input")
@@ -274,8 +288,8 @@ class CMdtuner:
 
         # Gather active inputs
         all_inputs = []
-        if self.inputs is not None:
-            all_inputs.append(self.inputs)
+        if self.inputswitch is not None:
+            all_inputs.append(self.inputswitch)
         if self.cnn_inputs is not None:
             all_inputs.append(self.cnn_inputs)
         if self.lstm_inputs is not None:
@@ -294,7 +308,7 @@ class CMdtuner:
             model = Model(inputs=all_inputs, outputs=output)
             print("Model with multiple inputs created.")
         else:
-            # Single-input model (just pick the first or use self.inputs)
+            # Single-input model (just pick the first or use self.inputswitch)
             if len(all_inputs) == 0:
                 raise ValueError("No valid input layers found.")
             model = Model(inputs=all_inputs[0], outputs=output)
@@ -330,35 +344,7 @@ class CMdtuner:
             tensorboard_callback
         ]
 
-    @staticmethod
-    def positional_encoding(seq_len, model_dim):
-        """Compute positional encodings for a sequence of length `seq_len` and dimension `model_dim`."""
-        positions = tf.range(0, seq_len, dtype=tf.float32)[:, tf.newaxis]  # (seq_len, 1)
-        dims = tf.range(0, model_dim, dtype=tf.float32)[tf.newaxis, :]      # (1, model_dim)
-        angle_rates = 1 / tf.pow(10000.0, (2 * (dims // 2)) / tf.cast(model_dim, tf.float32))
-        angle_rads = positions * angle_rates
-
-        # Apply sin to even indices and cos to odd indices
-        sines = tf.sin(angle_rads[:, 0::2])
-        cosines = tf.cos(angle_rads[:, 1::2])
-
-        # Build final encoding
-        pos_encoding = tf.zeros_like(angle_rads)
-        seq_indices_even = [[i, j] for i in range(seq_len) for j in range(0, model_dim, 2)]
-        seq_indices_odd = [[i, j] for i in range(seq_len) for j in range(1, model_dim, 2)]
-
-        pos_encoding = tf.tensor_scatter_nd_update(
-            pos_encoding,
-            indices=seq_indices_even,
-            updates=tf.reshape(sines, [-1])
-        )
-        pos_encoding = tf.tensor_scatter_nd_update(
-            pos_encoding,
-            indices=seq_indices_odd,
-            updates=tf.reshape(cosines, [-1])
-        )
-
-        return pos_encoding
+    
 
     # ----------------------------------------
     # prepare_shapes() and get_predefined_shape()
@@ -371,6 +357,7 @@ class CMdtuner:
         """
         valid_shapes = range(1, 10)
         print("prepare_shapes() called.")
+        #user input shape
         print("Initial self.input_shape:", self.input_shape)
         print(f"Requested main shape index: {self.shape}")
         print(f"Requested CNN shape index: {self.cnn_shape}")
@@ -386,43 +373,36 @@ class CMdtuner:
             self.traindatainput2 = self.trainshape[1]
         if self.trainshape[2]:
             self.traindatainput3 = self.trainshape[2]
-        
+
         print(f"FOUND data shape: {self.traindatainput1}, {self.traindatainput2}, {self.traindatainput3}")
         
         # If no input_shape was provided, default to shape #2 => (timesteps, features)
         if self.input_shape is None:
-            self.input_shape = (24, 7)  # or something that fits your data
+            self.input_shape = (24, 1)  # or something that fits your data
 
         # Attempt to parse out up to 4 dimensions from the user-provided shape
-        shape_len = len(self.input_shape)
+        shape_len = len(self.input_shape)  # Ensure shape_len is defined
+        print(f"shape_len: {shape_len} for {self.input_shape}")
         if shape_len >= 1:
-            self.rows = self.input_shape[0]
+            self.batches = self.input_shape[0]
+            print(f"Batches: {self.batches}")
         if shape_len >= 2:
-            self.batches = self.input_shape[1]
+            self.timesteps = self.input_shape[1]
+            print(f"Timesteps: {self.timesteps}")
         if shape_len >= 3:
-            self.timesteps = self.input_shape[2]
-        if shape_len >= 4:
-            self.features = self.input_shape[3]
-            if shape_len == 5:
-                self.channels = self.input_shape[4]
-        else:
-            # If user only gave e.g. (24,7), let's define them as timesteps=24, features=7
-            # and keep row/batches = None
-            self.timesteps = self.input_shape[0] if shape_len == 2 else 24
-            self.features = self.input_shape[1] if shape_len == 2 else 7
-        # Channels default to 1 if not specified
-        self.channels = 1
-        if shape_len == 5:
-            self.channels = self.input_shape[4]
+            self.features = self.input_shape[2]
+            print(f"Features: {self.features}")
+        if shape_len == 4:
+            self.channels = self.input_shape[3]
+            print(f"Channels: {self.channels}")
 
-        print(f"Parameter shapes => Rows: {getattr(self, 'rows', None)}, "
-              f"Batches: {getattr(self, 'batches', None)}, "
+        print(f"Batches: {getattr(self, 'batches', None)}, "
               f"Timesteps: {getattr(self, 'timesteps', None)}, "
               f"Features: {getattr(self, 'features', None)}, "
               f"Channels: {getattr(self, 'channels', None)}")
 
         # 1) Main shape
-        if (self.shape in valid_shapes):
+        if self.shape in valid_shapes:
             shape_tuple = self.get_predefined_shape(
                 idx=self.shape,
                 timesteps=self.timesteps,
@@ -510,21 +490,48 @@ class CMdtuner:
         Return a shape tuple for the given index. We do NOT include the batch dimension
         as part of the Input shape. Keras uses (None, *shape) internally.
         """
-        # For demonstration, we define a few typical shapes:
+        # For demonstration, we define a few typical shapes: # check for bath how to overide keras default removal of batch
         shapes = [
-            (features,),                   # shape=1
-            (timesteps, features),         # shape=2
-            (None, timesteps, features),   # shape=3 -> Not common for Input(), but example
-            (None, None, timesteps, features),  # shape=4
-            (self.traindatainput1, timesteps, features),      # shape=5
-            (None,self.traindatainput1, timesteps, features),  # shape=6
-            # shape=7 or beyond can be custom; just examples:
-            (None,self.traindatainput1, timesteps, features),    # shape=7
-            (self.traindatainput1, timesteps, features),  # shape=8
-            (self.traindatainput1, timesteps, features, channels),  # shape=9
+            (features,),                                # shape=1
+            (timesteps, features),                      # shape=2 # batches added by Keras as None
+            (batches, timesteps, features),             # shape=3 
+            (batches, timesteps, features, channels),   # shape=4
+            (batch_size,timesteps,features),            # shape=5
+            (batch_size,batches,timesteps,features),    # shape=6
         ]
-        # Ensure idx-1 is in range
-        idx_minus_one = idx - 1
-        if not (0 <= idx_minus_one < len(shapes)):
+        # Ensure idx is in range
+        if not (1 <= idx <= len(shapes)):
             raise ValueError(f"Shape index {idx} not implemented.")
-        return shapes[idx_minus_one]
+        return shapes[idx - 1]
+
+
+    @staticmethod
+    def positional_encoding(seq_len, model_dim):
+        """Compute positional encodings for a sequence of length `seq_len` and dimension `model_dim`."""
+        positions = tf.range(0, seq_len, dtype=tf.float32)[:, tf.newaxis]  # (seq_len, 1)
+        dims = tf.range(0, model_dim, dtype=tf.float32)[tf.newaxis, :]      # (1, model_dim)
+        angle_rates = 1 / tf.pow(10000.0, (2 * (dims // 2)) / tf.cast(model_dim, tf.float32))
+        angle_rads = positions * angle_rates
+
+        # Apply sin to even indices and cos to odd indices
+        sines = tf.sin(angle_rads[:, 0::2])
+        cosines = tf.cos(angle_rads[:, 1::2])
+
+        # Build final encoding
+        pos_encoding = tf.zeros_like(angle_rads)
+        seq_indices_even = [[i, j] for i in range(seq_len) for j in range(0, model_dim, 2)]
+        seq_indices_odd = [[i, j] for i in range(seq_len) for j in range(1, model_dim, 2)]
+
+        pos_encoding = tf.tensor_scatter_nd_update(
+            pos_encoding,
+            indices=seq_indices_even,
+            updates=tf.reshape(sines, [-1])
+        )
+        pos_encoding = tf.tensor_scatter_nd_update(
+            pos_encoding,
+            indices=seq_indices_odd,
+            updates=tf.reshape(cosines, [-1])
+        )
+
+        return pos_encoding
+
