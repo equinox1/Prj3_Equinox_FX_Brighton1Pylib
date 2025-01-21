@@ -30,6 +30,7 @@ import textwrap
 #-------------------------------------------------------------------- 
 class CMqldatasetup:
     def __init__(self, **kwargs):
+        self.data = kwargs.get('data', None)
         self.mv_loadapiticks = kwargs.get('mv_loadApi', False)
         self.mv_loadapirates = kwargs.get('mv_loadApiRates', False)
         self.mv_loadFile = kwargs.get('mv_loadFile', False)
@@ -58,6 +59,8 @@ class CMqldatasetup:
         self.lp_seconds = kwargs.get('lp_seconds', None)
         self.lp_timeframe = kwargs.get('lp_timeframe', 'mt5.TIMEFRAME_M1')
         self.lp_run = kwargs.get('lp_run', 1)
+        self.lp_features = kwargs.get('lp_features', 'Close')
+        self.lp_target = kwargs.get('lp_target', 'Close Scaled')
         
 
        
@@ -638,8 +641,8 @@ class CMqldatasetup:
         bid_column,
         ask_column,
         column_in=None,
-        column_out1='close',
-        column_out2='target',
+        column_out1=None,
+        column_out2=None,
         open_column=None,
         high_column=None,
         low_column=None,
@@ -666,6 +669,11 @@ class CMqldatasetup:
         Returns:
             pd.DataFrame: DataFrame with the target column added.
         """
+        if column_out1 is None:
+            column_out1 = self.lp_features
+        if column_out2 is None:
+            column_out2 = self.lp_target
+
         if not isinstance(df, pd.DataFrame):
             raise TypeError("The input `df` must be a pandas DataFrame.")
         if not isinstance(lookahead_periods, int) or lookahead_periods <= 0:
