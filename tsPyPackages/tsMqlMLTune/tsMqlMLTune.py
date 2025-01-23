@@ -43,6 +43,8 @@ class CMdtuner:
         self.checkpoint_filepath = kwargs.get('checkpoint_filepath', 'best_model.keras')
         self.basepath = kwargs.get('basepath', 'tuner_results')
         self.project_name = kwargs.get('project_name', 'cm_tuning')
+        self.num_trials = kwargs.get('num_trials', 10)
+        self.num_models = kwargs.get('num_models', 1)
 
         # Ensure the base path exists
         os.makedirs(self.basepath, exist_ok=True)
@@ -211,3 +213,35 @@ class CMdtuner:
             print(f"Model saved to {export_path}")
         except Exception as e:
             print(f"Error saving the model: {e}")
+
+    def run_tuner(self):
+        # Define a ModelCheckpoint callback
+        checkpoint_callback = ModelCheckpoint(
+            filepath=self.checkpoint_filepath,
+            save_best_only=True,
+            monitor='val_loss',
+            mode='min',
+            verbose=1
+        )
+
+        # Define EarlyStopping callback
+        early_stopping_callback = EarlyStopping(
+            monitor='val_loss',
+            patience=3,
+            verbose=1
+        )
+
+        # Run the tuner
+        self.tuner.search(
+            self.traindataset,
+            validation_data=self.valdataset,
+            epochs=self.max_epochs,
+            batch_size=self.batch_size,
+            callbacks=[checkpoint_callback, early_stopping_callback]
+        )
+
+        # Get the best model
+        best_model = self.tuner.get_best_models(self.num_models)[0]
+        return best_model
+
+
