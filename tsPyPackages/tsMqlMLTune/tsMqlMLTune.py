@@ -170,6 +170,13 @@ class CMdtuner:
         x = Dropout(self.dropout)(x)
         output = Dense(1, activation='linear')(x)
 
+
+        #conactatenate all inputs as is or use only 1 input given 1 data input passed
+        if self.multi_inputs:
+            inputs = inputs
+        else:
+            inputs = inputs[0]
+        
         model = Model(inputs=inputs, outputs=output)
 
         optimizer = hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd'])
