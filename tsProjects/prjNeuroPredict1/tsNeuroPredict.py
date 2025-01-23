@@ -670,10 +670,32 @@ mt = initialize_tuner(
 
 
 #--------------------------------------------------
-print("Running Main call to tuner")
-best_model = mt.tuner.get_best_models(mp_ml_num_models=1)
-best_params = mt.tuner.get_best_hyperparameters(mp_ml_num_trials=1)[0]
-best_model[0].summary()
+
+# Retrieve the best model
+best_models = mt.tuner.get_best_models(num_models=1)
+if not best_models:
+    raise ValueError("No models found. Ensure that the tuning process completed successfully.")
+best_model = best_models[0]
+
+"""
+# Evaluate on test data
+results = best_model.evaluate(test_data, test_labels, verbose=1)
+print(f"Test Loss: {results[0]}, Test Metrics: {results[1:]}")
+
+# Make predictions
+predictions = best_model.predict(new_data)
+print("Predictions:", predictions)
+
+# Save the best model
+mt.tuner.export_best_model()
+
+# Reload and use the saved model
+from tensorflow.keras.models import load_model
+loaded_model = load_model(os.path.join(tuner.basepath, "final_model.h5"))
+reloaded_predictions = loaded_model.predict(new_data)
+print("Reloaded Predictions:", reloaded_predictions)
+
+best_params = mt.tuner.get_best_hyperparameters(1)[0]
 
 # +-------------------------------------------------------------------
 # STEP: Train and evaluate the best model
@@ -763,6 +785,4 @@ checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
 
-
-
-
+"""
