@@ -181,8 +181,8 @@ mp_ml_train_split = 0.7
 mp_ml_validation_split = 0.2
 mp_ml_test_split = 0.1
 #Best Models
-mp_ml_mp_ml_num_models = 1
-mp_ml_num_trials = 1
+mp_ml_mp_ml_num_models = 10
+mp_ml_num_trials = 5
 
 # Set parameters for the Tensorflow keras model
 mp_ml_tf_param_steps = 1
@@ -571,6 +571,8 @@ def get_hypermodel_params():
         'baseuniq': str(1),
         'basepath': subdir,
         'checkpoint_filepath': posixpath.join(base_path, 'tshybrid_ensemble_tuning_prod', project_name),
+        'num_models':mp_ml_mp_ml_num_models,
+        'num_trials':mp_ml_num_trials
     }
 
 # Print configuration details for logging
@@ -670,9 +672,11 @@ mt = initialize_tuner(
 
 
 #--------------------------------------------------
+# Example usage:
+# Assuming you have already initialized the CMdtuner instance as `tuner_instance`
+mt.initialize_tuner()
+best_model = mt.run_tuner()
 
-# Retrieve the best model
-best_models = mt.tuner.get_best_models(num_models=1)
 if not best_models:
     raise ValueError("No models found. Ensure that the tuning process completed successfully.")
 best_model = best_models[0]
