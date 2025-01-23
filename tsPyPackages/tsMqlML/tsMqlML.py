@@ -49,7 +49,7 @@ class CMqlmlsetup:
             return X, y
 
     
-    def create_Xy_time_windows(self,data, window_size = 24, target_steps=1):
+    def create_Xy_time_windows1(self,data, window_size = 24, target_steps=1):
         """
         Creates input (X) and target (y) datasets from a time series.
         
@@ -71,6 +71,33 @@ class CMqlmlsetup:
             y.append(data[i + window_size:i + window_size + target_steps])
         return np.array(X), np.array(y)
 
+
+    # STEP: Create input (X) and target (Y) tensors
+    def create_Xy_time_windows2(self,data, time_steps, future_steps):
+        """
+        Generate input-output pairs from the time-series data.
+        :param data: DataFrame with scaled features and target.
+        :param time_steps: Number of past time steps to use as input.
+        :param future_steps: Number of future steps to predict.
+        :return: Numpy arrays for X (input) and y (output).
+        """
+        X, y = [], []
+        for i in range(len(data) - time_steps - future_steps + 1):
+            X.append(data.iloc[i:i + time_steps, :-1].values)  # All columns except target
+            y.append(data.iloc[i + time_steps:i + time_steps + future_steps, -1].values)  # Target column
+        return np.array(X), np.array(y)
+
+    def align_to_batch_size(self,X, y, batch_size):
+        """
+        Ensure data size is divisible by batch size.
+        :param X: Input array.
+        :param y: Target array.
+        :param batch_size: Desired batch size.
+        :return: Resized X and y arrays.
+        """
+        usable_size = len(X) - (len(X) % batch_size)
+        return X[:usable_size], y[:usable_size]  
+
     def create_tf_dataset(self,features, labels=None, batch_size=32, shuffle=False):
         """
         Creates a TensorFlow dataset from features and labels.
@@ -88,7 +115,7 @@ class CMqlmlsetup:
         labels = tf.convert_to_tensor(labels, dtype=tf.float32) if labels is not None else None
         batch_size = batch_size
         shuffle = shuffle
-        
+
         if labels is not None:
             dataset = tf.data.Dataset.from_tensor_slices((features, labels))
         else:

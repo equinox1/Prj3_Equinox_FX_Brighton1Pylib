@@ -145,8 +145,6 @@ mp_ml_lstm_model = True
 mp_ml_gru_model = True
 mp_ml_transformer_model = True
 #model parameters
-mp_ml_run_single_input_model = True
-mp_ml_run_single_input_submodels = False # not implemented yet    
 
 #Machine Learning (ML) variables
 mp_ml_loadtensor = True
@@ -165,9 +163,9 @@ mp_ml_multiactivate=True
 #For example, in a univariate time series (e.g., predicting stock prices), X is a sequence of past prices,
 # and y is the price at the next time step.
 
-mp_ml_input_keyfeat = {'Close'} # the feature to predict
+mp_ml_custom_input_keyfeat = {'Close'} # the feature to predict
 mp_ml_output_target = {'Target_Label'} # the feature to predict
-mp_ml_input_keyfeat_scaled = {feat + '_Scaled' for feat in mp_ml_input_keyfeat}  # the feature to predict
+mp_ml_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in mp_ml_custom_input_keyfeat}  # the feature to predict
 mp_ml_output_target_scaled = {targ + '_Shifted' for targ in mp_ml_output_target}  # the target shifted to predict
 mp_ml_target = mp_ml_output_target_scaled
 mp_ml_label = mp_ml_target
@@ -199,11 +197,11 @@ mp_ml_cfg_period2=6 # 6 HOURS
 mp_ml_cfg_period=1 # 1 HOURS
 
 # Set the shape of the data
-mp_ml_input_shape=2 # mp_data_tab_rows, batches, timesteps, features
-mp_ml_input_cnn_shape=2 # mp_data_tab_rows, batches, timesteps, features
-mp_ml_input_lstm_shape=2 # mp_data_tab_rows, batches, timesteps, features
-mp_ml_input_gru_shape=2 # mp_data_tab_rows, batches, timesteps, features
-mp_ml_input_transformer_shape = 2 # mp_data_tab_rows, batches, timesteps, features
+mp_ml_custom_input_shape=2 # mp_data_tab_rows, batches, timesteps, features
+mp_ml_custom_input_cnn_shape=2 # mp_data_tab_rows, batches, timesteps, features
+mp_ml_custom_input_lstm_shape=2 # mp_data_tab_rows, batches, timesteps, features
+mp_ml_custom_input_gru_shape=2 # mp_data_tab_rows, batches, timesteps, features
+mp_ml_custom_input_transformer_shape = 2 # mp_data_tab_rows, batches, timesteps, features
 
 
 # setting dictionary for the model
@@ -223,7 +221,8 @@ other_ml_params = {
 mp_ml_return_col_scaled = other_ml_params["returns_col_scaled"]
 
 #Data variables
-mp_data_data_target = 1 # 1: just the target, 2: target and features, 3: target, features and time, 4: full dataset
+mp_data_data_target = 2
+ # 1: just the target, 2: target and features, 3: target, features and time, 4: full dataset
 mv_data_dfname1 = "df_rates1"
 mv_data_dfname2 = "df_rates2"
 mp_data_rows = 1000 # number of mp_data_tab_rows to fetch
@@ -240,7 +239,7 @@ print("TIMEFRAME:",TIMEFRAME, "TIMEZONE:",TIMEZONE,"MT5 TIMEFRAME:",mp_data_time
 # STEP: Data Preparation and Loading
 # +-------------------------------------------------------------------
 # Set up dataset
-d1 = CMqldatasetup(lp_features=mp_ml_input_keyfeat, lp_target=mp_ml_target, lp_label=mp_ml_label, lp_label_count=mp_ml_label_count)
+d1 = CMqldatasetup(lp_features=mp_ml_custom_input_keyfeat, lp_target=mp_ml_target, lp_label=mp_ml_label, lp_label_count=mp_ml_label_count)
 print("CURRENTYEAR:",CURRENTYEAR, "CURRENTYEAR-mp_data_history_size",CURRENTYEAR-mp_data_history_size,"CURRENTDAYS:",CURRENTDAYS, "CURRENTMONTH:",CURRENTMONTH,"TIMEZONE:",TIMEZONE)
 mv_data_utc_from = d1.set_mql_timezone(CURRENTYEAR-mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
 mv_data_utc_to = d1.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
@@ -266,7 +265,7 @@ mv_tdata1apiticks = d1.create_target_wrapper(
     bid_column="T1_Bid_Price",
     ask_column="T1_Ask_Price",
     column_in="T1_Bid_Price",
-    column_out1=list(mp_ml_input_keyfeat)[0],
+    column_out1=list(mp_ml_custom_input_keyfeat)[0],
     column_out2=list(mp_ml_target)[0],
     open_column="R1_Open",
     high_column="R1_High",
@@ -281,7 +280,7 @@ mv_tdata1apirates = d1.create_target_wrapper(
     bid_column="R1_Bid_Price",
     ask_column="R1_Ask_Price",
     column_in="R1_Close",
-    column_out1=list(mp_ml_input_keyfeat)[0],
+    column_out1=list(mp_ml_custom_input_keyfeat)[0],
     column_out2=list(mp_ml_target)[0],
     open_column="R1_Open",
     high_column="R1_High",
@@ -296,7 +295,7 @@ mv_tdata1loadticks = d1.create_target_wrapper(
     bid_column="T2_Bid_Price",
     ask_column="T2_Ask_Price",
     column_in="T2_Bid_Price",
-    column_out1=list(mp_ml_input_keyfeat)[0],
+    column_out1=list(mp_ml_custom_input_keyfeat)[0],
     column_out2=list(mp_ml_target)[0],
     open_column="R2_Open",
     high_column="R2_High",
@@ -311,7 +310,7 @@ mv_tdata1loadrates = d1.create_target_wrapper(
     bid_column="R2_Bid_Price",
     ask_column="R2_Ask_Price",
     column_in="R2_Close",
-    column_out1=list(mp_ml_input_keyfeat)[0],
+    column_out1=list(mp_ml_custom_input_keyfeat)[0],
     column_out2=list(mp_ml_target)[0],
     open_column="R2_Open",
     high_column="R2_High",
@@ -355,12 +354,12 @@ print("SHAPE: mv_tdata2 shape:", mv_tdata2.shape)
 # STEP: Normalize the data
 # +-------------------------------------------------------------------
 # Chosed featur columns such as Close will be normalised to Close_Scaled
-mp_ml_input_keyfeat_list = list(mp_ml_input_keyfeat)
-print("Normalise mp_ml_input_keyfeat_list",mp_ml_input_keyfeat_list)
-mv_tdata2_scaled = feature_scaler.fit_transform(mv_tdata2[mp_ml_input_keyfeat_list].values)
+mp_ml_custom_input_keyfeat_list = list(mp_ml_custom_input_keyfeat)
+print("Normalise mp_ml_custom_input_keyfeat_list",mp_ml_custom_input_keyfeat_list)
+mv_tdata2_scaled = feature_scaler.fit_transform(mv_tdata2[mp_ml_custom_input_keyfeat_list].values)
 
 # convert to pd
-mv_tdata2_scaled = pd.DataFrame(mv_tdata2_scaled, columns=list(mp_ml_input_keyfeat_scaled))
+mv_tdata2_scaled = pd.DataFrame(mv_tdata2_scaled, columns=list(mp_ml_custom_input_keyfeat_scaled))
 
 print("print Normalise")
 d1.run_mql_print(mv_tdata2_scaled,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
@@ -409,15 +408,15 @@ print("POST INDEX: Count: ",len(mv_tdata2))
 # +-------------------------------------------------------------------
 
 if mp_data_data_target == 1:
-    mv_tdata2 = mv_tdata2[[list(mp_ml_input_keyfeat_scaled)[0]]]
+    mv_tdata2 = mv_tdata2[[list(mp_ml_custom_input_keyfeat_scaled)[0]]]
     d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
   
 if mp_data_data_target == 2:
-    mv_tdata2 = mv_tdata2[[list(mp_ml_input_keyfeat_scaled)[0], list(mp_ml_target)[0]]]
+    mv_tdata2 = mv_tdata2[[list(mp_ml_custom_input_keyfeat_scaled)[0], list(mp_ml_target)[0]]]
     d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
  
 if mp_data_data_target == 3:
-    mv_tdata2 = mv_tdata2[[mv_tdata2.columns[0]] + [list(mp_ml_input_keyfeat_scaled)[0], list(mp_ml_target)[0]]]
+    mv_tdata2 = mv_tdata2[[mv_tdata2.columns[0]] + [list(mp_ml_custom_input_keyfeat_scaled)[0], list(mp_ml_target)[0]]]
    # Ensure the data is sorted by time
     mv_tdata2 = mv_tdata2.sort_index()
     d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
@@ -438,6 +437,9 @@ timeval = MINUTES * 60 # hours
 pasttimeperiods = 24
 futuretimeperiods = 24
 predtimeperiods = 1
+features = len(mp_ml_custom_input_keyfeat_scaled)  # Number of features in input
+mp_ml_label_count = len(mp_ml_label)
+batch_size = mp_ml_batch_size
 
 print("timeval:",timeval, "pasttimeperiods:",pasttimeperiods, "futuretimeperiods:",futuretimeperiods, "predtimeperiods:",predtimeperiods)
 past_width = pasttimeperiods * timeval
@@ -447,54 +449,51 @@ print("past_width:",past_width, "future_width:",future_width, "pred_width:",pred
 
 
 #  Create the input features (X) and target values (y)
-print("list(mp_ml_input_keyfeat_scaled)",list(mp_ml_input_keyfeat_scaled))
+print("list(mp_ml_custom_input_keyfeat_scaled)",list(mp_ml_custom_input_keyfeat_scaled))
 # Windowing the data
 window_size = past_width
 target_steps = future_width
-mv_tdata2_X,mv_tdata2_y=m1.create_Xy_time_windows(mv_tdata2, window_size, target_steps)
+# STEP: Create input (X) and target (Y) tensors  Ensure consistent data shape
+mv_tdata2_X,mv_tdata2_y=m1.create_Xy_time_windows2(mv_tdata2,past_width, future_width)
 print("mv_tdata2_X.shape",mv_tdata2_X.shape, "mv_tdata2_y.shape",mv_tdata2_y.shape)
+
 
 # +-------------------------------------------------------------------
 # STEP: Split the data into training and test sets Fixed Partitioning
 # +-------------------------------------------------------------------
 # Batch size alignmentfit the number of rows as whole number divisible by the batch size to avoid float errors   
 batch_size = mp_ml_batch_size
+precountX = len(mv_tdata2_X)
+precounty = len(mv_tdata2_y)
+mv_tdata2_X,mv_tdata2_y = m1.align_to_batch_size(mv_tdata2_X,mv_tdata2_y, batch_size)
+print(f"Aligned data: X shape: {mv_tdata2_X.shape}, Y shape: {mv_tdata2_y.shape}")
 
-precount = len(mv_tdata2_X)
-mv_tdata2_X = mv_tdata2_X[mv_tdata2_X.shape[0] % batch_size:]
-print("Batch size alignment: mv_tdata2_X shape:", mv_tdata2_X.shape,"Precount:",precount,"Postcount:",len(mv_tdata2_X))
+# Check the number of rows
+print("Batch size alignment: mv_tdata2_X shape:", mv_tdata2_X.shape,"Precount:",precountX,"Postcount:",len(mv_tdata2_X))
+print("Batch size alignment: mv_tdata2_y shape:", mv_tdata2_y.shape,"Precount:",precounty,"Postcount:",len(mv_tdata2_y))
 
-precount = len(mv_tdata2_y)
-mv_tdata2_y = mv_tdata2_y[mv_tdata2_y.shape[0] % batch_size:]
-print("Batch size alignment: mv_tdata2_y shape:", mv_tdata2_y.shape,"Precount:",precount,"Postcount:",len(mv_tdata2_y))
+# Split the data into training, validation, and test sets
 
+# STEP: Split data into training, validation, and test sets
+X_train, X_temp, y_train, y_temp = train_test_split(mv_tdata2_X,mv_tdata2_y, test_size=(mp_ml_validation_split + mp_ml_test_split), shuffle=False)
+X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=(mp_ml_test_split / (mp_ml_validation_split + mp_ml_test_split)), shuffle=False)
 
-# Use the first 70% of the data for training, the next 20% for validation, and the last 10% for testing
-# Use the Sklearn train_test_split function to split the data # Split into training + validation and test sets
-# shuffle=False ensures the temporal order of data is preserved.
-X_train_val, X_test, y_train_val, y_test = train_test_split(mv_tdata2_X, mv_tdata2_y, test_size=mp_ml_test_split, shuffle=False)
-
-# Further split training and validation sets shuffle=False ensures the temporal order of data is preserved.
-X_train, X_val, y_train, y_val = train_test_split(X_train_val, y_train_val, test_size=mp_ml_test_split, shuffle=False)
-
-print("Training set shape:", X_train.shape, y_train.shape)
-print("Validation set shape:", X_val.shape, y_val.shape)
-print("Test set shape:", X_test.shape, y_test.shape)
-
+print(f"Training set: X_train: {X_train.shape}, y_train: {y_train.shape}")
+print(f"Validation set: X_val: {X_val.shape}, y_val: {y_val.shape}")
+print(f"Test set: X_test: {X_test.shape}, y_test: {y_test.shape}")
 # +-------------------------------------------------------------------
 # STEP: convert numpy arrays to TF datasets
 # +-------------------------------------------------------------------
 # initiate the object using a window generatorwindow is not  used in this model
 
-
-
 # Parameters
 tf_batch_size = mp_ml_batch_size
 
 # Create datasets
-train_dataset = m1.create_tf_dataset(X_train, y_train, batch_size=batch_size, shuffle=True)
-val_dataset = m1.create_tf_dataset(X_val, y_val, batch_size=batch_size, shuffle=False)
+train_dataset = m1.create_tf_dataset(X_train, y_train, batch_size=tf_batch_size, shuffle=False)
+val_dataset = m1.create_tf_dataset(X_val, y_val, batch_size=tf_batch_size, shuffle=False)
 test_dataset = m1.create_tf_dataset(X_test, y_test, batch_size=tf_batch_size, shuffle=False)
+print(f"TF Datasets created: Train: {len(list(train_dataset))}, Val: {len(list(val_dataset))}, Test: {len(list(test_dataset))}")
 
 
 # +-------------------------------------------------------------------
@@ -516,12 +515,11 @@ for dataset, name in zip([train_dataset, val_dataset, test_dataset], ['train', '
 # STEP: Final shape summaries
 # +-------------------------------------------------------------------
 # Final summary of shapes
-print(f"Train shape: {train_shape}")
-print(f"Val shape: {val_shape}")
-print(f"Test shape: {test_shape}")
-input_shape = train_shape
-print(f"Input shape: {input_shape}")
-#print(f"Batch Size: {batch_size}",f"Batches:{input_shape[0]}",f"Time steps: {input_shape[1]}",f"Features: {input_shape[2]}")
+# STEP: Confirm tensor shapes for the tuner
+input_shape = X_train.shape[1:]  # Shape of a single sample (time_steps, features)
+target_shape = y_train.shape[1:]  # Shape of a single target (future_steps)
+print(f"Input shape for model: {X_train.shape}, Target shape for model: {y_train.shape}")
+print(f"Input shape for model: {input_shape}, Target shape for model: {target_shape}")
 
 # +-------------------------------------------------------------------
 # STEP: Tune best model Hyperparameter tuning and model setup
@@ -531,7 +529,7 @@ def get_hypermodel_params():
     today_date = date.today().strftime('%Y-%m-%d %H:%M:%S')
     random_seed = np.random.randint(0, 1000)
     base_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/PythonLib/tsModelData"
-    project_name = "prjEquinox1_prod"
+    project_name = "prjEquinox1_prod.keras"
     subdir = os.path.join(base_path, 'tshybrid_ensemble_tuning_prod', str(1))
 
     return {
@@ -590,32 +588,27 @@ def initialize_tuner(hypermodel_params, train_dataset, val_dataset, test_dataset
             traindataset=train_dataset,
             valdataset=val_dataset,
             testdataset=test_dataset,
-
-            # Input data shape
-            trainshape=train_shape,
-            valshape=val_shape,
-            testshape=test_shape,
-
-            # Models
+             # Model selection
             cnn_model=mp_ml_cnn_model,
             lstm_model=mp_ml_lstm_model,
             gru_model=mp_ml_gru_model,
             transformer_model=mp_ml_transformer_model,
-
-            # Model inputs
-            tensorshape=mp_ml_tensor_shape,
-            inputs=input_shape,
-            shape=input_shape,
-            cnn_shape=mp_ml_input_cnn_shape,
-            lstm_shape=mp_ml_input_lstm_shape,
-            gru_shape=mp_ml_input_gru_shape,
-            transformer_shape=mp_ml_input_transformer_shape,
-
+            multiactivate=True,
+            # Model inputs directly from the data traindataset shape
+            data_input_shape=input_shape,
+            # Model inputs from the shape selection options 1-4
+            main_custom_shape_selector=mp_ml_custom_input_shape,
+            cnn_custom_shape_selector=mp_ml_custom_input_cnn_shape,
+            lstm_custom_shape_selector=mp_ml_custom_input_lstm_shape,
+            gru_custom_shape_selector=mp_ml_custom_input_gru_shape,
+            transformer_custom_shape_selector=mp_ml_custom_input_transformer_shape,
+            # Use merge of different shapes in final input output
             multi_inputs=mp_ml_multi_inputs,
-
-            # Model parameters
-            run_single_input_model=mp_ml_run_single_input_model,
-            run_single_input_submodels=mp_ml_run_single_input_submodels,
+            #Logging
+            tf1=False,
+            tf2=False,
+            # Model parameters and hypermodel params
+            step=mp_ml_tf_param_steps,
             objective=hypermodel_params['objective'],
             max_epochs=hypermodel_params['max_epochs'],
             min_epochs=mp_ml_tf_param_min_epochs,
@@ -648,11 +641,7 @@ def initialize_tuner(hypermodel_params, train_dataset, val_dataset, test_dataset
             chk_patience=hypermodel_params['chk_patience'],
             checkpoint_filepath=hypermodel_params['checkpoint_filepath'],
             modeldatapath=hypermodel_params['modeldatapath'],
-            step=mp_ml_tf_param_steps,
-            multiactivate=True,
-            tf1=False,
-            tf2=False,
-        )
+            )
         print("Tuner initialized successfully.")
         return mt
     except Exception as e:
@@ -672,7 +661,12 @@ hypermodel_params = get_hypermodel_params()
 log_config(hypermodel_params)
 
 # Initialize tuner
-mt = initialize_tuner(hypermodel_params,train_dataset, val_dataset, test_dataset)
+mt = initialize_tuner(
+    hypermodel_params=hypermodel_params,
+    train_dataset=train_dataset,
+    val_dataset=val_dataset,
+    test_dataset=test_dataset
+)
 
 
 #--------------------------------------------------
@@ -768,3 +762,7 @@ from onnx import checker
 checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
+
+
+
+
