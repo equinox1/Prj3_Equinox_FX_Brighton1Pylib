@@ -60,7 +60,7 @@ class CMqldatasetup:
         self.lp_timeframe = kwargs.get('lp_timeframe', 'mt5.TIMEFRAME_M1')
         self.lp_run = kwargs.get('lp_run', 1)
         self.lp_features = kwargs.get('lp_features', 'Close')
-        self.lp_target = kwargs.get('lp_target', 'Close Scaled')
+        self.lp_label = kwargs.get('lp_label', 'Label')
         
 
        
@@ -419,7 +419,7 @@ class CMqldatasetup:
         df['close'] = (df['ask'] + df['bid']) / 2
         lv_empty_rows = pd.DataFrame(np.nan, index=range(lv_number_of_rows), columns=df.columns)
         df = pd.concat([df, lv_empty_rows])
-        df['target'] = df['close'].shift(-lv_seconds)
+        df['label'] = df['close'].shift(-lv_seconds)
         df = df.dropna()
         df.style.set_properties(**{'text-align': 'left'})
         print("lpDf", df.tail(10))
@@ -558,17 +558,17 @@ class CMqldatasetup:
     # class: cmqldatasetup      
     # usage: mql data
     # /param  var    
-    # Reorder columns to move the target column to the end
+    # Reorder columns to move the label column to the end
     def move_col_to_end(self,df, last_col):
         cols = [col for col in df.columns if col != last_col] + [last_col]
         return df[cols]
 
 
-    # create method  "create_target_wrapper()".
+    # create method  "create_label_wrapper()".
     # class: cmqldatasetup      
     # usage: mql data
     # /param  var           
-    def create_target_wrapper(
+    def create_label_wrapper(
         self,
         df,
         lookahead_periods,
@@ -596,13 +596,13 @@ class CMqldatasetup:
         remove_zeros=True,
     ):
         """
-        Wrapper function for `create_target` to handle the creation of target variables.
+        Wrapper function for `create_label` to handle the creation of label variables.
 
         Args:
-            See `create_target` method for parameter details.
+            See `create_label` method for parameter details.
 
         Returns:
-            The output of the `create_target` function.
+            The output of the `create_label` function.
         """
         params = {
             "df": df,
@@ -631,9 +631,9 @@ class CMqldatasetup:
             "remove_zeros": remove_zeros,
         }
 
-        return self.create_target(**params)
+        return self.create_label(**params)
 
-    def create_target(
+    def create_label(
         self,
         df,
         lookahead_periods,
@@ -661,18 +661,18 @@ class CMqldatasetup:
         rownumber=False,
     ):
         """
-        Creates a target column in the DataFrame by calculating mid prices or shifting a specified column.
+        Creates a label column in the DataFrame by calculating mid prices or shifting a specified column.
 
         Parameters:
-            See docstring of `create_target_wrapper`.
+            See docstring of `create_label_wrapper`.
 
         Returns:
-            pd.DataFrame: DataFrame with the target column added.
+            pd.DataFrame: DataFrame with the label column added.
         """
         if column_out1 is None:
             column_out1 = self.lp_features
         if column_out2 is None:
-            column_out2 = self.lp_target
+            column_out2 = self.lp_label
 
         if not isinstance(df, pd.DataFrame):
             raise TypeError("The input `df` must be a pandas DataFrame.")
@@ -720,10 +720,10 @@ class CMqldatasetup:
             df[returns_col] = (df[column_out1].shift(-lookahead_periods) / df[column_out1]) - 1
             logging.info("Future Returns calculated.")
 
-        # Set target column
+        # Set label column
         df[column_out2] = df[column_in].shift(-lookahead_periods)
         df.dropna(inplace=True)
-        logging.info("Target column created.")
+        logging.info("Label column created.")
 
         # Remove rows with zeros in the returns column if required
         if remove_zeros and returns_col in df.columns:

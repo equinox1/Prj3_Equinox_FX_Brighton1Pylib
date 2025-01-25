@@ -229,12 +229,17 @@ class CMdtuner:
         except Exception as e:
             print(f"Error during tuning: {e}")
 
-    def export_best_model(self):
+    def export_best_model(self, ftype='tf'):
         try:
             best_model = self.tuner.get_best_models(num_models=1)[0]
-            export_path = os.path.join(self.basepath, 'final_model')
-            best_model.save(export_path, save_format='.keras')
-            print(f"Model saved to {export_path}")
+            export_path = os.path.join(self.basepath, self.project_name, 'best_model')
+            if ftype == 'h5':
+                best_model.save(export_path + '.h5')  # For HDF5 format
+                print(f"Model saved to {export_path}.h5")
+            else:
+                best_model.save(export_path + '.keras')  # For TensorFlow SavedModel format
+                print(f"Model saved to {export_path}.keras")
+
         except IndexError:
             print("No models found to export.")
         except Exception as e:

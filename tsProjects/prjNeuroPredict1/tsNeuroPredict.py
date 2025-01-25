@@ -127,7 +127,9 @@ print("Terminal Info:", mt5.terminal_info())
 # +-------------------------------------------------------------------
 # STEP: Configuration settings
 # +-------------------------------------------------------------------
+# model api settings
 feature_scaler = MinMaxScaler()
+label_scaler = StandardScaler()
 
 #data load states
 mp_data_rownumber = False
@@ -141,9 +143,9 @@ mp_data_loadfilerates = True
 mp_ml_shuffle = False
 #ml Keras states
 mp_ml_cnn_model = True
-mp_ml_lstm_model = True
-mp_ml_gru_model = True
-mp_ml_transformer_model = True
+mp_ml_lstm_model = False
+mp_ml_gru_model = False
+mp_ml_transformer_model = False
 mp_ml_multi_inputs = False
 #model parameters
 
@@ -153,29 +155,25 @@ mp_ml_loadtemporian = False
 mp_ml_tensor_shape = False
 mp_ml_multiactivate=True
 
-#Features and target and label definitions
-#Time-series datasets usually have a sequence of values over time. For supervised learning:
+#Features and label and label definitions
 #X (features): A sequence of input time steps.
-#y (labels): The target value(s) for the corresponding time step(s).
-#For time windows: #Choose a fixed window size (e.g., window_size = 24)Slide the window across the dataset to create samples.
-#Input sequence (X): A series of consecutive time steps as input features.
-#Target (y): The value(s) you want to predict, often at a future time step.
-#For example, in a univariate time series (e.g., predicting stock prices), X is a sequence of past prices,
-# and y is the price at the next time step.
+#y (labels): The label value(s) for the corresponding time step(s).
+#For time windows: #Choose a fixed window size (e.g.window_size = 24) Slide the window across the dataset to create samples( Batches)
+#Features:(X): A series of consecutive time steps as input features.
+#Label:   (Y): The label value(s) for the future time step(s) you want to predict.
+
+#Forecast Label: Close price (or another label metric) for the future 24-hour period.
+#Future Step Size: 24 hours of data, which equals 1406 minutes of forecast labels.
+#Sequence-to-value: If the label Y is only the final Close price after 24 hours, the label shape is:(1,) (a single value). 
+#Sequence to Sequence: If the label is the entire series of Close prices for the future 24 hours, the label shape is:(1406, 1) (scaled Close price for each min).
 
 mp_ml_custom_input_keyfeat = {'Close'} # the feature to predict
-mp_ml_output_target = {'Target_Label'} # the feature to predict
+mp_ml_custom_output_label = {'Label'} # the feature to predict
 mp_ml_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in mp_ml_custom_input_keyfeat}  # the feature to predict
-mp_ml_output_target_scaled = {targ + '_Shifted' for targ in mp_ml_output_target}  # the target shifted to predict
-mp_ml_target = mp_ml_output_target_scaled
-mp_ml_label = mp_ml_target
-
-mp_ml_label_count=len(mp_ml_label)
-mp_ml_windowmodel = '24_24_1' # '24_24_1' or '6_1_1'
+mp_ml_custom_output_label_scaled = {targ + '_Scaled' for targ in mp_ml_custom_output_label}  # the label shifted to predict
+mp_ml_custom_output_label_count=len(mp_ml_custom_output_label)
 mp_ml_batch_size = 32
-mp_ml_cfg_period1 = 24
-mp_ml_cfg_period2= 6
-mp_ml_cfg_period = mp_ml_cfg_period1
+
 #Splitting the data
 mp_ml_train_split = 0.7
 mp_ml_validation_split = 0.2
@@ -221,8 +219,8 @@ other_ml_params = {
 mp_ml_return_col_scaled = other_ml_params["returns_col_scaled"]
 
 #Data variables
-mp_data_data_target = 2
- # 1: just the target, 2: target and features, 3: target, features and time, 4: full dataset
+mp_data_data_label = 3
+ # 1: just the label, 2: label and features, 3:time label, features 4: full dataset
 mv_data_dfname1 = "df_rates1"
 mv_data_dfname2 = "df_rates2"
 mp_data_rows = 1000 # number of mp_data_tab_rows to fetch
@@ -239,7 +237,7 @@ print("TIMEFRAME:",TIMEFRAME, "TIMEZONE:",TIMEZONE,"MT5 TIMEFRAME:",mp_data_time
 # STEP: Data Preparation and Loading
 # +-------------------------------------------------------------------
 # Set up dataset
-d1 = CMqldatasetup(lp_features=mp_ml_custom_input_keyfeat, lp_target=mp_ml_target, lp_label=mp_ml_label, lp_label_count=mp_ml_label_count)
+d1 = CMqldatasetup(lp_features=mp_ml_custom_input_keyfeat, lp_label=mp_ml_custom_output_label, lp_label_count=mp_ml_custom_output_label_count)
 print("CURRENTYEAR:",CURRENTYEAR, "CURRENTYEAR-mp_data_history_size",CURRENTYEAR-mp_data_history_size,"CURRENTDAYS:",CURRENTDAYS, "CURRENTMONTH:",CURRENTMONTH,"TIMEZONE:",TIMEZONE)
 mv_data_utc_from = d1.set_mql_timezone(CURRENTYEAR-mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
 mv_data_utc_to = d1.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
@@ -259,14 +257,14 @@ if len(mv_tdata1loadticks) > 0:
 if len(mv_tdata1loadrates) > 0:
     mv_tdata1loadrates = d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
            
-# Create targets
-mv_tdata1apiticks = d1.create_target_wrapper(
+# Create labels
+mv_tdata1apiticks = d1.create_label_wrapper(
     df=mv_tdata1apiticks,
     bid_column="T1_Bid_Price",
     ask_column="T1_Ask_Price",
     column_in="T1_Bid_Price",
     column_out1=list(mp_ml_custom_input_keyfeat)[0],
-    column_out2=list(mp_ml_target)[0],
+    column_out2=list(mp_ml_custom_output_label_scaled)[0],
     open_column="R1_Open",
     high_column="R1_High",
     low_column="R1_Low",
@@ -275,13 +273,13 @@ mv_tdata1apiticks = d1.create_target_wrapper(
     **common_ml_params
 )
 
-mv_tdata1apirates = d1.create_target_wrapper(
+mv_tdata1apirates = d1.create_label_wrapper(
     df=mv_tdata1apirates,
     bid_column="R1_Bid_Price",
     ask_column="R1_Ask_Price",
     column_in="R1_Close",
     column_out1=list(mp_ml_custom_input_keyfeat)[0],
-    column_out2=list(mp_ml_target)[0],
+    column_out2=list(mp_ml_custom_output_label_scaled)[0],
     open_column="R1_Open",
     high_column="R1_High",
     low_column="R1_Low",
@@ -290,13 +288,13 @@ mv_tdata1apirates = d1.create_target_wrapper(
     **common_ml_params
 )
 
-mv_tdata1loadticks = d1.create_target_wrapper(
+mv_tdata1loadticks = d1.create_label_wrapper(
     df=mv_tdata1loadticks,
     bid_column="T2_Bid_Price",
     ask_column="T2_Ask_Price",
     column_in="T2_Bid_Price",
     column_out1=list(mp_ml_custom_input_keyfeat)[0],
-    column_out2=list(mp_ml_target)[0],
+    column_out2=list(mp_ml_custom_output_label_scaled)[0],
     open_column="R2_Open",
     high_column="R2_High",
     low_column="R2_Low",
@@ -305,13 +303,13 @@ mv_tdata1loadticks = d1.create_target_wrapper(
     **common_ml_params
 )
 
-mv_tdata1loadrates = d1.create_target_wrapper(
+mv_tdata1loadrates = d1.create_label_wrapper(
     df=mv_tdata1loadrates,
     bid_column="R2_Bid_Price",
     ask_column="R2_Ask_Price",
     column_in="R2_Close",
     column_out1=list(mp_ml_custom_input_keyfeat)[0],
-    column_out2=list(mp_ml_target)[0],
+    column_out2=list(mp_ml_custom_output_label_scaled)[0],
     open_column="R2_Open",
     high_column="R2_High",
     low_column="R2_Low",
@@ -353,11 +351,11 @@ print("SHAPE: mv_tdata2 shape:", mv_tdata2.shape)
 # +-------------------------------------------------------------------
 # STEP: Normalize the data
 # +-------------------------------------------------------------------
-# Chosed featur columns such as Close will be normalised to Close_Scaled
-mp_ml_custom_input_keyfeat_list = list(mp_ml_custom_input_keyfeat)
+# Chose  feature columns such as Close will be normalised to Close_Scaled
+mp_ml_custom_input_keyfeat_list = list(mp_ml_custom_input_keyfeat) # X feature columns such as Close will be normalised to Close_Scaled
 print("Normalise mp_ml_custom_input_keyfeat_list",mp_ml_custom_input_keyfeat_list)
 mv_tdata2_scaled = feature_scaler.fit_transform(mv_tdata2[mp_ml_custom_input_keyfeat_list].values)
-
+# There is no Normalisation of as yet undefined X and Y data
 # convert to pd
 mv_tdata2_scaled = pd.DataFrame(mv_tdata2_scaled, columns=list(mp_ml_custom_input_keyfeat_scaled))
 
@@ -365,11 +363,10 @@ print("print Normalise")
 d1.run_mql_print(mv_tdata2_scaled,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
 print("End of Normalise print")
 
-# Move the target column to the end of the DataFrame
-last_col = list(mp_ml_target)[0]
+# Move the label column to the end of the DataFrame
+last_col = list(mp_ml_custom_output_label_scaled)[0]
 # Assuming mv_tdata2 and mv_train_scaled are pandas DataFrames add the single column scales the base train data
-print("Move the target column to the end of the DataFrame")
-#d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
+print("Move the label column to the end of the DataFrame")
 mv_tdata2_combined = d1.move_col_to_end(pd.concat([mv_tdata2, mv_tdata2_scaled], axis=1), last_col)
 mv_tdata2 = mv_tdata2_combined
 
@@ -377,7 +374,7 @@ d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floa
 print("mv_tdata2.shape",mv_tdata2.shape)
 
 
-# +-------------------------------------------------------------------
+# +------------------------------------------------------------------
 # STEP: remove datetime dtype to numeric from the data
 # +-------------------------------------------------------------------
 
@@ -404,24 +401,24 @@ print("POST INDEX: Count: ",len(mv_tdata2))
 
 
 # +-------------------------------------------------------------------
-# STEP: set the dataset to just the features and the target and sort by time
+# STEP: set the dataset to just the features and the label and sort by time
 # +-------------------------------------------------------------------
 
-if mp_data_data_target == 1:
+if mp_data_data_label == 1:
     mv_tdata2 = mv_tdata2[[list(mp_ml_custom_input_keyfeat_scaled)[0]]]
     d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
   
-if mp_data_data_target == 2:
-    mv_tdata2 = mv_tdata2[[list(mp_ml_custom_input_keyfeat_scaled)[0], list(mp_ml_target)[0]]]
+if mp_data_data_label == 2:
+    mv_tdata2 = mv_tdata2[[list(mp_ml_custom_input_keyfeat_scaled)[0], list(mp_ml_custom_output_label_scaled)[0]]]
     d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
  
-if mp_data_data_target == 3:
-    mv_tdata2 = mv_tdata2[[mv_tdata2.columns[0]] + [list(mp_ml_custom_input_keyfeat_scaled)[0], list(mp_ml_target)[0]]]
+if mp_data_data_label == 3:
+    mv_tdata2 = mv_tdata2[[mv_tdata2.columns[0]] + [list(mp_ml_custom_input_keyfeat_scaled)[0], list(mp_ml_custom_output_label_scaled)[0]]]
    # Ensure the data is sorted by time
     mv_tdata2 = mv_tdata2.sort_index()
     d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
   
-if mp_data_data_target == 4:
+if mp_data_data_label == 4:
     # Ensure the data is sorted by time use full dataset
     mv_tdata2 = mvtrain.sort_index()
     d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
@@ -430,6 +427,7 @@ if mp_data_data_target == 4:
 # +-------------------------------------------------------------------
 # STEP: Generate X and y from the Time Series
 # +-------------------------------------------------------------------
+# At thsi point the normalised data columns are split across the X and Y data
 m1 = CMqlmlsetup() # Create an instance of the class
 # 1: 24 HOURS/24 HOURS prediction window
 print("1: MINUTES data entries per time frame: MINUTES:", MINUTES, "HOURS:", MINUTES * 60, "DAYS:", MINUTES * 60 * 24)
@@ -437,8 +435,8 @@ timeval = MINUTES * 60 # hours
 pasttimeperiods = 24
 futuretimeperiods = 24
 predtimeperiods = 1
-features = len(mp_ml_custom_input_keyfeat_scaled)  # Number of features in input
-mp_ml_label_count = len(mp_ml_label)
+features_count = len(mp_ml_custom_input_keyfeat)  # Number of features in input
+labels_count = len(mp_ml_custom_output_label)  # Number of labels in output
 batch_size = mp_ml_batch_size
 
 print("timeval:",timeval, "pasttimeperiods:",pasttimeperiods, "futuretimeperiods:",futuretimeperiods, "predtimeperiods:",predtimeperiods)
@@ -448,12 +446,12 @@ pred_width = predtimeperiods * timeval
 print("past_width:",past_width, "future_width:",future_width, "pred_width:",pred_width)
 
 
-#  Create the input features (X) and target values (y)
+#  Create the input features (X) and label values (y)
 print("list(mp_ml_custom_input_keyfeat_scaled)",list(mp_ml_custom_input_keyfeat_scaled))
 # Windowing the data
 window_size = past_width
-target_steps = future_width
-# STEP: Create input (X) and target (Y) tensors  Ensure consistent data shape
+label_steps = future_width
+# STEP: Create input (X) and label (Y) tensors  Ensure consistent data shape
 mv_tdata2_X,mv_tdata2_y=m1.create_Xy_time_windows2(mv_tdata2,past_width, future_width)
 print("mv_tdata2_X.shape",mv_tdata2_X.shape, "mv_tdata2_y.shape",mv_tdata2_y.shape)
 
@@ -517,11 +515,11 @@ for dataset, name in zip([train_dataset, val_dataset, test_dataset], ['train', '
 # Final summary of shapes
 # STEP: Confirm tensor shapes for the tuner
 input_shape = X_train.shape[1:]  # Shape of a single sample (time_steps, features)
-target_shape = y_train.shape[1:]  # Shape of a single target (future_steps)
+label_shape = y_train.shape[1:]  # Shape of a single label (future_steps)
 # Example data: shape = (num_samples, time_steps, features) cnn_data = np.random.random((1000, 1440, 1))  # 1000 samples, 1440 timesteps, 1 feature
 # Example data: labels = np.random.random((1000, 1))
-print(f"Full Input shape for model: {X_train.shape}, Target shape for model: {y_train.shape}")
-print(f"No Batch Input shape for model: {input_shape}, Target shape for model: {target_shape}")
+print(f"Full Input shape for model: {X_train.shape}, Label shape for model: {y_train.shape}")
+print(f"No Batch Input shape for model: {input_shape}, Label shape for model: {label_shape}")
 #batch components
 input_keras_batch=mp_ml_batch_size
 input_def_keras_batch=None
@@ -542,7 +540,7 @@ print(f"Output label: {output_label}, Output shape: {output_shape}, Output featu
 # pass in the data shape for the model
 
 input_shape = (input_timesteps, input_features)  
-output_label_shape = (output_label, mp_ml_label_count)
+output_label_shape = (output_label, mp_ml_custom_output_label_count)
 print(f"Input shape for model: {input_shape}, Output shape for model: {output_label_shape}")
 # +-------------------------------------------------------------------
 # STEP: Tune best model Hyperparameter tuning and model setup
@@ -697,43 +695,59 @@ mt = initialize_tuner(
 ## Run the tuner to find the best model configuration
 print("Running Main call to tuner")
 mt.run_search()
-mt.export_best_model()
+print("Tuner search completed")
+print("Exporting the best model")
+mt.export_best_model(ftype='tf')
+print("Best model exported")
 predictions = mt.run_prediction(test_dataset)
-print("Predictions:", predictions)
 
 # +-------------------------------------------------------------------
 # STEP: Train and evaluate the best model
 # +-------------------------------------------------------------------
-best_model[0].fit(train_dataset, validation_split=mp_ml_validation_split, epochs=mp_ml_tf_param_epochs, batch_size=mp_ml_batch_size)
-best_model[0].evaluate(val_dataset, test_dataset)
+# Retrieve the best model
+best_model = mt.tuner.get_best_models(num_models=1)[0]
 
-# +-------------------------------------------------------------------
-# STEP: Predictions
-# +-------------------------------------------------------------------
-# Fit scaler on training dataset features
-scaler.fit(train_dataset)  # Fit on training features
-predicted_fx_price = best_model[0].predict(test_dataset)  # Predict the test data
+# Model Training
+print("Training the best model...")
 
-# Reshape predictions to 2D if needed
-if predicted_fx_price.ndim == 1:
-    predicted_fx_price = predicted_fx_price.reshape(-1, 1)
+best_model.fit(
+        train_dataset,
+        validation_data=val_dataset,
+        epochs=mp_ml_tf_param_epochs,
+        batch_size=mp_ml_batch_size
+    )
+print("Training completed.")
 
-# Inverse transform predictions using the original scaler
-predicted_fx_price = scaler.inverse_transform(
-    np.hstack([
-        np.zeros((predicted_fx_price.shape[0], train_dataset.shape[1] - 1)),  # Pad zeros for other columns
-        predicted_fx_price
-    ])
-)[:, -1]  # Extract only the target column
+# Model Evaluation
+print("Evaluating the model...")
+val_metrics = best_model.evaluate(val_dataset, verbose=0)
+test_metrics = best_model.evaluate(test_dataset, verbose=0)
+print(f"Validation Metrics - Loss: {val_metrics[0]}, Accuracy: {val_metrics[1]}")
+print(f"Test Metrics - Loss: {test_metrics[0]}, Accuracy: {test_metrics[1]}")
 
-# Fit target scaler on actual target values from training data
-target_scaler = StandardScaler()
-target_scaler.fit(train_dataset[:, -1].reshape(-1, 1))  # Assuming last column is the target
+# Predictions and Scaling
+print("Running predictions and scaling...")
+predicted_fx_price = best_model.predict(test_dataset)
+predicted_fx_price = label_scaler.inverse_transform(predicted_fx_price)
 
-# Inverse transform real FX prices (if needed for comparison)
-real_fx_price = target_scaler.inverse_transform(test_dataset[:, -1].reshape(-1, 1))
+real_fx_price = label_scaler.inverse_transform(y_test)
+print("Predictions and scaling completed.")
 
+# Plot Real vs Predicted Prices
+print("Generating plot for Real vs Predicted FX Prices...")
+plt.figure(figsize=(10, 6))
+plt.plot(real_fx_price, label='Real FX Price', linestyle='-', linewidth=2)
+plt.plot(predicted_fx_price, label='Predicted FX Price', linestyle='--', linewidth=2)
+plt.title("Real vs Predicted FX Prices", fontsize=16)
+plt.xlabel("Time (Index)", fontsize=14)
+plt.ylabel("FX Price", fontsize=14)
+plt.legend(fontsize=12)
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+print("Plot generated successfully.")
 
+"""
 # +-------------------------------------------------------------------
 # STEP: Performance Check
 # +-------------------------------------------------------------------
@@ -746,7 +760,7 @@ real_fx_price = target_scaler.inverse_transform(test_dataset[:, -1].reshape(-1, 
 
 # R2 Score: Also known as the coefficient of determination, it measures the proportion of the variance in the
 # dependent variable that is predictable from the independent variable(s). An R2 score of 1 indicates a 
-# perfect fit, while a score of 0 suggests that the model is no better than predicting the mean of the target
+# perfect fit, while a score of 0 suggests that the model is no better than predicting the mean of the label
 # variable. Negative values indicate poor model performance.
 
 mse, mae, r2 = mean_squared_error(real_fx_price, predicted_fx_price), mean_absolute_error(real_fx_price, predicted_fx_price), r2_score(real_fx_price, predicted_fx_price)
@@ -788,3 +802,4 @@ from onnx import checker
 checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
+"""
