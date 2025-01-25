@@ -144,12 +144,12 @@ mp_ml_cnn_model = True
 mp_ml_lstm_model = True
 mp_ml_gru_model = True
 mp_ml_transformer_model = True
+mp_ml_multi_inputs = False
 #model parameters
 
 #Machine Learning (ML) variables
 mp_ml_loadtensor = True
 mp_ml_loadtemporian = False
-mp_ml_multi_inputs = False
 mp_ml_tensor_shape = False
 mp_ml_multiactivate=True
 
@@ -181,14 +181,14 @@ mp_ml_train_split = 0.7
 mp_ml_validation_split = 0.2
 mp_ml_test_split = 0.1
 #Best Models
-mp_ml_mp_ml_num_models = 10
-mp_ml_num_trials = 5
+mp_ml_mp_ml_num_models = 3
+mp_ml_num_trials = 2
 
 # Set parameters for the Tensorflow keras model
 mp_ml_tf_param_steps = 1
-mp_ml_tf_param_max_epochs=10
+mp_ml_tf_param_max_epochs=2
 mp_ml_tf_param_min_epochs=1
-mp_ml_tf_param_epochs = 200
+mp_ml_tf_param_epochs = 2
 mp_ml_tf_param_chk_patience = 3
 mp_ml_tf_shiftin=1
 mp_ml_tf_ma_windowin=14 # 14 DAYS typical indicator window
@@ -489,8 +489,8 @@ print(f"Test set: X_test: {X_test.shape}, y_test: {y_test.shape}")
 # Parameters
 tf_batch_size = mp_ml_batch_size
 
-# Create datasets
-train_dataset = m1.create_tf_dataset(X_train, y_train, batch_size=tf_batch_size, shuffle=False)
+# Create the datasets
+train_dataset = m1.create_tf_dataset(X_train, y_train, batch_size=tf_batch_size, shuffle=True)
 val_dataset = m1.create_tf_dataset(X_val, y_val, batch_size=tf_batch_size, shuffle=False)
 test_dataset = m1.create_tf_dataset(X_test, y_test, batch_size=tf_batch_size, shuffle=False)
 print(f"TF Datasets created: Train: {len(list(train_dataset))}, Val: {len(list(val_dataset))}, Test: {len(list(test_dataset))}")
@@ -518,9 +518,32 @@ for dataset, name in zip([train_dataset, val_dataset, test_dataset], ['train', '
 # STEP: Confirm tensor shapes for the tuner
 input_shape = X_train.shape[1:]  # Shape of a single sample (time_steps, features)
 target_shape = y_train.shape[1:]  # Shape of a single target (future_steps)
-print(f"Input shape for model: {X_train.shape}, Target shape for model: {y_train.shape}")
-print(f"Input shape for model: {input_shape}, Target shape for model: {target_shape}")
+# Example data: shape = (num_samples, time_steps, features) cnn_data = np.random.random((1000, 1440, 1))  # 1000 samples, 1440 timesteps, 1 feature
+# Example data: labels = np.random.random((1000, 1))
+print(f"Full Input shape for model: {X_train.shape}, Target shape for model: {y_train.shape}")
+print(f"No Batch Input shape for model: {input_shape}, Target shape for model: {target_shape}")
+#batch components
+input_keras_batch=mp_ml_batch_size
+input_def_keras_batch=None
+# Get the input shape for the model
+input_rows_X=len(X_train)
+input_rows_y=len(y_train)
+input_batch_size=mp_ml_batch_size
+input_batches= X_train.shape[0]
+input_timesteps = X_train.shape[1]
+input_features = X_train.shape[2]
+# Get the output shape for the model
+output_label=y_train.shape[1]
+output_shape = y_train.shape
+output_features = y_train.shape[1]
+print(f"input_def_keras_batch  {input_def_keras_batch}, input_keras_batch: {input_keras_batch}")
+print(f"Input rows X: {input_rows_X},Input rows y: {input_rows_y} , Input batch_size {input_batch_size}, Input batches: {input_batches}, Input timesteps: {input_timesteps}, Input steps or features: {input_features}")
+print(f"Output label: {output_label}, Output shape: {output_shape}, Output features: {output_features}")
+# pass in the data shape for the model
 
+input_shape = (input_timesteps, input_features)  
+output_label_shape = (output_label, mp_ml_label_count)
+print(f"Input shape for model: {input_shape}, Output shape for model: {output_label_shape}")
 # +-------------------------------------------------------------------
 # STEP: Tune best model Hyperparameter tuning and model setup
 # +-------------------------------------------------------------------
@@ -528,9 +551,12 @@ print(f"Input shape for model: {input_shape}, Target shape for model: {target_sh
 def get_hypermodel_params():
     today_date = date.today().strftime('%Y-%m-%d %H:%M:%S')
     random_seed = np.random.randint(0, 1000)
-    base_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/PythonLib/tsModelData"
+    base_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/PythonLib/tsModelData/"
     project_name = "prjEquinox1_prod.keras"
     subdir = os.path.join(base_path, 'tshybrid_ensemble_tuning_prod', str(1))
+
+    # Ensure the directory exists
+    os.makedirs(subdir, exist_ok=True)
 
     return {
         'activation1': 'relu',
@@ -553,7 +579,7 @@ def get_hypermodel_params():
         'optimizer': 'adam',
         'loss': 'mean_squared_error',
         'metrics': ['mean_squared_error'],
-        'directory': os.path.join(base_path, 'tshybrid_ensemble_tuning_prod'),
+        'directory': subdir,
         'logger': None,
         'tuner_id': None,
         'overwrite': True,
@@ -571,8 +597,6 @@ def get_hypermodel_params():
         'baseuniq': str(1),
         'basepath': subdir,
         'checkpoint_filepath': posixpath.join(base_path, 'tshybrid_ensemble_tuning_prod', project_name),
-        'num_models':mp_ml_mp_ml_num_models,
-        'num_trials':mp_ml_num_trials
     }
 
 # Print configuration details for logging
@@ -670,36 +694,12 @@ mt = initialize_tuner(
     test_dataset=test_dataset
 )
 
-
-#--------------------------------------------------
-# Example usage:
-# Assuming you have already initialized the CMdtuner instance as `tuner_instance`
-mt.initialize_tuner()
-best_model = mt.run_tuner()
-
-if not best_models:
-    raise ValueError("No models found. Ensure that the tuning process completed successfully.")
-best_model = best_models[0]
-
-"""
-# Evaluate on test data
-results = best_model.evaluate(test_data, test_labels, verbose=1)
-print(f"Test Loss: {results[0]}, Test Metrics: {results[1:]}")
-
-# Make predictions
-predictions = best_model.predict(new_data)
+## Run the tuner to find the best model configuration
+print("Running Main call to tuner")
+mt.run_search()
+mt.export_best_model()
+predictions = mt.run_prediction(test_dataset)
 print("Predictions:", predictions)
-
-# Save the best model
-mt.tuner.export_best_model()
-
-# Reload and use the saved model
-from tensorflow.keras.models import load_model
-loaded_model = load_model(os.path.join(tuner.basepath, "final_model.h5"))
-reloaded_predictions = loaded_model.predict(new_data)
-print("Reloaded Predictions:", reloaded_predictions)
-
-best_params = mt.tuner.get_best_hyperparameters(1)[0]
 
 # +-------------------------------------------------------------------
 # STEP: Train and evaluate the best model
@@ -788,5 +788,3 @@ from onnx import checker
 checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
-
-"""

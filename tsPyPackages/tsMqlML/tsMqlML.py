@@ -98,35 +98,21 @@ class CMqlmlsetup:
         usable_size = len(X) - (len(X) % batch_size)
         return X[:usable_size], y[:usable_size]  
 
+
+
     def create_tf_dataset(self,features, labels=None, batch_size=32, shuffle=False):
-        """
-        Creates a TensorFlow dataset from features and labels.
+        
+        # Convert to tensors
 
-        Args:
-            features (numpy array or tensor): The input features.
-            labels (numpy array or tensor, optional): The labels. Default is None for datasets without labels.
-            batch_size (int): Batch size for the dataset.
-            shuffle (bool): Whether to shuffle the dataset.
+        if isinstance(features, np.ndarray):
+            # Handle standard single-input case
+            dataset = tf.data.Dataset.from_tensor_slices((features, labels) if labels is not None else features)
 
-        Returns:
-            tf.data.Dataset: A TensorFlow dataset ready for training, validation, or testing.
-        """
-        features = tf.convert_to_tensor(features, dtype=tf.float32)
-        labels = tf.convert_to_tensor(labels, dtype=tf.float32) if labels is not None else None
-        batch_size = batch_size
-        shuffle = shuffle
-
-        if labels is not None:
-            dataset = tf.data.Dataset.from_tensor_slices((features, labels))
-        else:
-            dataset = tf.data.Dataset.from_tensor_slices(features)
-
+        # Shuffle and batch the dataset
         if shuffle:
-            dataset = dataset.shuffle(buffer_size=len(features))
-
-        dataset = dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+            dataset = dataset.shuffle(buffer_size=len(features) if isinstance(features, tf.Tensor) else features.shape[0])
+        dataset = dataset.batch(batch_size)
         return dataset
-
 
     
     def scale_data(self, data, fit=False, scaler=None):
