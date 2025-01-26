@@ -124,14 +124,30 @@ if not c1.run_mql_login():
     raise ConnectionError("Failed to login to MT5 terminal")
 print("Terminal Info:", mt5.terminal_info())
 
+terminal_info = mt5.terminal_info()
+print(terminal_info)
+file_path=terminal_info.data_path +r"/MQL5/Files/"
+print(f"MQL file_path:" ,file_path)
+
+#data_path to save model
+mp_ml_data_path=file_path
+print(f"data_path to save onnx model: ",mp_ml_data_path)
 # +-------------------------------------------------------------------
 # STEP: Configuration settings
 # +-------------------------------------------------------------------
 # model api settings
 feature_scaler = MinMaxScaler()
-label_scaler = StandardScaler()
+label_scaler = MinMaxScaler()
+# environment settings
+mp_ml_model_datapath = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/PythonLib/tsModelData/"
+mp_ml_directory = f"tshybrid_ensemble_tuning_prod"
+mp_ml_project_name = "prjEquinox1_prod.keras"
+mp_ml_baseuniq = str(1)# str(mp_random)
+mp_ml_base_path = os.path.join(mp_ml_model_datapath, mp_ml_directory,mp_ml_baseuniq)
+mp_ml_subdir = os.path.join(mp_ml_base_path, mp_ml_directory, str(1))
+mp_ml_checkpoint_filepath = posixpath.join(mp_ml_base_path, mp_ml_directory, mp_ml_project_name)
 
-#data load states
+# data load states
 mp_data_rownumber = False
 mp_data_show_dtype = False
 mp_data_loadapiticks = True
@@ -179,14 +195,14 @@ mp_ml_train_split = 0.7
 mp_ml_validation_split = 0.2
 mp_ml_test_split = 0.1
 #Best Models
-mp_ml_mp_ml_num_models = 3
-mp_ml_num_trials = 2
+mp_ml_mp_ml_num_models = 4
+mp_ml_num_trials = 5
 
 # Set parameters for the Tensorflow keras model
 mp_ml_tf_param_steps = 1
-mp_ml_tf_param_max_epochs=2
+mp_ml_tf_param_max_epochs=10
 mp_ml_tf_param_min_epochs=1
-mp_ml_tf_param_epochs = 2
+mp_ml_tf_param_epochs = 10
 mp_ml_tf_param_chk_patience = 3
 mp_ml_tf_shiftin=1
 mp_ml_tf_ma_windowin=14 # 14 DAYS typical indicator window
@@ -701,7 +717,10 @@ val_metrics = best_model.evaluate(val_dataset, verbose=0)
 test_metrics = best_model.evaluate(test_dataset, verbose=0)
 print(f"Validation Metrics - Loss: {val_metrics[0]}, Accuracy: {val_metrics[1]}")
 print(f"Test Metrics - Loss: {test_metrics[0]}, Accuracy: {test_metrics[1]}")
-"""
+
+# Fit the label scaler on the training labels
+label_scaler.fit(y_train.reshape(-1, 1))
+
 # Predictions and Scaling
 print("Running predictions and scaling...")
 predicted_fx_price = best_model.predict(test_dataset)
@@ -709,21 +728,6 @@ predicted_fx_price = label_scaler.inverse_transform(predicted_fx_price)
 
 real_fx_price = label_scaler.inverse_transform(y_test)
 print("Predictions and scaling completed.")
-
-# Plot Real vs Predicted Prices
-print("Generating plot for Real vs Predicted FX Prices...")
-plt.figure(figsize=(10, 6))
-plt.plot(real_fx_price, label='Real FX Price', linestyle='-', linewidth=2)
-plt.plot(predicted_fx_price, label='Predicted FX Price', linestyle='--', linewidth=2)
-plt.title("Real vs Predicted FX Prices", fontsize=16)
-plt.xlabel("Time (Index)", fontsize=14)
-plt.ylabel("FX Price", fontsize=14)
-plt.legend(fontsize=12)
-plt.grid(True)
-plt.tight_layout()
-plt.show()
-print("Plot generated successfully.")
-
 
 # +-------------------------------------------------------------------
 # STEP: Performance Check
@@ -741,7 +745,9 @@ print("Plot generated successfully.")
 # variable. Negative values indicate poor model performance.
 
 mse, mae, r2 = mean_squared_error(real_fx_price, predicted_fx_price), mean_absolute_error(real_fx_price, predicted_fx_price), r2_score(real_fx_price, predicted_fx_price)
-print(f"Mean Squared Error: {mse}, Mean Absolute Error: {mae}, R² Score: {r2}")
+print(f"Mean Squared Error: The lower the MSE, the better the model: {mse}")
+print(f"Mean Absolute Error: The lower the MAE, the better the model: {mae}")
+print(f"R2 Score: The closer to 1, the better the model: {r2}")
 
 plt.plot(real_fx_price, color='red', label='Real FX Price')
 plt.plot(predicted_fx_price, color='blue', label='Predicted FX Price')
@@ -749,16 +755,16 @@ plt.title('FX Price Prediction')
 plt.xlabel('Time')
 plt.ylabel('FX Price')
 plt.legend()
-plt.savefig(mp_basepath + '/' + 'plot.png')
+plt.savefig(mp_ml_base_path + '/' + 'plot.png')
 plt.show()
-print("Plot Model saved to ", mp_basepath + '/' + 'plot.png')
+print("Plot Model saved to ", mp_ml_base_path + '/' + 'plot.png')
 
 # +-------------------------------------------------------------------
 # STEP: Save model to ONNX
 # +-------------------------------------------------------------------
 
 # Save the model to ONNX format
-mp_output_path = mp_data_path + "model_" + mp_symbol_primary + "_" + mp_datatype + "_" + str(mp_seconds) + ".onnx"
+mp_output_path = mp_ml_data_path + "model_" + mp_symbol_primary + "_" + mp_datatype + "_" + str(mp_seconds) + ".onnx"
 print(f"output_path: ",mp_output_path)
 onnx_model, _ = tf2onnx.convert.from_keras(best_model[0], opset=self.batch_size)
 onnx.save_model(onnx_model, mp_output_path)
@@ -779,4 +785,4 @@ from onnx import checker
 checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
-"""
+
