@@ -161,10 +161,11 @@ mp_data_loadfilerates = True
 mp_ml_shuffle = False
 #ml Keras states
 mp_ml_cnn_model = True
-mp_ml_lstm_model = False
-mp_ml_gru_model = False
-mp_ml_transformer_model = False
-mp_ml_multi_inputs = True
+mp_ml_lstm_model = True
+mp_ml_gru_model = True
+mp_ml_transformer_model = True
+mp_ml_multi_inputs = False
+mp_ml_multi_inputs_preprocess = True
 mp_ml_multi_outputs = False
 mp_ml_multi_branches = True
 
@@ -205,7 +206,7 @@ mp_ml_num_trials = 5
 
 # Set parameters for the Tensorflow keras model
 mp_ml_tf_param_steps = 1
-mp_ml_tf_param_max_epochs=10
+mp_ml_tf_param_max_epochs=500
 mp_ml_tf_param_min_epochs=1
 mp_ml_tf_param_epochs = 10
 mp_ml_tf_param_chk_patience = 3
@@ -485,13 +486,12 @@ print(f"Test set: X_test: {X_test.shape}, y_test: {y_test.shape}")
 # initiate the object using a window generatorwindow is not  used in this model Parameters
 tf_batch_size = mp_ml_batch_size
 
-# Create the datasets
 train_dataset = m1.create_tf_dataset(X_train, y_train, batch_size=tf_batch_size, shuffle=True)
 val_dataset = m1.create_tf_dataset(X_val, y_val, batch_size=tf_batch_size, shuffle=False)
 test_dataset = m1.create_tf_dataset(X_test, y_test, batch_size=tf_batch_size, shuffle=False)
-print(f"TF Datasets created: Train: {len(list(train_dataset))}, Val: {len(list(val_dataset))}, Test: {len(list(test_dataset))}")
+print(f"TF Datasets created: Train: {tf.data.experimental.cardinality(train_dataset).numpy()}, Val: {tf.data.experimental.cardinality(val_dataset).numpy()}, Test: {tf.data.experimental.cardinality(test_dataset).numpy()}")
 
-
+  
 # +-------------------------------------------------------------------
 # STEP: add tensor values for model input
 # +-------------------------------------------------------------------
@@ -699,13 +699,19 @@ print("Tuner search completed")
 print("Exporting the best model")
 mt.export_best_model(ftype='tf')
 print("Best model exported")
+
+# Run predictions on test data
 predictions = mt.run_prediction(test_dataset)
 
+# Print the first few predictions
+#print("Sample Predictions:", predictions[:5])
+
+"""
 # +-------------------------------------------------------------------
 # STEP: Train and evaluate the best model
 # +-------------------------------------------------------------------
 # Retrieve the best model
-best_model = mt.tuner.get_best_models(num_models=1)[0]
+best_model = mt.get_best_models(num_models=1)[0]
 
 # Model Training
 print("Training the best model...")
@@ -771,7 +777,7 @@ print("Plot Model saved to ", mp_ml_base_path + '/' + 'plot.png')
 # +-------------------------------------------------------------------
 
 # Save the model to ONNX format
-mp_output_path = mp_ml_data_path + "model_" + mp_symbol_primary + "_" + mp_ml_data_type.onnx
+mp_output_path = mp_ml_data_path + "model_" + mp_symbol_primary + "_" + mp_ml_data_type + ".onnx"
 print(f"output_path: ",mp_output_path)
 onnx_model, _ = tf2onnx.convert.from_keras(best_model[0], opset=self.batch_size)
 onnx.save_model(onnx_model, mp_output_path)
@@ -792,4 +798,4 @@ from onnx import checker
 checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
-
+"""

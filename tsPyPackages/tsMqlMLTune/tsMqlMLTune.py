@@ -119,7 +119,7 @@ class CMdtuner:
             shared_input = Input(shape=self.main_input_shape, name='shared_input')
             print(f"Shared input shape: {shared_input.shape}")
 
-        # CNN branch
+        # CNN branch input switch
         if self.cnn_model:
             cnn_input = Input(shape=self.main_input_shape, name='cnn_input')
             if self.multi_inputs:
@@ -127,44 +127,13 @@ class CMdtuner:
             else:
                 inputs = [shared_input]
 
-            x_cnn = Conv1D(
-                filters=hp.Int('cnn_filters', 32, 128, step=32),
-                kernel_size=hp.Int('cnn_kernel_size', 2, 5),
-                activation=hp.Choice('cnn_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6'])
-            )(cnn_input)
-            x_cnn = MaxPooling1D(pool_size=2)(x_cnn)
-            x_cnn = Flatten()(x_cnn)
-            branches.append(x_cnn)
+        # CNN Branch
+        cnn_branch = Conv1D(128, 5, activation="relu")(cnn_input)
+        cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
+        cnn_branch = Flatten()(cnn_branch)
+        branches.append(cnn_branch)
 
-        # LSTM branch
-        if self.lstm_model:
-            lstm_input = Input(shape=self.main_input_shape, name='lstm_input')
-            if self.multi_inputs:
-                inputs.append(lstm_input)
-            else:
-                inputs = [shared_input]
-
-            x_lstm = LSTM(
-                units=hp.Int('lstm_units', 32, 128, step=32),
-                activation=hp.Choice('lstm_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6'])
-            )(lstm_input)
-            branches.append(x_lstm)
-
-        # GRU branch
-        if self.gru_model:
-            gru_input = Input(shape=self.main_input_shape, name='gru_input')
-            if self.multi_inputs:
-                inputs.append(gru_input)
-            else:
-                inputs = [shared_input]
-            
-            x_gru = GRU(
-                units=hp.Int('gru_units', 32, 128, step=32),
-                activation=hp.Choice('gru_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6'])
-            )(gru_input)
-            branches.append(x_gru)
-
-        # Transformer branch
+        #Transformer branch input switch
         if self.transformer_model:
             transformer_input = Input(shape=self.main_input_shape, name='transformer_input')
             if self.multi_inputs:
@@ -172,31 +141,58 @@ class CMdtuner:
             else:
                 inputs = [shared_input]
 
-            x_transformer = MultiHeadAttention(
-                num_heads=hp.Int('num_heads', 2, 8),
-                key_dim=hp.Int('key_dim', 32, 128, step=32)
-            )(transformer_input, transformer_input)
-            x_transformer = LayerNormalization()(x_transformer)
-            x_transformer = GlobalAveragePooling1D()(x_transformer)
-            branches.append(x_transformer)
+        # Transformer Branch
+        transformer_branch = MultiHeadAttention(num_heads=2, key_dim=1)(transformer_input, transformer_input)
+        transformer_branch = LayerNormalization()(transformer_branch)
+        transformer_branch = GlobalAveragePooling1D()(transformer_branch)
+        branches.append(transformer_branch)
 
-        # Combine branches
+        # LSTM branch input switch
+        if self.lstm_model:
+            lstm_input = Input(shape=self.main_input_shape, name='lstm_input')
+            if self.multi_inputs:
+                inputs.append(lstm_input)
+            else:
+                inputs = [shared_input]
+
+        # LSTM Branch
+        lstm_branch = LSTM(96)(lstm_input)
+        branches.append(lstm_branch)
+
+        # GRU branch input switch
+        if self.gru_model:
+            gru_input = Input(shape=self.main_input_shape, name='gru_input')
+            if self.multi_inputs:
+                inputs.append(gru_input)
+            else:
+                inputs = [shared_input]
+        
+        # GRU Branch
+        gru_branch = GRU(64)(gru_input)
+        branches.append(gru_branch)
+
+        # Concatenate
         if self.multi_branches:
-            combined = Concatenate()(branches)
+           concatenated = Concatenate()([cnn_branch, transformer_branch, lstm_branch, gru_branch])
         else:
-            combined = branches[0]
+            concatenated = branches[0]
 
-        # Dense layers
-        x = Dense(50, activation=hp.Choice('dense_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6']))(combined)
-        x = Dropout(self.dropout)(x)
-        output = Dense(self.output_dim, activation=hp.Choice('output_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6']))(x)
+        # Fully Connected Layers
+        dense_1 = Dense(50, activation="relu", kernel_regularizer=tf.keras.regularizers.l2(0.01))(concatenated)
+        dropout = Dropout(0.5)(dense_1)
+        output = Dense(1, activation="sigmoid")(dropout)  # Adjust activation for task
 
-        # Compile the model
-        model = Model(inputs=inputs, outputs=output)
-        optimizer = hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax', 'ftrl'])
-        learning_rate = hp.Float('lr', 1e-4, 1e-2, sampling='LOG')
-        opt = self.get_optimizer(optimizer, learning_rate)
-        model.compile(optimizer=opt, loss=MeanSquaredError(), metrics=[MeanAbsoluteError()])
+        # Model
+        model = tf.keras.Model(
+            inputs=inputs,
+            outputs=output
+        )
+
+        # Compile
+        model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
+
+        # Summary
+        model.summary()
 
         return model
 
@@ -227,11 +223,16 @@ class CMdtuner:
 
     def run_search(self):
         try:
+            # Define an additional HyperParameter for epochs
+            epoch_hp = kt.HyperParameters()
+            epoch_hp.Int('epochs', self.min_epochs, self.max_epochs)
+
+            # Run the hyperparameter tuning search
             self.tuner.search(
                 self.traindataset,
                 validation_data=self.valdataset,
                 callbacks=self.get_callbacks(),
-                epochs=self.max_epochs
+                epochs=epoch_hp.get('epochs')
             )
         except Exception as e:
             print(f"Error during tuning: {e}")

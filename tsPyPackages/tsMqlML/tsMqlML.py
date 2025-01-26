@@ -117,6 +117,29 @@ class CMqlmlsetup:
         return X[:usable_size], y[:usable_size]  
 
 
+    def multi_input_preprocess(self, data):
+        if not isinstance(data, dict):
+            raise ValueError("Expected data to be a dictionary")
+        
+        x = {
+            "cnn_input": data.get("cnn_features", None),
+            "lstm_input": data.get("lstm_features", None),
+            "gru_input": data.get("gru_features", None),
+            "transformer_input": data.get("transformer_features", None),
+        }
+        y = data.get("target", None)
+        return x, y
+
+    def convert_to_dict(self, element):
+        # Example conversion: Adapt based on the structure of your dataset
+        return {
+            "cnn_features": element[0],  # Assuming this is the first feature
+            "lstm_features": element[1],  # Assuming this is the second feature
+            "gru_features": element[2],  # Assuming this is the third feature
+            "transformer_features": element[3],  # Assuming this is the fourth feature
+            "target": element[4],  # Assuming this is the label/target
+        }
+
 
     def create_tf_dataset(self,features, labels=None, batch_size=32, shuffle=False):
         
