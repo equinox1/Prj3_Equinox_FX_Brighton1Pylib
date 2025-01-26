@@ -161,10 +161,13 @@ mp_data_loadfilerates = True
 mp_ml_shuffle = False
 #ml Keras states
 mp_ml_cnn_model = True
-mp_ml_lstm_model = True
-mp_ml_gru_model = True
-mp_ml_transformer_model = True
+mp_ml_lstm_model = False
+mp_ml_gru_model = False
+mp_ml_transformer_model = False
 mp_ml_multi_inputs = True
+mp_ml_multi_outputs = False
+mp_ml_multi_branches = True
+
 #model parameters
 
 #Machine Learning (ML) variables
@@ -623,6 +626,8 @@ def initialize_tuner(hypermodel_params, train_dataset, val_dataset, test_dataset
             transformer_custom_shape_selector=mp_ml_custom_input_transformer_shape,
             # Use merge of different shapes in final input output
             multi_inputs=mp_ml_multi_inputs,
+            multi_outputs=mp_ml_multi_outputs,
+            multi_branches=mp_ml_multi_branches,
             #Logging
             tf1=False,
             tf2=False,
