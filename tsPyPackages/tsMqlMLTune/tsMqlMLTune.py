@@ -59,6 +59,7 @@ class CMdtuner:
         # Activation functions
         self.activation1 = kwargs.get('activation1', 'relu')
         self.activation2 = kwargs.get('activation2', 'linear')
+        
 
         # Output dimensions
         self.output_dim = kwargs.get('output_dim', 1)
@@ -127,7 +128,8 @@ class CMdtuner:
     def build_model(self, hp):
         # Define inputs
         inputs = []
-
+        branches = []
+                 
         # CNN branch
         if self.cnn_model:
             cnn_input = Input(shape=self.input_shapes['cnn_input'], name='cnn_input')
@@ -135,7 +137,7 @@ class CMdtuner:
             x_cnn = Conv1D(
                 filters=hp.Int('cnn_filters', 32, 128, step=32),
                 kernel_size=hp.Int('cnn_kernel_size', 2, 5),
-                activation=hp.Choice('cnn_activation', ['relu', 'tanh'])
+                activation=hp.Choice('cnn_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6'])
             )(cnn_input)
             x_cnn = MaxPooling1D(pool_size=2)(x_cnn)
             x_cnn = Flatten()(x_cnn)
@@ -148,7 +150,7 @@ class CMdtuner:
             inputs.append(lstm_input)
             x_lstm = LSTM(
                 units=hp.Int('lstm_units', 32, 128, step=32),
-                activation=hp.Choice('lstm_activation', ['relu', 'tanh'])
+                activation=hp.Choice('lstm_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6'])
             )(lstm_input)
         else:
             x_lstm = None
@@ -159,7 +161,7 @@ class CMdtuner:
             inputs.append(gru_input)
             x_gru = GRU(
                 units=hp.Int('gru_units', 32, 128, step=32),
-                activation=hp.Choice('gru_activation', ['relu', 'tanh'])
+                activation=hp.Choice('gru_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6'])
             )(gru_input)
         else:
             x_gru = None
@@ -179,23 +181,31 @@ class CMdtuner:
 
         # Combine the outputs of each branch
         branches = [branch for branch in [x_cnn, x_lstm, x_gru, x_transformer] if branch is not None]
+        
+        
         if len(branches) > 1:
             combined = Concatenate()(branches)
+            
         elif len(branches) == 1:
             combined = branches[0]
+           
         else:
             raise ValueError("No branches have been configured. At least one branch (CNN, LSTM, GRU, Transformer) must be enabled.")
-
+        
         # Add dense layers on top of combined features
-        x = Dense(50, activation=self.activation1)(combined)
+        x = Dense(50, activation=hp.Choice(['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6']))(combined)
         x = Dropout(self.dropout)(x)
-        output = Dense(self.output_dim, activation=self.activation2)(x)
+        output = Dense(self.output_dim, activation=hp.Choice(['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6']))(x)
 
         # Create the model
+        
+        print(f"MODEL:inputs {inputs}")
+        print(f"MODEL:output {output}")
+       
         model = Model(inputs=inputs, outputs=output)
 
         # Compile the model
-        optimizer = hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd'])
+        optimizer = hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax', 'ftrl'])
         learning_rate = hp.Float('lr', 1e-4, 1e-2, sampling='LOG')
         if optimizer == 'adam':
             opt = Adam(learning_rate=learning_rate)
@@ -203,6 +213,16 @@ class CMdtuner:
             opt = tf.keras.optimizers.RMSprop(learning_rate=learning_rate)
         elif optimizer == 'sgd':
             opt = tf.keras.optimizers.SGD(learning_rate=learning_rate)
+        elif optimizer == 'nadam':
+            opt = tf.keras.optimizers.Nadam(learning_rate=learning_rate)
+        elif optimizer == 'adadelta':
+            opt = tf.keras.optimizers.Adadelta(learning_rate=learning_rate)
+        elif optimizer == 'adagrad':
+            opt = tf.keras.optimizers.Adagrad(learning_rate=learning_rate)
+        elif optimizer == 'adamax':
+            opt = tf.keras.optimizers.Adamax(learning_rate=learning_rate)
+        elif optimizer == 'ftrl':
+            opt = tf.keras.optimizers.Ftrl(learning_rate=learning_rate)
 
         model.compile(
             optimizer=opt,

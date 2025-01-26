@@ -61,6 +61,8 @@ DAYS = int(tm.get_timevalue('DAYS'))
 TIMEZONE = tm.TIME_CONSTANTS['TIMEZONES'][0]
 TIMEFRAME = tm.TIME_CONSTANTS['TIMEFRAME']['H4']
 
+mp_ml_data_type ='M1'
+
 #current date and time
 CURRENTYEAR = datetime.now().year
 CURRENTYEAR = datetime.now().year
@@ -159,10 +161,10 @@ mp_data_loadfilerates = True
 mp_ml_shuffle = False
 #ml Keras states
 mp_ml_cnn_model = True
-mp_ml_lstm_model = False
-mp_ml_gru_model = False
-mp_ml_transformer_model = False
-mp_ml_multi_inputs = False
+mp_ml_lstm_model = True
+mp_ml_gru_model = True
+mp_ml_transformer_model = True
+mp_ml_multi_inputs = True
 #model parameters
 
 #Machine Learning (ML) variables
@@ -764,7 +766,7 @@ print("Plot Model saved to ", mp_ml_base_path + '/' + 'plot.png')
 # +-------------------------------------------------------------------
 
 # Save the model to ONNX format
-mp_output_path = mp_ml_data_path + "model_" + mp_symbol_primary + "_" + mp_datatype + "_" + str(mp_seconds) + ".onnx"
+mp_output_path = mp_ml_data_path + "model_" + mp_symbol_primary + "_" + mp_ml_data_type.onnx
 print(f"output_path: ",mp_output_path)
 onnx_model, _ = tf2onnx.convert.from_keras(best_model[0], opset=self.batch_size)
 onnx.save_model(onnx_model, mp_output_path)
