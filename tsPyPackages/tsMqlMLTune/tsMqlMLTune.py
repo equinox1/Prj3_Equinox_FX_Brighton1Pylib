@@ -10,14 +10,11 @@ from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.metrics import MeanAbsoluteError
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 import keras_tuner as kt
-from keras_tuner import HyperParameters
-import pathlib
-from pathlib import Path, PurePosixPath
-import posixpath
 
 
 class CMdtuner:
     def __init__(self, **kwargs):
+        # Initialize hypermodel parameters
         self.hypermodel_params = kwargs.get('hypermodel_params', {})
         self.traindataset = kwargs.get('traindataset')
         self.valdataset = kwargs.get('valdataset')
@@ -36,15 +33,13 @@ class CMdtuner:
         self.gru_model = kwargs.get('gru_model', False)
         self.transformer_model = kwargs.get('transformer_model', False)
         self.multi_inputs = kwargs.get('multi_inputs', False)
-
+        self.multi_outputs = kwargs.get('multi_outputs', False)
+        self.multi_branches = kwargs.get('multi_branches', False)
+        
         # Data shapes
         self.data_input_shape = kwargs.get('data_input_shape')
         self.batch_size = kwargs.get('batch_size', 32)
         self.dropout = kwargs.get('dropout', 0.3)
-
-        # Shape variables
-        self.main_input_shape = None
-        self.input_shapes = {}
 
         # Training configurations
         self.objective = kwargs.get('objective', 'val_loss')
@@ -59,7 +54,6 @@ class CMdtuner:
         # Activation functions
         self.activation1 = kwargs.get('activation1', 'relu')
         self.activation2 = kwargs.get('activation2', 'linear')
-        
 
         # Output dimensions
         self.output_dim = kwargs.get('output_dim', 1)
@@ -92,16 +86,7 @@ class CMdtuner:
     def prepare_shapes(self):
         if not self.data_input_shape:
             raise ValueError("Data input shape must be specified.")
-
         self.main_input_shape = self.get_shape(self.data_input_shape)
-        if self.cnn_model:
-            self.input_shapes['cnn_input'] = self.main_input_shape
-        if self.lstm_model:
-            self.input_shapes['lstm_input'] = self.main_input_shape
-        if self.gru_model:
-            self.input_shapes['gru_input'] = self.main_input_shape
-        if self.transformer_model:
-            self.input_shapes['transformer_input'] = self.main_input_shape
 
     @staticmethod
     def get_shape(data_shape):
@@ -126,110 +111,112 @@ class CMdtuner:
         self.tuner.search_space_summary()
 
     def build_model(self, hp):
-        # Define inputs
+        # Define inputs and branches
         inputs = []
         branches = []
-                 
+        
+        if self.multi_inputs == False:
+            shared_input = Input(shape=self.main_input_shape, name='shared_input')
+            print(f"Shared input shape: {shared_input.shape}")
+
         # CNN branch
         if self.cnn_model:
-            cnn_input = Input(shape=self.input_shapes['cnn_input'], name='cnn_input')
-            inputs.append(cnn_input)
+            cnn_input = Input(shape=self.main_input_shape, name='cnn_input')
+            if self.multi_inputs:
+                inputs.append(cnn_input)
+            else:
+                inputs = [shared_input]
+
             x_cnn = Conv1D(
                 filters=hp.Int('cnn_filters', 32, 128, step=32),
                 kernel_size=hp.Int('cnn_kernel_size', 2, 5),
-                activation=hp.Choice('cnn_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6'])
+                activation=hp.Choice('cnn_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6'])
             )(cnn_input)
             x_cnn = MaxPooling1D(pool_size=2)(x_cnn)
             x_cnn = Flatten()(x_cnn)
-        else:
-            x_cnn = None
+            branches.append(x_cnn)
 
         # LSTM branch
         if self.lstm_model:
-            lstm_input = Input(shape=self.input_shapes['lstm_input'], name='lstm_input')
-            inputs.append(lstm_input)
+            lstm_input = Input(shape=self.main_input_shape, name='lstm_input')
+            if self.multi_inputs:
+                inputs.append(lstm_input)
+            else:
+                inputs = [shared_input]
+
             x_lstm = LSTM(
                 units=hp.Int('lstm_units', 32, 128, step=32),
-                activation=hp.Choice('lstm_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6'])
+                activation=hp.Choice('lstm_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6'])
             )(lstm_input)
-        else:
-            x_lstm = None
+            branches.append(x_lstm)
 
         # GRU branch
         if self.gru_model:
-            gru_input = Input(shape=self.input_shapes['gru_input'], name='gru_input')
-            inputs.append(gru_input)
+            gru_input = Input(shape=self.main_input_shape, name='gru_input')
+            if self.multi_inputs:
+                inputs.append(gru_input)
+            else:
+                inputs = [shared_input]
+            
             x_gru = GRU(
                 units=hp.Int('gru_units', 32, 128, step=32),
-                activation=hp.Choice('gru_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6'])
+                activation=hp.Choice('gru_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6'])
             )(gru_input)
-        else:
-            x_gru = None
+            branches.append(x_gru)
 
         # Transformer branch
         if self.transformer_model:
-            transformer_input = Input(shape=self.input_shapes['transformer_input'], name='transformer_input')
-            inputs.append(transformer_input)
+            transformer_input = Input(shape=self.main_input_shape, name='transformer_input')
+            if self.multi_inputs:
+                inputs.append(transformer_input)
+            else:
+                inputs = [shared_input]
+
             x_transformer = MultiHeadAttention(
                 num_heads=hp.Int('num_heads', 2, 8),
                 key_dim=hp.Int('key_dim', 32, 128, step=32)
             )(transformer_input, transformer_input)
             x_transformer = LayerNormalization()(x_transformer)
             x_transformer = GlobalAveragePooling1D()(x_transformer)
-        else:
-            x_transformer = None
+            branches.append(x_transformer)
 
-        # Combine the outputs of each branch
-        branches = [branch for branch in [x_cnn, x_lstm, x_gru, x_transformer] if branch is not None]
-        
-        
-        if len(branches) > 1:
+        # Combine branches
+        if self.multi_branches:
             combined = Concatenate()(branches)
-            
-        elif len(branches) == 1:
-            combined = branches[0]
-           
         else:
-            raise ValueError("No branches have been configured. At least one branch (CNN, LSTM, GRU, Transformer) must be enabled.")
-        
-        # Add dense layers on top of combined features
-        x = Dense(50, activation=hp.Choice(['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6']))(combined)
-        x = Dropout(self.dropout)(x)
-        output = Dense(self.output_dim, activation=hp.Choice(['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6']))(x)
+            combined = branches[0]
 
-        # Create the model
-        
-        print(f"MODEL:inputs {inputs}")
-        print(f"MODEL:output {output}")
-       
-        model = Model(inputs=inputs, outputs=output)
+        # Dense layers
+        x = Dense(50, activation=hp.Choice('dense_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6']))(combined)
+        x = Dropout(self.dropout)(x)
+        output = Dense(self.output_dim, activation=hp.Choice('output_activation', ['relu', 'tanh', 'sigmoid', 'linear', 'elu', 'selu', 'softplus', 'softsign', 'hard_sigmoid', 'exponential', 'swish', 'mish', 'gelu', 'leaky_relu', 'relu6']))(x)
 
         # Compile the model
+        model = Model(inputs=inputs, outputs=output)
         optimizer = hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax', 'ftrl'])
         learning_rate = hp.Float('lr', 1e-4, 1e-2, sampling='LOG')
-        if optimizer == 'adam':
-            opt = Adam(learning_rate=learning_rate)
-        elif optimizer == 'rmsprop':
-            opt = tf.keras.optimizers.RMSprop(learning_rate=learning_rate)
-        elif optimizer == 'sgd':
-            opt = tf.keras.optimizers.SGD(learning_rate=learning_rate)
-        elif optimizer == 'nadam':
-            opt = tf.keras.optimizers.Nadam(learning_rate=learning_rate)
-        elif optimizer == 'adadelta':
-            opt = tf.keras.optimizers.Adadelta(learning_rate=learning_rate)
-        elif optimizer == 'adagrad':
-            opt = tf.keras.optimizers.Adagrad(learning_rate=learning_rate)
-        elif optimizer == 'adamax':
-            opt = tf.keras.optimizers.Adamax(learning_rate=learning_rate)
-        elif optimizer == 'ftrl':
-            opt = tf.keras.optimizers.Ftrl(learning_rate=learning_rate)
+        opt = self.get_optimizer(optimizer, learning_rate)
+        model.compile(optimizer=opt, loss=MeanSquaredError(), metrics=[MeanAbsoluteError()])
 
-        model.compile(
-            optimizer=opt,
-            loss=MeanSquaredError(),
-            metrics=[MeanAbsoluteError()]
-        )
         return model
+
+    def get_optimizer(self, optimizer_name, learning_rate):
+        if optimizer_name == 'adam':
+            return Adam(learning_rate=learning_rate)
+        elif optimizer_name == 'rmsprop':
+            return tf.keras.optimizers.RMSprop(learning_rate=learning_rate)
+        elif optimizer_name == 'sgd':
+            return tf.keras.optimizers.SGD(learning_rate=learning_rate)
+        elif optimizer_name == 'nadam':
+            return tf.keras.optimizers.Nadam(learning_rate=learning_rate)
+        elif optimizer_name == 'adadelta':
+            return tf.keras.optimizers.Adadelta(learning_rate=learning_rate)
+        elif optimizer_name == 'adagrad':
+            return tf.keras.optimizers.Adagrad(learning_rate=learning_rate)
+        elif optimizer_name == 'adamax':
+            return tf.keras.optimizers.Adamax(learning_rate=learning_rate)
+        elif optimizer_name == 'ftrl':
+            return tf.keras.optimizers.Ftrl(learning_rate=learning_rate)
 
     def get_callbacks(self):
         return [
@@ -254,42 +241,24 @@ class CMdtuner:
             best_model = self.tuner.get_best_models(num_models=1)[0]
             export_path = os.path.join(self.basepath, self.project_name, 'best_model')
             if ftype == 'h5':
-                best_model.save(export_path + '.h5')  # For HDF5 format
+                best_model.save(export_path + '.h5')
                 print(f"Model saved to {export_path}.h5")
             else:
-                best_model.save(export_path + '.keras')  # For TensorFlow SavedModel format
+                best_model.save(export_path + '.keras')
                 print(f"Model saved to {export_path}.keras")
-
         except IndexError:
             print("No models found to export.")
         except Exception as e:
             print(f"Error saving the model: {e}")
 
-
     def run_prediction(self, test_data, batch_size=None):
-        """
-        Run predictions using the best model obtained from hyperparameter tuning.
-
-        Parameters:
-        - test_data: Dataset or numpy array to predict on.
-        - batch_size: Batch size for prediction. Defaults to self.batch_size.
-
-        Returns:
-        - Predictions made by the model.
-        """
         try:
-            # Load the best model
             best_model = self.tuner.get_best_models(num_models=1)[0]
-
-            # Ensure test_data is casted to tf.float32
             if isinstance(test_data, tf.data.Dataset):
                 test_data = test_data.map(self.cast_to_float32)
-
-            # Run predictions
             predictions = best_model.predict(test_data, batch_size=batch_size or self.batch_size)
             return predictions
         except IndexError:
             print("No models found. Ensure tuning has been run successfully.")
         except Exception as e:
             print(f"Error during prediction: {e}")
-   
