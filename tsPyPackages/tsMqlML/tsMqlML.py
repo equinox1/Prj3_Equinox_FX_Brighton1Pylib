@@ -87,6 +87,24 @@ class CMqlmlsetup:
             y.append(data.iloc[i + time_steps:i + time_steps + future_steps, -1].values)  # Target column
         return np.array(X), np.array(y)
 
+
+    def create_Xy_time_windows3(self,df, past_window,future_window, target_column='Close_Scaled',feature_column='Close'):
+        # Create the X and Y datasets
+        print(df.columns)  # Check available columns
+    
+        print("create_Xy_time_windows3:past_window", past_window)
+        print("create_Xy_time_windows3:future_window", future_window)
+        print("create_Xy_time_windows3:target_column", target_column)
+        print("create_Xy_time_windows3:feature_column", feature_column)
+
+        X, Y = [], []
+        for i in range(len(df) - past_window - future_window):
+            past = df[i:i + past_window][target_column].values
+            future = df[i + past_window:i + past_window + future_window][feature_column].values[-1]  # Use last value in the future window as the label
+            X.append(past)
+            Y.append(future)
+        return np.array(X), np.array(Y)
+
     def align_to_batch_size(self,X, y, batch_size):
         """
         Ensure data size is divisible by batch size.

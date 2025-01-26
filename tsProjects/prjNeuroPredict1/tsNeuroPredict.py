@@ -211,6 +211,7 @@ common_ml_params = {
     "returns_col": "LogReturns",
     "shift_in": mp_ml_tf_shiftin,
     "rownumber": mp_data_rownumber,
+    "create_label": False,
 }
 
 other_ml_params = {
@@ -347,41 +348,27 @@ else:
 # print shapes of the data
 print("SHAPE: mv_tdata2 shape:", mv_tdata2.shape)
 
-
 # +-------------------------------------------------------------------
 # STEP: Normalize the data
 # +-------------------------------------------------------------------
-# Chose  feature columns such as Close will be normalised to Close_Scaled
-mp_ml_custom_input_keyfeat_list = list(mp_ml_custom_input_keyfeat) # X feature columns such as Close will be normalised to Close_Scaled
-print("Normalise mp_ml_custom_input_keyfeat_list",mp_ml_custom_input_keyfeat_list)
-mv_tdata2_scaled = feature_scaler.fit_transform(mv_tdata2[mp_ml_custom_input_keyfeat_list].values)
-# There is no Normalisation of as yet undefined X and Y data
-# convert to pd
-mv_tdata2_scaled = pd.DataFrame(mv_tdata2_scaled, columns=list(mp_ml_custom_input_keyfeat_scaled))
+# Normalize the 'Close' column
+scaler = MinMaxScaler()
+mp_ml_custom_input_keyfeat_list = list(mp_ml_custom_input_keyfeat) 
+mp_ml_custom_input_keyfeat_scaled = [feat + '_Scaled' for feat in mp_ml_custom_input_keyfeat_list]
+mv_tdata2[mp_ml_custom_input_keyfeat_scaled] = scaler.fit_transform(mv_tdata2[mp_ml_custom_input_keyfeat_list])
 
 print("print Normalise")
-d1.run_mql_print(mv_tdata2_scaled,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
-print("End of Normalise print")
-
-# Move the label column to the end of the DataFrame
-last_col = list(mp_ml_custom_output_label_scaled)[0]
-# Assuming mv_tdata2 and mv_train_scaled are pandas DataFrames add the single column scales the base train data
-print("Move the label column to the end of the DataFrame")
-mv_tdata2_combined = d1.move_col_to_end(pd.concat([mv_tdata2, mv_tdata2_scaled], axis=1), last_col)
-mv_tdata2 = mv_tdata2_combined
-
 d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
+print("End of Normalise print")
 print("mv_tdata2.shape",mv_tdata2.shape)
-
 
 # +------------------------------------------------------------------
 # STEP: remove datetime dtype to numeric from the data
 # +-------------------------------------------------------------------
+#if len(mv_tdata2) > 0:
+#    mv_tdata2 = d1.wrangle_time(mv_tdata2, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=True, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=False)
 
-if len(mv_tdata2) > 0:
-    mv_tdata2 = d1.wrangle_time(mv_tdata2, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=True, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=False)
-
-d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
+#d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
 # +-------------------------------------------------------------------
 # STEP: add The time index to the data
 # +-------------------------------------------------------------------
@@ -399,30 +386,23 @@ mv_tdata2.set_index(first_column, inplace=True)
 mv_tdata2=mv_tdata2.dropna()
 print("POST INDEX: Count: ",len(mv_tdata2))
 
-
 # +-------------------------------------------------------------------
 # STEP: set the dataset to just the features and the label and sort by time
 # +-------------------------------------------------------------------
-
 if mp_data_data_label == 1:
     mv_tdata2 = mv_tdata2[[list(mp_ml_custom_input_keyfeat_scaled)[0]]]
-    d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
-  
-if mp_data_data_label == 2:
-    mv_tdata2 = mv_tdata2[[list(mp_ml_custom_input_keyfeat_scaled)[0], list(mp_ml_custom_output_label_scaled)[0]]]
-    d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
- 
-if mp_data_data_label == 3:
-    mv_tdata2 = mv_tdata2[[mv_tdata2.columns[0]] + [list(mp_ml_custom_input_keyfeat_scaled)[0], list(mp_ml_custom_output_label_scaled)[0]]]
-   # Ensure the data is sorted by time
+    d1.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
+    
+elif mp_data_data_label == 2:
+    mv_tdata2 = mv_tdata2[[mv_tdata2.columns[0]] + [list(mp_ml_custom_input_keyfeat_scaled)[0]]]
+    # Ensure the data is sorted by time
     mv_tdata2 = mv_tdata2.sort_index()
-    d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
-  
-if mp_data_data_label == 4:
-    # Ensure the data is sorted by time use full dataset
-    mv_tdata2 = mvtrain.sort_index()
-    d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
+    d1.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
 
+elif mp_data_data_label == 3:
+    # Ensure the data is sorted by time use full dataset
+    mv_tdata2 = mv_tdata2.sort_index()
+    d1.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
 
 # +-------------------------------------------------------------------
 # STEP: Generate X and y from the Time Series
@@ -443,23 +423,22 @@ print("timeval:",timeval, "pasttimeperiods:",pasttimeperiods, "futuretimeperiods
 past_width = pasttimeperiods * timeval
 future_width = futuretimeperiods * timeval
 pred_width = predtimeperiods * timeval
-print("past_width:",past_width, "future_width:",future_width, "pred_width:",pred_width)
+print("past_width:", past_width, "future_width:", future_width, "pred_width:", pred_width)
 
+# Create the input features (X) and label values (y)
+print("list(mp_ml_custom_input_keyfeat_scaled)", list(mp_ml_custom_input_keyfeat_scaled))
 
-#  Create the input features (X) and label values (y)
-print("list(mp_ml_custom_input_keyfeat_scaled)",list(mp_ml_custom_input_keyfeat_scaled))
-# Windowing the data
-window_size = past_width
-label_steps = future_width
-# STEP: Create input (X) and label (Y) tensors  Ensure consistent data shape
-mv_tdata2_X,mv_tdata2_y=m1.create_Xy_time_windows2(mv_tdata2,past_width, future_width)
-print("mv_tdata2_X.shape",mv_tdata2_X.shape, "mv_tdata2_y.shape",mv_tdata2_y.shape)
+# STEP: Create input (X) and label (Y) tensors Ensure consistent data shape
+# Create the input (X) and label (Y) tensors Close_scaled is the feature to predict and Close last entry in future the label
+mv_tdata2_X, mv_tdata2_y = m1.create_Xy_time_windows3(mv_tdata2, past_width, future_width, target_column=list(mp_ml_custom_input_keyfeat_scaled), feature_column=list(mp_ml_custom_input_keyfeat))
+print("mv_tdata2_X.shape", mv_tdata2_X.shape, "mv_tdata2_y.shape", mv_tdata2_y.shape)
 
-
+# Scale the Y labels
+mv_tdata2_y = scaler.transform(mv_tdata2_y.reshape(-1, 1))  # Transform Y values
 # +-------------------------------------------------------------------
 # STEP: Split the data into training and test sets Fixed Partitioning
 # +-------------------------------------------------------------------
-# Batch size alignmentfit the number of rows as whole number divisible by the batch size to avoid float errors   
+# Batch size alignment fit the number of rows as whole number divisible by the batch size to avoid float errors
 batch_size = mp_ml_batch_size
 precountX = len(mv_tdata2_X)
 precounty = len(mv_tdata2_y)
@@ -482,9 +461,7 @@ print(f"Test set: X_test: {X_test.shape}, y_test: {y_test.shape}")
 # +-------------------------------------------------------------------
 # STEP: convert numpy arrays to TF datasets
 # +-------------------------------------------------------------------
-# initiate the object using a window generatorwindow is not  used in this model
-
-# Parameters
+# initiate the object using a window generatorwindow is not  used in this model Parameters
 tf_batch_size = mp_ml_batch_size
 
 # Create the datasets
@@ -724,7 +701,7 @@ val_metrics = best_model.evaluate(val_dataset, verbose=0)
 test_metrics = best_model.evaluate(test_dataset, verbose=0)
 print(f"Validation Metrics - Loss: {val_metrics[0]}, Accuracy: {val_metrics[1]}")
 print(f"Test Metrics - Loss: {test_metrics[0]}, Accuracy: {test_metrics[1]}")
-
+"""
 # Predictions and Scaling
 print("Running predictions and scaling...")
 predicted_fx_price = best_model.predict(test_dataset)
@@ -747,7 +724,7 @@ plt.tight_layout()
 plt.show()
 print("Plot generated successfully.")
 
-"""
+
 # +-------------------------------------------------------------------
 # STEP: Performance Check
 # +-------------------------------------------------------------------
