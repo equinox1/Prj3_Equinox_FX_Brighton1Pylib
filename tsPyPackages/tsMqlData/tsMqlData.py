@@ -594,6 +594,7 @@ class CMqldatasetup:
         run_future_returns=True,
         log_stationary=False,
         remove_zeros=True,
+        create_label=False,
     ):
         """
         Wrapper function for `create_label` to handle the creation of label variables.
@@ -659,6 +660,7 @@ class CMqldatasetup:
         run_future_returns=False,
         remove_zeros=False,
         rownumber=False,
+        createlabel=False,
     ):
         """
         Creates a label column in the DataFrame by calculating mid prices or shifting a specified column.
@@ -721,10 +723,11 @@ class CMqldatasetup:
             logging.info("Future Returns calculated.")
 
         # Set label column
-        df[column_out2] = df[column_in].shift(-lookahead_periods)
-        df.dropna(inplace=True)
-        logging.info("Label column created.")
-
+        if createlabel:
+            df[column_out2] = df[column_in].shift(-lookahead_periods)
+            df.dropna(inplace=True)
+            logging.info("Label column created.")
+        
         # Remove rows with zeros in the returns column if required
         if remove_zeros and returns_col in df.columns:
             df = df[df[returns_col] != 0]
