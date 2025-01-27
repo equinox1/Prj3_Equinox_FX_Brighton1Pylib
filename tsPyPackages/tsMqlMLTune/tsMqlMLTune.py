@@ -111,108 +111,75 @@ class CMdtuner:
         self.tuner.search_space_summary()
 
     def build_model(self, hp):
-        # Define inputs and branches
-        inputs = []
+        # Shared Input Logic
+        shared_input = Input(shape=self.main_input_shape, name='shared_input') if not self.multi_inputs else None
+        inputs = [] if self.multi_inputs else [shared_input]
         branches = []
-        
-        if self.multi_inputs == False:
-            shared_input = Input(shape=self.main_input_shape, name='shared_input')
-            print(f"Shared input shape: {shared_input.shape}")
-
-        # CNN branch input switch
-        if self.cnn_model:
-            cnn_input = Input(shape=self.main_input_shape, name='cnn_input')
-            if self.multi_inputs:
-                inputs.append(cnn_input)
-            else:
-                inputs = [shared_input]
 
         # CNN Branch
-        cnn_branch = Conv1D(128, 5, activation="relu")(cnn_input)
-        cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
-        cnn_branch = Flatten()(cnn_branch)
-        branches.append(cnn_branch)
-
-        #Transformer branch input switch
-        if self.transformer_model:
-            transformer_input = Input(shape=self.main_input_shape, name='transformer_input')
-            if self.multi_inputs:
-                inputs.append(transformer_input)
-            else:
-                inputs = [shared_input]
+        if self.cnn_model:
+            cnn_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='cnn_input')
+            if self.multi_inputs: inputs.append(cnn_input)
+            cnn_branch = Conv1D(128, 5, activation="relu")(cnn_input)
+            cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
+            cnn_branch = Flatten()(cnn_branch)
+            branches.append(cnn_branch)
 
         # Transformer Branch
-        transformer_branch = MultiHeadAttention(num_heads=2, key_dim=1)(transformer_input, transformer_input)
-        transformer_branch = LayerNormalization()(transformer_branch)
-        transformer_branch = GlobalAveragePooling1D()(transformer_branch)
-        branches.append(transformer_branch)
-
-        # LSTM branch input switch
-        if self.lstm_model:
-            lstm_input = Input(shape=self.main_input_shape, name='lstm_input')
-            if self.multi_inputs:
-                inputs.append(lstm_input)
-            else:
-                inputs = [shared_input]
+        if self.transformer_model:
+            transformer_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='transformer_input')
+            if self.multi_inputs: inputs.append(transformer_input)
+            transformer_branch = MultiHeadAttention(num_heads=2, key_dim=1)(transformer_input, transformer_input)
+            transformer_branch = LayerNormalization()(transformer_branch)
+            transformer_branch = GlobalAveragePooling1D()(transformer_branch)
+            branches.append(transformer_branch)
 
         # LSTM Branch
-        lstm_branch = LSTM(96)(lstm_input)
-        branches.append(lstm_branch)
+        if self.lstm_model:
+            lstm_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='lstm_input')
+            if self.multi_inputs: inputs.append(lstm_input)
+            lstm_branch = LSTM(96)(lstm_input)
+            branches.append(lstm_branch)
 
-        # GRU branch input switch
-        if self.gru_model:
-            gru_input = Input(shape=self.main_input_shape, name='gru_input')
-            if self.multi_inputs:
-                inputs.append(gru_input)
-            else:
-                inputs = [shared_input]
-        
         # GRU Branch
-        gru_branch = GRU(64)(gru_input)
-        branches.append(gru_branch)
+        if self.gru_model:
+            gru_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='gru_input')
+            if self.multi_inputs: inputs.append(gru_input)
+            gru_branch = GRU(64)(gru_input)
+            branches.append(gru_branch)
 
         # Concatenate
-        if self.multi_branches:
-           concatenated = Concatenate()([cnn_branch, transformer_branch, lstm_branch, gru_branch])
-        else:
-            concatenated = branches[0]
-
-        # Fully Connected Layers
+        concatenated = Concatenate()(branches) if self.multi_branches else branches[0]
         dense_1 = Dense(50, activation="relu", kernel_regularizer=tf.keras.regularizers.l2(0.01))(concatenated)
         dropout = Dropout(0.5)(dense_1)
-        output = Dense(1, activation="sigmoid")(dropout)  # Adjust activation for task
+        output = Dense(1, activation="sigmoid")(dropout)
 
-        # Model
-        model = tf.keras.Model(
-            inputs=inputs,
-            outputs=output
+        # Compile the Model
+        model = Model(inputs=inputs, outputs=output)
+        model.compile(
+            optimizer=self.get_optimizer(
+                hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam']),
+                hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4])
+            ),
+            loss=hp.Choice('loss', ['binary_crossentropy', 'mse']),
+            metrics=['accuracy']
         )
-
-        # Compile
-        model.compile(optimizer="adam", loss="binary_crossentropy", metrics=["accuracy"])
-
-        # Summary
-        model.summary()
-
         return model
 
+
     def get_optimizer(self, optimizer_name, learning_rate):
-        if optimizer_name == 'adam':
-            return Adam(learning_rate=learning_rate)
-        elif optimizer_name == 'rmsprop':
-            return tf.keras.optimizers.RMSprop(learning_rate=learning_rate)
-        elif optimizer_name == 'sgd':
-            return tf.keras.optimizers.SGD(learning_rate=learning_rate)
-        elif optimizer_name == 'nadam':
-            return tf.keras.optimizers.Nadam(learning_rate=learning_rate)
-        elif optimizer_name == 'adadelta':
-            return tf.keras.optimizers.Adadelta(learning_rate=learning_rate)
-        elif optimizer_name == 'adagrad':
-            return tf.keras.optimizers.Adagrad(learning_rate=learning_rate)
-        elif optimizer_name == 'adamax':
-            return tf.keras.optimizers.Adamax(learning_rate=learning_rate)
-        elif optimizer_name == 'ftrl':
-            return tf.keras.optimizers.Ftrl(learning_rate=learning_rate)
+        optimizers = {
+            'adam': Adam,
+            'rmsprop': tf.keras.optimizers.RMSprop,
+            'sgd': tf.keras.optimizers.SGD,
+            'nadam': tf.keras.optimizers.Nadam,
+            'adadelta': tf.keras.optimizers.Adadelta,
+            'adagrad': tf.keras.optimizers.Adagrad,
+            'adamax': tf.keras.optimizers.Adamax,
+            'ftrl': tf.keras.optimizers.Ftrl
+        }
+        return optimizers[optimizer_name](learning_rate=learning_rate)
+
 
     def get_callbacks(self):
         return [
