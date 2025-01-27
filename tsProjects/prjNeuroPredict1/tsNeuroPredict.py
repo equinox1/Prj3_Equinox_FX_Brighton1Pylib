@@ -161,10 +161,10 @@ mp_data_loadfilerates = True
 mp_ml_shuffle = False
 #ml Keras states
 mp_ml_cnn_model = True
-mp_ml_lstm_model = True
-mp_ml_gru_model = True
-mp_ml_transformer_model = True
-mp_ml_multi_inputs = False
+mp_ml_lstm_model = False
+mp_ml_gru_model = False
+mp_ml_transformer_model = False
+mp_ml_multi_inputs = True
 mp_ml_multi_inputs_preprocess = True
 mp_ml_multi_outputs = False
 mp_ml_multi_branches = True
@@ -574,7 +574,7 @@ def get_hypermodel_params():
         'dropout': 0.2,
         'optimizer': 'adam',
         'loss': 'mean_squared_error',
-        'metrics': ['mean_squared_error'],
+        'metrics': 'mean_squared_error',
         'directory': subdir,
         'logger': None,
         'tuner_id': None,
@@ -696,6 +696,7 @@ mt = initialize_tuner(
 print("Running Main call to tuner")
 mt.run_search()
 print("Tuner search completed")
+
 print("Exporting the best model")
 mt.export_best_model(ftype='tf')
 print("Best model exported")
