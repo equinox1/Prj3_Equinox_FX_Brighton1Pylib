@@ -161,10 +161,10 @@ mp_data_loadfilerates = True
 mp_ml_shuffle = False
 #ml Keras states
 mp_ml_cnn_model = True
-mp_ml_lstm_model = False
-mp_ml_gru_model = False
-mp_ml_transformer_model = False
-mp_ml_multi_inputs = True
+mp_ml_lstm_model = True
+mp_ml_gru_model = True
+mp_ml_transformer_model = True
+mp_ml_multi_inputs = False
 mp_ml_multi_inputs_preprocess = True
 mp_ml_multi_outputs = False
 mp_ml_multi_branches = True
@@ -694,6 +694,7 @@ mt = initialize_tuner(
 
 ## Run the tuner to find the best model configuration
 print("Running Main call to tuner")
+mt.tuner.search_space_summary()
 mt.run_search()
 print("Tuner search completed")
 

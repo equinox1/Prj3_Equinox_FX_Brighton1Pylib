@@ -9,7 +9,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.metrics import MeanAbsoluteError
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
-import keras_tuner as kt
+import kerastuner as kt  # Corrected import statement
 
 
 class CMdtuner:
@@ -109,6 +109,8 @@ class CMdtuner:
             overwrite=True
         )
         self.tuner.search_space_summary()
+        # Display the model summary
+        
 
     def build_model(self, hp):
         # Shared Input Logic
@@ -140,6 +142,7 @@ class CMdtuner:
             if self.multi_inputs: inputs.append(lstm_input)
             lstm_branch = LSTM(96)(lstm_input)
             branches.append(lstm_branch)
+           
 
         # GRU Branch
         if self.gru_model:
@@ -149,13 +152,41 @@ class CMdtuner:
             branches.append(gru_branch)
 
         # Concatenate
+        # Concatenate the branches if multiple branches are used
         concatenated = Concatenate()(branches) if self.multi_branches else branches[0]
         dense_1 = Dense(50, activation="relu", kernel_regularizer=tf.keras.regularizers.l2(0.01))(concatenated)
         dropout = Dropout(0.5)(dense_1)
         output = Dense(1, activation="sigmoid")(dropout)
+ 
+        # Set Input 
+        print(f"Including {len(inputs)} input(s) and {len(branches)} branch(es).")
+       
+        if len(inputs) == 2:
+            print(f"Input shape1: {inputs[0].shape}, input shape2: {inputs[1].shape}")
+            model = Model(inputs=inputs, outputs=output)          
+        elif len(inputs) == 3:
+            print(f"Input shape1: {inputs[0].shape}, input shape2: {inputs[1].shape}, input shape3: {inputs[2].shape}")
+            model = Model(inputs=inputs, outputs=output)         
+        elif len(inputs) == 4:
+            print(f"Input shape1: {inputs[0].shape}, input shape2: {inputs[1].shape}, input shape3: {inputs[2].shape}, input shape4: {inputs[3].shape}")
+            model = Model(inputs=inputs, outputs=output)
+        elif len(inputs) == 1:
+            print(f"Input shape1: {inputs[0].shape}")
+            model = Model(inputs=inputs[0], outputs=output)
+        else:
+            model = Model(inputs=shared_input, outputs=output)
+           
+        # Print branch shapes
+        if len(branches) == 2:
+            print(f"Branch shape1: {branches[0].shape}, branch shape2: {branches[1].shape}")
+        elif len(branches) == 3:
+            print(f"Branch shape1: {branches[0].shape}, branch shape2: {branches[1].shape}, branch shape3: {branches[2].shape}")
+        elif len(branches) == 4:
+            print(f"Branch shape1: {branches[0].shape}, branch shape2: {branches[1].shape}, branch shape3: {branches[2].shape}, branch shape4: {branches[3].shape}")
+        elif len(branches) == 1:
+            print(f"Branch shape1: {branches[0].shape}")
 
-        # Compile the Model
-        model = Model(inputs=inputs, outputs=output)
+        print(f"Output shape: {output.shape}")
         model.compile(
             optimizer=self.get_optimizer(
                 hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam']),
@@ -164,6 +195,9 @@ class CMdtuner:
             loss=hp.Choice('loss', ['binary_crossentropy', 'mse']),
             metrics=['accuracy']
         )
+        # Print model summary
+        model.summary()
+
         return model
 
 
