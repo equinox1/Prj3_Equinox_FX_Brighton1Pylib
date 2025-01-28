@@ -168,7 +168,8 @@ mp_ml_multi_inputs = False
 mp_ml_multi_inputs_preprocess = True
 mp_ml_multi_outputs = False
 mp_ml_multi_branches = True
-
+mp_ml_tunemode = True
+mp_ml_modelsummary = True
 #model parameters
 
 #Machine Learning (ML) variables
@@ -205,10 +206,10 @@ mp_ml_mp_ml_num_models = 4
 mp_ml_num_trials = 5
 
 # Set parameters for the Tensorflow keras model
-mp_ml_tf_param_steps = 1
+mp_ml_tf_param_steps = 5
 mp_ml_tf_param_max_epochs=500
 mp_ml_tf_param_min_epochs=1
-mp_ml_tf_param_epochs = 10
+mp_ml_tf_param_epochs = 500
 mp_ml_tf_param_chk_patience = 3
 mp_ml_tf_shiftin=1
 mp_ml_tf_ma_windowin=14 # 14 DAYS typical indicator window
@@ -665,6 +666,8 @@ def initialize_tuner(hypermodel_params, train_dataset, val_dataset, test_dataset
             chk_patience=hypermodel_params['chk_patience'],
             checkpoint_filepath=hypermodel_params['checkpoint_filepath'],
             modeldatapath=hypermodel_params['modeldatapath'],
+            tunemode =  mp_ml_tunemode,
+            modelsummary = mp_ml_modelsummary
             )
         print("Tuner initialized successfully.")
         return mt
@@ -708,7 +711,7 @@ predictions = mt.run_prediction(test_dataset)
 # Print the first few predictions
 #print("Sample Predictions:", predictions[:5])
 
-"""
+
 # +-------------------------------------------------------------------
 # STEP: Train and evaluate the best model
 # +-------------------------------------------------------------------
@@ -800,4 +803,3 @@ from onnx import checker
 checker.check_model(best_model[0])
 # finish
 mt5.shutdown()
-"""

@@ -9,7 +9,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.metrics import MeanAbsoluteError
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
-import kerastuner as kt  # Corrected import statement
+import keras_tuner as kt
 
 
 class CMdtuner:
@@ -35,6 +35,8 @@ class CMdtuner:
         self.multi_inputs = kwargs.get('multi_inputs', False)
         self.multi_outputs = kwargs.get('multi_outputs', False)
         self.multi_branches = kwargs.get('multi_branches', False)
+        self.tunemode = kwargs.get('tunemode', False)
+        self.modelsummary = kwargs.get('modelsummary', False)
         
         # Data shapes
         self.data_input_shape = kwargs.get('data_input_shape')
@@ -45,8 +47,10 @@ class CMdtuner:
         self.objective = kwargs.get('objective', 'val_loss')
         self.max_epochs = kwargs.get('max_epochs', 10)
         self.min_epochs = kwargs.get('min_epochs', 1)
+        self.step = kwargs.get('step', 1)
         self.factor = kwargs.get('factor', 3)
         self.checkpoint_filepath = kwargs.get('checkpoint_filepath', 'best_model.keras')
+        self.step = kwargs.get('step', 1)
         self.basepath = kwargs.get('basepath', 'tuner_results')
         self.project_name = kwargs.get('project_name', 'cm_tuning')
         self.num_trials = kwargs.get('num_trials', 3)
@@ -99,10 +103,16 @@ class CMdtuner:
             raise ValueError("At least one model type (CNN, LSTM, GRU, Transformer) must be enabled.")
 
     def initialize_tuner(self):
+        if self.tunemode:
+            hp = kt.HyperParameters()
+            max_epochs = hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step)
+        else:
+            max_epochs = self.max_epochs
+
         self.tuner = kt.Hyperband(
             hypermodel=self.build_model,
             objective=self.objective,
-            max_epochs=self.max_epochs,
+            max_epochs=max_epochs,
             factor=self.factor,
             directory=self.basepath,
             project_name=self.project_name,
@@ -122,7 +132,15 @@ class CMdtuner:
         if self.cnn_model:
             cnn_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='cnn_input')
             if self.multi_inputs: inputs.append(cnn_input)
-            cnn_branch = Conv1D(128, 5, activation="relu")(cnn_input)
+            if self.tunemode:
+                cnn_branch = Conv1D(
+                    filters=hp.Int('cnn_filters', min_value=32, max_value=128, step=32, default=64),
+                    kernel_size=hp.Int('cnn_kernel_size', min_value=2, max_value=5, step=1, default=3),
+                    activation=hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
+                )(cnn_input)
+            else:
+                cnn_branch = Conv1D(128, 5, activation="relu")(cnn_input)
+
             cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
             cnn_branch = Flatten()(cnn_branch)
             branches.append(cnn_branch)
@@ -131,7 +149,13 @@ class CMdtuner:
         if self.transformer_model:
             transformer_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='transformer_input')
             if self.multi_inputs: inputs.append(transformer_input)
-            transformer_branch = MultiHeadAttention(num_heads=2, key_dim=1)(transformer_input, transformer_input)
+            if self.tunemode:
+                transformer_branch = MultiHeadAttention(
+                    num_heads=hp.Int('num_heads', min_value=1, max_value=4, step=1, default=2),
+                    key_dim=hp.Int('key_dim', min_value=1, max_value=4, step=1, default=2)
+                )(transformer_input, transformer_input)
+            else:
+                transformer_branch = MultiHeadAttention(num_heads=2, key_dim=1)(transformer_input, transformer_input)
             transformer_branch = LayerNormalization()(transformer_branch)
             transformer_branch = GlobalAveragePooling1D()(transformer_branch)
             branches.append(transformer_branch)
@@ -140,7 +164,13 @@ class CMdtuner:
         if self.lstm_model:
             lstm_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='lstm_input')
             if self.multi_inputs: inputs.append(lstm_input)
-            lstm_branch = LSTM(96)(lstm_input)
+            if self.tunemode:
+                lstm_branch = LSTM(
+                    units=hp.Int('lstm_units', min_value=32, max_value=128, step=32, default=64),
+                    activation=hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
+                )(lstm_input)
+            else:
+                lstm_branch = LSTM(96)(lstm_input)
             branches.append(lstm_branch)
            
 
@@ -148,7 +178,13 @@ class CMdtuner:
         if self.gru_model:
             gru_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='gru_input')
             if self.multi_inputs: inputs.append(gru_input)
-            gru_branch = GRU(64)(gru_input)
+            if self.tunemode:
+                gru_branch = GRU(
+                     units=hp.Int('gru_units', min_value=32, max_value=128, step=32, default=64),
+                    activation=hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
+                )(gru_input)
+            else:
+                gru_branch = GRU(64)(gru_input)
             branches.append(gru_branch)
 
         # Concatenate
@@ -189,14 +225,16 @@ class CMdtuner:
         print(f"Output shape: {output.shape}")
         model.compile(
             optimizer=self.get_optimizer(
-                hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam']),
-                hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4])
+                hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax', 'ftrl']),
+                hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4, 1e-5])
             ),
             loss=hp.Choice('loss', ['binary_crossentropy', 'mse']),
             metrics=['accuracy']
         )
         # Print model summary
-        model.summary()
+        if self.modelsummary:
+            model.summary()
+         
 
         return model
 
