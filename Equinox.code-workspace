@@ -1,32 +1,8 @@
 {
 	"folders": [
 		{
-			"path": "."
-		},
-		{
-			"path": "../MQL5/Brokers/ICMarkets"
-		},
-		{
-			"path": "../MQL5/Brokers/Metaquotes"
+			"path": ".."
 		}
 	],
-	"settings": {
-		"git.ignoreLimitWarning": true,
-		"editor.quickSuggestions": {
-			"comments": "off",
-			"strings": "off",
-			"other": "off"
-		},
-		"files.associations": {
-			"*.mqh": "cpp",
-			"*.mq4": "cpp",
-			"*.mq5": "cpp",
-			"*.inc": "cpp",
-			"filesystem": "cpp",
-			"format": "cpp",
-			"xstring": "cpp",
-			"complex": "cpp",
-			"vector": "cpp"
-		}
-	}
+	"settings": {}
 }

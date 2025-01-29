@@ -11,6 +11,11 @@ from tensorflow.keras.metrics import MeanAbsoluteError
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 import keras_tuner as kt
 
+from tensorflow.keras import mixed_precision
+mixed_precision.set_global_policy('mixed_float16')
+
+tf.config.optimizer.set_jit(True)  # Enable XLA
+
 
 class CMdtuner:
     def __init__(self, **kwargs):
@@ -36,6 +41,7 @@ class CMdtuner:
         self.multi_outputs = kwargs.get('multi_outputs', False)
         self.multi_branches = kwargs.get('multi_branches', False)
         self.tunemode = kwargs.get('tunemode', False)
+        self.tunemodeepochs = kwargs.get('tunemodeepochs', False)
         self.modelsummary = kwargs.get('modelsummary', False)
         
         # Data shapes
@@ -45,7 +51,7 @@ class CMdtuner:
 
         # Training configurations
         self.objective = kwargs.get('objective', 'val_loss')
-        self.max_epochs = kwargs.get('max_epochs', 10)
+        self.max_epochs = kwargs.get('max_epochs', 1)
         self.min_epochs = kwargs.get('min_epochs', 1)
         self.step = kwargs.get('step', 1)
         self.factor = kwargs.get('factor', 3)
@@ -103,7 +109,7 @@ class CMdtuner:
             raise ValueError("At least one model type (CNN, LSTM, GRU, Transformer) must be enabled.")
 
     def initialize_tuner(self):
-        if self.tunemode:
+        if self.tunemodeepochs:
             hp = kt.HyperParameters()
             max_epochs = hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step)
         else:
@@ -280,6 +286,7 @@ class CMdtuner:
         try:
             best_model = self.tuner.get_best_models(num_models=1)[0]
             export_path = os.path.join(self.basepath, self.project_name, 'best_model')
+            print(f"Exporting best model to {export_path}")
             if ftype == 'h5':
                 best_model.save(export_path + '.h5')
                 print(f"Model saved to {export_path}.h5")
@@ -290,6 +297,37 @@ class CMdtuner:
             print("No models found to export.")
         except Exception as e:
             print(f"Error saving the model: {e}")
+
+
+    def check_and_load_model(self,lpbasepath,ftype='tf'):
+        """
+        Check if the model file exists and load it.
+        """
+        print(f"Checking for model file at basepath {lpbasepath}")
+        print(f"Project name: {self.project_name}")
+
+        if ftype == 'h5':
+            modelext = 'h5'
+            model_path = os.path.join(lpbasepath, self.project_name)
+            print(f"Model path: {model_path}")
+        else:
+            modelext = 'keras'
+            model_path = os.path.join(lpbasepath, self.project_name)
+            print(f"Model path: {model_path}")
+
+        try:
+            if os.path.exists(model_path):
+                model = tf.keras.models.load_model(model_path)
+                print(f"Model loaded successfully from {model_path}")
+                print(model.summary())
+                return model
+            else:
+                print(f"Model file does not exist at {model_path}")
+                return None
+        except Exception as e:
+            print(f"Error loading model: {e}")
+            return None
+
 
     def run_prediction(self, test_data, batch_size=None):
         try:
