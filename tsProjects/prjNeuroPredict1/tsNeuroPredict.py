@@ -146,7 +146,8 @@ mp_ml_directory = f"tshybrid_ensemble_tuning_prod"
 mp_ml_project_name = "prjEquinox1_prod.keras"
 mp_ml_baseuniq = str(1)# str(mp_random)
 mp_ml_base_path = os.path.join(mp_ml_model_datapath, mp_ml_directory,mp_ml_baseuniq)
-mp_ml_subdir = os.path.join(mp_ml_base_path, mp_ml_directory, str(1))
+mp_ml_mbase_path = os.path.join(mp_ml_model_datapath, mp_ml_directory)
+#mp_ml_subdir = os.path.join(mp_ml_base_path, mp_ml_directory, str(1))
 mp_ml_checkpoint_filepath = posixpath.join(mp_ml_base_path, mp_ml_directory, mp_ml_project_name)
 
 # data load states
@@ -169,7 +170,9 @@ mp_ml_multi_inputs_preprocess = True
 mp_ml_multi_outputs = False
 mp_ml_multi_branches = True
 mp_ml_tunemode = True
-mp_ml_modelsummary = True
+mp_ml_tunemodepochs = True
+mp_ml_modelsummary = False
+mp_ml_hard_run= True
 #model parameters
 
 #Machine Learning (ML) variables
@@ -195,7 +198,7 @@ mp_ml_custom_output_label = {'Label'} # the feature to predict
 mp_ml_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in mp_ml_custom_input_keyfeat}  # the feature to predict
 mp_ml_custom_output_label_scaled = {targ + '_Scaled' for targ in mp_ml_custom_output_label}  # the label shifted to predict
 mp_ml_custom_output_label_count=len(mp_ml_custom_output_label)
-mp_ml_batch_size = 32
+mp_ml_batch_size = 8
 
 #Splitting the data
 mp_ml_train_split = 0.7
@@ -203,13 +206,13 @@ mp_ml_validation_split = 0.2
 mp_ml_test_split = 0.1
 #Best Models
 mp_ml_mp_ml_num_models = 4
-mp_ml_num_trials = 5
+mp_ml_num_trials = 3
 
 # Set parameters for the Tensorflow keras model
-mp_ml_tf_param_steps = 5
-mp_ml_tf_param_max_epochs=500
+mp_ml_tf_param_steps = 10
+mp_ml_tf_param_max_epochs=100
 mp_ml_tf_param_min_epochs=1
-mp_ml_tf_param_epochs = 500
+mp_ml_tf_param_epochs = 2
 mp_ml_tf_param_chk_patience = 3
 mp_ml_tf_shiftin=1
 mp_ml_tf_ma_windowin=14 # 14 DAYS typical indicator window
@@ -568,7 +571,7 @@ def get_hypermodel_params():
         'tune_new_entries': False,
         'allow_new_entries': False,
         'max_retries_per_trial': 5,
-        'max_consecutive_failed_trials': 6,
+        'max_consecutive_failed_trials': 3,
         'validation_split': 0.2,
         'epochs': mp_ml_tf_param_epochs,
         'batch_size': mp_ml_batch_size,
@@ -667,6 +670,7 @@ def initialize_tuner(hypermodel_params, train_dataset, val_dataset, test_dataset
             checkpoint_filepath=hypermodel_params['checkpoint_filepath'],
             modeldatapath=hypermodel_params['modeldatapath'],
             tunemode =  mp_ml_tunemode,
+            tunemodepochs = mp_ml_tunemodepochs,
             modelsummary = mp_ml_modelsummary
             )
         print("Tuner initialized successfully.")
@@ -698,29 +702,28 @@ mt = initialize_tuner(
 ## Run the tuner to find the best model configuration
 print("Running Main call to tuner")
 mt.tuner.search_space_summary()
-mt.run_search()
-print("Tuner search completed")
-
-print("Exporting the best model")
-mt.export_best_model(ftype='tf')
-print("Best model exported")
-
-# Run predictions on test data
-predictions = mt.run_prediction(test_dataset)
-
-# Print the first few predictions
-#print("Sample Predictions:", predictions[:5])
-
+# Check and load the model
+best_model = mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')
+print ("Best model loaded successfully evaluated as ",best_model)
+# If no model or hard run then run the search
+if best_model is None or mp_ml_hard_run:
+    print("Running the tuner search")
+    mt.run_search()
+    print("Tuner search completed")
+    print("Exporting the best model")
+    mt.export_best_model(ftype='tf')
+    print("Best model exported")
+    # Reload the best model after exporting
+    best_model = mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')
+else:
+    print("Existing Best model loaded successfully.")
 
 # +-------------------------------------------------------------------
 # STEP: Train and evaluate the best model
 # +-------------------------------------------------------------------
-# Retrieve the best model
-best_model = mt.get_best_models(num_models=1)[0]
 
 # Model Training
 print("Training the best model...")
-
 best_model.fit(
         train_dataset,
         validation_data=val_dataset,
