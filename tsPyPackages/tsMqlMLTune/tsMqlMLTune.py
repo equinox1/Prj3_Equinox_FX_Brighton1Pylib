@@ -48,10 +48,11 @@ class CMdtuner:
         self.data_input_shape = kwargs.get('data_input_shape')
         self.batch_size = kwargs.get('batch_size', 32)
         self.dropout = kwargs.get('dropout', 0.3)
+        self.steps_per_execution = kwargs.get('steps_per_execution', 32)
 
         # Training configurations
         self.objective = kwargs.get('objective', 'val_loss')
-        self.max_epochs = kwargs.get('max_epochs', 1)
+        self.max_epochs = kwargs.get('max_epochs', 10)
         self.min_epochs = kwargs.get('min_epochs', 1)
         self.step = kwargs.get('step', 1)
         self.factor = kwargs.get('factor', 3)
@@ -67,9 +68,9 @@ class CMdtuner:
         self.unitstep = kwargs.get('unitstep', 32)
         self.unitdefault = kwargs.get('unitdefault', 64)
 
-        # Activation functions
-        self.activation1 = kwargs.get('activation1', 'relu')
-        self.activation2 = kwargs.get('activation2', 'linear')
+        #debugging
+        self.tf1 = kwargs.get('tf1', False)
+        self.tf2 = kwargs.get('tf2', False)
 
         # Output dimensions
         self.output_dim = kwargs.get('output_dim', 1)
@@ -117,18 +118,27 @@ class CMdtuner:
     def initialize_tuner(self):
         if self.tunemodeepochs:
             hp = kt.HyperParameters()
-            max_epochs = hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step)
+            tmax_epochs = hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step)
+            print(f"Tuning Max epochs: {tmax_epochs}")
         else:
-            max_epochs = self.max_epochs
+            tmax_epochs = 10
+            print(f"Default Max epochs: {tmax_epochs}")
 
         self.tuner = kt.Hyperband(
             hypermodel=self.build_model,
+            hyperparameters=self.hypermodel_params,
+            hyperband_iterations=1,
             objective=self.objective,
-            max_epochs=max_epochs,
+            max_epochs=tmax_epochs,
             factor=self.factor,
             directory=self.basepath,
             project_name=self.project_name,
-            overwrite=True
+            overwrite=True,
+            seed=None,
+            tune_new_entries=True,
+            allow_new_entries=True,
+            max_retries_per_trial=0,
+            max_consecutive_failed_trials=3,    
         )
         self.tuner.search_space_summary()
         # Display the model summary
@@ -240,8 +250,10 @@ class CMdtuner:
                 hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax', 'ftrl']),
                 hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4, 1e-5])
             ),
-            loss=hp.Choice('loss', ['binary_crossentropy', 'mse']),
-            metrics=['accuracy']
+            steps_per_execution=self.steps_per_execution,
+            loss=hp.Choice('loss', ['binary_crossentropy', 'mse', 'mae', 'mape', 'msle', 'poisson', 'kld', 'cosine_similarity']),
+            metrics=['accuracy', 'mae', 'mse', 'mape', 'msle', 'poisson', 'cosine_similarity']
+            
         )
         # Print model summary
         if self.modelsummary:
