@@ -11,6 +11,7 @@
 # classes for mql
 
 import MetaTrader5 as mt5
+from datetime import datetime
 
 class CMqlTimeConfig:
     TIME_CONSTANTS = {
@@ -104,3 +105,13 @@ class CMqlTimeConfig:
         
         return timevalue
 
+    def get_current_time(self,tm):
+        MINUTES = int(tm.get_timevalue('MINUTES'))
+        HOURS = int(tm.get_timevalue('HOURS'))
+        DAYS = int(tm.get_timevalue('DAYS'))
+        TIMEZONE = tm.TIME_CONSTANTS['TIMEZONES'][0]
+        TIMEFRAME = tm.TIME_CONSTANTS['TIMEFRAME']['H4']
+        CURRENTYEAR = datetime.now().year
+        CURRENTDAYS = datetime.now().day
+        CURRENTMONTH = datetime.now().month
+        return MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH

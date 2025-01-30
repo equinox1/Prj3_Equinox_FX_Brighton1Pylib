@@ -737,3 +737,29 @@ class CMqldatasetup:
             df['RowNumber'] = range(1, len(df) + 1)
 
         return df
+
+
+    def prepare_data(self,tm, mp_symbol_primary, mp_unit, broker_config, mp_data_rows, mp_data_rowcount, TIMEFRAME):
+        obj = CMqldatasetup(lp_features={'Close'}, lp_label={'Label'}, lp_label_count=1)
+        CURRENTYEAR = datetime.now().year
+        CURRENTDAYS = datetime.now().day
+        CURRENTMONTH = datetime.now().month
+        TIMEZONE = tm.TIME_CONSTANTS['TIMEZONES'][0]
+        mv_data_utc_from = d1.set_mql_timezone(CURRENTYEAR - 5, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
+        mv_data_utc_to = d1.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
+        mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(
+            True, True, True, True, "df_rates1", "df_rates2", mv_data_utc_from, mp_symbol_primary, mp_data_rows, mp_data_rowcount, mt5.COPY_TICKS_ALL, None, broker_config['MPDATAPATH'], broker_config['MPFILEVALUE1'], broker_config['MPFILEVALUE2'], TIMEFRAME
+        )
+        return mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates
+
+    def normalize_data(self,mv_tdata2, mp_ml_custom_input_keyfeat):
+        scaler = MinMaxScaler()
+        mp_ml_custom_input_keyfeat_list = list(mp_ml_custom_input_keyfeat)
+        mp_ml_custom_input_keyfeat_scaled = [feat + '_Scaled' for feat in mp_ml_custom_input_keyfeat_list]
+        mv_tdata2[mp_ml_custom_input_keyfeat_scaled] = scaler.fit_transform(mv_tdata2[mp_ml_custom_input_keyfeat_list])
+        return mv_tdata2, scaler
+
+    def split_data(self,mv_tdata2_X, mv_tdata2_y, mp_ml_validation_split, mp_ml_test_split, batch_size):
+        X_train, X_temp, y_train, y_temp = train_test_split(mv_tdata2_X, mv_tdata2_y, test_size=(mp_ml_validation_split + mp_ml_test_split), shuffle=False)
+        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=(mp_ml_test_split / (mp_ml_validation_split + mp_ml_test_split)), shuffle=False)
+        return X_train, X_val, X_test, y_train, y_val, y_test

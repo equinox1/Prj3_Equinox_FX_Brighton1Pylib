@@ -127,4 +127,35 @@ class CMqlBrokerConfig:
         }
 
 
- 
+    def initialize_mt5(broker, tm):
+        mp_symbol_primary = tm.TIME_CONSTANTS['SYMBOLS'][0]
+        mp_symbol_secondary = tm.TIME_CONSTANTS['SYMBOLS'][1]
+        mp_shiftvalue = tm.TIME_CONSTANTS['DATATYPE']['MINUTES']
+        mp_unit = tm.TIME_CONSTANTS['UNIT'][1]
+        MPDATAFILE1 = "tickdata1.csv"
+        MPDATAFILE2 = "ratesdata1.csv"
+        c0 = CMqlBrokerConfig(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
+        broker_config = c0.set_mql_broker()
+        return broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit
+
+    def login_mt5(broker_config):
+        cred = kr.get_credential(broker_config["BROKER"], "")
+        if not cred:
+            raise ValueError("Credentials not found in keyring")
+        try:
+            MPLOGIN = int(cred.username)
+            MPPASS = str(cred.password)
+        except ValueError:
+            raise ValueError("Invalid credentials format")
+        obj = CMqlinit(
+            MPPATH=broker_config["MPPATH"],
+            MPLOGIN=MPLOGIN,
+            MPPASS=MPPASS,
+            MPSERVER=broker_config["MPSERVER"],
+            MPTIMEOUT=broker_config["MPTIMEOUT"],
+            MPPORTABLE=broker_config["MPPORTABLE"],
+            MPENV=broker_config["MPENV"]
+        )
+        if not obj.run_mql_login():
+            raise ConnectionError("Failed to login to MT5 terminal")
+        return obj
