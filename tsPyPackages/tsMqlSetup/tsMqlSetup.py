@@ -39,3 +39,14 @@ class tsMqlSetup:
                     tf.config.experimental.set_memory_growth(gpu, True)
             except RuntimeError as e:
                 print(e)
+
+    def get_computation_strategy(self):
+        try:
+            tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
+            tf.config.experimental_connect_to_cluster(tpu)
+            tf.tpu.experimental.initialize_tpu_system(tpu)
+            print("✅ Running on TPU")
+            return tf.distribute.TPUStrategy(tpu)
+        except Exception as e:
+            print("⚠️ TPU not found, falling back to GPU/CPU:", e)
+            return tf.distribute.get_strategy()
