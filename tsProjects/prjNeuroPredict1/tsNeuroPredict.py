@@ -216,9 +216,6 @@ mp_ml_tf_param_epochs = 2
 mp_ml_tf_param_chk_patience = 3
 mp_ml_tf_shiftin=1
 mp_ml_tf_ma_windowin=14 # 14 DAYS typical indicator window
-mp_ml_cfg_period1=24 # 24 HOURS
-mp_ml_cfg_period2=6 # 6 HOURS
-mp_ml_cfg_period=1 # 1 HOURS
 
 # Set the shape of the data
 mp_ml_custom_input_shape=2 # mp_data_tab_rows, batches, timesteps, features
@@ -227,6 +224,10 @@ mp_ml_custom_input_lstm_shape=2 # mp_data_tab_rows, batches, timesteps, features
 mp_ml_custom_input_gru_shape=2 # mp_data_tab_rows, batches, timesteps, features
 mp_ml_custom_input_transformer_shape = 2 # mp_data_tab_rows, batches, timesteps, features
 
+mp_ml_unit_min = 32
+mp_ml_unit_max = 512
+mp_ml_unit_step = 32
+mp_ml_default_units = 128
 
 # setting dictionary for the model
 common_ml_params = {
@@ -597,6 +598,10 @@ def get_hypermodel_params():
         'baseuniq': str(1),
         'basepath': subdir,
         'checkpoint_filepath': posixpath.join(base_path, 'tshybrid_ensemble_tuning_prod', project_name),
+        'unitmin': mp_ml_unit_min,
+        'unitmax': mp_ml_unit_max,
+        'unitstep': mp_ml_unit_step,
+        'defaultunits': mp_ml_default_units,
     }
 
 # Print configuration details for logging

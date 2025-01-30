@@ -61,6 +61,12 @@ class CMdtuner:
         self.project_name = kwargs.get('project_name', 'cm_tuning')
         self.num_trials = kwargs.get('num_trials', 3)
 
+        #unit for LSTM and GRU
+        self.unitmin = kwargs.get('unitmin', 32)
+        self.unitmax = kwargs.get('unitmax', 128)
+        self.unitstep = kwargs.get('unitstep', 32)
+        self.unitdefault = kwargs.get('unitdefault', 64)
+
         # Activation functions
         self.activation1 = kwargs.get('activation1', 'relu')
         self.activation2 = kwargs.get('activation2', 'linear')
@@ -140,7 +146,7 @@ class CMdtuner:
             if self.multi_inputs: inputs.append(cnn_input)
             if self.tunemode:
                 cnn_branch = Conv1D(
-                    filters=hp.Int('cnn_filters', min_value=32, max_value=128, step=32, default=64),
+                    filters=hp.Int('cnn_filters', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault),
                     kernel_size=hp.Int('cnn_kernel_size', min_value=2, max_value=5, step=1, default=3),
                     activation=hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
                 )(cnn_input)
@@ -172,7 +178,7 @@ class CMdtuner:
             if self.multi_inputs: inputs.append(lstm_input)
             if self.tunemode:
                 lstm_branch = LSTM(
-                    units=hp.Int('lstm_units', min_value=32, max_value=128, step=32, default=64),
+                    units=hp.Int('lstm_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault),
                     activation=hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
                 )(lstm_input)
             else:
@@ -186,7 +192,7 @@ class CMdtuner:
             if self.multi_inputs: inputs.append(gru_input)
             if self.tunemode:
                 gru_branch = GRU(
-                     units=hp.Int('gru_units', min_value=32, max_value=128, step=32, default=64),
+                     units=hp.Int('gru_units',min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault),
                     activation=hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
                 )(gru_input)
             else:
