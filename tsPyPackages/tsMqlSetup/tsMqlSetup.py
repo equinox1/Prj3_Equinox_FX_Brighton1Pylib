@@ -50,3 +50,5 @@ class tsMqlSetup:
         except Exception as e:
             print("⚠️ TPU not found, falling back to GPU/CPU:", e)
             return tf.distribute.get_strategy()
+
+   
