@@ -27,27 +27,15 @@ from tensorflow.keras.layers import (Input, Conv1D, MaxPooling1D, Flatten, Dense
 #=====================================================
 # Class CMqlmlsetup
 #=====================================================
-class CMqlmlsetup:
-    def __init__(self, **kwargs):
-        self.input_width = kwargs.get('input_width', 24)
-        self.shift = kwargs.get('shift', 24)
-        self.label_width = kwargs.get('label_width', 1)
-        self.train_df = kwargs.get('train_df', None)
-        self.val_df = kwargs.get('val_df', None)
-        self.test_df = kwargs.get('test_df', None)
-        self.label_columns = kwargs.get('label_columns', None)
-        self.batch_size = kwargs.get('batch_size', 32)
-        self.column_indices = {}
-        self.label_columns_indices = {}
-        self.total_window_size = self.input_width + self.shift
-        self.input_slice = slice(0, self.input_width)
-        self.input_indices = np.arange(self.total_window_size)[self.input_slice]
-        self.label_start = self.total_window_size - self.label_width
-        self.labels_slice = slice(self.label_start, None)
-        self.label_indices = np.arange(self.total_window_size)[self.labels_slice]
-       
-        
+import os
+import numpy as np
+import posixpath
+from datetime import date
 
+class CMqlTune:
+    def __init__(self, **kwargs):
+      
+        
     def dl_split_data_sets(self, X, y, train_split=0.8, shuffle=False):
         train_size = int(len(X) * train_split)
         X_train, X_test = X[:train_size], X[train_size:]
@@ -321,130 +309,12 @@ class CMqlWindowGenerator:
 
 
     def create_tf_datasets(X_train, y_train, X_val, y_val, X_test, y_test, batch_size):
-        m1 = CMqlmlsetup()
         train_dataset = m1.create_tf_dataset(X_train, y_train, batch_size=batch_size, shuffle=True)
         val_dataset = m1.create_tf_dataset(X_val, y_val, batch_size=batch_size, shuffle=False)
         test_dataset = m1.create_tf_dataset(X_test, y_test, batch_size=batch_size, shuffle=False)
         return train_dataset, val_dataset, test_dataset
 
-    def get_hypermodel_params(self,basepath=None,**kwargs):
-        today_date = date.today().strftime('%Y-%m-%d %H:%M:%S')
-        random_seed = np.random.randint(0, 1000)
-        base_path = basepath if basepath is not None else os.getcwd()
-        project_name = "prjEquinox1_prod.keras"
-        subdir = os.path.join(base_path, 'tshybrid_ensemble_tuning_prod', str(1))
-        os.makedirs(subdir, exist_ok=True)
-        return {
-            'objective': 'val_loss',
-            'max_epochs': 100,
-            'factor': 10,
-            'seed': 42,
-            'hyperband_iterations': 1,
-            'tune_new_entries': False,
-            'allow_new_entries': False,
-            'max_retries_per_trial': 5,
-            'max_consecutive_failed_trials': 3,
-            'validation_split': 0.2,
-            'epochs': 2,
-            'batch_size': 8,
-            'dropout': 0.2,
-            'optimizer': 'adam',
-            'loss': 'mean_squared_error',
-            'metrics': 'mean_squared_error',
-            'directory': subdir,
-            'logger': None,
-            'tuner_id': None,
-            'overwrite': True,
-            'executions_per_trial': 1,
-            'chk_fullmodel': True,
-            'chk_verbosity': 1,
-            'chk_mode': 'min',
-            'chk_monitor': 'val_loss',
-            'chk_sav_freq': 'epoch',
-            'chk_patience': 3,
-            'modeldatapath': base_path,
-            'project_name': project_name,
-            'today': today_date,
-            'random': random_seed,
-            'baseuniq': str(1),
-            'basepath': subdir,
-            'checkpoint_filepath': posixpath.join(base_path, 'tshybrid_ensemble_tuning_prod', project_name),
-            'unitmin': 32,
-            'unitmax': 512,
-            'unitstep': 32,
-            'defaultunits': 128,
-            'num_trials': 3,
-        }
-
-    def initialize_tuner(self,hypermodel_params, train_dataset, val_dataset, test_dataset, input_shape):
-        try:
-            obj = CMdtuner(
-                traindataset=train_dataset,
-                valdataset=val_dataset,
-                testdataset=test_dataset,
-                cnn_model=True,
-                lstm_model=True,
-                gru_model=True,
-                transformer_model=True,
-                multiactivate=True,
-                data_input_shape=input_shape,
-                main_custom_shape_selector=2,
-                cnn_custom_shape_selector=2,
-                lstm_custom_shape_selector=2,
-                gru_custom_shape_selector=2,
-                transformer_custom_shape_selector=2,
-                multi_inputs=False,
-                multi_outputs=False,
-                multi_branches=True,
-                tf1=True,
-                tf2T=True,
-                step=10,
-                objective=hypermodel_params['objective'],
-                max_epochs=hypermodel_params['max_epochs'],
-                min_epochs=1,
-                factor=hypermodel_params['factor'],
-                seed=hypermodel_params['seed'],
-                hyperband_iterations=hypermodel_params['hyperband_iterations'],
-                tune_new_entries=hypermodel_params['tune_new_entries'],
-                allow_new_entries=hypermodel_params['allow_new_entries'],
-                max_retries_per_trial=hypermodel_params['max_retries_per_trial'],
-                max_consecutive_failed_trials=hypermodel_params['max_consecutive_failed_trials'],
-                validation_split=hypermodel_params['validation_split'],
-                epochs=hypermodel_params['epochs'],
-                batch_size=hypermodel_params['batch_size'],
-                dropout=hypermodel_params['dropout'],
-                optimizer=hypermodel_params['optimizer'],
-                loss=hypermodel_params['loss'],
-                metrics=hypermodel_params['metrics'],
-                directory=hypermodel_params['directory'],
-                basepath=hypermodel_params['basepath'],
-                project_name=hypermodel_params['project_name'],
-                logger=hypermodel_params['logger'],
-                tuner_id=hypermodel_params['tuner_id'],
-                overwrite=hypermodel_params['overwrite'],
-                executions_per_trial=hypermodel_params['executions_per_trial'],
-                chk_fullmodel=hypermodel_params['chk_fullmodel'],
-                chk_verbosity=hypermodel_params['chk_verbosity'],
-                chk_mode=hypermodel_params['chk_mode'],
-                chk_monitor=hypermodel_params['chk_monitor'],
-                chk_sav_freq=hypermodel_params['chk_sav_freq'],
-                chk_patience=hypermodel_params['chk_patience'],
-                checkpoint_filepath=hypermodel_params['checkpoint_filepath'],
-                modeldatapath=hypermodel_params['modeldatapath'],
-                tunemode=True,
-                tunemodeepochs=True,
-                modelsummary=False,
-                unitmin=hypermodel_params['unitmin'],
-                unitmax=hypermodel_params['unitmax'],
-                unitstep=hypermodel_params['unitstep'],
-                defaultunits=hypermodel_params['defaultunits'],
-                num_trials=hypermodel_params['num_trials'],
-                steps_per_execution=50,
-            )
-            return obj
-        except Exception as e:
-            print(f"Error initializing the tuner: {e}")
-            raise e
+    
 
     @property
     def train(self):

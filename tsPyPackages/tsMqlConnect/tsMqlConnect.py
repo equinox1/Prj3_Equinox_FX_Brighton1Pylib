@@ -78,7 +78,7 @@ class CMqlBrokerConfig:
     """
 
     def __init__(self, lpbroker='MetaQuotes', mp_symbol_primary='EURUSD', MPDATAFILE1=None, MPDATAFILE2=None):
-        self.lpbroker = lpbroker.upper()
+        self.lpbroker = lpbroker
         self.mp_symbol_primary = mp_symbol_primary
         self.MPDATAFILE1 = MPDATAFILE1
         self.MPDATAFILE2 = MPDATAFILE2
@@ -127,7 +127,7 @@ class CMqlBrokerConfig:
         }
 
 
-    def initialize_mt5(broker, tm):
+    def initialize_mt5(self,broker, tm):
         mp_symbol_primary = tm.TIME_CONSTANTS['SYMBOLS'][0]
         mp_symbol_secondary = tm.TIME_CONSTANTS['SYMBOLS'][1]
         mp_shiftvalue = tm.TIME_CONSTANTS['DATATYPE']['MINUTES']
@@ -138,7 +138,7 @@ class CMqlBrokerConfig:
         broker_config = c0.set_mql_broker()
         return broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit
 
-    def login_mt5(broker_config):
+    def login_mt5(self,broker_config):
         cred = kr.get_credential(broker_config["BROKER"], "")
         if not cred:
             raise ValueError("Credentials not found in keyring")
