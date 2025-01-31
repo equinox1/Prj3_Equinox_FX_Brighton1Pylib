@@ -1,6 +1,6 @@
 [project]
 name = "tsMqlData"
-version = "1.1.2"
+version = "2.2.2"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
@@ -15,4 +15,4 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlData"
+homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlData"
