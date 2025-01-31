@@ -116,32 +116,32 @@ class CMdtuner:
             raise ValueError("At least one model type (CNN, LSTM, GRU, Transformer) must be enabled.")
 
     def initialize_tuner(self):
+        hp = kt.HyperParameters()
+        
         if self.tunemodeepochs:
-            hp = kt.HyperParameters()
-            tmax_epochs = hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step)
-            print(f"Tuning Max epochs: {tmax_epochs}")
+            hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step)
+            print(f"Tuning Max epochs between {self.min_epochs} and {self.max_epochs}")
         else:
-            tmax_epochs = 10
-            print(f"Default Max epochs: {tmax_epochs}")
+            print(f"Default Max epochs: {self.max_epochs}")
 
         self.tuner = kt.Hyperband(
             hypermodel=self.build_model,
-            hyperparameters=self.hypermodel_params,
+            hyperparameters=hp,  # Pass the HyperParameters object
             hyperband_iterations=1,
             objective=self.objective,
-            max_epochs=tmax_epochs,
+            max_epochs=self.max_epochs,  # Ensure max_epochs is properly set
             factor=self.factor,
             directory=self.basepath,
             project_name=self.project_name,
             overwrite=True,
-            seed=None,
             tune_new_entries=True,
             allow_new_entries=True,
             max_retries_per_trial=0,
-            max_consecutive_failed_trials=3,    
+            max_consecutive_failed_trials=3,
         )
+
         self.tuner.search_space_summary()
-        # Display the model summary
+
         
 
     def build_model(self, hp):
@@ -286,19 +286,15 @@ class CMdtuner:
 
     def run_search(self):
         try:
-            # Define an additional HyperParameter for epochs
-            epoch_hp = kt.HyperParameters()
-            epoch_hp.Int('epochs', self.min_epochs, self.max_epochs)
-
-            # Run the hyperparameter tuning search
             self.tuner.search(
                 self.traindataset,
                 validation_data=self.valdataset,
                 callbacks=self.get_callbacks(),
-                epochs=epoch_hp.get('epochs')
+                epochs=self.max_epochs,  # This should be tuned inside Hyperband
             )
         except Exception as e:
             print(f"Error during tuning: {e}")
+
 
     def export_best_model(self, ftype='tf'):
         try:

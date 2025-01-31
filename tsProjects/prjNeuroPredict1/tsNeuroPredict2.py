@@ -42,7 +42,9 @@ MPDATAFILE2 =  "ratesdata1.csv"
 
 def main():
    with strategy.scope():
-
+      feature_scaler = MinMaxScaler()
+      label_scaler = MinMaxScaler()
+      
       # +-------------------------------------------------------------------
       # STEP: Load Reference class and time variables
       # +-------------------------------------------------------------------
@@ -73,49 +75,24 @@ def main():
       # STEP: Configuration settings
       # +-------------------------------------------------------------------
       # model api settings
-      feature_scaler = MinMaxScaler()
-      label_scaler = MinMaxScaler()
-      
-      
+      datenv=CMqlEnvData()
+      mlenv =CMqlEnvML()
+      globalenv = CMqlEnvGlobal()
 
-      """
-      Time Series Forecasting: Features and Labels
+      print("daatenv:",datenv)
+      print("mlenv:",mlenv)
+      print("globalenv:",globalenv)
 
-      Features (X):
-         - A sequence of input time steps used as features.
-         - Sliding window approach is used to generate samples (batches).
-         - Window size (e.g., `window_size = 24`) determines the number of past observations included in the input sequence.
-
-      Labels (y):
-         - Corresponding label values for the given input time steps.
-         - Defines what the model is trying to predict for future steps.
-
-      Forecast Label:
-         - Typically, the `Close` price (or another relevant metric) for a future 24-hour period.
-
-      Future Step Size:
-         - 24 hours of data corresponds to 1406 minutes of forecast labels.
-
-      Label Types:
-         1. Sequence-to-Value:
-            - The label `y` is only the final `Close` price after 24 hours.
-            - Shape: `(1,)` (a single value prediction).
-         
-         2. Sequence-to-Sequence:
-            - The label `y` is the entire series of `Close` prices for the next 24 hours.
-            - Shape: `(1406, 1)` (scaled `Close` price for each minute).
-
-   """
-
+      # Load configuration parameters with default values
     
-      
-      print("TIMEFRAME:",TIMEFRAME, "TIMEZONE:",TIMEZONE,"MT5 TIMEFRAME:",mp_data_timeframe)
       # +-------------------------------------------------------------------
       # STEP: Data Preparation and Loading
       # +-------------------------------------------------------------------
       # Set up dataset
-      d1 = CMqldatasetup(lp_features=mp_ml_custom_input_keyfeat, lp_label=mp_ml_custom_output_label, lp_label_count=mp_ml_custom_output_label_count)
+      d1 = CMqldatasetup(datenv)
       print("CURRENTYEAR:",CURRENTYEAR, "CURRENTYEAR-mp_data_history_size",CURRENTYEAR-mp_data_history_size,"CURRENTDAYS:",CURRENTDAYS, "CURRENTMONTH:",CURRENTMONTH,"TIMEZONE:",TIMEZONE)
+
+      """        
       mv_data_utc_from = d1.set_mql_timezone(CURRENTYEAR-mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
       mv_data_utc_to = d1.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
       print("UTC From:",mv_data_utc_from)
@@ -545,6 +522,6 @@ def main():
       # finish
       mt5.shutdown()
       print("Finished")
-
+      """
 if __name__ == "__main__":
     main()
