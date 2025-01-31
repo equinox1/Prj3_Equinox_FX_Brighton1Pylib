@@ -1,7 +1,7 @@
 #+------------------------------------------------------------------+
 #|                                                    tsMqlmod1.pyw
 #|                                                    Tony Shepherd |
-#|                                                  https://www.xercescloud.co.uk |
+#|                                    https://www.xercescloud.co.uk |
 #+------------------------------------------------------------------+
 #property copyright "Tony Shepherd"
 #property link      "https://www.xercescloud.co.uk"
@@ -24,17 +24,32 @@ from tensorflow.keras.layers import (Input, Conv1D, MaxPooling1D, Flatten, Dense
                                       LSTM, GRU, Dropout, concatenate, LayerNormalization, 
                                       MultiHeadAttention, GlobalAveragePooling1D)
 
-#=====================================================
-# Class CMqlmlsetup
-#=====================================================
+
 import os
 import numpy as np
 import posixpath
 from datetime import date
-
-class CMqlTune:
+#=====================================================
+# Class CMqlml
+#=====================================================
+class CMqlmlsetup:
     def __init__(self, **kwargs):
-      
+        self.input_width = kwargs.get('input_width', 24)
+        self.shift = kwargs.get('shift', 24)
+        self.label_width = kwargs.get('label_width', 1)
+        self.train_df = kwargs.get('train_df', None)
+        self.val_df = kwargs.get('val_df', None)
+        self.test_df = kwargs.get('test_df', None)
+        self.label_columns = kwargs.get('label_columns', None)
+        self.batch_size = kwargs.get('batch_size', 32)
+        self.column_indices = {}
+        self.label_columns_indices = {}
+        self.total_window_size = self.input_width + self.shift
+        self.input_slice = slice(0, self.input_width)
+        self.input_indices = np.arange(self.total_window_size)[self.input_slice]
+        self.label_start = self.total_window_size - self.label_width
+        self.labels_slice = slice(self.label_start, None)
+        self.label_indices = np.arange(self.total_window_size)[self.labels_slice]
         
     def dl_split_data_sets(self, X, y, train_split=0.8, shuffle=False):
         train_size = int(len(X) * train_split)
@@ -313,8 +328,6 @@ class CMqlWindowGenerator:
         val_dataset = m1.create_tf_dataset(X_val, y_val, batch_size=batch_size, shuffle=False)
         test_dataset = m1.create_tf_dataset(X_test, y_test, batch_size=batch_size, shuffle=False)
         return train_dataset, val_dataset, test_dataset
-
-    
 
     @property
     def train(self):
