@@ -360,8 +360,6 @@ class CMdtuner:
             print(f"Error during prediction: {e}")
 
 
-
-
 class CMdtunerHyperModel:
     def __init__(self, **kwargs):
         self.input_width = kwargs.get('input_width', 24)

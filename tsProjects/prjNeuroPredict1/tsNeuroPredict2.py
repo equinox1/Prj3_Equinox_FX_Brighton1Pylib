@@ -45,14 +45,15 @@ from numpy import concatenate
 # Import equinox functionality
 from tsMqlConnect import CMqlinit, CMqlBrokerConfig
 from tsMqlData import CMqldatasetup
-from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
-from tsMqlMLTune import CMdtuner
+from tsMqlML import CMqlmlsetup
+from tsMqlSetup import tsMqlSetup
 from tsMqlReference import CMqlTimeConfig
-from tsMqlML import CMQMLSetup
-MT5 = True
+from tsMqlMLTune import initialize_tuner
+from tsMqlMLTune import CMdtuner, CMdtunerHyperModel
+
+MT5 =True
 s1 = tsMqlSetup(loglevel='INFO', warn='ignore')
 strategy = s1.get_computation_strategy()
-
 def main():
    with strategy.scope():
       #Reference class
@@ -78,7 +79,16 @@ def main():
       print("mp_symbol_primary:",mp_symbol_primary, "mp_symbol_secondary:",mp_symbol_secondary, "mp_shiftvalue:",mp_shiftvalue, "mp_unit:",mp_unit)
       if MT5:
             c1=c0.login_mt5(broker_config)
-      file_path=broker_config["MKFILES"]
+      
+      BROKER = broker_config['BROKER']
+      MPPATH = broker_config['MPPATH']
+      MPBASEPATH = broker_config['MPBASEPATH']
+      MPDATAPATH = broker_config['MPDATAPATH']
+      MPFILEVALUE1 = broker_config['MPFILEVALUE1']
+      MPFILEVALUE2 = broker_config['MPFILEVALUE2']
+      MKFILES = broker_config['MKFILES']
+      file_path = broker_config['MKFILES']
+      print("BROKER:",BROKER, "MPPATH:",MPPATH, "MPBASEPATH:",MPBASEPATH, "MPDATAPATH:",MPDATAPATH, "MPFILEVALUE1:",MPFILEVALUE1, "MPFILEVALUE2:",MPFILEVALUE2, "MKFILES:",MKFILES)
       print(f"MQL file_path:" ,file_path)
 
       # +-------------------------------------------------------------------
@@ -504,21 +514,26 @@ def main():
       # +-------------------------------------------------------------------
       # STEP: Tune best model Hyperparameter tuning and model setup
       # +-------------------------------------------------------------------
-      # Get hyperparameter model params
-      # Instantiate the class with necessary parameters
-      t1 = CMQMLSetup(
-            input_shape = (input_timesteps, input_features),
-            today_date = date.today().strftime('%Y-%m-%d %H:%M:%S'),
-            random_seed = np.random.randint(0, 1000),
-            base_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/PythonLib/tsModelData/",
-            project_name = "prjEquinox1_prod.keras",
-            subdir = os.path.join(base_path, 'tshybrid_ensemble_tuning_prod', str(1))
+      base_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/PythonLib/tsModelData/"
+      project_name = "prjEquinox1_prod.keras"
+      subdir = os.path.join(base_path, 'tshybrid_ensemble_tuning_prod', str(1))
+
+      print("base_path:", base_path, "project_name:", project_name, "subdir:", subdir)
+
+      t1 = CMqlmlsetup(
+            input_shape=(input_timesteps, input_features),
+            today_date=date.today().strftime('%Y-%m-%d %H:%M:%S'),
+            random_seed=np.random.randint(0, 1000),
+            base_path=base_path,
+            project_name=project_name,
+            subdir=subdir  # Use the already defined subdir instead of recomputing it
       )
       # +-------------------------------------------------------------------
       # STEP:Run the Tuner to find the best model configuration
       # +-------------------------------------------------------------------
       # Run the tuner to find the best model configuration Load hyperparameters
-      hypermodel_params = t1.get_hypermodel_params()
+      h1 = CMdtunerHyperModel()
+      hypermodel_params = h1.get_hypermodel_params()
 
       # Log the configuration
       log_config(hypermodel_params)
@@ -530,125 +545,124 @@ def main():
             val_dataset=val_dataset,
             test_dataset=test_dataset
       )
-""" 
-        ## Run the tuner to find the best model configuration
-        print("Running Main call to tuner")
-        mt.tuner.search_space_summary()
-        # Check and load the model
-        best_model = mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')
-        print ("Best model loaded successfully evaluated as ",best_model)
-        # If no model or hard run then run the search
-        if best_model is None or mp_ml_hard_run:
-            print("Running the tuner search")
-            mt.run_search()
-            print("Tuner search completed")
-            print("Exporting the best model")
-            mt.export_best_model(ftype='tf')
-            print("Best model exported")
-            # Reload the best model after exporting
-            best_model = mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')
-        else:
-            print("Existing Best model loaded successfully.")
 
-        # +-------------------------------------------------------------------
-        # STEP: Train and evaluate the best model
-        # +-------------------------------------------------------------------
+      ## Run the tuner to find the best model configuration
+      print("Running Main call to tuner")
+      mt.tuner.search_space_summary()
+      # Check and load the model
+      best_model = mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')
+      print ("Best model loaded successfully evaluated as ",best_model)
+      # If no model or hard run then run the search
+      if best_model is None or mp_ml_hard_run:
+         print("Running the tuner search")
+         mt.run_search()
+         print("Tuner search completed")
+         print("Exporting the best model")
+         mt.export_best_model(ftype='tf')
+         print("Best model exported")
+         # Reload the best model after exporting
+         best_model = mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')
+      else:
+         print("Existing Best model loaded successfully.")
 
-        # Model Training
-        print("Training the best model...")
-        best_model.fit(
+      # +-------------------------------------------------------------------
+      # STEP: Train and evaluate the best model
+      # +-------------------------------------------------------------------
+
+      # Model Training
+      print("Training the best model...")
+      best_model.fit(
                 train_dataset,
                 validation_data=val_dataset,
                 epochs=mp_ml_tf_param_epochs,
                 batch_size=mp_ml_batch_size
             )
-        print("Training completed.")
+      print("Training completed.")
 
-        # Model Evaluation
-        print("Evaluating the model...")
-        val_metrics = best_model.evaluate(val_dataset, verbose=0)
-        test_metrics = best_model.evaluate(test_dataset, verbose=0)
-        print(f"Validation Metrics - Loss: {val_metrics[0]}, Accuracy: {val_metrics[1]}")
-        print(f"Test Metrics - Loss: {test_metrics[0]}, Accuracy: {test_metrics[1]}")
+      # Model Evaluation
+      print("Evaluating the model...")
+      val_metrics = best_model.evaluate(val_dataset, verbose=0)
+      test_metrics = best_model.evaluate(test_dataset, verbose=0)
+      print(f"Validation Metrics - Loss: {val_metrics[0]}, Accuracy: {val_metrics[1]}")
+      print(f"Test Metrics - Loss: {test_metrics[0]}, Accuracy: {test_metrics[1]}")
 
-        # Fit the label scaler on the training labels
-        label_scaler.fit(y_train.reshape(-1, 1))
+      # Fit the label scaler on the training labels
+      label_scaler.fit(y_train.reshape(-1, 1))
 
-        # Predictions and Scaling
-        print("Running predictions and scaling...")
-        predicted_fx_price = best_model.predict(test_dataset)
-        predicted_fx_price = label_scaler.inverse_transform(predicted_fx_price)
+      # Predictions and Scaling
+      print("Running predictions and scaling...")
+      predicted_fx_price = best_model.predict(test_dataset)
+      predicted_fx_price = label_scaler.inverse_transform(predicted_fx_price)
 
-        real_fx_price = label_scaler.inverse_transform(y_test)
-        print("Predictions and scaling completed.")
+      real_fx_price = label_scaler.inverse_transform(y_test)
+      print("Predictions and scaling completed.")
 
-        # +-------------------------------------------------------------------
-        # STEP: Performance Check
-        # +-------------------------------------------------------------------
-        # Evaluation and visualization
-        # Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values. 
-        # The lower the MSE, the better the model.
+      # +-------------------------------------------------------------------
+      # STEP: Performance Check
+      # +-------------------------------------------------------------------
+      # Evaluation and visualization
+      # Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values. 
+      # The lower the MSE, the better the model.
+      # Mean Absolute Error (MAE): It measures the average absolute difference between the predicted and actual values. 
+      # Like MSE, lower values indicate better model performance.
 
-        # Mean Absolute Error (MAE): It measures the average absolute difference between the predicted and actual values. 
-        # Like MSE, lower values indicate better model performance.
-
-        # R2 Score: Also known as the coefficient of determination, it measures the proportion of the variance in the
-        # dependent variable that is predictable from the independent variable(s). An R2 score of 1 indicates a 
-        # perfect fit, while a score of 0 suggests that the model is no better than predicting the mean of the label
-        # variable. Negative values indicate poor model performance.
-        # Check for NaN values and handle them
-        if np.isnan(real_fx_price).any() or np.isnan(predicted_fx_price).any():
+      # R2 Score: Also known as the coefficient of determination, it measures the proportion of the variance in the
+      # dependent variable that is predictable from the independent variable(s). An R2 score of 1 indicates a 
+      # perfect fit, while a score of 0 suggests that the model is no better than predicting the mean of the label
+      # variable. Negative values indicate poor model performance.
+      # Check for NaN values and handle them
+      if np.isnan(real_fx_price).any() or np.isnan(predicted_fx_price).any():
             print("Warning: NaN values found in input data. Handling NaNs by removing corresponding entries.")
             mask = ~np.isnan(real_fx_price) & ~np.isnan(predicted_fx_price)
             real_fx_price = real_fx_price[mask]
             predicted_fx_price = predicted_fx_price[mask]
         
-        mse = mean_squared_error(real_fx_price, predicted_fx_price)
-        mae = mean_absolute_error(real_fx_price, predicted_fx_price)
-        r2 = r2_score(real_fx_price, predicted_fx_price)
-        print(f"MSE: {mse}, MAE: {mae}, R2: {r2}")
-        print(f"Mean Squared Error: The lower the MSE, the better the model: {mse}")
-        print(f"Mean Absolute Error: The lower the MAE, the better the model: {mae}")
-        print(f"R2 Score: The closer to 1, the better the model: {r2}")
+      mse = mean_squared_error(real_fx_price, predicted_fx_price)
+      mae = mean_absolute_error(real_fx_price, predicted_fx_price)
+      r2 = r2_score(real_fx_price, predicted_fx_price)
+      print(f"MSE: {mse}, MAE: {mae}, R2: {r2}")
+      print(f"Mean Squared Error: The lower the MSE, the better the model: {mse}")
+      print(f"Mean Absolute Error: The lower the MAE, the better the model: {mae}")
+      print(f"R2 Score: The closer to 1, the better the model: {r2}")
 
-        plt.plot(real_fx_price, color='red', label='Real FX Price')
-        plt.plot(predicted_fx_price, color='blue', label='Predicted FX Price')
-        plt.title('FX Price Prediction')
-        plt.xlabel('Time')
-        plt.ylabel('FX Price')
-        plt.legend()
-        plt.savefig(mp_ml_base_path + '/' + 'plot.png')
-        plt.show()
-        print("Plot Model saved to ", mp_ml_base_path + '/' + 'plot.png')
+      plt.plot(real_fx_price, color='red', label='Real FX Price')
+      plt.plot(predicted_fx_price, color='blue', label='Predicted FX Price')
+      plt.title('FX Price Prediction')
+      plt.xlabel('Time')
+      plt.ylabel('FX Price')
+      plt.legend()
+      plt.savefig(mp_ml_base_path + '/' + 'plot.png')
+      plt.show()
+      print("Plot Model saved to ", mp_ml_base_path + '/' + 'plot.png')
 
-        # +-------------------------------------------------------------------
-        # STEP: Save model to ONNX
-        # +-------------------------------------------------------------------
+      # +-------------------------------------------------------------------
+      # STEP: Save model to ONNX
+      # +-------------------------------------------------------------------
 
-        # Save the model to ONNX format
+      # Save the model to ONNX format
       mp_output_path = mp_ml_data_path + "model_" + mp_symbol_primary + "_" + mp_ml_data_type + ".onnx"
-        print(f"output_path: ",mp_output_path)
-        onnx_model, _ = tf2onnx.convert.from_keras(best_model[0], opset=self.batch_size)
-        onnx.save_model(onnx_model, mp_output_path)
-        print(f"model saved to ",mp_output_path)
+      print(f"output_path: ",mp_output_path)
+      onnx_model, _ = tf2onnx.convert.from_keras(best_model[0], opset=self.batch_size)
+      onnx.save_model(onnx_model, mp_output_path)
+      print(f"model saved to ",mp_output_path)
    
-        #Assuming your model has a single input  Convert the model
-        print("mp_inputs: ", mp_inputs)
-        spec = mp_inputs.shape
-        spec = (tf.TensorSpec(spec, tf.float32, name="input"),)
-        print("spec: ", spec)
-        # Convert the model to ONNX format
-        opver = 17
-        onnx_model = tf2onnx.convert.from_keras(best_model, input_signature=spec, output_path=mp_output_path, opset=opver)
-        print("ONNX Runtime version:", ort.__version__)
-        onnx.save_model(onnx_model, mp_output_path)
-        print(f"model saved to ", mp_output_path)
+      #Assuming your model has a single input  Convert the model
+      print("mp_inputs: ", mp_inputs)
+      spec = mp_inputs.shape
+      spec = (tf.TensorSpec(spec, tf.float32, name="input"),)
+      print("spec: ", spec)
+      # Convert the model to ONNX format
+      opver = 17
+      onnx_model = tf2onnx.convert.from_keras(best_model, input_signature=spec, output_path=mp_output_path, opset=opver)
+      print("ONNX Runtime version:", ort.__version__)
+      onnx.save_model(onnx_model, mp_output_path)
+      print(f"model saved to ", mp_output_path)
 
-        from onnx import checker 
-        checker.check_model(best_model[0])
-        # finish
-        mt5.shutdown()
-        print("Finished")
-"""
+      from onnx import checker 
+      checker.check_model(best_model[0])
+      # finish
+      mt5.shutdown()
+      print("Finished")
+
 if __name__ == "__main__":
     main()
