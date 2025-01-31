@@ -1,6 +1,6 @@
 [project]
-name = "tsMqlReference.py"
-version = "1.0.7"
+name = "tsMqlReference"
+version = "2.2.2"
 authors = [
   { name="Tony Shepherd", email="shep.antony@gmail.com" },
 ]
