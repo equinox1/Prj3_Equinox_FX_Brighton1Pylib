@@ -40,6 +40,7 @@ import tf2onnx
 import onnxruntime as ort
 import onnxruntime.backend as backend
 import onnxruntime.tools.symbolic_shape_infer as symbolic_shape_infer
+from onnx import checker
 import warnings
 from numpy import concatenate
 # Import equinox functionality
@@ -53,7 +54,7 @@ from tsMqlReference import CMqlTimeConfig
 
 s1 = tsMqlSetup(loglevel='INFO', warn='ignore')
 strategy = s1.get_computation_strategy()
-
+mp_ml_show_plot=False
 def main():
     with strategy.scope():
         tm = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES')
@@ -736,19 +737,20 @@ def main():
         # Model Training
         print("Training the best model...")
         best_model.fit(
-                train_dataset,
-                validation_data=val_dataset,
-                epochs=mp_ml_tf_param_epochs,
-                batch_size=mp_ml_batch_size
-            )
+            train_dataset,
+            validation_data=val_dataset,
+            epochs=mp_ml_tf_param_epochs
+        )
         print("Training completed.")
 
         # Model Evaluation
+        # Model Evaluation
         print("Evaluating the model...")
-        val_metrics = best_model.evaluate(val_dataset, verbose=0)
-        test_metrics = best_model.evaluate(test_dataset, verbose=0)
-        print(f"Validation Metrics - Loss: {val_metrics[0]}, Accuracy: {val_metrics[1]}")
-        print(f"Test Metrics - Loss: {test_metrics[0]}, Accuracy: {test_metrics[1]}")
+        val_metrics = best_model.evaluate(val_dataset, verbose=1)
+        test_metrics = best_model.evaluate(test_dataset, verbose=1)
+
+        print(f"Validation Metrics - Loss: {val_metrics[0]:.4f}, Accuracy: {val_metrics[1]:.4f}")
+        print(f"Test Metrics - Loss: {test_metrics[0]:.4f}, Accuracy: {test_metrics[1]:.4f}")
 
         # Fit the label scaler on the training labels
         label_scaler.fit(y_train.reshape(-1, 1))
@@ -758,9 +760,9 @@ def main():
         predicted_fx_price = best_model.predict(test_dataset)
         predicted_fx_price = label_scaler.inverse_transform(predicted_fx_price)
 
-        real_fx_price = label_scaler.inverse_transform(y_test)
-        print("Predictions and scaling completed.")
+        real_fx_price = label_scaler.inverse_transform(y_test.reshape(-1, 1))
 
+        print("Predictions and scaling completed.")
         # +-------------------------------------------------------------------
         # STEP: Performance Check
         # +-------------------------------------------------------------------
@@ -797,34 +799,33 @@ def main():
         plt.ylabel('FX Price')
         plt.legend()
         plt.savefig(mp_ml_base_path + '/' + 'plot.png')
-        plt.show()
+        if mp_ml_show_plot:
+            plt.show()
         print("Plot Model saved to ", mp_ml_base_path + '/' + 'plot.png')
 
-        # +-------------------------------------------------------------------
-        # STEP: Save model to ONNX
-        # +-------------------------------------------------------------------
+        
+        # Define the output path
+        mp_output_path = mp_ml_data_path + f"model_{mp_symbol_primary}_{mp_ml_data_type}.onnx"
+        print(f"Output Path: {mp_output_path}")
 
-        # Save the model to ONNX format
-        mp_output_path = mp_ml_data_path + "model_" + mp_symbol_primary + "_" + mp_ml_data_type + ".onnx"
-        print(f"output_path: ",mp_output_path)
-        onnx_model, _ = tf2onnx.convert.from_keras(best_model[0], opset=self.batch_size)
+        # Convert Keras model to ONNX
+        opset_version = 17  # Choose an appropriate ONNX opset version
+
+        # Assuming your model has a single input
+        spec = [tf.TensorSpec(input_shape, tf.float32, name="input")]
+        onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature=spec, opset=opset_version)
+
+        # Save the ONNX model
         onnx.save_model(onnx_model, mp_output_path)
-        print(f"model saved to ",mp_output_path)
-   
-        #Assuming your model has a single input  Convert the model
-        print("mp_inputs: ", mp_inputs)
-        spec = mp_inputs.shape
-        spec = (tf.TensorSpec(spec, tf.float32, name="input"),)
-        print("spec: ", spec)
-        # Convert the model to ONNX format
-        opver = 17
-        onnx_model = tf2onnx.convert.from_keras(best_model, input_signature=spec, output_path=mp_output_path, opset=opver)
+        print(f"Model saved to {mp_output_path}")
+
+        # Verify the ONNX model
+        checker.check_model(onnx_model)
+        print("ONNX model is valid.")
+
+        # Check ONNX Runtime version
         print("ONNX Runtime version:", ort.__version__)
-        onnx.save_model(onnx_model, mp_output_path)
-        print(f"model saved to ", mp_output_path)
 
-        from onnx import checker 
-        checker.check_model(best_model[0])
         # finish
         mt5.shutdown()
         print("Finished")

@@ -360,6 +360,11 @@ class CMdtuner:
             print(f"Error during prediction: {e}")
 
 
+import os
+import pathlib
+import numpy as np
+from datetime import date
+
 class CMdtunerHyperModel:
     def __init__(self, **kwargs):
         self.input_width = kwargs.get('input_width', 24)
@@ -369,15 +374,16 @@ class CMdtunerHyperModel:
         self.val_df = kwargs.get('val_df', None)
         self.test_df = kwargs.get('test_df', None)
         self.label_columns = kwargs.get('label_columns', None)
-        self.batch_size = kwargs.get('batch_size', 8)  # Corrected the duplicate definition
+        self.batch_size = kwargs.get('batch_size', 8)
         self.column_indices = {}
         self.label_columns_indices = {}
         self.total_window_size = self.input_width + self.shift
         self.objective = kwargs.get('objective', 'val_loss')
         self.max_epochs = kwargs.get('max_epochs', 100)
-        self.min_epochs = kwargs.get('min_epochs', 10)  # Added missing parameter
+        self.min_epochs = kwargs.get('min_epochs', 10)
         self.factor = kwargs.get('factor', 10)
         self.seed = kwargs.get('seed', 42)
+        np.random.seed(self.seed)  # Ensuring reproducibility
         self.hyperband_iterations = kwargs.get('hyperband_iterations', 1)
         self.tune_new_entries = kwargs.get('tune_new_entries', False)
         self.allow_new_entries = kwargs.get('allow_new_entries', False)
@@ -388,7 +394,7 @@ class CMdtunerHyperModel:
         self.dropout = kwargs.get('dropout', 0.2)
         self.optimizer = kwargs.get('optimizer', 'adam')
         self.loss = kwargs.get('loss', 'mean_squared_error')
-        self.metrics = kwargs.get('metrics', 'mean_squared_error')
+        self.metrics = kwargs.get('metrics', ['mean_squared_error'])
         self.directory = kwargs.get('directory', None)
         self.logger = kwargs.get('logger', None)
         self.tuner_id = kwargs.get('tuner_id', None)
@@ -401,7 +407,7 @@ class CMdtunerHyperModel:
         self.chk_sav_freq = kwargs.get('chk_sav_freq', 'epoch')
         self.chk_patience = kwargs.get('chk_patience', 3)
         self.modeldatapath = kwargs.get('modeldatapath', None)
-        self.project_name = kwargs.get('project_name', "prjEquinox1_prod.keras")  # Default name added
+        self.project_name = kwargs.get('project_name', "prjEquinox1_prod.keras")
         self.today = kwargs.get('today', None)
         self.random = kwargs.get('random', None)
         self.baseuniq = kwargs.get('baseuniq', None)
@@ -415,50 +421,51 @@ class CMdtunerHyperModel:
         self.steps_per_execution = kwargs.get('steps_per_execution', 50)
 
     def get_hypermodel_params(self, basepath=None, **kwargs):
-            today_date = date.today().strftime('%Y-%m-%d %H:%M:%S')
-            random_seed = np.random.randint(0, 1000)
-            base_path = basepath if basepath is not None else os.getcwd()
-            project_name = self.project_name if self.project_name else "prjEquinox1_prod.keras"
-            subdir = os.path.join(base_path, 'tshybrid_ensemble_tuning_prod', str(1))
-            os.makedirs(subdir, exist_ok=True)
-            
-            return {
-                'directory': subdir,
-                'basepath': subdir,
-                'checkpoint_filepath': posixpath.join(base_path, 'tshybrid_ensemble_tuning_prod', self.project_name),
-                'objective': self.objective,
-                'max_epochs': self.max_epochs,
-                'min_epochs': self.min_epochs,  # Now included
-                'factor': self.factor,
-                'seed': self.seed,
-                'hyperband_iterations': self.hyperband_iterations,
-                'tune_new_entries': self.tune_new_entries,
-                'allow_new_entries': self.allow_new_entries,
-                'max_retries_per_trial': self.max_retries_per_trial,
-                'max_consecutive_failed_trials': self.max_consecutive_failed_trials,
-                'validation_split': self.validation_split,
-                'epochs': self.epochs,
-                'batch_size': self.batch_size,
-                'dropout': self.dropout,
-                'optimizer': self.optimizer,
-                'loss': self.loss,
-                'metrics': self.metrics,  # Fixed incorrect string reference
-                'logger': self.logger,
-                'tuner_id': self.tuner_id,
-                'overwrite': self.overwrite,
-                'executions_per_trial': self.executions_per_trial,
-                'chk_fullmodel': self.chk_fullmodel,
-                'chk_verbosity': self.chk_verbosity,
-                'chk_mode': self.chk_mode,  # Fixed incorrect string reference
-                'chk_monitor': self.chk_monitor,
-                'chk_sav_freq': self.chk_sav_freq,
-                'chk_patience': self.chk_patience,
-                'modeldatapath': self.modeldatapath,
-                'project_name': self.project_name,
-                'steps_per_execution': self.steps_per_execution,
-                'unitmin': self.unitmin,
-                'unitmax': self.unitmax,
-                'unitstep': self.unitstep,
-                'defaultunits': self.defaultunits,
-                'num_trials': self.num_trials
-            }
+        today_date = date.today().strftime('%Y-%m-%d %H:%M:%S')
+        random_seed = self.seed  # Using self.seed for consistency
+        base_path = pathlib.Path(basepath) if basepath else pathlib.Path(os.getcwd())
+        project_name = self.project_name or "prjEquinox1_prod.keras"
+
+        subdir = base_path / 'tshybrid_ensemble_tuning_prod' / '1'
+        subdir.mkdir(parents=True, exist_ok=True)
+
+        return {
+            'directory': str(subdir),
+            'basepath': str(subdir),
+            'checkpoint_filepath': str(base_path / 'tshybrid_ensemble_tuning_prod' / self.project_name),
+            'objective': self.objective,
+            'max_epochs': self.max_epochs,
+            'min_epochs': self.min_epochs,
+            'factor': self.factor,
+            'seed': self.seed,
+            'hyperband_iterations': self.hyperband_iterations,
+            'tune_new_entries': self.tune_new_entries,
+            'allow_new_entries': self.allow_new_entries,
+            'max_retries_per_trial': self.max_retries_per_trial,
+            'max_consecutive_failed_trials': self.max_consecutive_failed_trials,
+            'validation_split': self.validation_split,
+            'epochs': self.epochs,
+            'batch_size': self.batch_size,
+            'dropout': self.dropout,
+            'optimizer': self.optimizer,
+            'loss': self.loss,
+            'metrics': self.metrics,
+            'logger': self.logger,
+            'tuner_id': self.tuner_id,
+            'overwrite': self.overwrite,
+            'executions_per_trial': self.executions_per_trial,
+            'chk_fullmodel': self.chk_fullmodel,
+            'chk_verbosity': self.chk_verbosity,
+            'chk_mode': self.chk_mode,
+            'chk_monitor': self.chk_monitor,
+            'chk_sav_freq': self.chk_sav_freq,
+            'chk_patience': self.chk_patience,
+            'modeldatapath': self.modeldatapath,
+            'project_name': self.project_name,
+            'steps_per_execution': self.steps_per_execution,
+            'unitmin': self.unitmin,
+            'unitmax': self.unitmax,
+            'unitstep': self.unitstep,
+            'defaultunits': self.defaultunits,
+            'num_trials': self.num_trials
+        }

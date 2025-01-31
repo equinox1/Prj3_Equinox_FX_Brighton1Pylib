@@ -1,6 +1,6 @@
 [project]
 name = "tsExample"
-version = "2.2.2"
+version = "2.2.3"
 authors = [
   { name="Example Author", email="shep.antony@gmail.com" },
 ]
