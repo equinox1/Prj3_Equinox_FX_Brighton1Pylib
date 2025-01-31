@@ -55,6 +55,9 @@ from tsMqlReference import CMqlTimeConfig
 s1 = tsMqlSetup(loglevel='INFO', warn='ignore')
 strategy = s1.get_computation_strategy()
 mp_ml_show_plot=False
+ONNX_save=False
+mp_ml_hard_run= True
+
 def main():
     with strategy.scope():
         tm = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES')
@@ -170,7 +173,7 @@ def main():
         mp_ml_tunemode = True
         mp_ml_tunemodeepochs = True
         mp_ml_modelsummary = False
-        mp_ml_hard_run= False
+        
         #model parameters
 
         #Machine Learning (ML) variables
@@ -803,28 +806,30 @@ def main():
             plt.show()
         print("Plot Model saved to ", mp_ml_base_path + '/' + 'plot.png')
 
-        
-        # Define the output path
-        mp_output_path = mp_ml_data_path + f"model_{mp_symbol_primary}_{mp_ml_data_type}.onnx"
-        print(f"Output Path: {mp_output_path}")
+        if ONNX_save:
+            # Save the model to ONNX
+         
+            # Define the output path
+            mp_output_path = mp_ml_data_path + f"model_{mp_symbol_primary}_{mp_ml_data_type}.onnx"
+            print(f"Output Path: {mp_output_path}")
 
-        # Convert Keras model to ONNX
-        opset_version = 17  # Choose an appropriate ONNX opset version
+            # Convert Keras model to ONNX
+            opset_version = 17  # Choose an appropriate ONNX opset version
 
-        # Assuming your model has a single input
-        spec = [tf.TensorSpec(input_shape, tf.float32, name="input")]
-        onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature=spec, opset=opset_version)
+            # Assuming your model has a single input
+            spec = [tf.TensorSpec(input_shape, tf.float32, name="input")]
+            onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature=spec, opset=opset_version)
 
-        # Save the ONNX model
-        onnx.save_model(onnx_model, mp_output_path)
-        print(f"Model saved to {mp_output_path}")
+            # Save the ONNX model
+            onnx.save_model(onnx_model, mp_output_path)
+            print(f"Model saved to {mp_output_path}")
 
-        # Verify the ONNX model
-        checker.check_model(onnx_model)
-        print("ONNX model is valid.")
+            # Verify the ONNX model
+            checker.check_model(onnx_model)
+            print("ONNX model is valid.")
 
-        # Check ONNX Runtime version
-        print("ONNX Runtime version:", ort.__version__)
+            # Check ONNX Runtime version
+            print("ONNX Runtime version:", ort.__version__)
 
         # finish
         mt5.shutdown()
