@@ -9,27 +9,6 @@
 # +-------------------------------------------------------------------
 # STEP: Import standard Python packages
 # +-------------------------------------------------------------------
-# import os
-import os
-import pathlib
-from pathlib import Path, PurePosixPath
-import posixpath
-import sys
-import time
-import json
-import keyring as kr
-from datetime import datetime, date
-import pytz
-import matplotlib.pyplot as plt
-import seaborn as sns
-import logging
-# Import MetaTrader 5 (MT5) and other necessary packages
-import MetaTrader5 as mt5
-# import python ML packages
-import numpy as np
-from sklearn.preprocessing import MinMaxScaler ,StandardScaler, RobustScaler, QuantileTransformer, PowerTransformer
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score 
-from sklearn.model_selection import train_test_split
 # Import dataclasses for data manipulation
 import pandas as pd
 from dataclasses import dataclass
@@ -40,46 +19,47 @@ import tf2onnx
 import onnxruntime as ort
 import onnxruntime.backend as backend
 import onnxruntime.tools.symbolic_shape_infer as symbolic_shape_infer
+from onnx import checker
 import warnings
 from numpy import concatenate
 # Import equinox functionality
 from tsMqlConnect import CMqlinit, CMqlBrokerConfig
 from tsMqlData import CMqldatasetup
-from tsMqlML import CMqlmlsetup
+from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
+from tsMqlMLTune import CMdtuner
+from tsMqlReference import CMqlTimeConfig
 from tsMqlSetup import tsMqlSetup
 from tsMqlReference import CMqlTimeConfig
-from tsMqlMLTune import initialize_tuner
-from tsMqlMLTune import CMdtuner, CMdtunerHyperModel
 
-MT5 =True
 s1 = tsMqlSetup(loglevel='INFO', warn='ignore')
 strategy = s1.get_computation_strategy()
+mp_ml_show_plot=False
+
+broker = "METAQUOTES" # "ICM" or "METAQUOTES"
+mp_symbol_primary='EURUSD'
+MPDATAFILE1 =  "tickdata1.csv"
+MPDATAFILE2 =  "ratesdata1.csv"
+
 def main():
    with strategy.scope():
-      #Reference class
+
+      # +-------------------------------------------------------------------
+      # STEP: Load Reference class and time variables
+      # +-------------------------------------------------------------------
       tm = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES')
       MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH = tm.get_current_time(tm)
       print("MINUTES:",MINUTES, "HOURS:",HOURS, "DAYS:",DAYS, "TIMEZONE:",TIMEZONE)
       print("CURRENTYEAR:",CURRENTYEAR, "CURRENTDAYS:",CURRENTDAYS, "CURRENTMONTH:",CURRENTMONTH)
       TIMEFRAME = tm.TIME_CONSTANTS['TIMEFRAME']['H4'] # override as M1 needs checking
       mp_ml_data_type ='M1'
-
       # +-------------------------------------------------------------------
       # STEP: CBroker Login
       # +-------------------------------------------------------------------
-      #Broker configuration
-      broker = "METAQUOTES" # "ICM" or "METAQUOTES"
-      mp_symbol_primary='EURUSD'
-      MPDATAFILE1 =  "tickdata1.csv"
-      MPDATAFILE2 =  "ratesdata1.csv"
-      # initialise object
+      # initialize the broker
       c0=CMqlBrokerConfig(lpbroker=broker, mp_symbol_primary=mp_symbol_primary, MPDATAFILE1=MPDATAFILE1, MPDATAFILE2=MPDATAFILE1)
       broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit = c0.initialize_mt5(broker, tm)
-      print("Broker Config:",broker_config)
-      print("mp_symbol_primary:",mp_symbol_primary, "mp_symbol_secondary:",mp_symbol_secondary, "mp_shiftvalue:",mp_shiftvalue, "mp_unit:",mp_unit)
-      if MT5:
-            c1=c0.login_mt5(broker_config)
-      
+      # Login to the broker
+      c1=c0.login_mt5(broker_config)
       BROKER = broker_config['BROKER']
       MPPATH = broker_config['MPPATH']
       MPBASEPATH = broker_config['MPBASEPATH']
@@ -88,49 +68,15 @@ def main():
       MPFILEVALUE2 = broker_config['MPFILEVALUE2']
       MKFILES = broker_config['MKFILES']
       file_path = broker_config['MKFILES']
-      print("BROKER:",BROKER, "MPPATH:",MPPATH, "MPBASEPATH:",MPBASEPATH, "MPDATAPATH:",MPDATAPATH, "MPFILEVALUE1:",MPFILEVALUE1, "MPFILEVALUE2:",MPFILEVALUE2, "MKFILES:",MKFILES)
-      print(f"MQL file_path:" ,file_path)
-
+      
       # +-------------------------------------------------------------------
       # STEP: Configuration settings
       # +-------------------------------------------------------------------
       # model api settings
       feature_scaler = MinMaxScaler()
       label_scaler = MinMaxScaler()
-      # environment settings
-      mp_ml_model_datapath = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/PythonLib/tsModelData/"
-      mp_ml_directory = f"tshybrid_ensemble_tuning_prod"
-      mp_ml_project_name = "prjEquinox1_prod.keras"
-      mp_ml_baseuniq = str(1)# str(mp_random)
-      mp_ml_base_path = os.path.join(mp_ml_model_datapath, mp_ml_directory,mp_ml_baseuniq)
-      mp_ml_mbase_path = os.path.join(mp_ml_model_datapath, mp_ml_directory)
-      mp_ml_checkpoint_filepath = posixpath.join(mp_ml_base_path, mp_ml_directory, mp_ml_project_name)
-      # data load states
-      mp_data_rownumber = False
-      mp_data_show_dtype = False
-      mp_data_loadapiticks = True
-      mp_data_loadapirates = True
-      mp_data_loadfileticks = True
-      mp_data_loadfilerates = True
-      # ml states
-      mp_ml_shuffle = False
-      mp_ml_cnn_model = True
-      mp_ml_lstm_model = True
-      mp_ml_gru_model = True
-      mp_ml_transformer_model = True
-      mp_ml_multi_inputs = False
-      mp_ml_multi_inputs_preprocess = True
-      mp_ml_multi_outputs = False
-      mp_ml_multi_branches = True
-      mp_ml_tunemode = True
-      mp_ml_tunemodeepochs = True
-      mp_ml_modelsummary = False
-      mp_ml_hard_run= False 
-      #model parameters
-      mp_ml_loadtensor = True
-      mp_ml_loadtemporian = False
-      mp_ml_tensor_shape = False
-      mp_ml_multiactivate=True
+      
+      
 
       """
       Time Series Forecasting: Features and Labels
@@ -161,72 +107,8 @@ def main():
 
    """
 
-      mp_ml_custom_input_keyfeat = {'Close'} # the feature to predict
-      mp_ml_custom_output_label = {'Label'} # the feature to predict
-      mp_ml_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in mp_ml_custom_input_keyfeat}  # the feature to predict
-      mp_ml_custom_output_label_scaled = {targ + '_Scaled' for targ in mp_ml_custom_output_label}  # the label shifted to predict
-      mp_ml_custom_output_label_count=len(mp_ml_custom_output_label)
-      mp_ml_batch_size = 8
-      #Splitting the data
-      mp_ml_train_split = 0.7
-      mp_ml_validation_split = 0.2
-      mp_ml_test_split = 0.1
-      #Best Models
-      mp_ml_mp_ml_num_models = 4
-      mp_ml_num_trials = 3
-      mp_ml_steps_per_execution = 50
-      # Set parameters for the Tensorflow keras model
-      mp_ml_tf_param_steps = 10
-      mp_ml_tf_param_max_epochs=100
-      mp_ml_tf_param_min_epochs=1
-      mp_ml_tf_param_epochs=mp_ml_tf_param_max_epochs
-      mp_ml_tf_param_chk_patience = 3
-      mp_ml_tf_shiftin=1
-      mp_ml_tf_ma_windowin=14 # 14 DAYS typical indicator window
-      # Set the shape of the data
-      mp_ml_custom_input_shape=2 # mp_data_tab_rows, batches, timesteps, features
-      mp_ml_custom_input_cnn_shape=2 # mp_data_tab_rows, batches, timesteps, features
-      mp_ml_custom_input_lstm_shape=2 # mp_data_tab_rows, batches, timesteps, features
-      mp_ml_custom_input_gru_shape=2 # mp_data_tab_rows, batches, timesteps, features
-      mp_ml_custom_input_transformer_shape = 2 # mp_data_tab_rows, batches, timesteps, features
-      mp_ml_cfg_period1=24 # 24 HOURS
-      mp_ml_cfg_period2=6 # 6 HOURS
-      mp_ml_cfg_period=1 # 1 HOURS
-      mp_ml_unit_min = 32
-      mp_ml_unit_max = 512
-      mp_ml_unit_step = 32
-      mp_ml_default_units = 128
-      # setting dictionary for the model
-      common_ml_params = {
-            "lookahead_periods": mp_ml_cfg_period,
-            "ma_window": mp_ml_tf_ma_windowin,
-            "hl_avg_col": "HLAvg",
-            "ma_col": "SMA",
-            "returns_col": "LogReturns",
-            "shift_in": mp_ml_tf_shiftin,
-            "rownumber": mp_data_rownumber,
-            "create_label": False,
-       }
-
-      other_ml_params = {
-            "returns_col_scaled": "LogReturns_scaled",
-      }
-      mp_ml_return_col_scaled = other_ml_params["returns_col_scaled"]
-
-      #Data variables
-      mp_data_data_label = 3
-      # 1: just the label, 2: label and features, 3:time label, features 4: full dataset
-      mv_data_dfname1 = "df_rates1"
-      mv_data_dfname2 = "df_rates2"
-      mp_data_rows = 1000 # number of mp_data_tab_rows to fetch
-      mp_data_rowcount = 10000 # number of mp_data_tab_rows to fetch
-      mp_data_history_size = 5 # Number of years of data to fetch
-      mp_data_cfg_usedata = 'loadfilerates' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
-      mp_data_command_ticks = mt5.COPY_TICKS_ALL
-      mp_data_command_rates = None
-      mp_data_timeframe = TIMEFRAME
-      mp_data_tab_rows = 10
-      mp_data_tab_width=30
+    
+      
       print("TIMEFRAME:",TIMEFRAME, "TIMEZONE:",TIMEZONE,"MT5 TIMEFRAME:",mp_data_timeframe)
       # +-------------------------------------------------------------------
       # STEP: Data Preparation and Loading
