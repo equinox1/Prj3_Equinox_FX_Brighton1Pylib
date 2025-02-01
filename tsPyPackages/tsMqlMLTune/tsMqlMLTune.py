@@ -61,6 +61,13 @@ class CMdtuner:
         self.basepath = kwargs.get('basepath', 'tuner_results')
         self.project_name = kwargs.get('project_name', 'cm_tuning')
         self.num_trials = kwargs.get('num_trials', 3)
+        self.overwrite = kwargs.get('overwrite', True)
+        self.tune_new_entries = kwargs.get('tune_new_entries', True)
+        self.allow_new_entries = kwargs.get('allow_new_entries', True)
+        self.max_retries_per_trial = kwargs.get('max_retries_per_trial', 9)
+        self.max_consecutive_failed_trials = kwargs.get('max_consecutive_failed_trials', 3)
+        self.hyperband_iterations = kwargs.get('hyperband_iterations', 1)
+        
 
         #unit for LSTM and GRU
         self.unitmin = kwargs.get('unitmin', 32)
@@ -118,32 +125,29 @@ class CMdtuner:
     def initialize_tuner(self):
         hp = kt.HyperParameters()
         
-        if self.tunemodeepochs:
-            hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step)
-            print(f"Tuning Max epochs between {self.min_epochs} and {self.max_epochs}")
-        else:
-            print(f"Default Max epochs: {self.max_epochs}")
+        # Tune the number of epochs
+        hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step)
+
+        print(f"Tuning Max epochs between {self.min_epochs} and {self.max_epochs}")
 
         self.tuner = kt.Hyperband(
             hypermodel=self.build_model,
             hyperparameters=hp,  # Pass the HyperParameters object
-            hyperband_iterations=1,
+            hyperband_iterations=self.hyperband_iterations,
             objective=self.objective,
             max_epochs=self.max_epochs,  # Ensure max_epochs is properly set
             factor=self.factor,
             directory=self.basepath,
             project_name=self.project_name,
-            overwrite=True,
-            tune_new_entries=True,
-            allow_new_entries=True,
-            max_retries_per_trial=0,
-            max_consecutive_failed_trials=3,
+            overwrite=self.overwrite,
+            tune_new_entries=self.tune_new_entries,
+            allow_new_entries=self.allow_new_entries,
+            max_retries_per_trial=self.max_retries_per_trial,
+            max_consecutive_failed_trials=self.max_consecutive_failed_trials,
         )
 
-        self.tuner.search_space_summary()
-
+    self.tuner.search_space_summary()
         
-
     def build_model(self, hp):
         # Shared Input Logic
         shared_input = Input(shape=self.main_input_shape, name='shared_input') if not self.multi_inputs else None
@@ -285,18 +289,25 @@ class CMdtuner:
         ]
 
     def run_search(self):
-        try:
-            self.tuner.search(
-                self.traindataset,
-                validation_data=self.valdataset,
-                callbacks=self.get_callbacks(),
-                epochs=self.max_epochs,  # This should be tuned inside Hyperband
-            )
-        except Exception as e:
-            print(f"Error during tuning: {e}")
+    try:
+        best_hps = self.tuner.get_best_hyperparameters(num_trials=1)[0]
+        tuned_epochs = best_hps.get('epochs', self.max_epochs)
 
+        print(f"Running tuner search with tuned epochs: {tuned_epochs}")
+
+        self.tuner.search(
+            self.traindataset,
+            validation_data=self.valdataset,
+            callbacks=self.get_callbacks(),
+            epochs=tuned_epochs,  # Use the tuned epochs
+        )
+    except Exception as e:
+        print(f"Error during tuning: {e}")
+
+    
 
     def export_best_model(self, ftype='tf'):
+
         try:
             best_model = self.tuner.get_best_models(num_models=1)[0]
             export_path = os.path.join(self.basepath, self.project_name, 'best_model')
