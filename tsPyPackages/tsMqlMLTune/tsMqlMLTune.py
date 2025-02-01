@@ -11,11 +11,11 @@ from tensorflow.keras.metrics import MeanAbsoluteError
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 import keras_tuner as kt
 
-from tensorflow.keras import mixed_precision
-mixed_precision.set_global_policy('mixed_float16')
-
 # Enable XLA for performance boost
 tf.config.optimizer.set_jit(True)
+
+from tensorflow.keras import mixed_precision
+mixed_precision.set_global_policy('mixed_float16')
 
 
 class CMdtuner:
@@ -58,7 +58,6 @@ class CMdtuner:
         self.step = kwargs.get('step', 1)
         self.factor = kwargs.get('factor', 3)
         self.checkpoint_filepath = kwargs.get('checkpoint_filepath', 'best_model.keras')
-        self.step = kwargs.get('step', 1)
         self.basepath = kwargs.get('basepath', 'tuner_results')
         self.project_name = kwargs.get('project_name', 'cm_tuning')
         self.num_trials = kwargs.get('num_trials', 3)
@@ -75,6 +74,7 @@ class CMdtuner:
         self.unitmax = kwargs.get('unitmax', 128)
         self.unitstep = kwargs.get('unitstep', 32)
         self.unitdefault = kwargs.get('unitdefault', 64)
+        self.scaler = None  # Initialize scaler
 
         #debugging
         self.tf1 = kwargs.get('tf1', False)
@@ -146,8 +146,7 @@ class CMdtuner:
             max_retries_per_trial=self.max_retries_per_trial,
             max_consecutive_failed_trials=self.max_consecutive_failed_trials,
         )
-
-    self.tuner.search_space_summary()
+        self.tuner.search_space_summary()
         
     def build_model(self, hp):
         # Shared Input Logic
@@ -183,6 +182,8 @@ class CMdtuner:
                 )(transformer_input, transformer_input)
             else:
                 transformer_branch = MultiHeadAttention(num_heads=2, key_dim=1)(transformer_input, transformer_input)
+            
+            
             transformer_branch = LayerNormalization()(transformer_branch)
             transformer_branch = GlobalAveragePooling1D()(transformer_branch)
             
@@ -190,7 +191,6 @@ class CMdtuner:
             transformer_branch = Dense(64, hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus']))(transformer_branch)
             transformer_branch = Dense(32, hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus']))(transformer_branch)
             branches.append(transformer_branch)
-
         
         # LSTM Branch
         if self.lstm_model:
@@ -272,6 +272,7 @@ class CMdtuner:
 
         return model
 
+    
 
     def get_optimizer(self, optimizer_name, learning_rate):
         optimizers = {
@@ -295,22 +296,20 @@ class CMdtuner:
         ]
 
     def run_search(self):
-    try:
-        best_hps = self.tuner.get_best_hyperparameters(num_trials=1)[0]
-        tuned_epochs = best_hps.get('epochs', self.max_epochs)
+        try:
+            best_hps = self.tuner.get_best_hyperparameters(num_trials=1)[0]
+            tuned_epochs = best_hps.get('epochs', self.max_epochs)
 
-        print(f"Running tuner search with tuned epochs: {tuned_epochs}")
+            print(f"Running tuner search with tuned epochs: {tuned_epochs}")
 
-        self.tuner.search(
-            self.traindataset,
-            validation_data=self.valdataset,
-            callbacks=self.get_callbacks(),
-            epochs=tuned_epochs,  # Use the tuned epochs
-        )
-    except Exception as e:
-        print(f"Error during tuning: {e}")
-
-    
+            self.tuner.search(
+                self.traindataset,
+                validation_data=self.valdataset,
+                callbacks=self.get_callbacks(),
+                epochs=tuned_epochs,  # Use the tuned epochs
+            )
+        except Exception as e:
+            print(f"Error during tuning: {e}")
 
     def export_best_model(self, ftype='tf'):
 
@@ -359,6 +358,12 @@ class CMdtuner:
             print(f"Error loading model: {e}")
             return None
 
+    def get_best_hyperparameters(self):
+        try:
+            return self.tuner.get_best_hyperparameters(num_trials=1)[0]
+        except Exception as e:
+            print(f"Error retrieving best hyperparameters: {e}")
+            return None
 
     def run_prediction(self, test_data, batch_size=None):
         try:
