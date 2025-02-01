@@ -14,7 +14,8 @@ import keras_tuner as kt
 from tensorflow.keras import mixed_precision
 mixed_precision.set_global_policy('mixed_float16')
 
-tf.config.optimizer.set_jit(True)  # Enable XLA
+# Enable XLA for performance boost
+tf.config.optimizer.set_jit(True)
 
 
 class CMdtuner:
@@ -184,8 +185,13 @@ class CMdtuner:
                 transformer_branch = MultiHeadAttention(num_heads=2, key_dim=1)(transformer_input, transformer_input)
             transformer_branch = LayerNormalization()(transformer_branch)
             transformer_branch = GlobalAveragePooling1D()(transformer_branch)
+            
+            # Adding Feed-Forward Network (FFN)
+            transformer_branch = Dense(64, hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus']))(transformer_branch)
+            transformer_branch = Dense(32, hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus']))(transformer_branch)
             branches.append(transformer_branch)
 
+        
         # LSTM Branch
         if self.lstm_model:
             lstm_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='lstm_input')
