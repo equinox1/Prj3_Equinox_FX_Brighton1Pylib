@@ -14,7 +14,9 @@ import os
 import pathlib
 import numpy as np
 from datetime import date
-
+import logging
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 class CMdtuner:
@@ -80,6 +82,23 @@ class CMdtuner:
         self.trans_dim_min = kwargs.get('trans_dim_min', 32)
         self.trans_dim_max = kwargs.get('trans_dim_max', 256)
         self.trans_dim_step = kwargs.get('trans_dim_step', 32)
+        self.trans_dim_default =kwargs.get('trans_dim_default', 64)
+
+        
+        self.lstm_units_min = kwargs.get('lstm_units_min', 32)
+        self.lstm_units_max = kwargs.get('lstm_units_max', 128)
+        self.lstm_units_step = kwargs.get('lstm_units_step', 32)
+        self.lstm_units_default = kwargs.get('lstm_units_default', 64)
+
+        self.gru_units_min = kwargs.get('gru_units_min', 32)
+        self.gru_units_max = kwargs.get('gru_units_max', 128)
+        self.gru_units_step = kwargs.get('gru_units_step', 32)
+        self.gru_units_default = kwargs.get('gru_units_default', 64)
+
+        self.cnn_units_min = kwargs.get('cnn_units_min', 32)
+        self.cnn_units_max = kwargs.get('cnn_units_max', 128)
+        self.cnn_units_step = kwargs.get('cnn_units_step', 32)
+        self.cnn_units_default = kwargs.get('cnn_units_default', 64)
 
         self.trans_heads_min = kwargs.get('trans_heads_min', 2)
         self.trans_heads_max = kwargs.get('trans_heads_max', 8)
@@ -154,48 +173,44 @@ class CMdtuner:
     def initialize_tuner(self):
         hp = kt.HyperParameters()
         
-        # Tune the number of epochs
-        hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=self.step)
+        hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax', 'ftrl'])
+        hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4, 1e-5])
+        hp.Choice('loss', ['binary_crossentropy', 'mse', 'mae', 'mape', 'msle', 'poisson', 'kld', 'cosine_similarity'])
+        hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
+        hp.Choice('dense_1_activation', ['relu', 'tanh'])
+        hp.Float('l2_reg', min_value=1e-5, max_value=1e-2, sampling='LOG')
+        hp.Choice('metric', ['accuracy', 'mae', 'mse', 'mape', 'msle', 'poisson', 'cosine_similarity'])
 
-        print(f"Tuning Max epochs between {self.min_epochs} and {self.max_epochs}")
 
-        # Initialize the tuner
-        if self.keras_tuner == 'random':
-            self.tuner = kt.RandomSearch(
-                hypermodel=self.build_model,
-                hyperparameters=hp,  # Pass the HyperParameters object
-                objective=self.objective,
-                max_trials=self.num_trials,
-                directory=self.basepath,
-                project_name=self.project_name,
-                overwrite=self.overwrite,
-                tune_new_entries=self.tune_new_entries,
-                allow_new_entries=self.allow_new_entries,
-                max_retries_per_trial=self.max_retries_per_trial,
-                max_consecutive_failed_trials=self.max_consecutive_failed_trials,
-            )
-        elif self.keras_tuner == 'hyperband':
-            self.tuner = kt.Hyperband(
+        hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=1)
+        hp.Int('cnn_filters', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
+        hp.Int('cnn_kernel_size', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
+        
+        hp.Int('lstm_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
+        hp.Int('gru_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
+        hp.Int('cnn_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
+        hp.Int('dense_1_units', min_value=self.dense_units_min, max_value=self.dense_units_max, step=self.dense_units_step)
+
+        
+        num_transformer_blocks = hp.Int('num_transformer_blocks', min_value=1, max_value=3, step=1)
+        hp.Int('trans_dim', min_value=self.trans_dim_min, max_value=self.trans_dim_max, step=self.trans_dim_step, default=self.trans_dim_default)
+                
+        logging.info(f"Tuning Max epochs between {self.min_epochs} and {self.max_epochs}")
+
+        tuner_classes = {
+            'random': kt.RandomSearch,
+            'hyperband': kt.Hyperband,
+            'bayesian': kt.BayesianOptimization
+        }
+
+        if self.keras_tuner in tuner_classes:
+            self.tuner = tuner_classes[self.keras_tuner](
                 hypermodel=self.build_model,
                 hyperparameters=hp,  # Pass the HyperParameters object
                 hyperband_iterations=self.hyperband_iterations,
                 objective=self.objective,
                 max_epochs=self.max_epochs,  # Ensure max_epochs is properly set
                 factor=self.factor,
-                directory=self.basepath,
-                project_name=self.project_name,
-                overwrite=self.overwrite,
-                tune_new_entries=self.tune_new_entries,
-                allow_new_entries=self.allow_new_entries,
-                max_retries_per_trial=self.max_retries_per_trial,
-                max_consecutive_failed_trials=self.max_consecutive_failed_trials,
-            )
-        elif self.keras_tuner == 'bayesian':
-            self.tuner = kt.BayesianOptimization(
-                hypermodel=self.build_model,
-                hyperparameters=hp,  # Pass the HyperParameters object
-                objective=self.objective,
-                max_trials=self.num_trials,
                 directory=self.basepath,
                 project_name=self.project_name,
                 overwrite=self.overwrite,
@@ -219,76 +234,81 @@ class CMdtuner:
         if self.cnn_model:
             cnn_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='cnn_input')
             if self.multi_inputs: inputs.append(cnn_input)
+                
             if self.tunemode:
                 cnn_branch = Conv1D(
-                    filters=hp.Int('cnn_filters', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault),
-                    kernel_size=hp.Int('cnn_kernel_size', min_value=2, max_value=5, step=1, default=3),
-                    activation=hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
+                    filters=hp.get('cnn_filters'),
+                    kernel_size=hp.get('cnn_kernel_size'),
+                    activation=hp.get('activation') # Tunable activation
                 )(cnn_input)
             else:
-                cnn_branch = Conv1D(128, 5, activation="relu")(cnn_input)
+                cnn_branch = Conv1D(
+                    filters=hp.get('cnn_filters'),
+                    kernel_size=5, # Sensible default
+                    activation="relu"
+                )(cnn_input)
 
             cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
             cnn_branch = Flatten()(cnn_branch)
             branches.append(cnn_branch)
 
-        # Transformer Branch
-        if self.transformer_model:
-            transformer_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='transformer_input')
-            if self.multi_inputs: inputs.append(transformer_input)
-            if self.tunemode:
-                transformer_branch = transformer_input
-                num_transformer_blocks = hp.Int('num_transformer_blocks', min_value=1, max_value=3, step=1)
-                for i in range(num_transformer_blocks):
-                    transformer_branch = self.transformer_block(transformer_branch, hp, i)
-            else:
-                transformer_branch = MultiHeadAttention(num_heads=2, key_dim=1)(transformer_input, transformer_input)
-            
-            transformer_branch = GlobalAveragePooling1D()(transformer_branch)
-                    
-            # Adding Feed-Forward Network (FFN)
-            transformer_branch = Dense(64, hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus']))(transformer_branch)
-            transformer_branch = Dense(32, hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus']))(transformer_branch)
-            branches.append(transformer_branch)
-        
         # LSTM Branch
         if self.lstm_model:
             lstm_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='lstm_input')
             if self.multi_inputs: inputs.append(lstm_input)
+
             if self.tunemode:
-                lstm_branch = LSTM(
-                    units=hp.Int('lstm_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault),
-                    activation=hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
-                )(lstm_input)
+                lstm_branch = LSTM(units=hp.get('lstm_units'), activation=hp.get('activation'))(lstm_input)
             else:
-                lstm_branch = LSTM(96)(lstm_input)
+                lstm_branch = LSTM(96, activation='relu')(lstm_input) # Example
             branches.append(lstm_branch)
-           
 
         # GRU Branch
         if self.gru_model:
             gru_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='gru_input')
             if self.multi_inputs: inputs.append(gru_input)
             if self.tunemode:
-                gru_branch = GRU(
-                     units=hp.Int('gru_units',min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault),
-                    activation=hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
-                )(gru_input)
+                gru_branch = GRU(units=hp.get('gru_units'), activation=hp.get('activation'))(gru_input)
             else:
-                gru_branch = GRU(64)(gru_input)
+                gru_branch = GRU(64, activation='relu')(gru_input) # Example
             branches.append(gru_branch)
 
-        # Concatenate
+        # Transformer Branch
+        if self.transformer_model:
+            transformer_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='transformer_input')
+            if self.multi_inputs: inputs.append(transformer_input)
+            transformer_branch = transformer_input
+
+            num_transformer_blocks = hp.get('num_transformer_blocks')
+            trans_dim = hp.get('trans_dim') # Shared transformer dimension
+
+            for i in range(num_transformer_blocks):
+                transformer_branch = self.transformer_block(transformer_branch, hp, i, trans_dim) # Pass trans_dim
+
+            transformer_branch = GlobalAveragePooling1D()(transformer_branch)
+
+            # FFN after transformer blocks
+            transformer_branch = Dense(64, activation=hp.get('activation'))(transformer_branch)
+            transformer_branch = Dropout(self.dropout)(transformer_branch) # Dropout in FFN
+            branches.append(transformer_branch)
+
         # Concatenate the branches if multiple branches are used
         concatenated = Concatenate()(branches) if self.multi_branches else branches[0]
-        dense_1 = Dense(hp.Int('dense_1_units', min_value=self.dense_units_min, max_value=self.dense_units_max, step=self.dense_units_step), activation=hp.Choice('dense_1_activation', ['relu', 'tanh']), kernel_regularizer=tf.keras.regularizers.l2(hp.Float('l2_reg', min_value=1e-5, max_value=1e-2, sampling='LOG')))(concatenated)
+        dense_1 = Dense(
+            units=hp.Int('dense_1_units', min_value=self.dense_units_min, max_value=self.dense_units_max, step=self.dense_units_step),
+            activation=hp.Choice('dense_1_activation', ['relu', 'tanh']),
+            kernel_regularizer=tf.keras.regularizers.l2(hp.get('l2_reg'))
+        )(concatenated)
         dropout = Dropout(self.dropout)(dense_1)
         output = Dense(self.output_dim, activation="linear" if self.output_dim > 1 else "sigmoid")(dropout)  # Linear for multi-output regression
 
         # Set Input 
         print(f"Including {len(inputs)} input(s) and {len(branches)} branch(es).")
        
-        if len(inputs) == 2:
+        if len(inputs) == 1:
+            print(f"Input shape1: {inputs[0].shape}")
+            model = Model(inputs=inputs, outputs=output)
+        elif len(inputs) == 2:
             print(f"Input shape1: {inputs[0].shape}, input shape2: {inputs[1].shape}")
             model = Model(inputs=inputs, outputs=output)          
         elif len(inputs) == 3:
@@ -297,9 +317,6 @@ class CMdtuner:
         elif len(inputs) == 4:
             print(f"Input shape1: {inputs[0].shape}, input shape2: {inputs[1].shape}, input shape3: {inputs[2].shape}, input shape4: {inputs[3].shape}")
             model = Model(inputs=inputs, outputs=output)
-        elif len(inputs) == 1:
-            print(f"Input shape1: {inputs[0].shape}")
-            model = Model(inputs=inputs[0], outputs=output)
         else:
             model = Model(inputs=shared_input, outputs=output)
            
@@ -314,24 +331,19 @@ class CMdtuner:
             print(f"Branch shape1: {branches[0].shape}")
 
         print(f"Output shape: {output.shape}")
+
         model.compile(
-            optimizer=self.get_optimizer(
-                hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax', 'ftrl']),
-                hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4, 1e-5])
-            ),
+            optimizer=self.get_optimizer(hp.get('optimizer'), hp.get('learning_rate')),
+            loss=hp.get('loss') if self.tunemode else self.loss,  # Use tunable loss or default
             steps_per_execution=self.steps_per_execution,
-            loss=hp.Choice('loss', ['binary_crossentropy', 'mse', 'mae', 'mape', 'msle', 'poisson', 'kld', 'cosine_similarity']),
-            metrics=['accuracy', 'mae', 'mse', 'mape', 'msle', 'poisson', 'cosine_similarity']
-            
+            metrics=[hp.get('metric')] if self.tunemode else [self.metric]  # Use tunable metric or default
         )
+
         # Print model summary
         if self.modelsummary:
             model.summary()
          
-
         return model
-
-    
 
     def get_optimizer(self, optimizer_name, learning_rate):
         optimizers = {
@@ -346,7 +358,6 @@ class CMdtuner:
         }
         return optimizers[optimizer_name](learning_rate=learning_rate)
 
-
     def get_callbacks(self):
         return [
             EarlyStopping(monitor=self.objective, patience=3, verbose=1),
@@ -355,22 +366,35 @@ class CMdtuner:
         ]
 
 
-    def transformer_block(self, inputs, hp, block_num):  # Add hp and block_num
-            key_dim = hp.Int(f'key_dim_{block_num}', min_value=self.trans_dim_min, max_value=self.trans_dim_max, step=self.trans_dim_step) # More realistic range
-            num_heads = hp.Int(f'num_heads_{block_num}', min_value=self.trans_heads_min, max_value=self.trans_heads_max, step=self.trans_heads_step)
-            ff_dim = hp.Int(f'ff_dim_{block_num}', min_value=self.trans_ff_min, max_value=self.trans_ff_max, step=self.trans_ff_step)
-            attn_out = MultiHeadAttention(num_heads=num_heads, key_dim=key_dim)(inputs, inputs)
-            attn_out = LayerNormalization()(inputs + attn_out)
-            ffn_out = Dense(ff_dim, activation="relu")(attn_out)
-            ffn_out = Dense(inputs.shape[-1])(ffn_out)  # Project back to original dimension
-            ffn_out = LayerNormalization()(inputs + ffn_out)
-            ffn_out = Dropout(self.dropout)(ffn_out)
-            return ffn_out
+    def transformer_block(self, inputs, hp, block_num,dim):
+        key_dim = hp.Int(f'key_dim_{block_num}', min_value=self.trans_dim_min, max_value=self.trans_dim_max, step=self.trans_dim_step)
+        num_heads = hp.Int(f'num_heads_{block_num}', min_value=self.trans_heads_min, max_value=self.trans_heads_max, step=self.trans_heads_step)
+        ff_dim = hp.Int(f'ff_dim_{block_num}', min_value=self.trans_ff_min, max_value=self.trans_ff_max, step=self.trans_ff_step)
+        activation = hp.Choice(f'activation_{block_num}', ['relu', 'tanh', 'gelu'])  # Configurable activation
+
+        # Multi-Head Attention
+        attn_out = MultiHeadAttention(num_heads=num_heads, key_dim=key_dim)(inputs, inputs)
+        attn_out = LayerNormalization()(inputs + attn_out)
+
+        # Feed-Forward Network
+        ffn_out = Dense(ff_dim, activation=activation)(attn_out)
+        ffn_out = Dropout(self.dropout)(ffn_out) # Dropout in FFN
+        ffn_out = Dense(inputs.shape[-1])(ffn_out)  # Project back to original dimension
+        ffn_out = LayerNormalization()(attn_out + ffn_out) # Residual connection and Layer Normalization
+        ffn_out = Dropout(self.dropout)(ffn_out) # Dropout after the block
+
+        return ffn_out
 
 
     def run_search(self):
+        print(self.tuner.get_search_space())
+        print(f"Running tuner search with {self.num_trials} trials")
+
         try:
-            best_hps = self.tuner.get_best_hyperparameters(num_trials=1)[0]
+            best_hps_list = self.tuner.get_best_hyperparameters(num_trials=1)
+            if not best_hps_list:
+                raise ValueError("No hyperparameters found. Ensure tuning has been run successfully.")
+            best_hps = best_hps_list[0]
             tuned_epochs = best_hps.get('epochs', self.max_epochs)
 
             print(f"Running tuner search with tuned epochs: {tuned_epochs}")
@@ -383,6 +407,7 @@ class CMdtuner:
             )
         except Exception as e:
             print(f"Error during tuning: {e}")
+            raise  # Re-raise the exception to ensure it is not silently ignored
 
     def export_best_model(self, ftype='tf'):
 
@@ -449,5 +474,4 @@ class CMdtuner:
             print("No models found. Ensure tuning has been run successfully.")
         except Exception as e:
             print(f"Error during prediction: {e}")
-
-
+            return None
