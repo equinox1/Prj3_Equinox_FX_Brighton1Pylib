@@ -51,15 +51,17 @@ from tsMqlMLTune import CMdtuner
 from tsMqlReference import CMqlTimeConfig
 from tsMqlSetup import tsMqlSetup
 from tsMqlReference import CMqlTimeConfig
+from tsMqlMLTuneParams import CMdtunerHyperModel
 
 s1 = tsMqlSetup(loglevel='INFO', warn='ignore')
 strategy = s1.get_computation_strategy()
-mp_ml_show_plot=False
-ONNX_save=False
-mp_ml_hard_run= True
 
 def main():
     with strategy.scope():
+        mp_ml_show_plot=False
+        ONNX_save=False
+        mp_ml_hard_run= True
+        
         tm = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES')
         MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH = tm.get_current_time(tm)
         print("CURRENTYEAR:",CURRENTYEAR, "CURRENTDAYS:",CURRENTDAYS, "CURRENTMONTH:",CURRENTMONTH)
@@ -572,9 +574,9 @@ def main():
                 'factor': 10,
                 'seed': 42,
                 'hyperband_iterations': 1,
-                'tune_new_entries': False,
-                'allow_new_entries': False,
-                'max_retries_per_trial': 5,
+                'tune_new_entries':True,
+                'allow_new_entries': True,
+                'max_retries_per_trial': 0,
                 'max_consecutive_failed_trials': 3,
                 'validation_split': 0.2,
                 'epochs': mp_ml_tf_param_epochs,
@@ -723,117 +725,122 @@ def main():
         # If no model or hard run then run the search
         if best_model is None or mp_ml_hard_run:
             print("Running the tuner search")
-            mt.run_search()
-            print("Tuner search completed")
-            print("Exporting the best model")
-            mt.export_best_model(ftype='tf')
-            print("Best model exported")
-            # Reload the best model after exporting
-            best_model = mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')
-        else:
-            print("Existing Best model loaded successfully.")
+            runtuner=mt.run_search()
+            if runtuner:
+                print("Tuner search completed")
+                print("Exporting the best model")
+                mt.export_best_model(ftype='tf')
+                print("Best model exported")
+                # Reload the best model after exporting
+            else:
+                print("Tuner search failed")
 
         # +-------------------------------------------------------------------
         # STEP: Train and evaluate the best model
         # +-------------------------------------------------------------------
+        if (load_model := mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')) is not None:
+            best_model = load_model
+            print("Best model loaded successfully evaluated as ", best_model)
+            # Model Training
+            print("Training the best model...")
+            best_model.fit(
+                train_dataset,
+                validation_data=val_dataset,
+                epochs=mp_ml_tf_param_epochs
+            )
+            print("Training completed.")
 
-        # Model Training
-        print("Training the best model...")
-        best_model.fit(
-            train_dataset,
-            validation_data=val_dataset,
-            epochs=mp_ml_tf_param_epochs
-        )
-        print("Training completed.")
+            # Model Evaluation
+            print("Evaluating the model...")
+            val_metrics = best_model.evaluate(val_dataset, verbose=1)
+            test_metrics = best_model.evaluate(test_dataset, verbose=1)
 
-        # Model Evaluation
-        # Model Evaluation
-        print("Evaluating the model...")
-        val_metrics = best_model.evaluate(val_dataset, verbose=1)
-        test_metrics = best_model.evaluate(test_dataset, verbose=1)
+            print(f"Validation Metrics - Loss: {val_metrics[0]:.4f}, Accuracy: {val_metrics[1]:.4f}")
+            print(f"Test Metrics - Loss: {test_metrics[0]:.4f}, Accuracy: {test_metrics[1]:.4f}")
 
-        print(f"Validation Metrics - Loss: {val_metrics[0]:.4f}, Accuracy: {val_metrics[1]:.4f}")
-        print(f"Test Metrics - Loss: {test_metrics[0]:.4f}, Accuracy: {test_metrics[1]:.4f}")
+            # Fit the label scaler on the training labels
+            label_scaler.fit(y_train.reshape(-1, 1))
 
-        # Fit the label scaler on the training labels
-        label_scaler.fit(y_train.reshape(-1, 1))
+            # Predictions and Scaling
+            print("Running predictions and scaling...")
+            predicted_fx_price = best_model.predict(test_dataset)
+            predicted_fx_price = label_scaler.inverse_transform(predicted_fx_price)
 
-        # Predictions and Scaling
-        print("Running predictions and scaling...")
-        predicted_fx_price = best_model.predict(test_dataset)
-        predicted_fx_price = label_scaler.inverse_transform(predicted_fx_price)
+            real_fx_price = label_scaler.inverse_transform(y_test.reshape(-1, 1))
 
-        real_fx_price = label_scaler.inverse_transform(y_test.reshape(-1, 1))
+            print("Predictions and scaling completed.")
+            # +-------------------------------------------------------------------
+            # STEP: Performance Check
+            # +-------------------------------------------------------------------
+            # Evaluation and visualization
+            # Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values. 
+            # The lower the MSE, the better the model.
 
-        print("Predictions and scaling completed.")
-        # +-------------------------------------------------------------------
-        # STEP: Performance Check
-        # +-------------------------------------------------------------------
-        # Evaluation and visualization
-        # Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values. 
-        # The lower the MSE, the better the model.
+            # Mean Absolute Error (MAE): It measures the average absolute difference between the predicted and actual values. 
+            # Like MSE, lower values indicate better model performance.
 
-        # Mean Absolute Error (MAE): It measures the average absolute difference between the predicted and actual values. 
-        # Like MSE, lower values indicate better model performance.
+            # R2 Score: Also known as the coefficient of determination, it measures the proportion of the variance in the
+            # dependent variable that is predictable from the independent variable(s). An R2 score of 1 indicates a 
+            # perfect fit, while a score of 0 suggests that the model is no better than predicting the mean of the label
+            # variable. Negative values indicate poor model performance.
+            # Check for NaN values and handle them
+            if np.isnan(real_fx_price).any() or np.isnan(predicted_fx_price).any():
+                print("Warning: NaN values found in input data. Handling NaNs by removing corresponding entries.")
+                mask = ~np.isnan(real_fx_price) & ~np.isnan(predicted_fx_price)
+                real_fx_price = real_fx_price[mask]
+                predicted_fx_price = predicted_fx_price[mask]
+            
+            mse = mean_squared_error(real_fx_price, predicted_fx_price)
+            mae = mean_absolute_error(real_fx_price, predicted_fx_price)
+            r2 = r2_score(real_fx_price, predicted_fx_price)
+            print(f"MSE: {mse}, MAE: {mae}, R2: {r2}")
+            print(f"Mean Squared Error: The lower the MSE, the better the model: {mse}")
+            print(f"Mean Absolute Error: The lower the MAE, the better the model: {mae}")
+            print(f"R2 Score: The closer to 1, the better the model: {r2}")
 
-        # R2 Score: Also known as the coefficient of determination, it measures the proportion of the variance in the
-        # dependent variable that is predictable from the independent variable(s). An R2 score of 1 indicates a 
-        # perfect fit, while a score of 0 suggests that the model is no better than predicting the mean of the label
-        # variable. Negative values indicate poor model performance.
-        # Check for NaN values and handle them
-        if np.isnan(real_fx_price).any() or np.isnan(predicted_fx_price).any():
-            print("Warning: NaN values found in input data. Handling NaNs by removing corresponding entries.")
-            mask = ~np.isnan(real_fx_price) & ~np.isnan(predicted_fx_price)
-            real_fx_price = real_fx_price[mask]
-            predicted_fx_price = predicted_fx_price[mask]
-        
-        mse = mean_squared_error(real_fx_price, predicted_fx_price)
-        mae = mean_absolute_error(real_fx_price, predicted_fx_price)
-        r2 = r2_score(real_fx_price, predicted_fx_price)
-        print(f"MSE: {mse}, MAE: {mae}, R2: {r2}")
-        print(f"Mean Squared Error: The lower the MSE, the better the model: {mse}")
-        print(f"Mean Absolute Error: The lower the MAE, the better the model: {mae}")
-        print(f"R2 Score: The closer to 1, the better the model: {r2}")
+            plt.plot(real_fx_price, color='red', label='Real FX Price')
+            plt.plot(predicted_fx_price, color='blue', label='Predicted FX Price')
+            plt.title('FX Price Prediction')
+            plt.xlabel('Time')
+            plt.ylabel('FX Price')
+            plt.legend()
+            plt.savefig(mp_ml_base_path + '/' + 'plot.png')
+            if mp_ml_show_plot:
+                plt.show()
+            print("Plot Model saved to ", mp_ml_base_path + '/' + 'plot.png')
 
-        plt.plot(real_fx_price, color='red', label='Real FX Price')
-        plt.plot(predicted_fx_price, color='blue', label='Predicted FX Price')
-        plt.title('FX Price Prediction')
-        plt.xlabel('Time')
-        plt.ylabel('FX Price')
-        plt.legend()
-        plt.savefig(mp_ml_base_path + '/' + 'plot.png')
-        if mp_ml_show_plot:
-            plt.show()
-        print("Plot Model saved to ", mp_ml_base_path + '/' + 'plot.png')
+            if ONNX_save:
+                # Save the model to ONNX
+            
+                # Define the output path
+                mp_output_path = mp_ml_data_path + f"model_{mp_symbol_primary}_{mp_ml_data_type}.onnx"
+                print(f"Output Path: {mp_output_path}")
 
-        if ONNX_save:
-            # Save the model to ONNX
-         
-            # Define the output path
-            mp_output_path = mp_ml_data_path + f"model_{mp_symbol_primary}_{mp_ml_data_type}.onnx"
-            print(f"Output Path: {mp_output_path}")
+                # Convert Keras model to ONNX
+                opset_version = 17  # Choose an appropriate ONNX opset version
 
-            # Convert Keras model to ONNX
-            opset_version = 17  # Choose an appropriate ONNX opset version
+                # Assuming your model has a single input
+                spec = [tf.TensorSpec(input_shape, tf.float32, name="input")]
+                onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature=spec, opset=opset_version)
 
-            # Assuming your model has a single input
-            spec = [tf.TensorSpec(input_shape, tf.float32, name="input")]
-            onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature=spec, opset=opset_version)
+                # Save the ONNX model
+                onnx.save_model(onnx_model, mp_output_path)
+                print(f"Model saved to {mp_output_path}")
 
-            # Save the ONNX model
-            onnx.save_model(onnx_model, mp_output_path)
-            print(f"Model saved to {mp_output_path}")
+                # Verify the ONNX model
+                checker.check_model(onnx_model)
+                print("ONNX model is valid.")
 
-            # Verify the ONNX model
-            checker.check_model(onnx_model)
-            print("ONNX model is valid.")
+                # Check ONNX Runtime version
+                print("ONNX Runtime version:", ort.__version__)
 
-            # Check ONNX Runtime version
-            print("ONNX Runtime version:", ort.__version__)
-
-        # finish
-        mt5.shutdown()
-        print("Finished")
-
+            # finish
+            mt5.shutdown()
+            print("Finished")
+        else:
+            print("No data loaded")
+            mt5.shutdown()
+            print("Finished")
+            
 if __name__ == "__main__":
     main()
