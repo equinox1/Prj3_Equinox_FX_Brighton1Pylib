@@ -60,7 +60,7 @@ def main():
     with strategy.scope():
         mp_ml_show_plot=False
         ONNX_save=False
-        mp_ml_hard_run= True
+        mp_ml_hard_run= False
         
         tm = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES')
         MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH = tm.get_current_time(tm)
