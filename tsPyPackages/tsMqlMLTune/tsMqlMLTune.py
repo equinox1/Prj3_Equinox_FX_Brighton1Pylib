@@ -203,6 +203,12 @@ class CMdtuner:
         hp.Int('trans_dim', min_value=self.trans_dim_min, max_value=self.trans_dim_max, step=self.trans_dim_step, default=self.trans_dim_default)
                 
         logging.info(f"Tuning Max epochs between {self.min_epochs} and {self.max_epochs}")
+        print("Tuner mode: ", self.tunemode, "Tuner mode epochs: ", self.tunemodeepochs)
+
+        if self.keras_tuner in tuner_classes:
+            print("Tuner Service:", self.keras_tuner)
+        else:
+            raise ValueError(f"Unsupported keras_tuner type: {self.keras_tuner}")
 
         tuner_classes = {
             'random': kt.RandomSearch,
@@ -226,7 +232,7 @@ class CMdtuner:
                     max_retries_per_trial=self.max_retries_per_trial,
                     max_consecutive_failed_trials=self.max_consecutive_failed_trials,
                     executions_per_trial=self.executions_per_trial,
-                    callbacks=[EarlyStopping(), ModelCheckpoint(), TensorBoard(), ReduceLROnPlateau()]  # Pass the callbacks here
+                    callbacks=self.get_callbacks()
                 )
                 self.tuner.search_space_summary()
             else:
