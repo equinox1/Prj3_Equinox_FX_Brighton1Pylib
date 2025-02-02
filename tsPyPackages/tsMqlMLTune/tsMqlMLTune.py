@@ -35,7 +35,9 @@ class CMdtuner:
             self.testdataset = self.testdataset.map(self.cast_to_float32)
 
         # Model configuration
-        self.keras_tuner = kwargs.get('keras_tuner', 'hyperband') # Random, Hyperband, Bayesian
+        
+        self.keras_tuner = kwargs.get('keras_tuner', 'hyperband') # bayesian, random, hyperband
+
         self.cnn_model = kwargs.get('cnn_model', False)
         self.lstm_model = kwargs.get('lstm_model', False)
         self.gru_model = kwargs.get('gru_model', False)
@@ -73,6 +75,7 @@ class CMdtuner:
         self.verbose = kwargs.get('verbose', 1)
         self.patience = kwargs.get('patience', 10)
         self.restore_best_weights = kwargs.get('restore_best_weights', True)
+        self.save_best_only = kwargs.get('save_best_only', True)
         
         
         # Optimizer configurations
@@ -192,8 +195,14 @@ class CMdtuner:
         else:
             hp.Fixed('epochs', self.min_epochs)
 
-        hp.Int('cnn_filters', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
-        hp.Int('cnn_kernel_size', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
+        if self.tunemode:
+            hp.Int('cnn_filters', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
+            hp.Int('cnn_kernel_size', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
+        else:
+            hp.Int('cnn_filters', min_value=2, max_value=5, step=1, default=3)
+            hp.Int('cnn_kernel_size', min_value=2, max_value=5, step=1, default=3)
+                
+        
         hp.Int('lstm_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
         hp.Int('gru_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
         hp.Int('cnn_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
@@ -205,16 +214,14 @@ class CMdtuner:
         logging.info(f"Tuning Max epochs between {self.min_epochs} and {self.max_epochs}")
         print("Tuner mode: ", self.tunemode, "Tuner mode epochs: ", self.tunemodeepochs)
 
-        if self.keras_tuner in tuner_classes:
-            print("Tuner Service:", self.keras_tuner)
-        else:
-            raise ValueError(f"Unsupported keras_tuner type: {self.keras_tuner}")
-
         tuner_classes = {
             'random': kt.RandomSearch,
             'hyperband': kt.Hyperband,
             'bayesian': kt.BayesianOptimization
         }
+        print("Tuner Service Checker:", self.keras_tuner)
+        if self.keras_tuner in tuner_classes:
+            print("Tuner Service is:", self.keras_tuner)
         try:
             if self.keras_tuner in tuner_classes:
                 self.tuner = tuner_classes[self.keras_tuner](
@@ -222,7 +229,7 @@ class CMdtuner:
                     hyperparameters=hp,  # Pass the HyperParameters object
                     hyperband_iterations=self.hyperband_iterations,
                     objective=self.objective,
-                    max_epochs=self.max_epochs,  # Ensure max_epochs is properly set
+                    max_epochs=self.max_epochs,
                     factor=self.factor,
                     directory=self.basepath,
                     project_name=self.project_name,
@@ -232,26 +239,29 @@ class CMdtuner:
                     max_retries_per_trial=self.max_retries_per_trial,
                     max_consecutive_failed_trials=self.max_consecutive_failed_trials,
                     executions_per_trial=self.executions_per_trial,
-                    callbacks=self.get_callbacks()
                 )
-                self.tuner.search_space_summary()
+                self.tuner.search_space_summary()  # Only call if tuner initialized
             else:
                 raise ValueError(f"Unsupported keras_tuner type: {self.keras_tuner}")
+                assert hasattr(self, 'tuner'), "Tuner was not initialized!"
         except Exception as e:
             logging.error(f"Error initializing tuner: {e}")
+            self.tuner = None  # Set to None to avoid future errors
 
-        self.tuner.search_space_summary()
+
         
     def build_model(self, hp):
         # Shared Input Logic
         shared_input = Input(shape=self.main_input_shape, name='shared_input') if not self.multi_inputs else None
         inputs = [] if self.multi_inputs else [shared_input]
         branches = []
+        print(f"Shared input shape: {shared_input.shape} self.multi_inputs {self.multi_inputs}")
 
         # CNN Branch
         if self.cnn_model:
             cnn_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='cnn_input')
             if self.multi_inputs: inputs.append(cnn_input)
+            print(f"Input shape cnn: {cnn_input.shape}")
                 
             if self.tunemode:
                 cnn_branch = Conv1D(
@@ -261,37 +271,44 @@ class CMdtuner:
                 )(cnn_input)
             else:
                 cnn_branch = Conv1D(
-                    filters=hp.get('cnn_filters'),
-                    kernel_size=hp.get('cnn_kernel_size'),
-                    activation='relu' # Default activation
+                   filters=hp.Int('cnn_filters', min_value=32, max_value=128, step=32, default=64),
+                    kernel_size=hp.Int('cnn_kernel_size', min_value=2, max_value=5, step=1, default=3),
+                    activation="relu"
                 )(cnn_input)
+
+            cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
+            cnn_branch = Flatten()(cnn_branch)
             branches.append(cnn_branch)
 
         # LSTM Branch
         if self.lstm_model:
             lstm_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='lstm_input')
+            print(f"Input shape lstm: {lstm_input.shape}")
             if self.multi_inputs: inputs.append(lstm_input)
-
+          
             if self.tunemode:
                 lstm_branch = LSTM(units=hp.get('lstm_units'), activation=hp.get('activation'))(lstm_input)
             else:
-                lstm_branch = LSTM(96, activation='relu')(lstm_input) # Example
+                lstm_branch = LSTM(units=hp.Int('lstm_units', min_value=32, max_value=128, step=32, default=64))(lstm_input)
+            
             branches.append(lstm_branch)
 
         # GRU Branch
         if self.gru_model:
             gru_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='gru_input')
             if self.multi_inputs: inputs.append(gru_input)
+            print(f"Input shape gru : {gru_input.shape}")
             if self.tunemode:
                 gru_branch = GRU(units=hp.get('gru_units'), activation=hp.get('activation'))(gru_input)
             else:
-                gru_branch = GRU(64, activation='relu')(gru_input) # Example
+                 gru_branch = GRU(units=hp.Int('gru_units', min_value=32, max_value=128, step=32, default=64))(gru_input)
             branches.append(gru_branch)
 
         # Transformer Branch
         if self.transformer_model:
             transformer_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='transformer_input')
             if self.multi_inputs: inputs.append(transformer_input)
+            print(f"Input shape trans: {transformer_input.shape}")
             transformer_branch = transformer_input
 
             num_transformer_blocks = hp.get('num_transformer_blocks')
@@ -376,9 +393,9 @@ class CMdtuner:
     def get_callbacks(self):
         return [
             EarlyStopping(monitor=self.objective, patience=self.patience, verbose=self.verbose, restore_best_weights=self.restore_best_weights), # restore_best_weights added
-            ModelCheckpoint(filepath=self.checkpoint_filepath, save_best_only=True, verbose=1),
+            ModelCheckpoint(filepath=self.checkpoint_filepath, save_best_only=self.save_best_only, verbose=self.verbose),
             TensorBoard(log_dir=os.path.join(self.basepath, 'logs')),
-            ReduceLROnPlateau(monitor=self.objective, factor=0.5, patience=3, min_lr=1e-6, verbose=1) # Learning rate scheduler
+            ReduceLROnPlateau(monitor=self.objective, factor=1, patience=self.patience, min_lr=1e-6, verbose=self.verbose) # Learning rate scheduler
         ]
 
     def transformer_block(self, inputs, hp, block_num,dim):
@@ -408,7 +425,8 @@ class CMdtuner:
                 self.traindataset,
                 validation_data=self.valdataset,
                 epochs=self.max_epochs,
-                callbacks=[lambda: self.build_model(hp)[1]] # Pass the EarlyStopping callback
+                verbose=self.verbose,
+                callbacks=self.get_callbacks()
             )
 
             best_hps = self.tuner.get_best_hyperparameters(num_trials=1)
