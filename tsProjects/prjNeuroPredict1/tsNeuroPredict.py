@@ -60,7 +60,9 @@ def main():
     with strategy.scope():
         mp_ml_show_plot=False
         ONNX_save=False
-        mp_ml_hard_run= False
+        mp_ml_hard_run= True
+        mp_ml_tunemode = True
+        mp_ml_tunemodeepochs = True
         
         tm = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES')
         MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH = tm.get_current_time(tm)
@@ -172,8 +174,6 @@ def main():
         mp_ml_multi_inputs_preprocess = True
         mp_ml_multi_outputs = False
         mp_ml_multi_branches = True
-        mp_ml_tunemode = True
-        mp_ml_tunemodeepochs = True
         mp_ml_modelsummary = False
         
         #model parameters
@@ -261,7 +261,7 @@ def main():
         mv_data_dfname1 = "df_rates1"
         mv_data_dfname2 = "df_rates2"
         mp_data_rows = 1000 # number of mp_data_tab_rows to fetch
-        mp_data_rowcount = 10000 # number of mp_data_tab_rows to fetch
+        mp_data_rowcount = 20000 # number of mp_data_tab_rows to fetch
         mp_data_history_size = 5 # Number of years of data to fetch
         mp_data_cfg_usedata = 'loadfilerates' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
         mp_data_command_ticks = mt5.COPY_TICKS_ALL
@@ -460,17 +460,23 @@ def main():
         future_width = futuretimeperiods * timeval
         pred_width = predtimeperiods * timeval
         print("past_width:", past_width, "future_width:", future_width, "pred_width:", pred_width)
-
+        
+        # +-------------------------------------------------------------------
+        # STEP: Normalize X and Y values
+        # +-------------------------------------------------------------------
         # Create the input features (X) and label values (y)
         print("list(mp_ml_custom_input_keyfeat_scaled)", list(mp_ml_custom_input_keyfeat_scaled))
 
-        # STEP: Create input (X) and label (Y) tensors Ensure consistent data shape
         # Create the input (X) and label (Y) tensors Close_scaled is the feature to predict and Close last entry in future the label
         mv_tdata2_X, mv_tdata2_y = m1.create_Xy_time_windows3(mv_tdata2, past_width, future_width, target_column=list(mp_ml_custom_input_keyfeat_scaled), feature_column=list(mp_ml_custom_input_keyfeat))
         print("mv_tdata2_X.shape", mv_tdata2_X.shape, "mv_tdata2_y.shape", mv_tdata2_y.shape)
 
+        # +-------------------------------------------------------------------
+        # STEP: Normalize Y values
+        # +-------------------------------------------------------------------
         # Scale the Y labels
-        mv_tdata2_y = scaler.transform(mv_tdata2_y.reshape(-1, 1))  # Transform Y values
+        # mv_tdata2_y = scaler.transform(mv_tdata2_y.reshape(-1, 1)).flatten()  # Transform Y values and flatten back to original shape
+        
         # +-------------------------------------------------------------------
         # STEP: Split the data into training and test sets Fixed Partitioning
         # +-------------------------------------------------------------------
@@ -571,7 +577,7 @@ def main():
             return {
                 'objective': 'val_loss',
                 'max_epochs': mp_ml_tf_param_max_epochs,
-                'factor': 10,
+                'factor': 3,
                 'seed': 42,
                 'hyperband_iterations': 1,
                 'tune_new_entries':True,
@@ -591,7 +597,7 @@ def main():
                 'overwrite': True,
                 'executions_per_trial': 1,
                 'chk_fullmodel': True,
-                'chk_verbosity': 1,
+                'chk_verbosity': 0,
                 'chk_mode': 'min',
                 'chk_monitor': 'val_loss',
                 'chk_sav_freq': 'epoch',
@@ -608,6 +614,7 @@ def main():
                 'unitstep': mp_ml_unit_step,
                 'defaultunits': mp_ml_default_units,
                 'num_trials': mp_ml_num_trials,
+                'keras_tuner': 'bayesian', # 'random', 'hyperband', 'bayesian'
             }
 
         # Print configuration details for logging
@@ -644,8 +651,8 @@ def main():
                     multi_outputs=mp_ml_multi_outputs,
                     multi_branches=mp_ml_multi_branches,
                     #Logging
-                    tf1=True,
-                    tf2T=True,
+                    tf1=False,
+                    tf2T=False,
                     # Model parameters and hypermodel params
                     step=mp_ml_tf_param_steps,
                     objective=hypermodel_params['objective'],
@@ -725,7 +732,12 @@ def main():
         # If no model or hard run then run the search
         if best_model is None or mp_ml_hard_run:
             print("Running the tuner search")
-            runtuner=mt.run_search()
+            if  mp_ml_hard_run:
+                 runtuner=mt.run_search()
+            else:
+                print("Hard run not set and model is: ",best_model)
+                runtuner=False
+
             if runtuner:
                 print("Tuner search completed")
                 print("Exporting the best model")

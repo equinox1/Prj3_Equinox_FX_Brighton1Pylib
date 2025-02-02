@@ -8,7 +8,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.metrics import MeanAbsoluteError
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, ReduceLROnPlateau
 import keras_tuner as kt
 import os
 import pathlib
@@ -52,6 +52,7 @@ class CMdtuner:
         self.batch_size = kwargs.get('batch_size', 32)
         self.dropout = kwargs.get('dropout', 0.3)
         self.steps_per_execution = kwargs.get('steps_per_execution', 32)
+        self.executions_per_trial = kwargs.get('executions_per_trial', 1)
 
         # Training configurations
         self.objective = kwargs.get('objective', 'val_loss')
@@ -69,6 +70,10 @@ class CMdtuner:
         self.max_retries_per_trial = kwargs.get('max_retries_per_trial', 9)
         self.max_consecutive_failed_trials = kwargs.get('max_consecutive_failed_trials', 3)
         self.hyperband_iterations = kwargs.get('hyperband_iterations', 1)
+        self.verbose = kwargs.get('verbose', 1)
+        self.patience = kwargs.get('patience', 10)
+        self.restore_best_weights = kwargs.get('restore_best_weights', True)
+        
         
         # Optimizer configurations
         self.scaler = None  # Initialize scaler
@@ -182,7 +187,11 @@ class CMdtuner:
 
         hp.Float('l2_reg', min_value=1e-6, max_value=1e-2, sampling='log', default=1e-4)
 
-        hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=1)
+        if self.tunemodeepochs:
+            hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=1)
+        else:
+            hp.Fixed('epochs', self.min_epochs)
+
         hp.Int('cnn_filters', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
         hp.Int('cnn_kernel_size', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
         hp.Int('lstm_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
@@ -216,6 +225,8 @@ class CMdtuner:
                     allow_new_entries=self.allow_new_entries,
                     max_retries_per_trial=self.max_retries_per_trial,
                     max_consecutive_failed_trials=self.max_consecutive_failed_trials,
+                    executions_per_trial=self.executions_per_trial,
+                    callbacks=[EarlyStopping(), ModelCheckpoint(), TensorBoard(), ReduceLROnPlateau()]  # Pass the callbacks here
                 )
                 self.tuner.search_space_summary()
             else:
@@ -245,12 +256,9 @@ class CMdtuner:
             else:
                 cnn_branch = Conv1D(
                     filters=hp.get('cnn_filters'),
-                    kernel_size=5, # Sensible default
-                    activation="relu"
+                    kernel_size=hp.get('cnn_kernel_size'),
+                    activation='relu' # Default activation
                 )(cnn_input)
-
-            cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
-            cnn_branch = Flatten()(cnn_branch)
             branches.append(cnn_branch)
 
         # LSTM Branch
@@ -361,11 +369,11 @@ class CMdtuner:
 
     def get_callbacks(self):
         return [
-            EarlyStopping(monitor=self.objective, patience=3, verbose=1),
+            EarlyStopping(monitor=self.objective, patience=self.patience, verbose=self.verbose, restore_best_weights=self.restore_best_weights), # restore_best_weights added
             ModelCheckpoint(filepath=self.checkpoint_filepath, save_best_only=True, verbose=1),
-            TensorBoard(log_dir=os.path.join(self.basepath, 'logs'))
+            TensorBoard(log_dir=os.path.join(self.basepath, 'logs')),
+            ReduceLROnPlateau(monitor=self.objective, factor=0.5, patience=3, min_lr=1e-6, verbose=1) # Learning rate scheduler
         ]
-
 
     def transformer_block(self, inputs, hp, block_num,dim):
         key_dim = hp.Int(f'key_dim_{block_num}', min_value=self.trans_dim_min, max_value=self.trans_dim_max, step=self.trans_dim_step)
@@ -393,7 +401,8 @@ class CMdtuner:
             self.tuner.search(
                 self.traindataset,
                 validation_data=self.valdataset,
-                epochs=self.max_epochs
+                epochs=self.max_epochs,
+                callbacks=[lambda: self.build_model(hp)[1]] # Pass the EarlyStopping callback
             )
 
             best_hps = self.tuner.get_best_hyperparameters(num_trials=1)
@@ -444,7 +453,7 @@ class CMdtuner:
             if os.path.exists(model_path):
                 model = tf.keras.models.load_model(model_path)
                 print(f"Model loaded successfully from {model_path}")
-                print(model.summary())
+                model.summary()
                 return model
             else:
                 print(f"Model file does not exist at {model_path}")
