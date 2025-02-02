@@ -65,6 +65,7 @@ def main():
         mp_ml_tunemodeepochs = True
         mp_data_rows = 1000 # number of mp_data_tab_rows to fetch
         mp_data_rowcount = 10000 # number of mp_data_tab_rows to fetch
+        mp_ml_Keras_tuner = 'hyperband' # 'hyperband' or 'randomsearch' or 'bayesian' or 'skopt' or 'optuna'
         
         tm = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES')
         MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH = tm.get_current_time(tm)
@@ -203,7 +204,7 @@ def main():
         mp_ml_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in mp_ml_custom_input_keyfeat}  # the feature to predict
         mp_ml_custom_output_label_scaled = {targ + '_Scaled' for targ in mp_ml_custom_output_label}  # the label shifted to predict
         mp_ml_custom_output_label_count=len(mp_ml_custom_output_label)
-        mp_ml_batch_size = 8
+        mp_ml_batch_size = 32
 
         #Splitting the data
         mp_ml_train_split = 0.7
@@ -441,7 +442,7 @@ def main():
             mv_tdata2 = mv_tdata2.sort_index()
             d1.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
 
-        # +-------------------------------------------------------------------
+       # +-------------------------------------------------------------------
         # STEP: Generate X and y from the Time Series
         # +-------------------------------------------------------------------
         # At thsi point the normalised data columns are split across the X and Y data
@@ -461,23 +462,18 @@ def main():
         future_width = futuretimeperiods * timeval
         pred_width = predtimeperiods * timeval
         print("past_width:", past_width, "future_width:", future_width, "pred_width:", pred_width)
-        
-        # +-------------------------------------------------------------------
-        # STEP: Normalize X and Y values
-        # +-------------------------------------------------------------------
+
         # Create the input features (X) and label values (y)
         print("list(mp_ml_custom_input_keyfeat_scaled)", list(mp_ml_custom_input_keyfeat_scaled))
 
+        # STEP: Create input (X) and label (Y) tensors Ensure consistent data shape
         # Create the input (X) and label (Y) tensors Close_scaled is the feature to predict and Close last entry in future the label
         mv_tdata2_X, mv_tdata2_y = m1.create_Xy_time_windows3(mv_tdata2, past_width, future_width, target_column=list(mp_ml_custom_input_keyfeat_scaled), feature_column=list(mp_ml_custom_input_keyfeat))
         print("mv_tdata2_X.shape", mv_tdata2_X.shape, "mv_tdata2_y.shape", mv_tdata2_y.shape)
 
-        # +-------------------------------------------------------------------
-        # STEP: Normalize Y values
-        # +-------------------------------------------------------------------
         # Scale the Y labels
-        # mv_tdata2_y = scaler.transform(mv_tdata2_y.reshape(-1, 1)).flatten()  # Transform Y values and flatten back to original shape
-        
+        mv_tdata2_y = scaler.transform(mv_tdata2_y.reshape(-1, 1))  # Transform Y values
+                
         # +-------------------------------------------------------------------
         # STEP: Split the data into training and test sets Fixed Partitioning
         # +-------------------------------------------------------------------
@@ -615,7 +611,7 @@ def main():
                 'unitstep': mp_ml_unit_step,
                 'defaultunits': mp_ml_default_units,
                 'num_trials': mp_ml_num_trials,
-                'keras_tuner': 'bayesian', # 'random', 'hyperband', 'bayesian'
+                'keras_tuner': mp_ml_Keras_tuner, 
             }
 
         # Print configuration details for logging
@@ -697,6 +693,7 @@ def main():
                     defaultunits=hypermodel_params['defaultunits'],
                     num_trials=hypermodel_params['num_trials'],
                     steps_per_execution=mp_ml_steps_per_execution,
+                    keras_tuner=hypermodel_params['keras_tuner']
                     )
                 print("Tuner initialized successfully.")
                 return mt
@@ -724,29 +721,32 @@ def main():
             test_dataset=test_dataset
         )
 
-        ## Run the tuner to find the best model configuration
         print("Running Main call to tuner")
-        mt.tuner.search_space_summary()
+
         # Check and load the model
         best_model = mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')
-        print ("Best model loaded successfully evaluated as ",best_model)
-        # If no model or hard run then run the search
-        if best_model is None or mp_ml_hard_run:
-            print("Running the tuner search")
-            if  mp_ml_hard_run:
-                 runtuner=mt.run_search()
-            else:
-                print("Hard run not set and model is: ",best_model)
-                runtuner=False
 
-            if runtuner:
-                print("Tuner search completed")
-                print("Exporting the best model")
-                mt.export_best_model(ftype='tf')
-                print("Best model exported")
-                # Reload the best model after exporting
-            else:
-                print("Tuner search failed")
+        # If no model or a hard run is required, run the search
+        runtuner = False
+
+        if best_model is None:
+            print("Running the tuner search")
+            runtuner = mt.run_search()
+        elif mp_ml_hard_run:  
+            print("Running the tuner search")
+            runtuner = mt.run_search()
+        else:
+            print("Best model loaded successfully")
+            runtuner = True
+
+        if runtuner:
+            print("Tuner search completed")
+            print("Exporting the best model")
+            mt.export_best_model(ftype='tf')
+            print("Best model exported")
+        else:
+            print("Tuner search failed or not required")
+
 
         # +-------------------------------------------------------------------
         # STEP: Train and evaluate the best model
