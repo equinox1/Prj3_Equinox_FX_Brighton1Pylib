@@ -63,6 +63,8 @@ def main():
         mp_ml_hard_run= True
         mp_ml_tunemode = True
         mp_ml_tunemodeepochs = True
+        mp_data_rows = 1000 # number of mp_data_tab_rows to fetch
+        mp_data_rowcount = 10000 # number of mp_data_tab_rows to fetch
         
         tm = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES')
         MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH = tm.get_current_time(tm)
@@ -260,8 +262,7 @@ def main():
         # 1: just the label, 2: label and features, 3:time label, features 4: full dataset
         mv_data_dfname1 = "df_rates1"
         mv_data_dfname2 = "df_rates2"
-        mp_data_rows = 1000 # number of mp_data_tab_rows to fetch
-        mp_data_rowcount = 20000 # number of mp_data_tab_rows to fetch
+       
         mp_data_history_size = 5 # Number of years of data to fetch
         mp_data_cfg_usedata = 'loadfilerates' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
         mp_data_command_ticks = mt5.COPY_TICKS_ALL
