@@ -178,20 +178,18 @@ class CMdtuner:
         hp.Choice('loss', ['binary_crossentropy', 'mse', 'mae', 'mape', 'msle', 'poisson', 'kld', 'cosine_similarity'])
         hp.Choice('activation', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
         hp.Choice('dense_1_activation', ['relu', 'tanh'])
-        hp.Float('l2_reg', min_value=1e-5, max_value=1e-2, sampling='LOG')
         hp.Choice('metric', ['accuracy', 'mae', 'mse', 'mape', 'msle', 'poisson', 'cosine_similarity'])
 
+        hp.Float('l2_reg', min_value=1e-6, max_value=1e-2, sampling='log', default=1e-4)
 
         hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=1)
         hp.Int('cnn_filters', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
         hp.Int('cnn_kernel_size', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
-        
         hp.Int('lstm_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
         hp.Int('gru_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
         hp.Int('cnn_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
         hp.Int('dense_1_units', min_value=self.dense_units_min, max_value=self.dense_units_max, step=self.dense_units_step)
 
-        
         num_transformer_blocks = hp.Int('num_transformer_blocks', min_value=1, max_value=3, step=1)
         hp.Int('trans_dim', min_value=self.trans_dim_min, max_value=self.trans_dim_max, step=self.trans_dim_step, default=self.trans_dim_default)
                 
@@ -202,25 +200,28 @@ class CMdtuner:
             'hyperband': kt.Hyperband,
             'bayesian': kt.BayesianOptimization
         }
-
-        if self.keras_tuner in tuner_classes:
-            self.tuner = tuner_classes[self.keras_tuner](
-                hypermodel=self.build_model,
-                hyperparameters=hp,  # Pass the HyperParameters object
-                hyperband_iterations=self.hyperband_iterations,
-                objective=self.objective,
-                max_epochs=self.max_epochs,  # Ensure max_epochs is properly set
-                factor=self.factor,
-                directory=self.basepath,
-                project_name=self.project_name,
-                overwrite=self.overwrite,
-                tune_new_entries=self.tune_new_entries,
-                allow_new_entries=self.allow_new_entries,
-                max_retries_per_trial=self.max_retries_per_trial,
-                max_consecutive_failed_trials=self.max_consecutive_failed_trials,
-            )
-        else:
-            raise ValueError(f"Unsupported keras_tuner type: {self.keras_tuner}")
+        try:
+            if self.keras_tuner in tuner_classes:
+                self.tuner = tuner_classes[self.keras_tuner](
+                    hypermodel=self.build_model,
+                    hyperparameters=hp,  # Pass the HyperParameters object
+                    hyperband_iterations=self.hyperband_iterations,
+                    objective=self.objective,
+                    max_epochs=self.max_epochs,  # Ensure max_epochs is properly set
+                    factor=self.factor,
+                    directory=self.basepath,
+                    project_name=self.project_name,
+                    overwrite=self.overwrite,
+                    tune_new_entries=self.tune_new_entries,
+                    allow_new_entries=self.allow_new_entries,
+                    max_retries_per_trial=self.max_retries_per_trial,
+                    max_consecutive_failed_trials=self.max_consecutive_failed_trials,
+                )
+                self.tuner.search_space_summary()
+            else:
+                raise ValueError(f"Unsupported keras_tuner type: {self.keras_tuner}")
+        except Exception as e:
+            logging.error(f"Error initializing tuner: {e}")
 
         self.tuner.search_space_summary()
         
@@ -387,27 +388,23 @@ class CMdtuner:
 
 
     def run_search(self):
-        print(self.tuner.get_search_space())
-        print(f"Running tuner search with {self.num_trials} trials")
-
+        logging.info("Running tuner search...")
         try:
-            best_hps_list = self.tuner.get_best_hyperparameters(num_trials=1)
-            if not best_hps_list:
-                raise ValueError("No hyperparameters found. Ensure tuning has been run successfully.")
-            best_hps = best_hps_list[0]
-            tuned_epochs = best_hps.get('epochs', self.max_epochs)
-
-            print(f"Running tuner search with tuned epochs: {tuned_epochs}")
-
             self.tuner.search(
                 self.traindataset,
                 validation_data=self.valdataset,
-                callbacks=self.get_callbacks(),
-                epochs=tuned_epochs,  # Use the tuned epochs
+                epochs=self.max_epochs
             )
+
+            best_hps = self.tuner.get_best_hyperparameters(num_trials=1)
+            if not best_hps:
+                raise ValueError("No hyperparameters found. Ensure tuning has been run successfully.")
+            
+            logging.info(f"Best hyperparameters: {best_hps[0].values}")
+
         except Exception as e:
-            print(f"Error during tuning: {e}")
-            raise  # Re-raise the exception to ensure it is not silently ignored
+            logging.error(f"Error during tuning: {e}")
+
 
     def export_best_model(self, ftype='tf'):
 
