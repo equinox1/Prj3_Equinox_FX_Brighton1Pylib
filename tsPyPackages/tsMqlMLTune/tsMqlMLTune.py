@@ -363,7 +363,9 @@ class CMdtuner:
             print(f"Branch shape1: {branches[0].shape}")
 
         print(f"Output shape: {output.shape}")
-
+        
+        tf.keras.backend.clear_session()
+        print("Ran swith clear session")
         model.compile(
             optimizer=self.get_optimizer(hp.get('optimizer'), hp.get('learning_rate')),
             loss=hp.get('loss') if self.tunemode else self.loss,  # Use tunable loss or default
@@ -395,7 +397,7 @@ class CMdtuner:
             EarlyStopping(monitor=self.objective, patience=self.patience, verbose=self.verbose, restore_best_weights=self.restore_best_weights), # restore_best_weights added
             ModelCheckpoint(filepath=self.checkpoint_filepath, save_best_only=self.save_best_only, verbose=self.verbose),
             TensorBoard(log_dir=os.path.join(self.basepath, 'logs')),
-            ReduceLROnPlateau(monitor=self.objective, factor=1, patience=self.patience, min_lr=1e-6, verbose=self.verbose) # Learning rate scheduler
+            ReduceLROnPlateau(monitor=self.objective, factor=0.1, patience=self.patience, min_lr=1e-6, verbose=self.verbose) # Learning rate scheduler
         ]
 
     def transformer_block(self, inputs, hp, block_num,dim):

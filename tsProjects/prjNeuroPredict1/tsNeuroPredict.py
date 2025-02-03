@@ -56,11 +56,42 @@ from tsMqlMLTuneParams import CMdtunerHyperModel
 s1 = tsMqlSetup(loglevel='INFO', warn='ignore')
 strategy = s1.get_computation_strategy()
 
+tfdebug = False
+
+if tfdebug:
+    tf.debugging.set_log_device_placement(True)
+    tf.config.experimental_run_functions_eagerly(True)
+    tf.config.run_functions_eagerly(True)
+    tf.config.optimizer.set_jit(True)
+    # List available GPUs
+    gpus = tf.config.list_physical_devices('GPU')
+    print("GPUs Available:", gpus)
+
+    # Enable memory growth to avoid sudden crashes
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+        tf.debugging.set_log_device_placement(True)
+
+    if tf.config.list_physical_devices('GPU'):
+        memory_info = tf.config.experimental.get_memory_info('GPU:0')
+        print("Current GPU Memory Usage:", memory_info)
+    import psutil
+    print("RAM Usage:", psutil.virtual_memory().used / 1e9, "GB")
+
+    import gc
+    tf.keras.backend.clear_session()
+    gc.collect()
+
+
+from tensorflow.keras.mixed_precision import set_global_policy
+set_global_policy('mixed_float16')
+
 def main():
     with strategy.scope():
+      
         mp_ml_show_plot=False
         ONNX_save=False
-        mp_ml_hard_run= True
+        mp_ml_hard_run= False
         mp_ml_tunemode = True
         mp_ml_tunemodeepochs = True
         mp_data_rows = 1000 # number of mp_data_tab_rows to fetch
@@ -204,7 +235,7 @@ def main():
         mp_ml_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in mp_ml_custom_input_keyfeat}  # the feature to predict
         mp_ml_custom_output_label_scaled = {targ + '_Scaled' for targ in mp_ml_custom_output_label}  # the label shifted to predict
         mp_ml_custom_output_label_count=len(mp_ml_custom_output_label)
-        mp_ml_batch_size = 32
+        mp_ml_batch_size = 16
 
         #Splitting the data
         mp_ml_train_split = 0.7
@@ -730,35 +761,51 @@ def main():
         runtuner = False
 
         if best_model is None:
-            print("Running the tuner search")
+            print("Running the tuner search bo model")
             runtuner = mt.run_search()
+            mt.export_best_model(ftype='tf')
         elif mp_ml_hard_run:  
-            print("Running the tuner search")
+            print("Running the tuner search hard run")
             runtuner = mt.run_search()
+            mt.export_best_model(ftype='tf')
         else:
             print("Best model loaded successfully")
             runtuner = True
 
-        if runtuner:
-            print("Tuner search completed")
-            print("Exporting the best model")
-            mt.export_best_model(ftype='tf')
-            print("Best model exported")
-        else:
-            print("Tuner search failed or not required")
-
+        
 
         # +-------------------------------------------------------------------
         # STEP: Train and evaluate the best model
         # +-------------------------------------------------------------------
+        print("Model: Loading file from directory", mp_ml_mbase_path,"Model: filename", mp_ml_project_name)   
         if (load_model := mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')) is not None:
             best_model = load_model
-            print("Best model loaded successfully evaluated as ", best_model)
+            print("Model: Best model: ", best_model.name)
+            for layer in best_model.layers:
+                print(f"Layer Name: {layer.name}")
+                print(f"Layer Type: {layer.__class__.__name__}")
+                print(f"Number of Parameters: {layer.count_params()}")
+                print(f"Trainable: {layer.trainable}")
+                print("layer config: ",layer.get_config())
+                print("layer weights: ",layer.get_weights())
+                print("layer input: ",layer.input_spec)
+                print("layer trainable weights: ",layer.trainable_weights)
+                print("layer non trainable weights: ",layer.non_trainable_weights)
+                print("layer losses: ",layer.losses)
+                print("layer updates: ",layer.updates)
+            
+
+                print("-" * 40)
+
+            """
+            # Fit the label scaler on the training labels
+        
             # Model Training
             print("Training the best model...")
             best_model.fit(
                 train_dataset,
                 validation_data=val_dataset,
+                batch_size=2,
                 epochs=mp_ml_tf_param_epochs
             )
             print("Training completed.")
@@ -854,6 +901,6 @@ def main():
             print("No data loaded")
             mt5.shutdown()
             print("Finished")
-            
+            """
 if __name__ == "__main__":
     main()
