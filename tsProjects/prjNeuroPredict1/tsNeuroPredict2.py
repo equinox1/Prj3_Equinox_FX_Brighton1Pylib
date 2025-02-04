@@ -24,15 +24,17 @@ import warnings
 from numpy import concatenate
 # Import equinox functionality
 from tsMqlConnect import CMqlinit, CMqlBrokerConfig
-from tsMqlData import CMqldatasetup
+from tsMqlDataProcess import CMqldataprocess
+from tsMqlDataLoader import CMMarketDataParams
+from tsMqlSetup import CMqlSetup, CMqlEnvData, CMqlEnvML, CMqlEnvGlobal
 from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
 from tsMqlMLTune import CMdtuner
 from tsMqlReference import CMqlTimeConfig
-from tsMqlSetup import tsMqlSetup
-from tsMqlReference import CMqlTimeConfig
+from sklearn.preprocessing import MinMaxScaler ,StandardScaler, RobustScaler, QuantileTransformer, PowerTransformer
 
-s1 = tsMqlSetup(loglevel='INFO', warn='ignore')
-strategy = s1.get_computation_strategy()
+
+obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore')
+strategy = obj1_CMqlSetup.get_computation_strategy()
 mp_ml_show_plot=False
 
 broker = "METAQUOTES" # "ICM" or "METAQUOTES"
@@ -48,18 +50,25 @@ def main():
       # +-------------------------------------------------------------------
       # STEP: Load Reference class and time variables
       # +-------------------------------------------------------------------
-      tm = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES')
-      MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH = tm.get_current_time(tm)
+      obj1_CMqlTimeConfig = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES')
+      MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH = obj1_CMqlTimeConfig.get_current_time(obj1_CMqlTimeConfig)
       print("MINUTES:",MINUTES, "HOURS:",HOURS, "DAYS:",DAYS, "TIMEZONE:",TIMEZONE)
-      print("CURRENTYEAR:",CURRENTYEAR, "CURRENTDAYS:",CURRENTDAYS, "CURRENTMONTH:",CURRENTMONTH)
-      TIMEFRAME = tm.TIME_CONSTANTS['TIMEFRAME']['H4'] # override as M1 needs checking
+      
+      mp_symbol_primary =  str(obj1_CMqlTimeConfig.TIME_CONSTANTS['SYMBOLS'][0])
+      print("mp_symbol_primary:",mp_symbol_primary) 
+      TIMEFRAME = obj1_CMqlTimeConfig.TIME_CONSTANTS['TIMEFRAME']['H4'] # override as M1 needs checking
       
       # model api settings
-      datenv=CMqlEnvData()
-      mlenv =CMqlEnvML()
+      dataenv = CMqlEnvData()
+      mlenv = CMqlEnvML()
       globalenv = CMqlEnvGlobal()
 
-      print("daatenv:",datenv)
+      data_params = dataenv.get_data_params()
+      ml_params = mlenv.get_ml_params()
+      global_params = globalenv.get_global_params()
+
+
+      print("dataenv:",dataenv)
       print("mlenv:",mlenv)
       print("globalenv:",globalenv)
 
@@ -68,42 +77,68 @@ def main():
       # STEP: CBroker Login
       # +-------------------------------------------------------------------
       # initialize the broker
-      c0=CMqlBrokerConfig(lpbroker=broker, mp_symbol_primary=mp_symbol_primary, MPDATAFILE1=MPDATAFILE1, MPDATAFILE2=MPDATAFILE1)
-      broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit = c0.initialize_mt5(broker, tm)
-      # Login to the broker
-      c1=c0.login_mt5(broker_config)
-      print("Broker Login:",c1)
-      file_path = broker_config['MKFILES']
       
-
+      obj1_CMqlBrokerConfig=CMqlBrokerConfig(lpbroker=broker, mp_symbol_primary=mp_symbol_primary, MPDATAFILE1=MPDATAFILE1, MPDATAFILE2=MPDATAFILE1)
+      broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit = obj1_CMqlBrokerConfig.initialize_mt5(broker, obj1_CMqlTimeConfig)
+      # Login to the broker
+      obj2_CMqlBrokerConfig=obj1_CMqlBrokerConfig.login_mt5(broker_config)
+      print("Broker Login:",obj2_CMqlBrokerConfig)
+      file_path = broker_config['MKFILES']
+      MPDATAPATH = broker_config['MPDATAPATH']
+      
+      mp_data_rows = 1000
       # +-------------------------------------------------------------------
       # STEP: Data Preparation and Loading
       # +-------------------------------------------------------------------
       # Set up dataset
-      d1 = CMqldatasetup(datenv)
+      
+      obj1_CMqldataprocess = CMqldataprocess(dataenv, mlenv, globalenv)
+      mp_data_history_size = dataenv.mp_data_history_size
       print("CURRENTYEAR:",CURRENTYEAR, "CURRENTYEAR-mp_data_history_size",CURRENTYEAR-mp_data_history_size,"CURRENTDAYS:",CURRENTDAYS, "CURRENTMONTH:",CURRENTMONTH,"TIMEZONE:",TIMEZONE)
       #data from date to current date
-      mv_data_utc_from = d1.set_mql_timezone(CURRENTYEAR-mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
-      mv_data_utc_to = d1.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
+     
+      # Load tick data from MQL and FILE
+      obj1_params = CMMarketDataParams(
+      api_ticks=dataenv.mp_data_loadapiticks,
+      api_rates=dataenv.mp_data_loadapirates,
+      file_ticks=dataenv.mp_data_loadfileticks, 
+      file_rates=dataenv.mp_data_loadfilerates,
+      dfname1=dataenv.mv_data_dfname1, 
+      dfname2=dataenv.mv_data_dfname2, 
+      utc_from=None,
+      symbol_primary=mp_symbol_primary, 
+      rows=dataenv.mp_data_rows, 
+      rowcount=dataenv.mp_data_rowcount,
+      command_ticks=dataenv.mp_data_command_ticks, 
+      command_rates=dataenv.mp_data_command_rates,
+      data_path=MPDATAPATH, 
+      file_value1=broker_config['MPFILEVALUE1'], 
+      file_value2=broker_config['MPFILEVALUE2'],
+      timeframe=TIMEFRAME
+      )
+
+      mv_data_utc_from = obj1_params.set_mql_timezone(CURRENTYEAR-mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
+      mv_data_utc_to = obj1_params.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
       print("UTC From:",mv_data_utc_from)
       print("UTC To:",mv_data_utc_to)
       
-      # Load tick data from MQL and FILE
-      mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mp_data_loadapiticks, mp_data_loadapirates, mp_data_loadfileticks, mp_data_loadfilerates, mv_data_dfname1, mv_data_dfname2, mv_data_utc_from, mp_symbol_primary, mp_data_rows, mp_data_rowcount, mp_data_command_ticks,mp_data_command_rates, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2, TIMEFRAME)
 
+      """
+
+      mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_params.load_data_from_mql(obj1_CMqldataprocess, obj1_params)
       
       #wrangle the data merging and transforming time to numeric
       if len(mv_tdata1apiticks) > 0:  
-            mv_tdata1apiticks = d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
+            mv_tdata1apiticks = obj1_CMqldataprocess.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="tickobj1_CMqlSetup", filter_int=False, filter_flt=False, filter_obj=False, filter_dobj1_CMqlTimeConfigi=False, filter_dobj1_CMqlTimeConfigf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
       if len(mv_tdata1apirates) > 0:
-            mv_tdata1apirates = d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
+            mv_tdata1apirates = obj1_CMqldataprocess.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rateobj1_CMqlSetup", filter_int=False, filter_flt=False, filter_obj=False, filter_dobj1_CMqlTimeConfigi=False, filter_dobj1_CMqlTimeConfigf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
       if len(mv_tdata1loadticks) > 0:
-            mv_tdata1loadticks = d1.wrangle_time(mv_tdata1loadticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
+            mv_tdata1loadticks = obj1_CMqldataprocess.wrangle_time(mv_tdata1loadticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dobj1_CMqlTimeConfigi=False, filter_dobj1_CMqlTimeConfigf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
       if len(mv_tdata1loadrates) > 0:
-            mv_tdata1loadrates = d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
+            mv_tdata1loadrates = obj1_CMqldataprocess.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dobj1_CMqlTimeConfigi=False, filter_dobj1_CMqlTimeConfigf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
                 
       # Create labels
-      mv_tdata1apiticks = d1.create_label_wrapper(
+      mv_tdata1apiticks = obj1_CMqldataprocess.create_label_wrapper(
             df=mv_tdata1apiticks,
             bid_column="T1_Bid_Price",
             ask_column="T1_Ask_Price",
@@ -118,7 +153,7 @@ def main():
             **common_ml_params
         )
 
-      mv_tdata1apirates = d1.create_label_wrapper(
+      mv_tdata1apirates = obj1_CMqldataprocess.create_label_wrapper(
             df=mv_tdata1apirates,
             bid_column="R1_Bid_Price",
             ask_column="R1_Ask_Price",
@@ -133,7 +168,7 @@ def main():
             **common_ml_params
         )
 
-      mv_tdata1loadticks = d1.create_label_wrapper(
+      mv_tdata1loadticks = obj1_CMqldataprocess.create_label_wrapper(
             df=mv_tdata1loadticks,
             bid_column="T2_Bid_Price",
             ask_column="T2_Ask_Price",
@@ -148,7 +183,7 @@ def main():
             **common_ml_params
         )
 
-      mv_tdata1loadrates = d1.create_label_wrapper(
+      mv_tdata1loadrates = obj1_CMqldataprocess.create_label_wrapper(
             df=mv_tdata1loadrates,
             bid_column="R2_Bid_Price",
             ask_column="R2_Ask_Price",
@@ -164,10 +199,10 @@ def main():
         )
 
         # Display the data
-      d1.run_mql_print(mv_tdata1apiticks,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
-      d1.run_mql_print(mv_tdata1apirates,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
-      d1.run_mql_print(mv_tdata1loadticks,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
-      d1.run_mql_print(mv_tdata1loadrates,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
+      obj1_CMqldataprocess.run_mql_print(mv_tdata1apiticks,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
+      obj1_CMqldataprocess.run_mql_print(mv_tdata1apirates,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
+      obj1_CMqldataprocess.run_mql_print(mv_tdata1loadticks,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
+      obj1_CMqldataprocess.run_mql_print(mv_tdata1loadrates,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
 
       # copy the data for config selection
       data_sources = [mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates]
@@ -202,7 +237,7 @@ def main():
       
       mv_tdata2[mp_ml_custom_input_keyfeat_scaled] = scaler.fit_transform(mv_tdata2[mp_ml_custom_input_keyfeat_list])
       print("print Normalise")
-      d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
+      obj1_CMqldataprocess.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
       print("End of Normalise print")
       print("mv_tdata2.shape",mv_tdata2.shape)
 
@@ -210,9 +245,9 @@ def main():
       # STEP: remove datetime dtype to numeric from the data
       # +-------------------------------------------------------------------
       #if len(mv_tdata2) > 0:
-      #    mv_tdata2 = d1.wrangle_time(mv_tdata2, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=True, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=False)
+      #    mv_tdata2 = obj1_CMqldataprocess.wrangle_time(mv_tdata2, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dobj1_CMqlTimeConfigi=False, filter_dobj1_CMqlTimeConfigf=True, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=False)
 
-      #d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
+      #obj1_CMqldataprocess.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
       # +-------------------------------------------------------------------
       # STEP: add The time index to the data
       # +-------------------------------------------------------------------
@@ -235,18 +270,18 @@ def main():
       # +-------------------------------------------------------------------
       if mp_data_data_label == 1:
             mv_tdata2 = mv_tdata2[[list(mp_ml_custom_input_keyfeat_scaled)[0]]]
-            d1.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
+            obj1_CMqldataprocess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
             
       elif mp_data_data_label == 2:
             mv_tdata2 = mv_tdata2[[mv_tdata2.columns[0]] + [list(mp_ml_custom_input_keyfeat_scaled)[0]]]
             # Ensure the data is sorted by time
             mv_tdata2 = mv_tdata2.sort_index()
-            d1.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
+            obj1_CMqldataprocess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
 
       elif mp_data_data_label == 3:
             # Ensure the data is sorted by time use full dataset
             mv_tdata2 = mv_tdata2.sort_index()
-            d1.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
+            obj1_CMqldataprocess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
 
       # +-------------------------------------------------------------------
       # STEP: Generate X and y from the Time Series
@@ -364,7 +399,7 @@ def main():
       # +-------------------------------------------------------------------
       # STEP: Tune best model Hyperparameter tuning and model setup
       # +-------------------------------------------------------------------
-      base_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/PythonLib/tsModelData/"
+      base_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projecobj1_CMqlTimeConfigodelsequinox/equinrun/PythonLib/tsModelData/"
       project_name = "prjEquinox1_prod.keras"
       subdir = os.path.join(base_path, 'tshybrid_ensemble_tuning_prod', str(1))
 

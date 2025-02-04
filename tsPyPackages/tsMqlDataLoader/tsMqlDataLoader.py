@@ -1,5 +1,5 @@
 #+------------------------------------------------------------------+
-#|                                                    tsmqlmod1.pyw
+#|                                                    tsmqlmoobj.pyw
 #|                                                    tony shepherd |
 #|                                                  https://www.xercescloud.co.uk |
 #+------------------------------------------------------------------+
@@ -22,55 +22,65 @@ import tabulate
 from tabulate import tabulate
 import textwrap
 #--------------------------------------------------------------------
-# create class  "CMqldatasetup"
+# create class  "MarketDataParams"
 # usage: mql data services
 #
 # section:params
 # /param  double svar;              -  value
 #-------------------------------------------------------------------- 
-class MarketDataParams:
+class CMMarketDataParams:
     """Class to store and manage market data parameters."""
     
-    def __init__(self, 
-                 api_ticks, api_rates, 
-                 file_ticks, file_rates, 
-                 dfname1, dfname2, utc_from, 
-                 symbol_primary, rows, rowcount, 
-                 command_ticks, command_rates, 
-                 data_path, file_value1, file_value2, 
-                 timeframe,**kwargs):
+    def __init__(self, **kwargs):
+                self.api_ticks= kwargs.get('api_ticks', True),
+                self.api_rates= kwargs.get('api_rates', True),
+                self.file_ticks= kwargs.get('file_ticks', True),
+                self.file_rates= kwargs.get('file_rates', True),
+                self.dfname1= kwargs.get('dfname1', "df_rates1"),
+                self.dfname2= kwargs.get('dfname2', "df_rates2"),
+                self.utc_from= kwargs.get('utc_from', None),
+                self.symbol_primary= kwargs.get('symbol_primary', None),
+                self.rows= kwargs.get('rows', 1000),
+                self.rowcount= kwargs.get('rowcount', 10000),
+                self.command_ticks= kwargs.get('command_ticks', mt5.COPY_TICKS_ALL),
+                self.command_rates= kwargs.get('command_rates', None),
+                self.data_path= kwargs.get('data_path', None),
+                self.file_value1= kwargs.get('file_value1', None),
+                self.file_value2= kwargs.get('file_value2', None),
+                self.timeframe= kwargs.get('timeframe', None)
 
-        self.api_params = {
-            "ticks": api_ticks,
-            "rates": api_rates
-        }
-        
-        self.file_params = {
-            "ticks": file_ticks,
-            "rates": file_rates
-        }
-        
-        self.data_params = {
-            "dfname1": dfname1,
-            "dfname2": dfname2,
-            "utc_from": utc_from,
-            "symbol_primary": symbol_primary,
-            "rows": rows,
-            "rowcount": rowcount
-        }
-        
-        self.command_params = {
-            "ticks": command_ticks,
-            "rates": command_rates
-        }
-        
-        self.file_settings = {
-            "data_path": data_path,
-            "file_value1": file_value1,
-            "file_value2": file_value2
-        }
-        
-        self.timeframe = timeframe
+                self.api_params = {
+                    "ticks": api_ticks,
+                    "rates": api_rates
+                }
+                
+                self.file_params = {
+                    "ticks": file_ticks,
+                    "rates": file_rates
+                }
+                
+                self.data_params = {
+                    "dfname1": dfname1,
+                    "dfname2": dfname2,
+                    "utc_from": utc_from,
+                    "symbol_primary": symbol_primary,
+                    "rows": rows,
+                    "rowcount": rowcount
+                }
+                
+                self.command_params = {
+                    "ticks": command_ticks,
+                    "rates": command_rates
+                }
+                
+                self.file_settings = {
+                    "data_path": data_path,
+                    "file_value1": file_value1,
+                    "file_value2": file_value2
+                }
+                
+                self.timeframe = timeframe
+                
 
     def get_params(self):
         """Return all parameters as a dictionary for function call."""
@@ -84,12 +94,12 @@ class MarketDataParams:
         }
 
 
-    def load_market_data(d1, params_obj):
+    def load_market_data(self,obj, params_obj):
         """
         Function to load market data using parameters from MarketDataParams.
         
         Parameters:
-            d1 (object): The instance that contains the 'run_load_from_mql' method.
+            obj (object): The instance that contains the 'run_load_from_mql' method.
             params_obj (MarketDataParams): Instance of MarketDataParams class.
 
         Returns:
@@ -111,9 +121,28 @@ class MarketDataParams:
     # create method  "run_load_from_mql()".
     # class: cmqldatasetup      
     # usage: mql data
-    # /param  var                          
-    def load_data_from_mql(self, lp_loadapiticks, lp_loadapirates, lp_loadfileticks, lp_loadfilerates, lp_rates1, lp_rates2, lp_utc_from, lp_symbol, lp_rows, lp_rowcount, lp_command_ticks,lp_command_rates, lp_path, lp_filename1, lp_filename2, lp_timeframe):
+    # /param  var  
+    #  def load_data_from_mql(self, lp_loadapiticks, lp_loadapirates, lp_loadfileticks, lp_loadfilerates, lp_rates1, lp_rates2, lp_utc_from, lp_symbol, lp_rows, lp_rowcount, lp_command_ticks,lp_command_rates, lp_path, lp_filename1, lp_filename2, lp_timeframe):
+                         
+    def load_data_from_mql(self, lp_obj1,lp_obj2):
         
+        lp_loadapiticks = self.lp_loadapiticks
+        lp_loadapirates = self.lp_loadapirates
+        lp_loadfileticks = self.lp_loadfileticks
+        lp_loadfilerates = self.lp_loadfilerates
+        lp_rates1 = self.lp_rates1
+        lp_rates2 = self.lp_rates2
+        lp_utc_from = self.lp_utc_from
+        lp_symbol = self.lp_symbol
+        lp_rows = self.lp_rows
+        lp_rowcount = self.lp_rowcount
+        lp_command_ticks = self.lp_command_ticks
+        lp_command_rates = self.lp_command_rates
+        lp_path = self.lp_path
+        lp_filename1 = self.lp_filename1
+        lp_filename2 = self.lp_filename2
+        lp_timeframe = self.lp_timeframe
+
         #Reset the dataframes
         lp_rates1 = pd.DataFrame()
         lp_rates2 = pd.DataFrame()
