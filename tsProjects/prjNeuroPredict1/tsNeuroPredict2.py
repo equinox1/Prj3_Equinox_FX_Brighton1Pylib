@@ -53,27 +53,7 @@ def main():
       print("MINUTES:",MINUTES, "HOURS:",HOURS, "DAYS:",DAYS, "TIMEZONE:",TIMEZONE)
       print("CURRENTYEAR:",CURRENTYEAR, "CURRENTDAYS:",CURRENTDAYS, "CURRENTMONTH:",CURRENTMONTH)
       TIMEFRAME = tm.TIME_CONSTANTS['TIMEFRAME']['H4'] # override as M1 needs checking
-      mp_ml_data_type ='M1'
-      # +-------------------------------------------------------------------
-      # STEP: CBroker Login
-      # +-------------------------------------------------------------------
-      # initialize the broker
-      c0=CMqlBrokerConfig(lpbroker=broker, mp_symbol_primary=mp_symbol_primary, MPDATAFILE1=MPDATAFILE1, MPDATAFILE2=MPDATAFILE1)
-      broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit = c0.initialize_mt5(broker, tm)
-      # Login to the broker
-      c1=c0.login_mt5(broker_config)
-      BROKER = broker_config['BROKER']
-      MPPATH = broker_config['MPPATH']
-      MPBASEPATH = broker_config['MPBASEPATH']
-      MPDATAPATH = broker_config['MPDATAPATH']
-      MPFILEVALUE1 = broker_config['MPFILEVALUE1']
-      MPFILEVALUE2 = broker_config['MPFILEVALUE2']
-      MKFILES = broker_config['MKFILES']
-      file_path = broker_config['MKFILES']
       
-      # +-------------------------------------------------------------------
-      # STEP: Configuration settings
-      # +-------------------------------------------------------------------
       # model api settings
       datenv=CMqlEnvData()
       mlenv =CMqlEnvML()
@@ -83,24 +63,35 @@ def main():
       print("mlenv:",mlenv)
       print("globalenv:",globalenv)
 
-      # Load configuration parameters with default values
-    
+      mp_ml_data_type ='M1'
+      # +-------------------------------------------------------------------
+      # STEP: CBroker Login
+      # +-------------------------------------------------------------------
+      # initialize the broker
+      c0=CMqlBrokerConfig(lpbroker=broker, mp_symbol_primary=mp_symbol_primary, MPDATAFILE1=MPDATAFILE1, MPDATAFILE2=MPDATAFILE1)
+      broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit = c0.initialize_mt5(broker, tm)
+      # Login to the broker
+      c1=c0.login_mt5(broker_config)
+      print("Broker Login:",c1)
+      file_path = broker_config['MKFILES']
+      
+
       # +-------------------------------------------------------------------
       # STEP: Data Preparation and Loading
       # +-------------------------------------------------------------------
       # Set up dataset
       d1 = CMqldatasetup(datenv)
       print("CURRENTYEAR:",CURRENTYEAR, "CURRENTYEAR-mp_data_history_size",CURRENTYEAR-mp_data_history_size,"CURRENTDAYS:",CURRENTDAYS, "CURRENTMONTH:",CURRENTMONTH,"TIMEZONE:",TIMEZONE)
-
-      """        
+      #data from date to current date
       mv_data_utc_from = d1.set_mql_timezone(CURRENTYEAR-mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
       mv_data_utc_to = d1.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
       print("UTC From:",mv_data_utc_from)
       print("UTC To:",mv_data_utc_to)
-
+      
       # Load tick data from MQL and FILE
       mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mp_data_loadapiticks, mp_data_loadapirates, mp_data_loadfileticks, mp_data_loadfilerates, mv_data_dfname1, mv_data_dfname2, mv_data_utc_from, mp_symbol_primary, mp_data_rows, mp_data_rowcount, mp_data_command_ticks,mp_data_command_rates, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2, TIMEFRAME)
 
+      
       #wrangle the data merging and transforming time to numeric
       if len(mv_tdata1apiticks) > 0:  
             mv_tdata1apiticks = d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)

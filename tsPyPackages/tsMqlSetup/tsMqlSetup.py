@@ -60,6 +60,8 @@ class tsMqlEnvData:
         self.mp_data_rownumber = kwargs.get('mp_data_rownumber', False)
         self.mp_data_show_dtype = kwargs.get('mp_data_show_dtype', False)
         self.mp_data_show_head = kwargs.get('mp_data_show_head', False)
+
+        
     
     def get_data_params(self):
         return self.__dict__  # Returns all attributes as a dictionary
