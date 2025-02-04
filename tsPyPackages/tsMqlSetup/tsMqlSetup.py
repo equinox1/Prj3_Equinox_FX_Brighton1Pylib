@@ -5,7 +5,7 @@ import warnings
 import MetaTrader5 as mt5  # Ensure this is installed and imported
 import posixpath  # For path handling
 
-class tsMqlSetup:
+class CMqlSetup:
     def __init__(self, tflog='2', warn='ignore', **kwargs):
         self.kwargs = kwargs
         self.tflog = tflog
@@ -36,7 +36,7 @@ class tsMqlSetup:
             return tf.distribute.get_strategy()
 
 
-class tsMqlEnvData:
+class CMqlEnvData:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
         
@@ -67,7 +67,7 @@ class tsMqlEnvData:
         return self.__dict__  # Returns all attributes as a dictionary
 
 
-class tsMqlEnvML:
+class CMqlEnvML:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
         
@@ -113,6 +113,10 @@ class tsMqlEnvML:
         return self.__dict__  # Returns all attributes as a dictionary
 
 
-class tsMqlEnvGlobal:
+class CMqlEnvGlobal:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+        
+
+    def get_global_params(self):
+            return self.__dict__  # Returns all attributes as a dictionary

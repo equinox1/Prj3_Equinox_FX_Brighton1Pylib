@@ -28,41 +28,27 @@ import textwrap
 # section:params
 # /param  double svar;              -  value
 #-------------------------------------------------------------------- 
-class CMqldatasetup:
-    def __init__(self, **kwargs):
-        self.data = kwargs.get('data', None)
-        self.mv_loadapiticks = kwargs.get('mv_loadApi', False)
-        self.mv_loadapirates = kwargs.get('mv_loadApiRates', False)
-        self.mv_loadFile = kwargs.get('mv_loadFile', False)
-        self.mp_dfName = kwargs.get('mp_dfName', None)
-        self.mv_utc_from = kwargs.get('mv_utc_from', None)
-        self.mp_symbol_primary = kwargs.get('mp_symbol_primary', None)
-        self.mp_rows = kwargs.get('mp_rows', None)
-        self.mp_rowcount = kwargs.get('mp_rowcount', None)
-        self.mp_command = kwargs.get('mp_command', None)
-        self.mp_path = kwargs.get('mp_path', None)
-        self.mp_filename = kwargs.get('mp_filename', None)
-        self.mp_seconds = kwargs.get('mp_seconds', 60)
-        self.mp_unit = kwargs.get('mp_unit', 's')
-        self.lp_year = kwargs.get('lp_year', '2023')
-        self.lp_month = kwargs.get('lp_month', '01')
-        self.lp_day = kwargs.get('lp_day', '01')
-        self.lp_timezone = kwargs.get('lp_timezone', 'etc/utc')
-        self.lp_rates1 = kwargs.get('lp_rates1','lp_rates1')
-        self.lp_utc_from = kwargs.get('lp_utc_from', '2023-01-01 00:00:00+00:00')
-        self.lp_symbol = kwargs.get('lp_symbol', 'EURUSD')
-        self.lp_rows = kwargs.get('lp_rows', 1000)
-        self.lp_rowcount = kwargs.get('lp_rowcount', 1000)
-        self.lp_flag = kwargs.get('lp_flag', 'mt5.COPY_TICKS_ALL')
-        self.lp_path = kwargs.get('lp_path', '.')
-        self.lp_filename = kwargs.get('lp_filename', 'tickdata1')
-        self.lp_seconds = kwargs.get('lp_seconds', None)
-        self.lp_timeframe = kwargs.get('lp_timeframe', 'mt5.TIMEFRAME_M1')
-        self.lp_run = kwargs.get('lp_run', 1)
-        self.lp_features = kwargs.get('lp_features', 'Close')
-        self.lp_label = kwargs.get('lp_label', 'Label')
+class CMqldataprocess:
+    def __init__(self,dataenv,mlenv,globalenv, **kwargs):
+        self.dataenv = kwargs.get('dataenv', None)
+        self.mlenv = kwargs.get('mlenv', None)
+        self.globalenv = kwargs.get('globalenv', None)
         
-
+        self.lp_features = kwargs.get('lp_features', 'Features')
+        self.lp_label = kwargs.get('lp_label', 'Label')
+        self.lp_unit = kwargs.get('lp_unit', 's')
+        self.lp_seconds = kwargs.get('lp_seconds', 60)
+        self.lp_timezone = kwargs.get('lp_timezone', 'etc/UTC')
+        self.lp_filesrc = kwargs.get('lp_filesrc', 'ticks1')
+        self.lp_dropna = kwargs.get('lp_dropna', False)
+        self.lp_merge = kwargs.get('lp_merge', False)
+        self.lp_convert = kwargs.get('lp_convert', False)
+        self.lp_drop = kwargs.get('lp_drop', False)
+        self.lp_filter_int = kwargs.get('lp_filter_int', False)
+        self.lp_filter_flt = kwargs.get('lp_filter_flt', False)
+        self.lp_filter_obj = kwargs.get('lp_filter_obj', False)
+        self.lp_filter_dtmi = kwargs.get('lp_filter_dtmi', False)
+        self.lp_filter_dtmf = kwargs.get('lp_filter_dtmf', False)
 
     def wrangle_time(self, df: pd.DataFrame, lp_unit: str, mp_filesrc: str, filter_int: bool, filter_flt: bool, filter_obj: bool, filter_dtmi: bool, filter_dtmf: bool, mp_dropna: bool, mp_merge: bool, mp_convert: bool, mp_drop: bool) -> pd.DataFrame:
         """
@@ -595,6 +581,3 @@ class CMqldatasetup:
         X_train, X_temp, y_train, y_temp = train_test_split(mv_tdata2_X, mv_tdata2_y, test_size=(mp_ml_validation_split + mp_ml_test_split), shuffle=False)
         X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=(mp_ml_test_split / (mp_ml_validation_split + mp_ml_test_split)), shuffle=False)
         return X_train, X_val, X_test, y_train, y_val, y_test
-
-
-    def call

@@ -49,11 +49,11 @@ from tsMqlData import CMqldatasetup
 from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
 from tsMqlMLTune import CMdtuner
 from tsMqlReference import CMqlTimeConfig
-from tsMqlSetup import tsMqlSetup
+from tsMqlSetup import CMqlSetup
 from tsMqlReference import CMqlTimeConfig
 from tsMqlMLTuneParams import CMdtunerHyperModel
 
-s1 = tsMqlSetup(loglevel='INFO', warn='ignore')
+s1 = CMqlSetup(loglevel='INFO', warn='ignore')
 strategy = s1.get_computation_strategy()
 
 tfdebug = False
@@ -787,15 +787,17 @@ def main():
             # Fit the label scaler on the training labels
         
             # Model Training
+            tf.keras.backend.clear_session(free_memory=True)
+
             print("Training the best model...")
             best_model.fit(
                 train_dataset,
                 validation_data=val_dataset,
-                batch_size=2,
+                batch_size=mp_ml_batch_size,
                 epochs=mp_ml_tf_param_epochs
             )
             print("Training completed.")
-            """
+        
             # Model Evaluation
             print("Evaluating the model...")
             val_metrics = best_model.evaluate(val_dataset, verbose=1)
@@ -887,6 +889,6 @@ def main():
             print("No data loaded")
             mt5.shutdown()
             print("Finished")
-            """
+        
 if __name__ == "__main__":
     main()
