@@ -112,9 +112,9 @@ class CMdtuner:
         self.trans_heads_max = kwargs.get('trans_heads_max', 8)
         self.trans_heads_step = kwargs.get('trans_heads_step', 2)
 
-        self.trans_ff_min = kwargs.get('trans_ff_min', 64)
-        self.trans_ff_max = kwargs.get('trans_ff_max', 512)
-        self.trans_ff_step = kwargs.get('trans_ff_step', 64)
+        self.trans_ff_min = kwargs.get('trans_ff_min', 16) # 64
+        self.trans_ff_max = kwargs.get('trans_ff_max',128) # 512
+        self.trans_ff_step = kwargs.get('trans_ff_step', 16) # 64
 
         self.dense_units_min = kwargs.get('dense_units_min', 32)
         self.dense_units_max = kwargs.get('dense_units_max', 128)

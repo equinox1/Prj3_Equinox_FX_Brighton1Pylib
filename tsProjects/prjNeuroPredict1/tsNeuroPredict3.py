@@ -94,7 +94,7 @@ def main():
         mp_ml_hard_run= False
         mp_ml_tunemode = True
         mp_ml_tunemodeepochs = True
-        mp_data_rows = 2000 # number of mp_data_tab_rows to fetch
+        mp_data_rows = 1000 # number of mp_data_tab_rows to fetch
         mp_data_rowcount = 10000 # number of mp_data_tab_rows to fetch
         mp_ml_Keras_tuner = 'hyperband' # 'hyperband' or 'randomsearch' or 'bayesian' or 'skopt' or 'optuna'
         
@@ -235,7 +235,7 @@ def main():
         mp_ml_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in mp_ml_custom_input_keyfeat}  # the feature to predict
         mp_ml_custom_output_label_scaled = {targ + '_Scaled' for targ in mp_ml_custom_output_label}  # the label shifted to predict
         mp_ml_custom_output_label_count=len(mp_ml_custom_output_label)
-        mp_ml_batch_size = 8
+        mp_ml_batch_size = 16
 
         #Splitting the data
         mp_ml_train_split = 0.7
@@ -656,74 +656,21 @@ def main():
             try:
                 print("Creating an instance of the tuner class")
                 mt = CMdtuner(
-                    # tf datasets
-                    traindataset=train_dataset,
-                    valdataset=val_dataset,
-                    testdataset=test_dataset,
-                    # Model selection
+                   
+                    # Model selection use model True or False
                     cnn_model=mp_ml_cnn_model,
                     lstm_model=mp_ml_lstm_model,
                     gru_model=mp_ml_gru_model,
                     transformer_model=mp_ml_transformer_model,
-                    multiactivate=True,
+                    
                     # Model inputs directly from the data traindataset shape
                     data_input_shape=input_shape,
-                    # Model inputs from the shape selection options 1-4
-                    main_custom_shape_selector=mp_ml_custom_input_shape,
-                    cnn_custom_shape_selector=mp_ml_custom_input_cnn_shape,
-                    lstm_custom_shape_selector=mp_ml_custom_input_lstm_shape,
-                    gru_custom_shape_selector=mp_ml_custom_input_gru_shape,
-                    transformer_custom_shape_selector=mp_ml_custom_input_transformer_shape,
+                    
                     # Use merge of different shapes in final input output
                     multi_inputs=mp_ml_multi_inputs,
                     multi_outputs=mp_ml_multi_outputs,
                     multi_branches=mp_ml_multi_branches,
-                    #Logging
-                    tf1=False,
-                    tf2T=False,
-                    # Model parameters and hypermodel params
-                    step=mp_ml_tf_param_steps,
-                    objective=hypermodel_params['objective'],
-                    max_epochs=hypermodel_params['max_epochs'],
-                    min_epochs=mp_ml_tf_param_min_epochs,
-                    factor=hypermodel_params['factor'],
-                    seed=hypermodel_params['seed'],
-                    hyperband_iterations=hypermodel_params['hyperband_iterations'],
-                    tune_new_entries=hypermodel_params['tune_new_entries'],
-                    allow_new_entries=hypermodel_params['allow_new_entries'],
-                    max_retries_per_trial=hypermodel_params['max_retries_per_trial'],
-                    max_consecutive_failed_trials=hypermodel_params['max_consecutive_failed_trials'],
-                    validation_split=hypermodel_params['validation_split'],
-                    epochs=hypermodel_params['epochs'],
-                    batch_size=hypermodel_params['batch_size'],
-                    dropout=hypermodel_params['dropout'],
-                    optimizer=hypermodel_params['optimizer'],
-                    loss=hypermodel_params['loss'],
-                    metrics=hypermodel_params['metrics'],
-                    directory=hypermodel_params['directory'],
-                    basepath=hypermodel_params['basepath'],
-                    project_name=hypermodel_params['project_name'],
-                    logger=hypermodel_params['logger'],
-                    tuner_id=hypermodel_params['tuner_id'],
-                    overwrite=hypermodel_params['overwrite'],
-                    executions_per_trial=hypermodel_params['executions_per_trial'],
-                    chk_fullmodel=hypermodel_params['chk_fullmodel'],
-                    chk_verbosity=hypermodel_params['chk_verbosity'],
-                    chk_mode=hypermodel_params['chk_mode'],
-                    chk_monitor=hypermodel_params['chk_monitor'],
-                    chk_sav_freq=hypermodel_params['chk_sav_freq'],
-                    chk_patience=hypermodel_params['chk_patience'],
-                    checkpoint_filepath=hypermodel_params['checkpoint_filepath'],
-                    modeldatapath=hypermodel_params['modeldatapath'],
-                    tunemode =  mp_ml_tunemode,
-                    tunemodeepochs = mp_ml_tunemodeepochs,
-                    modelsummary = mp_ml_modelsummary,
-                    unitmin=hypermodel_params['unitmin'],
-                    unitmax=hypermodel_params['unitmax'],
-                    unitstep=hypermodel_params['unitstep'],
-                    defaultunits=hypermodel_params['defaultunits'],
-                    num_trials=hypermodel_params['num_trials'],
-                    steps_per_execution=mp_ml_steps_per_execution,
+                    
                     keras_tuner=hypermodel_params['keras_tuner']
                     )
                 print("Tuner initialized successfully.")
@@ -781,9 +728,23 @@ def main():
         if (load_model := mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')) is not None:
             best_model = load_model
             print("Model: Best model: ", best_model.name)
-            print("best_model.summary()", best_model.summary())
+            for layer in best_model.layers:
+                print(f"Layer Name: {layer.name}")
+                print(f"Layer Type: {layer.__class__.__name__}")
+                print(f"Number of Parameters: {layer.count_params()}")
+                print(f"Trainable: {layer.trainable}")
+                print("layer config: ",layer.get_config())
+                print("layer weights: ",layer.get_weights())
+                print("layer input: ",layer.input_spec)
+                print("layer trainable weights: ",layer.trainable_weights)
+                print("layer non trainable weights: ",layer.non_trainable_weights)
+                print("layer losses: ",layer.losses)
+                print("layer updates: ",layer.updates)
             
-    
+
+                print("-" * 40)
+
+            """
             # Fit the label scaler on the training labels
         
             # Model Training
@@ -795,7 +756,7 @@ def main():
                 epochs=mp_ml_tf_param_epochs
             )
             print("Training completed.")
-            """
+
             # Model Evaluation
             print("Evaluating the model...")
             val_metrics = best_model.evaluate(val_dataset, verbose=1)
