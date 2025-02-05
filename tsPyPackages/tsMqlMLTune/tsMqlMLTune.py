@@ -80,45 +80,56 @@ class CMdtuner:
         
         # Optimizer configurations
         self.scaler = None  # Initialize scaler
+
+        # model scaling
+        self.all_modelscale = kwargs.get('allmodelscale', 1)
+        self.cnn_modelscale = kwargs.get('cnnmodelscale', 1)
+        self.lstm_modelscale = kwargs.get('lstmmodelscale', 1)
+        self.gru_modelscale = kwargs.get('grumodelscale', 1)
+        self.trans_modelscale = kwargs.get('transmodelscale', 1)
+        self.transh_modelscale = kwargs.get('transhmodelscale', 1)
+        self.transff_modelscale = kwargs.get('transffmodelscale', 1)
+        self.dense_modelscale = kwargs.get('densemodelscale', 1)
+        
         #unit for LSTM and GRU
-        self.unitmin = kwargs.get('unitmin', 32)
-        self.unitmax = kwargs.get('unitmax', 128)
-        self.unitstep = kwargs.get('unitstep', 32)
-        self.unitdefault = kwargs.get('unitdefault', 64)
+        self.unitmin = kwargs.get('unitmin', 32/self.all_modelscale)
+        self.unitmax = kwargs.get('unitmax', 128/self.all_mmodelscale)
+        self.unitstep = kwargs.get('unitstep', 32/self.all_mmodelscale)
+        self.unitdefault = kwargs.get('unitdefault', 64/self.all_gru_mmodelscale)
        
         # Transformer configurations
-        self.trans_dim_min = kwargs.get('trans_dim_min', 32)
-        self.trans_dim_max = kwargs.get('trans_dim_max', 256)
-        self.trans_dim_step = kwargs.get('trans_dim_step', 32)
-        self.trans_dim_default =kwargs.get('trans_dim_default', 64)
+        self.trans_dim_min = kwargs.get('trans_dim_min', 32/self.trans_modelscale)
+        self.trans_dim_max = kwargs.get('trans_dim_max', 256/self.trans_modelscale)
+        self.trans_dim_step = kwargs.get('trans_dim_step', 32/trans_modelscale)
+        self.trans_dim_default =kwargs.get('trans_dim_default', 64/trans_modelscale)
 
         
-        self.lstm_units_min = kwargs.get('lstm_units_min', 32)
-        self.lstm_units_max = kwargs.get('lstm_units_max', 128)
-        self.lstm_units_step = kwargs.get('lstm_units_step', 32)
-        self.lstm_units_default = kwargs.get('lstm_units_default', 64)
+        self.lstm_units_min = kwargs.get('lstm_units_min', 32/self.lstm_modelscale)
+        self.lstm_units_max = kwargs.get('lstm_units_max', 128/self.lstm_modelscale)
+        self.lstm_units_step = kwargs.get('lstm_units_step', 32/self.lstm_modelscale)
+        self.lstm_units_default = kwargs.get('lstm_units_default', 64/self.lstm_modelscale)
 
-        self.gru_units_min = kwargs.get('gru_units_min', 32)
-        self.gru_units_max = kwargs.get('gru_units_max', 128)
-        self.gru_units_step = kwargs.get('gru_units_step', 32)
-        self.gru_units_default = kwargs.get('gru_units_default', 64)
+        self.gru_units_min = kwargs.get('gru_units_min', 32/self.gru_modelscale)
+        self.gru_units_max = kwargs.get('gru_units_max', 128/self.gru_modelscale)
+        self.gru_units_step = kwargs.get('gru_units_step', 32/self.gru_modelscale)
+        self.gru_units_default = kwargs.get('gru_units_default', 64/self.gru_modelscale)
 
-        self.cnn_units_min = kwargs.get('cnn_units_min', 32)
-        self.cnn_units_max = kwargs.get('cnn_units_max', 128)
-        self.cnn_units_step = kwargs.get('cnn_units_step', 32)
-        self.cnn_units_default = kwargs.get('cnn_units_default', 64)
+        self.cnn_units_min = kwargs.get('cnn_units_min', 32/cnn_modelscale)
+        self.cnn_units_max = kwargs.get('cnn_units_max', 128/cnn_modelscale)
+        self.cnn_units_step = kwargs.get('cnn_units_step', 32/cnn_modelscale)
+        self.cnn_units_default = kwargs.get('cnn_units_default', 64/cnn_modelscale)
 
-        self.trans_heads_min = kwargs.get('trans_heads_min', 2)
-        self.trans_heads_max = kwargs.get('trans_heads_max', 8)
-        self.trans_heads_step = kwargs.get('trans_heads_step', 2)
+        self.trans_heads_min = kwargs.get('trans_heads_min', 2/transh_modelscale)
+        self.trans_heads_max = kwargs.get('trans_heads_max', 8/transh_modelscale)
+        self.trans_heads_step = kwargs.get('trans_heads_step', 2/transh_modelscale)
 
-        self.trans_ff_min = kwargs.get('trans_ff_min', 16) # 64
-        self.trans_ff_max = kwargs.get('trans_ff_max',128) # 512
-        self.trans_ff_step = kwargs.get('trans_ff_step', 16) # 64
+        self.trans_ff_min = kwargs.get('trans_ff_min', 64/transff_modelscale) 
+        self.trans_ff_max = kwargs.get('trans_ff_max',512/transff_modelscale)
+        self.trans_ff_step = kwargs.get('trans_ff_step', 64/transff_modelscale) 
 
-        self.dense_units_min = kwargs.get('dense_units_min', 32)
-        self.dense_units_max = kwargs.get('dense_units_max', 128)
-        self.dense_units_step = kwargs.get('dense_units_step', 32)
+        self.dense_units_min = kwargs.get('dense_units_min', 32/dense_modelscale)
+        self.dense_units_max = kwargs.get('dense_units_max', 128/dense_modelscale)
+        self.dense_units_step = kwargs.get('dense_units_step', 32/dense_modelscale)
         
 
         #debugging
