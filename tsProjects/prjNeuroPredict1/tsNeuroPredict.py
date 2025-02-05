@@ -91,12 +91,24 @@ def main():
       
         mp_ml_show_plot=False
         ONNX_save=False
-        mp_ml_hard_run= False
+        mp_ml_hard_run= True
         mp_ml_tunemode = True
         mp_ml_tunemodeepochs = True
         mp_data_rows = 2000 # number of mp_data_tab_rows to fetch
         mp_data_rowcount = 10000 # number of mp_data_tab_rows to fetch
         mp_ml_Keras_tuner = 'hyperband' # 'hyperband' or 'randomsearch' or 'bayesian' or 'skopt' or 'optuna'
+        mp_ml_batch_size = 4
+        # scaling
+        all_modelscale = 2 # divide the model by this number
+        cnn_modelscale = 2 # divide the model by this number
+        lstm_modelscale = 2 # divide the model by this number
+        gru_modelscale = 2 # divide the model by this number
+        trans_modelscale = 2 # divide the model by this number
+        transh_modelscale = 1 # divide the model by this number
+        transff_modelscale = 4 # divide the model by this number
+        dense_modelscale = 2 # divide the model by this number
+
+    
         
         tm = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES')
         MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH = tm.get_current_time(tm)
@@ -235,7 +247,7 @@ def main():
         mp_ml_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in mp_ml_custom_input_keyfeat}  # the feature to predict
         mp_ml_custom_output_label_scaled = {targ + '_Scaled' for targ in mp_ml_custom_output_label}  # the label shifted to predict
         mp_ml_custom_output_label_count=len(mp_ml_custom_output_label)
-        mp_ml_batch_size = 8
+        
 
         #Splitting the data
         mp_ml_train_split = 0.7
@@ -643,6 +655,15 @@ def main():
                 'defaultunits': mp_ml_default_units,
                 'num_trials': mp_ml_num_trials,
                 'keras_tuner': mp_ml_Keras_tuner, 
+                'all_modelscale': all_modelscale,
+                'cnn_modelscale': cnn_modelscale,
+                'lstm_modelscale': lstm_modelscale,
+                'gru_modelscale': gru_modelscale,
+                'trans_modelscale': trans_modelscale,
+                'transh_modelscale': transh_modelscale,
+                'transff_modelscale': transff_modelscale,
+                'dense_modelscale': dense_modelscale
+
             }
 
         # Print configuration details for logging
@@ -724,7 +745,16 @@ def main():
                     defaultunits=hypermodel_params['defaultunits'],
                     num_trials=hypermodel_params['num_trials'],
                     steps_per_execution=mp_ml_steps_per_execution,
-                    keras_tuner=hypermodel_params['keras_tuner']
+                    keras_tuner=hypermodel_params['keras_tuner'],
+                    all_modelscale=hypermodel_params['all_modelscale'],
+                    cnn_modelscale=hypermodel_params['cnn_modelscale'],
+                    lstm_modelscale=hypermodel_params['lstm_modelscale'],
+                    gru_modelscale=hypermodel_params['gru_modelscale'],
+                    trans_modelscale = hypermodel_params['trans_modelscale'],
+                    transh_modelscale=hypermodel_params['transh_modelscale'],
+                    transff_modelscale=hypermodel_params['transff_modelscale'],
+                    dense_modelscale=hypermodel_params['dense_modelscale']  
+
                     )
                 print("Tuner initialized successfully.")
                 return mt
