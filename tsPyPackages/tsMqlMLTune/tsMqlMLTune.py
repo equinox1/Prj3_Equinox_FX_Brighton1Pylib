@@ -90,7 +90,7 @@ class CMdtuner:
         self.transh_modelscale = kwargs.get('transhmodelscale', 1)
         self.transff_modelscale = kwargs.get('transffmodelscale', 1)
         self.dense_modelscale = kwargs.get('densemodelscale', 1)
-        
+
         #unit for LSTM and GRU
         self.unitmin = kwargs.get('unitmin', 32/self.all_modelscale)
         self.unitmax = kwargs.get('unitmax', 128/self.all_mmodelscale)
@@ -131,6 +131,31 @@ class CMdtuner:
         self.dense_units_max = kwargs.get('dense_units_max', 128/dense_modelscale)
         self.dense_units_step = kwargs.get('dense_units_step', 32/dense_modelscale)
         
+        # Loss and metric configurations
+        self.loss_functions = {
+            'mse': MeanSquaredError,
+            'binary_crossentropy': BinaryCrossentropy,
+            'mae': MeanAbsoluteError,
+            'mape': MeanAbsolutePercentageError,
+            'msle': MeanSquaredLogarithmicError,
+            'poisson': Poisson,
+            'kld': KLDivergence,
+            'cosine_similarity': CosineSimilarity
+        }
+
+        # Default loss and metric
+        self.metrics = {
+            'accuracy': Accuracy,
+            'mae': MAE,
+            'mse': MSE,
+            'mape': MAPE,
+            'msle': MSLE,
+            'poisson': PoissonMetric,
+            'cosine_similarity': CosineSimilarityMetric
+        }
+
+
+
 
         #debugging
         self.tf1 = kwargs.get('tf1', False)
@@ -219,8 +244,13 @@ class CMdtuner:
         hp.Int('cnn_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
         hp.Int('dense_1_units', min_value=self.dense_units_min, max_value=self.dense_units_max, step=self.dense_units_step)
 
-        num_transformer_blocks = hp.Int('num_transformer_blocks', min_value=1, max_value=3, step=1)
+        hp.Int('num_transformer_blocks', min_value=1, max_value=3, step=1)
         hp.Int('trans_dim', min_value=self.trans_dim_min, max_value=self.trans_dim_max, step=self.trans_dim_step, default=self.trans_dim_default)
+        
+        hp.Int('num_cnn_layers', min_value=1, max_value=3)
+        hp.Int('num_lstm_layers', min_value=1, max_value=2)
+        hp.Int('num_gru_layers', min_value=1, max_value=2)
+        
                 
         logging.info(f"Tuning Max epochs between {self.min_epochs} and {self.max_epochs}")
         print("Tuner mode: ", self.tunemode, "Tuner mode epochs: ", self.tunemodeepochs)
@@ -267,7 +297,7 @@ class CMdtuner:
         inputs = [] if self.multi_inputs else [shared_input]
         branches = []
         print(f"Shared input shape: {shared_input.shape} self.multi_inputs {self.multi_inputs}")
-
+       
         # CNN Branch
         if self.cnn_model:
             cnn_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='cnn_input')
@@ -275,21 +305,33 @@ class CMdtuner:
             print(f"Input shape cnn: {cnn_input.shape}")
                 
             if self.tunemode:
-                cnn_branch = Conv1D(
-                    filters=hp.get('cnn_filters'),
-                    kernel_size=hp.get('cnn_kernel_size'),
-                    activation=hp.get('activation') # Tunable activation
-                )(cnn_input)
-            else:
-                cnn_branch = Conv1D(
-                   filters=hp.Int('cnn_filters', min_value=32, max_value=128, step=32, default=64),
-                    kernel_size=hp.Int('cnn_kernel_size', min_value=2, max_value=5, step=1, default=3),
-                    activation="relu"
-                )(cnn_input)
+                cnn_branch = cnn_input
+                num_cnn_layers = hp.get('num_cnn_layers')
+                for i in range(num_cnn_layers):  
+                    filters = hp.get(f'cnn_filters_{i}')
+                    kernel_size = hp.get(f'cnn_kernel_size_{i}')
+                    activation = hp.get(f'activation_{i}')
+                    cnn_branch = Conv1D(filters=filters, kernel_size=kernel_size, activation=activation,padding='same')(cnn_branch)
+                    cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
+                    cnn_branch = LayerNormalization()(cnn_branch) # Added LayerNormalization
+                    cnn_branch = Dropout(self.dropout)(cnn_branch) # Added Dropout
+                    
 
-            cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
+            else:
+                cnn_branch = cnn_input
+                num_cnn_layers = hp.Int('num_cnn_layers', min_value=1, max_value=3)
+                for i in range(num_cnn_layers):
+                    filters = hp.Int(f'cnn_filters_{i}', min_value=32, max_value=128, step=32)
+                    kernel_size = hp.Int(f'cnn_kernel_size_{i}', min_value=2, max_value=5, step=1)
+                    activation = hp.Choice(f'cnn_activation_{i}', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
+                    cnn_branch = Conv1D(filters=filters, kernel_size=kernel_size, activation=activation, padding='same')(cnn_branch) # Added padding
+                    cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
+                    cnn_branch = LayerNormalization()(cnn_branch) # Added LayerNormalization
+                    cnn_branch = Dropout(self.dropout)(cnn_branch) # Added Dropout
+
             cnn_branch = Flatten()(cnn_branch)
             branches.append(cnn_branch)
+   
 
         # LSTM Branch
         if self.lstm_model:
@@ -298,22 +340,54 @@ class CMdtuner:
             if self.multi_inputs: inputs.append(lstm_input)
           
             if self.tunemode:
+                lstm_branch = lstm_input
+                num_lstm_layers = hp.get('num_lstm_layers')
+                for i in range(num_lstm_layers):
+                    units = hp.get(f'lstm_units_{i}')
+                    activation = hp.get(f'activation_{i}')
+                    lstm_branch = LSTM(units=units, activation=activation, return_sequences=(i < num_lstm_layers - 1))(lstm_branch) # Return sequences for stacked LSTMs
+                    lstm_branch = LayerNormalization()(lstm_branch)
+                    lstm_branch = Dropout(self.dropout)(lstm_branch)
+
                 lstm_branch = LSTM(units=hp.get('lstm_units'), activation=hp.get('activation'))(lstm_input)
             else:
-                lstm_branch = LSTM(units=hp.Int('lstm_units', min_value=32, max_value=128, step=32, default=64))(lstm_input)
+                lstm_branch = lstm_input
+                num_lstm_layers = hp.Int('num_lstm_layers', min_value=1, max_value=2) # Example for stacking
+                for i in range(num_lstm_layers):
+                    units = hp.Int(f'lstm_units_{i}', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep)
+                    activation = hp.Choice(f'lstm_activation_{i}', ['tanh', 'relu'])  # Example
+                    lstm_branch = LSTM(units=units, activation=activation, return_sequences=(i < num_lstm_layers - 1))(lstm_branch) # Return sequences for stacked LSTMs
+                    lstm_branch = LayerNormalization()(lstm_branch)
+                    lstm_branch = Dropout(self.dropout)(lstm_branch)
             
             branches.append(lstm_branch)
 
+       
         # GRU Branch
         if self.gru_model:
             gru_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='gru_input')
             if self.multi_inputs: inputs.append(gru_input)
             print(f"Input shape gru : {gru_input.shape}")
             if self.tunemode:
-                gru_branch = GRU(units=hp.get('gru_units'), activation=hp.get('activation'))(gru_input)
+                gru_branch = gru_input
+                num_gru_layers = hp.get('num_gru_layers')
+                for i in range(num_gru_layers):
+                    units = hp.get(f'gru_units_{i}')
+                    activation = hp.get(f'activation_{i}')
+                    gru_branch = GRU(units=units, activation=activation, return_sequences=(i < num_gru_layers - 1))(gru_branch)
+                    gru_branch = LayerNormalization()(gru_branch)
+                    gru_branch = Dropout(self.dropout)(gru_branch)
             else:
-                 gru_branch = GRU(units=hp.Int('gru_units', min_value=32, max_value=128, step=32, default=64))(gru_input)
+                gru_branch = gru_input
+                num_gru_layers = hp.Int('num_gru_layers', min_value=1, max_value=2)
+                for i in range(num_gru_layers):
+                    units = hp.Int(f'gru_units_{i}', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep)
+                    activation = hp.Choice(f'gru_activation_{i}', ['tanh', 'relu'])
+                    gru_branch = GRU(units=units, activation=activation, return_sequences=(i < num_gru_layers - 1))(gru_branch)
+                    gru_branch = LayerNormalization()(gru_branch)
+                    gru_branch = Dropout(self.dropout)(gru_branch)
             branches.append(gru_branch)
+
 
         # Transformer Branch
         if self.transformer_model:
@@ -377,6 +451,17 @@ class CMdtuner:
         
         tf.keras.backend.clear_session()
         print("Ran swith clear session")
+
+        if self.tunemode:
+            loss_fn = self.loss_functions[hp.get('loss')] # Get function from dictionary
+            metric_fn = self.metrics[hp.get('metric')] # Get function from dictionary
+        else:
+            loss_fn = self.loss_functions[self.loss] # Get function from dictionary
+            metric_fn = self.metrics[self.metric] # Get function from dictionary
+
+
+
+
         model.compile(
             optimizer=self.get_optimizer(hp.get('optimizer'), hp.get('learning_rate')),
             loss=hp.get('loss') if self.tunemode else self.loss,  # Use tunable loss or default
