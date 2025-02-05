@@ -23,8 +23,18 @@ import pytz
 import matplotlib.pyplot as plt
 import seaborn as sns
 import logging
-# Import MetaTrader 5 (MT5) and other necessary packages
-import MetaTrader5 as mt5
+############################################################################################################
+MQL5=False
+if MQL5:
+   # Import MetaTrader 5 (MT5) and other necessary packages
+   import MetaTrader5 as mt5
+   import onnx
+   import tf2onnx
+   import onnxruntime as ort
+   import onnxruntime.backend as backend
+   import onnxruntime.tools.symbolic_shape_infer as symbolic_shape_infer
+   from onnx import checker
+############################################################################################################
 # import python ML packages
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler ,StandardScaler, RobustScaler, QuantileTransformer, PowerTransformer
@@ -35,12 +45,7 @@ import pandas as pd
 from dataclasses import dataclass
 # Import TensorFlow for machine learning
 import tensorflow as tf
-import onnx
-import tf2onnx
-import onnxruntime as ort
-import onnxruntime.backend as backend
-import onnxruntime.tools.symbolic_shape_infer as symbolic_shape_infer
-from onnx import checker
+
 import warnings
 from numpy import concatenate
 # Import equinox functionality
@@ -49,11 +54,11 @@ from tsMqlData import CMqldatasetup
 from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
 from tsMqlMLTune import CMdtuner
 from tsMqlReference import CMqlTimeConfig
-from tsMqlSetup import tsMqlSetup
+from tsMqlSetup import CMqlSetup
 from tsMqlReference import CMqlTimeConfig
 from tsMqlMLTuneParams import CMdtunerHyperModel
 
-s1 = tsMqlSetup(loglevel='INFO', warn='ignore')
+s1 = CMqlSetup(loglevel='INFO', warn='ignore')
 strategy = s1.get_computation_strategy()
 
 tfdebug = False
@@ -91,12 +96,24 @@ def main():
       
         mp_ml_show_plot=False
         ONNX_save=False
-        mp_ml_hard_run= False
+        mp_ml_hard_run= True
         mp_ml_tunemode = True
         mp_ml_tunemodeepochs = True
-        mp_data_rows = 1000 # number of mp_data_tab_rows to fetch
+        mp_data_rows = 2000 # number of mp_data_tab_rows to fetch
         mp_data_rowcount = 10000 # number of mp_data_tab_rows to fetch
         mp_ml_Keras_tuner = 'hyperband' # 'hyperband' or 'randomsearch' or 'bayesian' or 'skopt' or 'optuna'
+        mp_ml_batch_size = 4
+        # scaling
+        all_modelscale = 2 # divide the model by this number
+        cnn_modelscale = 2 # divide the model by this number
+        lstm_modelscale = 2 # divide the model by this number
+        gru_modelscale = 2 # divide the model by this number
+        trans_modelscale = 2 # divide the model by this number
+        transh_modelscale = 1 # divide the model by this number
+        transff_modelscale = 4 # divide the model by this number
+        dense_modelscale = 2 # divide the model by this number
+
+    
         
         tm = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES')
         MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH = tm.get_current_time(tm)
@@ -120,59 +137,59 @@ def main():
         print("mp_symbol_primary:",mp_symbol_primary, "mp_symbol_secondary:",mp_symbol_secondary, "mp_shiftvalue:",mp_shiftvalue, "mp_unit:",mp_unit)
         MPDATAFILE1 =  "tickdata1.csv"
         MPDATAFILE2 =  "ratesdata1.csv"
+        if MQL5:
+            c0 = CMqlBrokerConfig(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
+            broker_config = c0.set_mql_broker()
+            BROKER = broker_config['BROKER']
+            MPPATH = broker_config['MPPATH']
+            MPBASEPATH = broker_config['MPBASEPATH']
+            MPDATAPATH = broker_config['MPDATAPATH']
+            MPFILEVALUE1 = broker_config['MPFILEVALUE1']
+            MPFILEVALUE2 = broker_config['MPFILEVALUE2']
+            MKFILES = broker_config['MKFILES']
+            print(f"Broker: {BROKER}")
+            print(f"Path: {MPPATH}")
+            print(f"Data Path: {MPDATAPATH}")
+            print(f"File 1: {MPFILEVALUE1}")
+            print(f"File 2: {MPFILEVALUE2}")
+            print(f"Files Path: {MKFILES}")
 
-        c0 = CMqlBrokerConfig(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
-        broker_config = c0.set_mql_broker()
-        BROKER = broker_config['BROKER']
-        MPPATH = broker_config['MPPATH']
-        MPBASEPATH = broker_config['MPBASEPATH']
-        MPDATAPATH = broker_config['MPDATAPATH']
-        MPFILEVALUE1 = broker_config['MPFILEVALUE1']
-        MPFILEVALUE2 = broker_config['MPFILEVALUE2']
-        MKFILES = broker_config['MKFILES']
-        print(f"Broker: {BROKER}")
-        print(f"Path: {MPPATH}")
-        print(f"Data Path: {MPDATAPATH}")
-        print(f"File 1: {MPFILEVALUE1}")
-        print(f"File 2: {MPFILEVALUE2}")
-        print(f"Files Path: {MKFILES}")
+            # +-------------------------------------------------------------------
+            # STEP:Start MetaTrader 5 (MQL) terminal login
+            # +-------------------------------------------------------------------
+            # Retrieve and validate credentials
+            cred = kr.get_credential(broker_config["BROKER"], "")
+            if not cred:
+                  raise ValueError("Credentials not found in keyring")
+            try:
+                  MPLOGIN = int(cred.username)
+                  MPPASS = str(cred.password)
+            except ValueError:
+                  raise ValueError("Invalid credentials format")
 
-        # +-------------------------------------------------------------------
-        # STEP:Start MetaTrader 5 (MQL) terminal login
-        # +-------------------------------------------------------------------
-        # Retrieve and validate credentials
-        cred = kr.get_credential(broker_config["BROKER"], "")
-        if not cred:
-            raise ValueError("Credentials not found in keyring")
-        try:
-            MPLOGIN = int(cred.username)
-            MPPASS = str(cred.password)
-        except ValueError:
-            raise ValueError("Invalid credentials format")
+            print(f"Logging in as: {MPLOGIN}")
+            # Initialize MT5 terminal and login
+            c1 = CMqlinit(
+                  MPPATH=broker_config["MPPATH"],
+                  MPLOGIN=MPLOGIN,
+                  MPPASS=MPPASS,
+                  MPSERVER=broker_config["MPSERVER"],
+                  MPTIMEOUT=broker_config["MPTIMEOUT"],
+                  MPPORTABLE=broker_config["MPPORTABLE"],
+                  MPENV=broker_config["MPENV"]
+            )
+            if not c1.run_mql_login():
+                  raise ConnectionError("Failed to login to MT5 terminal")
+            print("Terminal Info:", mt5.terminal_info())
 
-        print(f"Logging in as: {MPLOGIN}")
-        # Initialize MT5 terminal and login
-        c1 = CMqlinit(
-            MPPATH=broker_config["MPPATH"],
-            MPLOGIN=MPLOGIN,
-            MPPASS=MPPASS,
-            MPSERVER=broker_config["MPSERVER"],
-            MPTIMEOUT=broker_config["MPTIMEOUT"],
-            MPPORTABLE=broker_config["MPPORTABLE"],
-            MPENV=broker_config["MPENV"]
-        )
-        if not c1.run_mql_login():
-            raise ConnectionError("Failed to login to MT5 terminal")
-        print("Terminal Info:", mt5.terminal_info())
+            terminal_info = mt5.terminal_info()
+            print(terminal_info)
+            file_path=terminal_info.data_path +r"/MQL5/Files/"
+            print(f"MQL file_path:" ,file_path)
 
-        terminal_info = mt5.terminal_info()
-        print(terminal_info)
-        file_path=terminal_info.data_path +r"/MQL5/Files/"
-        print(f"MQL file_path:" ,file_path)
-
-        #data_path to save model
-        mp_ml_data_path=file_path
-        print(f"data_path to save onnx model: ",mp_ml_data_path)
+            #data_path to save model
+            mp_ml_data_path=file_path
+            print(f"data_path to save onnx model: ",mp_ml_data_path)
         # +-------------------------------------------------------------------
         # STEP: Configuration settings
         # +-------------------------------------------------------------------
@@ -235,7 +252,7 @@ def main():
         mp_ml_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in mp_ml_custom_input_keyfeat}  # the feature to predict
         mp_ml_custom_output_label_scaled = {targ + '_Scaled' for targ in mp_ml_custom_output_label}  # the label shifted to predict
         mp_ml_custom_output_label_count=len(mp_ml_custom_output_label)
-        mp_ml_batch_size = 16
+        
 
         #Splitting the data
         mp_ml_train_split = 0.7
@@ -315,48 +332,60 @@ def main():
         print("UTC To:",mv_data_utc_to)
 
         # Load tick data from MQL and FILE
-        mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mp_data_loadapiticks, mp_data_loadapirates, mp_data_loadfileticks, mp_data_loadfilerates, mv_data_dfname1, mv_data_dfname2, mv_data_utc_from, mp_symbol_primary, mp_data_rows, mp_data_rowcount, mp_data_command_ticks,mp_data_command_rates, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2, TIMEFRAME)
-
+        if MQL5:
+               mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mp_data_loadapiticks, mp_data_loadapirates, mp_data_loadfileticks, mp_data_loadfilerates, mv_data_dfname1, mv_data_dfname2, mv_data_utc_from, mp_symbol_primary, mp_data_rows, mp_data_rowcount, mp_data_command_ticks,mp_data_command_rates, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2, TIMEFRAME)
+        else:
+               mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_file(mp_data_loadapiticks, mp_data_loadapirates, mp_data_loadfileticks, mp_data_loadfilerates, mv_data_dfname1, mv_data_dfname2, mp_data_rows, mp_data_rowcount, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2, TIMEFRAME)
+        
+        
         #wrangle the data merging and transforming time to numeric
-        if len(mv_tdata1apiticks) > 0:  
-            mv_tdata1apiticks = d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
-        if len(mv_tdata1apirates) > 0:
-            mv_tdata1apirates = d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
-        if len(mv_tdata1loadticks) > 0:
-            mv_tdata1loadticks = d1.wrangle_time(mv_tdata1loadticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
-        if len(mv_tdata1loadrates) > 0:
-            mv_tdata1loadrates = d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
-                
-        # Create labels
-        mv_tdata1apiticks = d1.create_label_wrapper(
-            df=mv_tdata1apiticks,
-            bid_column="T1_Bid_Price",
-            ask_column="T1_Ask_Price",
-            column_in="T1_Bid_Price",
-            column_out1=list(mp_ml_custom_input_keyfeat)[0],
-            column_out2=list(mp_ml_custom_output_label_scaled)[0],
-            open_column="R1_Open",
-            high_column="R1_High",
-            low_column="R1_Low",
-            close_column="R1_Close",
-            run_mode=1,
-            **common_ml_params
-        )
+        if MQL5:
+            if len(mv_tdata1apiticks) > 0:  
+                  mv_tdata1apiticks = d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
+            if len(mv_tdata1apirates) > 0:
+                  mv_tdata1apirates = d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
+            if len(mv_tdata1loadticks) > 0:
+                  mv_tdata1loadticks = d1.wrangle_time(mv_tdata1loadticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
+            if len(mv_tdata1loadrates) > 0:
+                  mv_tdata1loadrates = d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
+         else:
+            if len(mv_tdata1loadticks) > 0:
+                  mv_tdata1loadticks = d1.wrangle_time(mv_tdata1loadticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
+            if len(mv_tdata1loadrates) > 0:
+                  mv_tdata1loadrates = d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
 
-        mv_tdata1apirates = d1.create_label_wrapper(
-            df=mv_tdata1apirates,
-            bid_column="R1_Bid_Price",
-            ask_column="R1_Ask_Price",
-            column_in="R1_Close",
-            column_out1=list(mp_ml_custom_input_keyfeat)[0],
-            column_out2=list(mp_ml_custom_output_label_scaled)[0],
-            open_column="R1_Open",
-            high_column="R1_High",
-            low_column="R1_Low",
-            close_column="R1_Close",
-            run_mode=2,
-            **common_ml_params
-        )
+        # Create labels
+        if MQL5:
+
+         mv_tdata1apiticks = d1.create_label_wrapper(
+               df=mv_tdata1apiticks,
+               bid_column="T1_Bid_Price",
+               ask_column="T1_Ask_Price",
+               column_in="T1_Bid_Price",
+               column_out1=list(mp_ml_custom_input_keyfeat)[0],
+               column_out2=list(mp_ml_custom_output_label_scaled)[0],
+               open_column="R1_Open",
+               high_column="R1_High",
+               low_column="R1_Low",
+               close_column="R1_Close",
+               run_mode=1,
+               **common_ml_params
+         )
+
+         mv_tdata1apirates = d1.create_label_wrapper(
+               df=mv_tdata1apirates,
+               bid_column="R1_Bid_Price",
+               ask_column="R1_Ask_Price",
+               column_in="R1_Close",
+               column_out1=list(mp_ml_custom_input_keyfeat)[0],
+               column_out2=list(mp_ml_custom_output_label_scaled)[0],
+               open_column="R1_Open",
+               high_column="R1_High",
+               low_column="R1_Low",
+               close_column="R1_Close",
+               run_mode=2,
+               **common_ml_params
+         )
 
         mv_tdata1loadticks = d1.create_label_wrapper(
             df=mv_tdata1loadticks,
@@ -389,22 +418,39 @@ def main():
         )
 
         # Display the data
-        d1.run_mql_print(mv_tdata1apiticks,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
-        d1.run_mql_print(mv_tdata1apirates,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
+        if MQL5:
+            d1.run_mql_print(mv_tdata1apiticks,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
+            d1.run_mql_print(mv_tdata1apirates,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
+            
         d1.run_mql_print(mv_tdata1loadticks,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
         d1.run_mql_print(mv_tdata1loadrates,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
 
         # copy the data for config selection
-        data_sources = [mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates]
-        data_copies = [data.copy() for data in data_sources]
-        mv_tdata2a, mv_tdata2b, mv_tdata2c, mv_tdata2d = data_copies
+         if MQL5:
+            data_sources = [mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates]
+         else:
+            data_sources = [mv_tdata1loadticks, mv_tdata1loadrates]
+
+         data_copies = [data.copy() for data in data_sources]
+
+         if MQL5:
+            mv_tdata2a, mv_tdata2b, mv_tdata2c, mv_tdata2d = data_copies
+         else:
+            mv_tdata2c, mv_tdata2d = data_copies
         # Define a mapping of configuration values to data variables
-        data_mapping = {
-            'loadapiticks': mv_tdata2a,
-            'loadapirates': mv_tdata2b,
-            'loadfileticks': mv_tdata2c,
-            'loadfilerates': mv_tdata2d
-        }
+
+         if MQL5:
+            data_mapping = {
+                  'loadapiticks': mv_tdata2a,
+                  'loadapirates': mv_tdata2b,
+                  'loadfileticks': mv_tdata2c,
+                  'loadfilerates': mv_tdata2d
+         }
+         else:
+            data_mapping = {
+                  'loadfileticks': mv_tdata2c,
+                  'loadfilerates': mv_tdata2d
+         }
 
         # Check the switch of which file to use
         if mp_data_cfg_usedata in data_mapping:
@@ -643,6 +689,15 @@ def main():
                 'defaultunits': mp_ml_default_units,
                 'num_trials': mp_ml_num_trials,
                 'keras_tuner': mp_ml_Keras_tuner, 
+                'all_modelscale': all_modelscale,
+                'cnn_modelscale': cnn_modelscale,
+                'lstm_modelscale': lstm_modelscale,
+                'gru_modelscale': gru_modelscale,
+                'trans_modelscale': trans_modelscale,
+                'transh_modelscale': transh_modelscale,
+                'transff_modelscale': transff_modelscale,
+                'dense_modelscale': dense_modelscale
+
             }
 
         # Print configuration details for logging
@@ -656,22 +711,84 @@ def main():
             try:
                 print("Creating an instance of the tuner class")
                 mt = CMdtuner(
-                   
-                    # Model selection use model True or False
+                    # tf datasets
+                    traindataset=train_dataset,
+                    valdataset=val_dataset,
+                    testdataset=test_dataset,
+                    # Model selection
                     cnn_model=mp_ml_cnn_model,
                     lstm_model=mp_ml_lstm_model,
                     gru_model=mp_ml_gru_model,
                     transformer_model=mp_ml_transformer_model,
-                    
+                    multiactivate=True,
                     # Model inputs directly from the data traindataset shape
                     data_input_shape=input_shape,
-                    
+                    # Model inputs from the shape selection options 1-4
+                    main_custom_shape_selector=mp_ml_custom_input_shape,
+                    cnn_custom_shape_selector=mp_ml_custom_input_cnn_shape,
+                    lstm_custom_shape_selector=mp_ml_custom_input_lstm_shape,
+                    gru_custom_shape_selector=mp_ml_custom_input_gru_shape,
+                    transformer_custom_shape_selector=mp_ml_custom_input_transformer_shape,
                     # Use merge of different shapes in final input output
                     multi_inputs=mp_ml_multi_inputs,
                     multi_outputs=mp_ml_multi_outputs,
                     multi_branches=mp_ml_multi_branches,
-                    
-                    keras_tuner=hypermodel_params['keras_tuner']
+                    #Logging
+                    tf1=False,
+                    tf2T=False,
+                    # Model parameters and hypermodel params
+                    step=mp_ml_tf_param_steps,
+                    objective=hypermodel_params['objective'],
+                    max_epochs=hypermodel_params['max_epochs'],
+                    min_epochs=mp_ml_tf_param_min_epochs,
+                    factor=hypermodel_params['factor'],
+                    seed=hypermodel_params['seed'],
+                    hyperband_iterations=hypermodel_params['hyperband_iterations'],
+                    tune_new_entries=hypermodel_params['tune_new_entries'],
+                    allow_new_entries=hypermodel_params['allow_new_entries'],
+                    max_retries_per_trial=hypermodel_params['max_retries_per_trial'],
+                    max_consecutive_failed_trials=hypermodel_params['max_consecutive_failed_trials'],
+                    validation_split=hypermodel_params['validation_split'],
+                    epochs=hypermodel_params['epochs'],
+                    batch_size=hypermodel_params['batch_size'],
+                    dropout=hypermodel_params['dropout'],
+                    optimizer=hypermodel_params['optimizer'],
+                    loss=hypermodel_params['loss'],
+                    metrics=hypermodel_params['metrics'],
+                    directory=hypermodel_params['directory'],
+                    basepath=hypermodel_params['basepath'],
+                    project_name=hypermodel_params['project_name'],
+                    logger=hypermodel_params['logger'],
+                    tuner_id=hypermodel_params['tuner_id'],
+                    overwrite=hypermodel_params['overwrite'],
+                    executions_per_trial=hypermodel_params['executions_per_trial'],
+                    chk_fullmodel=hypermodel_params['chk_fullmodel'],
+                    chk_verbosity=hypermodel_params['chk_verbosity'],
+                    chk_mode=hypermodel_params['chk_mode'],
+                    chk_monitor=hypermodel_params['chk_monitor'],
+                    chk_sav_freq=hypermodel_params['chk_sav_freq'],
+                    chk_patience=hypermodel_params['chk_patience'],
+                    checkpoint_filepath=hypermodel_params['checkpoint_filepath'],
+                    modeldatapath=hypermodel_params['modeldatapath'],
+                    tunemode =  mp_ml_tunemode,
+                    tunemodeepochs = mp_ml_tunemodeepochs,
+                    modelsummary = mp_ml_modelsummary,
+                    unitmin=hypermodel_params['unitmin'],
+                    unitmax=hypermodel_params['unitmax'],
+                    unitstep=hypermodel_params['unitstep'],
+                    defaultunits=hypermodel_params['defaultunits'],
+                    num_trials=hypermodel_params['num_trials'],
+                    steps_per_execution=mp_ml_steps_per_execution,
+                    keras_tuner=hypermodel_params['keras_tuner'],
+                    all_modelscale=hypermodel_params['all_modelscale'],
+                    cnn_modelscale=hypermodel_params['cnn_modelscale'],
+                    lstm_modelscale=hypermodel_params['lstm_modelscale'],
+                    gru_modelscale=hypermodel_params['gru_modelscale'],
+                    trans_modelscale = hypermodel_params['trans_modelscale'],
+                    transh_modelscale=hypermodel_params['transh_modelscale'],
+                    transff_modelscale=hypermodel_params['transff_modelscale'],
+                    dense_modelscale=hypermodel_params['dense_modelscale']  
+
                     )
                 print("Tuner initialized successfully.")
                 return mt
@@ -728,35 +845,23 @@ def main():
         if (load_model := mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')) is not None:
             best_model = load_model
             print("Model: Best model: ", best_model.name)
-            for layer in best_model.layers:
-                print(f"Layer Name: {layer.name}")
-                print(f"Layer Type: {layer.__class__.__name__}")
-                print(f"Number of Parameters: {layer.count_params()}")
-                print(f"Trainable: {layer.trainable}")
-                print("layer config: ",layer.get_config())
-                print("layer weights: ",layer.get_weights())
-                print("layer input: ",layer.input_spec)
-                print("layer trainable weights: ",layer.trainable_weights)
-                print("layer non trainable weights: ",layer.non_trainable_weights)
-                print("layer losses: ",layer.losses)
-                print("layer updates: ",layer.updates)
+            print("best_model.summary()", best_model.summary())
             
-
-                print("-" * 40)
-
-            """
+    
             # Fit the label scaler on the training labels
         
             # Model Training
+            tf.keras.backend.clear_session(free_memory=True)
+
             print("Training the best model...")
             best_model.fit(
                 train_dataset,
                 validation_data=val_dataset,
-                batch_size=2,
+                batch_size=mp_ml_batch_size,
                 epochs=mp_ml_tf_param_epochs
             )
             print("Training completed.")
-
+        
             # Model Evaluation
             print("Evaluating the model...")
             val_metrics = best_model.evaluate(val_dataset, verbose=1)
@@ -848,6 +953,6 @@ def main():
             print("No data loaded")
             mt5.shutdown()
             print("Finished")
-            """
+        
 if __name__ == "__main__":
     main()
