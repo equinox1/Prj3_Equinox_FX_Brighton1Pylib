@@ -7,10 +7,9 @@
 #property link      "https://www.xercescloud.co.uk"
 #property version   "1.01"
 #+-------------------------------------------------------------------
-
 # packages dependencies for this module
 #
-import MetaTrader5 as mt5
+
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -28,7 +27,7 @@ import textwrap
 # section:params
 # /param  double svar;              -  value
 #-------------------------------------------------------------------- 
-class CMqldatasetup:
+class CMqldatasetuplegacy:
     def __init__(self, **kwargs):
         self.data = kwargs.get('data', None)
         self.mv_loadapiticks = kwargs.get('mv_loadApi', False)
@@ -61,6 +60,8 @@ class CMqldatasetup:
         self.lp_run = kwargs.get('lp_run', 1)
         self.lp_features = kwargs.get('lp_features', 'Close')
         self.lp_label = kwargs.get('lp_label', 'Label')
+        self.lp_arch = kwargs.get('lp_arch', 'x86_64')
+        self.lp_os = kwargs.get('lp_os', 'win64') # win64, linux64, macos
         
 
        
@@ -77,8 +78,10 @@ class CMqldatasetup:
     # class: cmqldatasetup      
     # usage: mql data
     # /param  var                          
-    def run_load_from_mql(self, lp_loadapiticks, lp_loadapirates, lp_loadfileticks, lp_loadfilerates, lp_rates1, lp_rates2, lp_utc_from, lp_symbol, lp_rows, lp_rowcount, lp_command_ticks,lp_command_rates, lp_path, lp_filename1, lp_filename2, lp_timeframe):
-        
+    def run_load_from_mql(self,lp_os, lp_loadapiticks, lp_loadapirates, lp_loadfileticks, lp_loadfilerates, lp_rates1, lp_rates2, lp_utc_from, lp_symbol, lp_rows, lp_rowcount, lp_command_ticks,lp_command_rates, lp_path, lp_filename1, lp_filename2, lp_timeframe):
+        if lp_os == 'windows': # windows ,linux, macos
+            import MetaTrader5 as mt5
+
         #Reset the dataframes
         lp_rates1 = pd.DataFrame()
         lp_rates2 = pd.DataFrame()
@@ -86,7 +89,7 @@ class CMqldatasetup:
         lp_rates4 = pd.DataFrame()
 
         print("mp_unit", self.mp_unit, "mp_seconds", self.mp_seconds)
-        if lp_loadapiticks:
+        if lp_loadapiticks and self.os == 'windows':
             try:
                 print("Running Tick load from Mql")
                 print("===========================")
@@ -106,7 +109,7 @@ class CMqldatasetup:
                 print(f"Mt5 api ticks exception: {e}")
     
 
-        if lp_loadapirates:
+        if lp_loadapirates  and lp_os == 'windows':
             try:
                 print("Running Rates load from Mql")
                 print("===========================")

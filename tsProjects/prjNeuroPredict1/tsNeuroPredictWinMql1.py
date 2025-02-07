@@ -45,16 +45,22 @@ import warnings
 from numpy import concatenate
 # Import equinox functionality
 from tsMqlConnect import CMqlinit, CMqlBrokerConfig
-from tsMqlData import CMqldatasetup
+
 from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
 from tsMqlMLTune import CMdtuner
 from tsMqlReference import CMqlTimeConfig
 from tsMqlSetup import CMqlSetup
-from tsMqlReference import CMqlTimeConfig
 from tsMqlMLTuneParams import CMdtunerHyperModel
+from tsMqlDataLoader import CDataLoader
+from tsMqlDataProcess import CDataProcess
+from tsMqlSetup import CMqlEnvData
+from tsMqlSetup import CMqlEnvML
+from tsMqlSetup import CMqlEnvGlobal
 
-s1 = CMqlSetup(loglevel='INFO', warn='ignore')
-strategy = s1.get_computation_strategy()
+
+
+obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore')
+strategy = obj1_CMqlSetup.get_computation_strategy()
 
 tfdebug = False
 
@@ -121,7 +127,7 @@ def main():
         TIMEZONE = tm.TIME_CONSTANTS['TIMEZONES'][0]
         TIMEFRAME = tm.TIME_CONSTANTS['TIMEFRAME']['H4']
 
-        mp_ml_data_type ='M1'
+        mp_ml_data_type ='obj1_Mqlmlsetup'
         #MQL constants
         broker = "METAQUOTES" # "ICM" or "METAQUOTES"
         
@@ -133,8 +139,8 @@ def main():
         MPDATAFILE1 =  "tickdata1.csv"
         MPDATAFILE2 =  "ratesdata1.csv"
 
-        c0 = CMqlBrokerConfig(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
-        broker_config = c0.set_mql_broker()
+        obj1_CMqlBrokerConfig = CMqlBrokerConfig(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
+        broker_config = obj1_CMqlBrokerConfig.set_mql_broker()
         BROKER = broker_config['BROKER']
         MPPATH = broker_config['MPPATH']
         MPBASEPATH = broker_config['MPBASEPATH']
@@ -164,7 +170,7 @@ def main():
 
         print(f"Logging in as: {MPLOGIN}")
         # Initialize MT5 terminal and login
-        c1 = CMqlinit(
+        obj1_CMqlinit= CMqlinit(
             MPPATH=broker_config["MPPATH"],
             MPLOGIN=MPLOGIN,
             MPPASS=MPPASS,
@@ -173,7 +179,7 @@ def main():
             MPPORTABLE=broker_config["MPPORTABLE"],
             MPENV=broker_config["MPENV"]
         )
-        if not c1.run_mql_login():
+        if not obj1_CMqlinit.run_mql_login():
             raise ConnectionError("Failed to login to MT5 terminal")
         print("Terminal Info:", mt5.terminal_info())
 
@@ -304,7 +310,7 @@ def main():
         #Data variables
         mp_data_data_label = 3
         # 1: just the label, 2: label and features, 3:time label, features 4: full dataset
-        mv_data_dfname1 = "df_rates1"
+        mv_data_dfname1 = "df_rateobj1_CMqlSetup"
         mv_data_dfname2 = "df_rates2"
        
         mp_data_history_size = 5 # Number of years of data to fetch
@@ -319,28 +325,60 @@ def main():
         # STEP: Data Preparation and Loading
         # +-------------------------------------------------------------------
         # Set up dataset
-        d1 = CMqldatasetup(lp_features=mp_ml_custom_input_keyfeat, lp_label=mp_ml_custom_output_label, lp_label_count=mp_ml_custom_output_label_count)
+        obj1_CDataLoader = CDataLoader(lp_features=mp_ml_custom_input_keyfeat, lp_label=mp_ml_custom_output_label, lp_label_count=mp_ml_custom_output_label_count)
         print("CURRENTYEAR:",CURRENTYEAR, "CURRENTYEAR-mp_data_history_size",CURRENTYEAR-mp_data_history_size,"CURRENTDAYS:",CURRENTDAYS, "CURRENTMONTH:",CURRENTMONTH,"TIMEZONE:",TIMEZONE)
-        mv_data_utc_from = d1.set_mql_timezone(CURRENTYEAR-mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
-        mv_data_utc_to = d1.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
+        mv_data_utc_from = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR-mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
+        mv_data_utc_to = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
         print("UTC From:",mv_data_utc_from)
         print("UTC To:",mv_data_utc_to)
 
-        # Load tick data from MQL and FILE
-        mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = d1.run_load_from_mql(mp_data_loadapiticks, mp_data_loadapirates, mp_data_loadfileticks, mp_data_loadfilerates, mv_data_dfname1, mv_data_dfname2, mv_data_utc_from, mp_symbol_primary, mp_data_rows, mp_data_rowcount, mp_data_command_ticks,mp_data_command_rates, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2, TIMEFRAME)
+        #params model from refactor mode
+        # model api settings
+        dataenv = CMqlEnvData()
+        mlenv = CMqlEnvML()
+        globalenv = CMqlEnvGlobal()
 
+        data_params = dataenv.get_params()
+        ml_params = mlenv.get_params()
+        global_params = globalenv.get_params()
+
+        # Load tick data from MQL and FILE
+        params_obj = CDataLoader(
+            api_ticks=mp_data_loadapiticks,
+            api_rates=mp_data_loadapirates,
+            file_ticks=mp_data_loadfileticks,
+            file_rates=mp_data_loadfilerates,
+            dfname1=mv_data_dfname1,
+            dfname2=mv_data_dfname2,
+            utc_from=mv_data_utc_from,
+            symbol_primary=mp_symbol_primary,
+            rows=mp_data_rows,
+            rowcount=mp_data_rowcount,
+            command_ticks=mp_data_command_ticks,
+            command_rates=mp_data_command_rates,
+            data_path=MPDATAPATH,
+            file_value1=MPFILEVALUE1,
+            file_value2=MPFILEVALUE2,
+            timeframe=TIMEFRAME
+        )
+
+        mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_market_data(obj1_CDataLoader, params_obj)
+       
+       
+
+        obj1_CDataProcess = CDataProcess(dataenv,mlenv,globalenv)
         #wrangle the data merging and transforming time to numeric
         if len(mv_tdata1apiticks) > 0:  
-            mv_tdata1apiticks = d1.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
+            mv_tdata1apiticks = obj1_CDataProcess.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
         if len(mv_tdata1apirates) > 0:
-            mv_tdata1apirates = d1.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
+            mv_tdata1apirates = obj1_CDataProcess.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
         if len(mv_tdata1loadticks) > 0:
-            mv_tdata1loadticks = d1.wrangle_time(mv_tdata1loadticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
+            mv_tdata1loadticks = obj1_CDataProcess.wrangle_time(mv_tdata1loadticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
         if len(mv_tdata1loadrates) > 0:
-            mv_tdata1loadrates = d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
+            mv_tdata1loadrates = obj1_CDataProcess.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
                 
         # Create labels
-        mv_tdata1apiticks = d1.create_label_wrapper(
+        mv_tdata1apiticks = obj1_CDataProcess.create_label_wrapper(
             df=mv_tdata1apiticks,
             bid_column="T1_Bid_Price",
             ask_column="T1_Ask_Price",
@@ -355,7 +393,7 @@ def main():
             **common_ml_params
         )
 
-        mv_tdata1apirates = d1.create_label_wrapper(
+        mv_tdata1apirates = obj1_CDataProcess.create_label_wrapper(
             df=mv_tdata1apirates,
             bid_column="R1_Bid_Price",
             ask_column="R1_Ask_Price",
@@ -370,7 +408,7 @@ def main():
             **common_ml_params
         )
 
-        mv_tdata1loadticks = d1.create_label_wrapper(
+        mv_tdata1loadticks = obj1_CDataProcess.create_label_wrapper(
             df=mv_tdata1loadticks,
             bid_column="T2_Bid_Price",
             ask_column="T2_Ask_Price",
@@ -385,7 +423,7 @@ def main():
             **common_ml_params
         )
 
-        mv_tdata1loadrates = d1.create_label_wrapper(
+        mv_tdata1loadrates = obj1_CDataProcess.create_label_wrapper(
             df=mv_tdata1loadrates,
             bid_column="R2_Bid_Price",
             ask_column="R2_Ask_Price",
@@ -401,10 +439,10 @@ def main():
         )
 
         # Display the data
-        d1.run_mql_print(mv_tdata1apiticks,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
-        d1.run_mql_print(mv_tdata1apirates,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
-        d1.run_mql_print(mv_tdata1loadticks,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
-        d1.run_mql_print(mv_tdata1loadrates,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
+        obj1_CDataProcess.run_mql_print(mv_tdata1apiticks,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
+        obj1_CDataProcess.run_mql_print(mv_tdata1apirates,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
+        obj1_CDataProcess.run_mql_print(mv_tdata1loadticks,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
+        obj1_CDataProcess.run_mql_print(mv_tdata1loadrates,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
 
         # copy the data for config selection
         data_sources = [mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates]
@@ -430,7 +468,7 @@ def main():
         print("SHAPE: mv_tdata2 shape:", mv_tdata2.shape)
 
         # +-------------------------------------------------------------------
-        # STEP: Normalize the data
+        # STEP: Normalize the X data
         # +-------------------------------------------------------------------
         # Normalize the 'Close' column
         scaler = MinMaxScaler()
@@ -439,17 +477,12 @@ def main():
         mv_tdata2[mp_ml_custom_input_keyfeat_scaled] = scaler.fit_transform(mv_tdata2[mp_ml_custom_input_keyfeat_list])
 
         print("print Normalise")
-        d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
+        obj1_CDataProcess= CDataProcess(dataenv,mlenv,globalenv)
+        print("Type after wrangle_time:", type(mv_tdata2))
+        obj1_CDataProcess.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
         print("End of Normalise print")
         print("mv_tdata2.shape",mv_tdata2.shape)
 
-        # +------------------------------------------------------------------
-        # STEP: remove datetime dtype to numeric from the data
-        # +-------------------------------------------------------------------
-        #if len(mv_tdata2) > 0:
-        #    mv_tdata2 = d1.wrangle_time(mv_tdata2, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=True, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=False)
-
-        #d1.run_mql_print(mv_tdata2,mp_data_tab_rows,mp_data_tab_width, "fancy_grid",floatfmt=".5f",numalign="left",stralign="left")
         # +-------------------------------------------------------------------
         # STEP: add The time index to the data
         # +-------------------------------------------------------------------
@@ -462,7 +495,7 @@ def main():
         mv_tdata2[first_column] = mv_tdata2[first_column].astype(str)  # Uniform type
         mv_tdata2[first_column] = mv_tdata2[first_column].str.strip()  # Remove whitespaces
 
-        # Set the first column as index
+        # Set the first column as index which is the datetime column
         mv_tdata2.set_index(first_column, inplace=True)
         mv_tdata2=mv_tdata2.dropna()
         print("POST INDEX: Count: ",len(mv_tdata2))
@@ -470,26 +503,28 @@ def main():
         # +-------------------------------------------------------------------
         # STEP: set the dataset to just the features and the label and sort by time
         # +-------------------------------------------------------------------
+        print("Type before set default:", type(mv_tdata2))
         if mp_data_data_label == 1:
             mv_tdata2 = mv_tdata2[[list(mp_ml_custom_input_keyfeat_scaled)[0]]]
-            d1.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
+            obj1_CDataLoader.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
             
         elif mp_data_data_label == 2:
             mv_tdata2 = mv_tdata2[[mv_tdata2.columns[0]] + [list(mp_ml_custom_input_keyfeat_scaled)[0]]]
             # Ensure the data is sorted by time
             mv_tdata2 = mv_tdata2.sort_index()
-            d1.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
+            obj1_CDataLoader.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
 
         elif mp_data_data_label == 3:
             # Ensure the data is sorted by time use full dataset
             mv_tdata2 = mv_tdata2.sort_index()
-            d1.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
+            print("Count of Tdata2:",len(mv_tdata2))
+            obj1_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
 
        # +-------------------------------------------------------------------
         # STEP: Generate X and y from the Time Series
         # +-------------------------------------------------------------------
         # At thsi point the normalised data columns are split across the X and Y data
-        m1 = CMqlmlsetup() # Create an instance of the class
+        obj1_Mqlmlsetup = CMqlmlsetup() # Create an instance of the class
         # 1: 24 HOURS/24 HOURS prediction window
         print("1: MINUTES data entries per time frame: MINUTES:", MINUTES, "HOURS:", MINUTES * 60, "DAYS:", MINUTES * 60 * 24)
         timeval = MINUTES * 60 # hours
@@ -511,9 +546,12 @@ def main():
 
         # STEP: Create input (X) and label (Y) tensors Ensure consistent data shape
         # Create the input (X) and label (Y) tensors Close_scaled is the feature to predict and Close last entry in future the label
-        mv_tdata2_X, mv_tdata2_y = m1.create_Xy_time_windows3(mv_tdata2, past_width, future_width, target_column=list(mp_ml_custom_input_keyfeat_scaled), feature_column=list(mp_ml_custom_input_keyfeat))
+        mv_tdata2_X, mv_tdata2_y = obj1_Mqlmlsetup.create_Xy_time_windows3(mv_tdata2, past_width, future_width, target_column=list(mp_ml_custom_input_keyfeat_scaled), feature_column=list(mp_ml_custom_input_keyfeat))
         print("mv_tdata2_X.shape", mv_tdata2_X.shape, "mv_tdata2_y.shape", mv_tdata2_y.shape)
-
+        
+        # +-------------------------------------------------------------------
+        # STEP: Normalize the Y data
+        # +-------------------------------------------------------------------
         # Scale the Y labels
         mv_tdata2_y = scaler.transform(mv_tdata2_y.reshape(-1, 1))  # Transform Y values
                 
@@ -524,7 +562,7 @@ def main():
         batch_size = mp_ml_batch_size
         precountX = len(mv_tdata2_X)
         precounty = len(mv_tdata2_y)
-        mv_tdata2_X,mv_tdata2_y = m1.align_to_batch_size(mv_tdata2_X,mv_tdata2_y, batch_size)
+        mv_tdata2_X,mv_tdata2_y = obj1_Mqlmlsetup.align_to_batch_size(mv_tdata2_X,mv_tdata2_y, batch_size)
         print(f"Aligned data: X shape: {mv_tdata2_X.shape}, Y shape: {mv_tdata2_y.shape}")
 
         # Check the number of rows
@@ -546,9 +584,9 @@ def main():
         # initiate the object using a window generatorwindow is not  used in this model Parameters
         tf_batch_size = mp_ml_batch_size
 
-        train_dataset = m1.create_tf_dataset(X_train, y_train, batch_size=tf_batch_size, shuffle=True)
-        val_dataset = m1.create_tf_dataset(X_val, y_val, batch_size=tf_batch_size, shuffle=False)
-        test_dataset = m1.create_tf_dataset(X_test, y_test, batch_size=tf_batch_size, shuffle=False)
+        train_dataset = obj1_Mqlmlsetup.create_tf_dataset(X_train, y_train, batch_size=tf_batch_size, shuffle=True)
+        val_dataset = obj1_Mqlmlsetup.create_tf_dataset(X_val, y_val, batch_size=tf_batch_size, shuffle=False)
+        test_dataset = obj1_Mqlmlsetup.create_tf_dataset(X_test, y_test, batch_size=tf_batch_size, shuffle=False)
         print(f"TF Datasets created: Train: {tf.data.experimental.cardinality(train_dataset).numpy()}, Val: {tf.data.experimental.cardinality(val_dataset).numpy()}, Test: {tf.data.experimental.cardinality(test_dataset).numpy()}")
 
         

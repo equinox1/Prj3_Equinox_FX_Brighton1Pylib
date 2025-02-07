@@ -11,7 +11,7 @@
 # classes for mql
 #+-------------------------------------------------------------------
 import MetaTrader5 as mt5
-from MetaTrader5 import *
+
 #--------------------------------------------------------------------
 # create class  "CMqlinit"
 # usage: connect services mql api
@@ -19,9 +19,7 @@ from MetaTrader5 import *
 # section:params
 # /param  double svar;              -  value
 #-------------------------------------------------------------------- 
-import MetaTrader5 as mt5
 
-import MetaTrader5 as mt5
 import keyring as kr
 
 class CMqlinit:
@@ -46,6 +44,11 @@ class CMqlinit:
         self.MPTIMEOUT = kwargs.get('MPTIMEOUT', 60000)
         self.MPPORTABLE = kwargs.get('MPPORTABLE', True)
         self.MPENV = kwargs.get('MPENV', 'demo')
+
+        # Initialize the MT5 api
+        self.os = kwargs.get('os', 'windows')  # windows or linux or macos
+        if self.os == 'windows':
+            import MetaTrader5 as mt5
 
     def run_mql_login(self):
         """Attempts to initialize and login to the MT5 terminal."""
@@ -77,11 +80,15 @@ class CMqlBrokerConfig:
         MPDATAFILE2 (str): Path to the second data file.
     """
 
-    def __init__(self, lpbroker='MetaQuotes', mp_symbol_primary='EURUSD', MPDATAFILE1=None, MPDATAFILE2=None):
+    def __init__(self, lpbroker='MetaQuotes', mp_symbol_primary='EURUSD', MPDATAFILE1=None, MPDATAFILE2=None, **kwargs):
         self.lpbroker = lpbroker
         self.mp_symbol_primary = mp_symbol_primary
         self.MPDATAFILE1 = MPDATAFILE1
         self.MPDATAFILE2 = MPDATAFILE2
+        # Initialize the MT5 api
+        self.os = kwargs.get('os', 'windows')  # windows or linux or macos
+        if self.os == 'windows':
+            import MetaTrader5 as mt5
 
     def set_mql_broker(self):
         """Returns broker-specific configurations."""

@@ -2,17 +2,28 @@ import tensorflow as tf
 from tensorflow.keras.layers import Input
 import os
 import warnings
-import MetaTrader5 as mt5  # Ensure this is installed and imported
 import posixpath  # For path handling
 
 class CMqlSetup:
     def __init__(self, tflog='2', warn='ignore', **kwargs):
         self.kwargs = kwargs
-        self.tflog = tflog
-        self.warn = warn
+        self.tflog = kwargs.get('tflog', tflog)
+        self.warn = kwargs.get('warn', warn)
+        self.tfdebug = kwargs.get('tfdebug', False)
+        self.precision = kwargs.get('precision', 'mixed_float16')
+
+        # Initialize the MT5 api
+        self.os = kwargs.get('os', 'windows')  # windows or linux or macos
+        if self.os == 'windows':
+            import MetaTrader5 as mt5
+            self.mp_data_command_ticks = kwargs.get('mp_data_command_ticks', mt5.COPY_TICKS_ALL)
         
         warnings.filterwarnings(self.warn)
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = self.tflog
+        
+        # Set the global policy for mixed precision
+        from tensorflow.keras.mixed_precision import set_global_policy
+        set_global_policy(self.precision)
         
         print("TensorFlow Version:", tf.__version__)
         
@@ -35,6 +46,31 @@ class CMqlSetup:
             print("⚠️ TPU not found, using GPU/CPU:", e)
             return tf.distribute.get_strategy()
 
+    def set_setup_tfdebug(self):
+        if self.tfdebug:
+            tf.debugging.set_log_device_placement(True)
+            tf.config.experimental_run_functions_eagerly(True)
+            tf.config.run_functions_eagerly(True)
+            tf.config.optimizer.set_jit(True)
+            # List available GPUs
+            gpus = tf.config.list_physical_devices('GPU')
+            print("GPUs Available:", gpus)
+
+            # Enable memory growth to avoid sudden crashes
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+                tf.debugging.set_log_device_placement(True)
+
+            if tf.config.list_physical_devices('GPU'):
+                memory_info = tf.config.experimental.get_memory_info('GPU:0')
+                print("Current GPU Memory Usage:", memory_info)
+            import psutil
+            print("RAM Usage:", psutil.virtual_memory().used / 1e9, "GB")
+
+            import gc
+            tf.keras.backend.clear_session()
+            gc.collect()
+
 
 class CMqlEnvData:
     def __init__(self, **kwargs):
@@ -52,8 +88,9 @@ class CMqlEnvData:
         self.mp_data_rowcount = kwargs.get('mp_data_rowcount', 10000)
         self.mp_data_history_size = kwargs.get('mp_data_history_size', 5)
         self.mp_data_cfg_usedata = kwargs.get('mp_data_cfg_usedata', 'loadfilerates')
-        self.mp_data_command_ticks = kwargs.get('mp_data_command_ticks', mt5.COPY_TICKS_ALL)
+        
         self.mp_data_command_rates = kwargs.get('mp_data_command_rates', None)
+        self.mp_data_command_ticks = kwargs.get('mp_data_command_ticks', None)
         self.mp_data_timeframe = kwargs.get('mp_data_timeframe', None)  # Ensure this is set externally
         self.mp_data_tab_rows = kwargs.get('mp_data_tab_rows', 10)
         self.mp_data_tab_width = kwargs.get('mp_data_tab_width', 30)
@@ -61,9 +98,16 @@ class CMqlEnvData:
         self.mp_data_show_dtype = kwargs.get('mp_data_show_dtype', False)
         self.mp_data_show_head = kwargs.get('mp_data_show_head', False)
 
-        
-    
-    def get_data_params(self):
+        self.mp_hl_avg_col = kwargs.get('mp_hl_avg_col', 'HLAvg')
+        self.mp_ma_col = kwargs.get('mp_ma_col', 'SMA')
+        self.mp_returns_col = kwargs.get('mp_returns_col', 'LogReturns')
+        self.mp_returns_col_scaled = kwargs.get('mp_returns_col_scaled', 'LogReturns_scaled')
+        self.mp_create_label = kwargs.get('mp_create_label', False)
+        self.mp_create_label_scaled = kwargs.get('mp_create_label_scaled', False)
+        self.mp_data_rownumber = kwargs.get('mp_data_rownumber', False)
+        self.mp_data_show_dtype = kwargs.get('mp_data_show_dtype', False)
+
+    def get_params(self):
         return self.__dict__  # Returns all attributes as a dictionary
 
 
@@ -108,8 +152,18 @@ class CMqlEnvML:
         # Data Processing
         self.mp_ml_custom_input_keyfeat = kwargs.get('mp_ml_custom_input_keyfeat', {'Close'})
         self.mp_ml_custom_output_label = kwargs.get('mp_ml_custom_output_label', {'Label'})
+
+        self.mp_ml_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in self.mp_ml_custom_input_keyfeat}  # the feature to predict
+        self.mp_ml_custom_output_label_scaled = {targ + '_Scaled' for targ in self.mp_ml_custom_output_label}  # the label shifted to predict
+        self.mp_ml_custom_output_label_count=len(self.mp_ml_custom_output_label)
         
-    def get_ml_params(self):
+        self.mp_ml_cfg_period = kwargs.get('mp_ml_cfg_period', 24) # Lookahead periods
+        self.mp_ml_tf_ma_windowin = kwargs.get('mp_ml_tf_ma_windowin', 24) # Moving average window
+        self.mp_ml_tf_shiftin = kwargs.get('mp_ml_tf_shiftin', 1) # Shift in the data
+        self.mp_ml_tf_shiftout = kwargs.get('mp_ml_tf_shiftout', 1) # Shift out the data
+        self.mp_ml_tf_ma_windowout = kwargs.get('mp_ml_tf_ma_windowout', 5) # Moving average window for output
+   
+    def get_params(self):
         return self.__dict__  # Returns all attributes as a dictionary
 
 
@@ -118,5 +172,5 @@ class CMqlEnvGlobal:
         self.kwargs = kwargs
         
 
-    def get_global_params(self):
+    def get_params(self):
             return self.__dict__  # Returns all attributes as a dictionary
