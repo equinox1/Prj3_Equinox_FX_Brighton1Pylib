@@ -22,15 +22,21 @@ import onnxruntime.tools.symbolic_shape_infer as symbolic_shape_infer
 from onnx import checker
 import warnings
 from numpy import concatenate
+from sklearn.preprocessing import MinMaxScaler ,StandardScaler, RobustScaler, QuantileTransformer, PowerTransformer
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 # Import equinox functionality
-from tsMqlConnect import CMqlinit, CMqlBrokerConfig
-from tsMqlDataProcess import CMqldataprocess
-from tsMqlDataLoader import CMMarketDataParams
-from tsMqlSetup import CMqlSetup, CMqlEnvData, CMqlEnvML, CMqlEnvGlobal
+from tsMqlConnect import CMqlBrokerConfig ,CMqlinit
 from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
 from tsMqlMLTune import CMdtuner
 from tsMqlReference import CMqlTimeConfig
-from sklearn.preprocessing import MinMaxScaler ,StandardScaler, RobustScaler, QuantileTransformer, PowerTransformer
+from tsMqlSetup import CMqlSetup
+from tsMqlMLTuneParams import CMdtunerHyperModel
+from tsMqlDataLoader import CDataLoader
+from tsMqlDataProcess import CDataProcess
+from tsMqlSetup import CMqlEnvData
+from tsMqlSetup import CMqlEnvML
+from tsMqlSetup import CMqlEnvGlobal
+
 
 
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore')
@@ -78,11 +84,11 @@ def main():
       # +-------------------------------------------------------------------
       # initialize the broker
       
-      obj1_CMqlBrokerConfig=CMqlBrokerConfig(lpbroker=broker, mp_symbol_primary=mp_symbol_primary, MPDATAFILE1=MPDATAFILE1, MPDATAFILE2=MPDATAFILE1)
+      obj1_CMqlBrokerConfig = CMqlBrokerConfig(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
       broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit = obj1_CMqlBrokerConfig.initialize_mt5(broker, obj1_CMqlTimeConfig)
       # Login to the broker
-      obj2_CMqlBrokerConfig=obj1_CMqlBrokerConfig.login_mt5(broker_config)
-      print("Broker Login:",obj2_CMqlBrokerConfig)
+      broker_config = obj1_CMqlBrokerConfig.set_mql_broker()
+      print("Broker Login:",obj1_CMqlBrokerConfig)
       file_path = broker_config['MKFILES']
       MPDATAPATH = broker_config['MPDATAPATH']
       
@@ -91,14 +97,14 @@ def main():
       # STEP: Data Preparation and Loading
       # +-------------------------------------------------------------------
       # Set up dataset
-      
-      obj1_CMqldataprocess = CMqldataprocess(dataenv, mlenv, globalenv)
+      print("Data Preparation and Loading",dataenv)
+      obj1_CDataProcess = CDataProcess(dataenv, mlenv, globalenv)
       mp_data_history_size = dataenv.mp_data_history_size
       print("CURRENTYEAR:",CURRENTYEAR, "CURRENTYEAR-mp_data_history_size",CURRENTYEAR-mp_data_history_size,"CURRENTDAYS:",CURRENTDAYS, "CURRENTMONTH:",CURRENTMONTH,"TIMEZONE:",TIMEZONE)
       #data from date to current date
      
       # Load tick data from MQL and FILE
-      obj1_params = CMMarketDataParams(
+      obj1_params = CDataLoader(
       api_ticks=dataenv.mp_data_loadapiticks,
       api_rates=dataenv.mp_data_loadapirates,
       file_ticks=dataenv.mp_data_loadfileticks, 

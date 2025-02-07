@@ -10,7 +10,7 @@
 
 # packages dependencies for this module
 #
-import MetaTrader5 as mt5
+
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -22,17 +22,18 @@ import tabulate
 from tabulate import tabulate
 import textwrap
 #--------------------------------------------------------------------
-# create class  "CMqldatasetup"
+# create class  "CDataProcess"
 # usage: mql data services
 #
 # section:params
 # /param  double svar;              -  value
 #-------------------------------------------------------------------- 
-class CMqldataprocess:
+class CDataProcess:
     def __init__(self,dataenv,mlenv,globalenv, **kwargs):
         self.dataenv = kwargs.get('dataenv', None)
         self.mlenv = kwargs.get('mlenv', None)
         self.globalenv = kwargs.get('globalenv', None)
+       
         
         self.lp_features = kwargs.get('lp_features', 'Features')
         self.lp_label = kwargs.get('lp_label', 'Label')
@@ -49,6 +50,9 @@ class CMqldataprocess:
         self.lp_filter_obj = kwargs.get('lp_filter_obj', False)
         self.lp_filter_dtmi = kwargs.get('lp_filter_dtmi', False)
         self.lp_filter_dtmf = kwargs.get('lp_filter_dtmf', False)
+        self.lp_os = kwargs.get('lp_os', 'windows') # windows or linux or macos
+        if self.lp_os == 'windows':
+            import MetaTrader5 as mt5
 
     def wrangle_time(self, df: pd.DataFrame, lp_unit: str, mp_filesrc: str, filter_int: bool, filter_flt: bool, filter_obj: bool, filter_dtmi: bool, filter_dtmf: bool, mp_dropna: bool, mp_merge: bool, mp_convert: bool, mp_drop: bool) -> pd.DataFrame:
         """
@@ -353,7 +357,10 @@ class CMqldataprocess:
     # usage: mql data
     # /param  var    
     def run_mql_print(self, df, hrows,colwidth,tablefmt = "pretty",floatfmt = ".5f",numalign = "left",stralign = "left"):
-        print("Start First few rows of the data: Count", len(df))
+        print("Type of df before run_mql_print:", type(df))
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError(f"Expected a DataFrame, but got {type(df)}")
+
         
         # Wrap long text in columns
         def wrap_column_data(column, width):

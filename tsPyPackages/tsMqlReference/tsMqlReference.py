@@ -10,10 +10,26 @@
 
 # classes for mql
 
-import MetaTrader5 as mt5
+
 from datetime import datetime
 
 class CMqlTimeConfig:
+    def __init__(self, basedatatime='SECONDS', loadeddatatime='MINUTES', **kwargs):
+            """
+            Initialize the CMqlTimeConfig instance.
+
+            :param basedatatime: The base data time unit (default is 'SECONDS').
+            :param loadeddatatime: The loaded data time unit (default is 'MINUTES').
+            :param kwargs: Additional keyword arguments.
+            """
+            self.basedatatime = basedatatime
+            self.loadeddatatime = loadeddatatime
+            self.kwargs = kwargs
+            # Initialize the MT5 api
+            self.os = kwargs.get('os', 'windows')  # windows or linux or macos
+            if self.os == 'windows':
+                import MetaTrader5 as mt5
+
     TIME_CONSTANTS = {
         "TIMEVALUE": {
             'SECONDS': 1,
@@ -70,17 +86,7 @@ class CMqlTimeConfig:
         ]
     }
 
-    def __init__(self, basedatatime='SECONDS', loadeddatatime='MINUTES', **kwargs):
-        """
-        Initialize the CMqlTimeConfig instance.
-
-        :param basedatatime: The base data time unit (default is 'SECONDS').
-        :param loadeddatatime: The loaded data time unit (default is 'MINUTES').
-        :param kwargs: Additional keyword arguments.
-        """
-        self.basedatatime = basedatatime
-        self.loadeddatatime = loadeddatatime
-        self.kwargs = kwargs
+   
 
     def get_timevalue(self, unit):
         """

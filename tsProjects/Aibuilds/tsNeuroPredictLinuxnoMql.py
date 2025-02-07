@@ -61,7 +61,7 @@ from tsMqlMLTuneParams import CMdtunerHyperModel
 s1 = CMqlSetup(loglevel='INFO', warn='ignore')
 strategy = s1.get_computation_strategy()
 
-tfdebug = False
+tfdebug = True
 
 if tfdebug:
     tf.debugging.set_log_device_placement(True)
@@ -348,7 +348,7 @@ def main():
                   mv_tdata1loadticks = d1.wrangle_time(mv_tdata1loadticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
             if len(mv_tdata1loadrates) > 0:
                   mv_tdata1loadrates = d1.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
-         else:
+        else:
             if len(mv_tdata1loadticks) > 0:
                   mv_tdata1loadticks = d1.wrangle_time(mv_tdata1loadticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
             if len(mv_tdata1loadrates) > 0:
@@ -426,27 +426,27 @@ def main():
         d1.run_mql_print(mv_tdata1loadrates,mp_data_tab_rows,mp_data_tab_width, "plain",floatfmt=".5f",numalign="left",stralign="left")
 
         # copy the data for config selection
-         if MQL5:
+        if MQL5:
             data_sources = [mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates]
-         else:
+        else:
             data_sources = [mv_tdata1loadticks, mv_tdata1loadrates]
 
-         data_copies = [data.copy() for data in data_sources]
+        data_copies = [data.copy() for data in data_sources]
 
-         if MQL5:
+        if MQL5:
             mv_tdata2a, mv_tdata2b, mv_tdata2c, mv_tdata2d = data_copies
-         else:
+        else:
             mv_tdata2c, mv_tdata2d = data_copies
         # Define a mapping of configuration values to data variables
 
-         if MQL5:
+        if MQL5:
             data_mapping = {
                   'loadapiticks': mv_tdata2a,
                   'loadapirates': mv_tdata2b,
                   'loadfileticks': mv_tdata2c,
                   'loadfilerates': mv_tdata2d
          }
-         else:
+        else:
             data_mapping = {
                   'loadfileticks': mv_tdata2c,
                   'loadfilerates': mv_tdata2d
