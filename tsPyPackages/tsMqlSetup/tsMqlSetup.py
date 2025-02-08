@@ -17,6 +17,10 @@ class CMqlSetup:
         if self.os == 'windows':
             import MetaTrader5 as mt5
             self.mp_data_command_ticks = kwargs.get('mp_data_command_ticks', mt5.COPY_TICKS_ALL)
+            self.mp_data_command_rates = kwargs.get('mp_data_command_rates', None)
+        else:
+            self.mp_data_command_ticks = kwargs.get('mp_data_command_ticks', 0)
+            self.mp_data_command_rates = kwargs.get('mp_data_command_rates', None)
         
         warnings.filterwarnings(self.warn)
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = self.tflog
@@ -88,9 +92,17 @@ class CMqlEnvData:
         self.mp_data_rowcount = kwargs.get('mp_data_rowcount', 10000)
         self.mp_data_history_size = kwargs.get('mp_data_history_size', 5)
         self.mp_data_cfg_usedata = kwargs.get('mp_data_cfg_usedata', 'loadfilerates')
+
+         # Initialize the MT5 api
+        self.os = kwargs.get('os', 'windows')  # windows or linux or macos
+        if self.os == 'windows':
+            import MetaTrader5 as mt5
+            self.mp_data_command_ticks = kwargs.get('mp_data_command_ticks', mt5.COPY_TICKS_ALL)
+            self.mp_data_command_rates = kwargs.get('mp_data_command_rates', None)
+        else:
+            self.mp_data_command_ticks = kwargs.get('mp_data_command_ticks', 0)
+            self.mp_data_command_rates = kwargs.get('mp_data_command_rates', None)
         
-        self.mp_data_command_rates = kwargs.get('mp_data_command_rates', None)
-        self.mp_data_command_ticks = kwargs.get('mp_data_command_ticks', None)
         self.mp_data_timeframe = kwargs.get('mp_data_timeframe', None)  # Ensure this is set externally
         self.mp_data_tab_rows = kwargs.get('mp_data_tab_rows', 10)
         self.mp_data_tab_width = kwargs.get('mp_data_tab_width', 30)
@@ -114,6 +126,15 @@ class CMqlEnvData:
 class CMqlEnvML:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+         # Initialize the MT5 api
+        self.os = kwargs.get('os', 'windows')  # windows or linux or macos
+        if self.os == 'windows':
+            import MetaTrader5 as mt5
+            self.mp_data_command_ticks = kwargs.get('mp_data_command_ticks', mt5.COPY_TICKS_ALL)
+            self.mp_data_command_rates = kwargs.get('mp_data_command_rates', None)
+        else:
+            self.mp_data_command_ticks = kwargs.get('mp_data_command_ticks', 0)
+            self.mp_data_command_rates = kwargs.get('mp_data_command_rates', None)
         
         # File Paths
         self.mp_ml_model_datapath = kwargs.get('mp_ml_model_datapath', os.path.expanduser("~/tsModelData/"))
