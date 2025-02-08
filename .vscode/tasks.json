@@ -6,7 +6,7 @@
         {
             "label": "Compile-Equinox",
             "type": "shell",
-            "command": "C:\\Users\\shepa\\OneDrive\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\\MQL5\\Brokers\\ICMarkets\\MQL5\\Scripts\\Vscodescripts\\compilemql.ps1  C:\\Users\\shepa\\OneDrive\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\\MQL5\\Brokers\\ICMarkets\\MQL5\\Experts\\Advisors\\Equinox\\MQL5DEV2FX\\MainEAV1.mq5",
+            "command": "C:\\Users\\shepa\\OneDrive\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\\MQL5\\Brokers\\Metaquotes\\MQL5\\Scripts\\Vscodescripts\\compilemql.ps1  C:\\Users\\shepa\\OneDrive\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\\MQL5\\Brokers\\Metaquotes\\MQL5\\Experts\\Advisors\\Equinox\\MQL5DEV2FX\\MainEAV1.mq5",
             "presentation": {
                 "echo": true,
                 "reveal": "always",
@@ -18,7 +18,8 @@
         {
             "label": "Compile-MQL",
             "type": "shell",
-             "presentation": {
+            "command": "C:\\Users\\shepa\\OneDrive\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\\MQL5\\Brokers\\Metaquotes\\MQL5\\Scripts\\Vscodescripts\\compilemql.ps1",
+            "presentation": {
                 "echo": true,
                 "reveal": "always",
                 "focus": false,
@@ -42,7 +43,7 @@
             },
             "command": "hh.exe",
             "args": [
-                                "mk:@MSITStore:C:\\Users\\shepa\\OneDrive\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\\MQL5\\Brokers\\ICMarkets\\MQL5\\Scripts\\MQL5\\Scripts\\MQL5 codeset help.chm::/${selectedText}.htm"
+                "mk:@MSITStore:C:\\Users\\shepa\\OneDrive\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\\MQL5\\Brokers\\Metaquotes\\MQL5\\Scripts\\MQL5\\Scripts\\MQL5 codeset help.chm::/${selectedText}.htm"
             ]
         }
     ]
