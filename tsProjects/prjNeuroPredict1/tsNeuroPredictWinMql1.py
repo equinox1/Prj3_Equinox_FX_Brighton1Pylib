@@ -518,7 +518,7 @@ def main():
             # Ensure the data is sorted by time use full dataset
             mv_tdata2 = mv_tdata2.sort_index()
             print("Count of Tdata2:",len(mv_tdata2))
-            obj1_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
+            obj1_CDataLoader.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
 
        # +-------------------------------------------------------------------
         # STEP: Generate X and y from the Time Series

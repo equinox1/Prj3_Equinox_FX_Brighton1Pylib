@@ -74,7 +74,7 @@ MPDATAFILE1 =  "tickdata1.csv"
 MPDATAFILE2 =  "ratesdata1.csv"
 feature_scaler = MinMaxScaler()
 label_scaler = MinMaxScaler()
-mp_ml_data_type ='M1' # exception for api mql load
+TIMESAMPLE ='M1' # exception for api mql load
 
 def main():
     with strategy.scope():
@@ -92,10 +92,10 @@ def main():
          print(f"mp_symbol_primary: {mp_symbol_primary}")
       else:
          raise ValueError("TIME_CONSTANTS['SYMBOLS'] is missing or empty")
-      if 'TIMEFRAME' in obj1_CMqlTimeConfig.TIME_CONSTANTS and 'H4' in obj1_CMqlTimeConfig.TIME_CONSTANTS['TIMEFRAME']:
-         TIMEFRAME = obj1_CMqlTimeConfig.TIME_CONSTANTS['TIMEFRAME']['H4']
+      if 'TIMEFRAME' in obj1_CMqlTimeConfig.TIME_CONSTANTS and TIMESAMPLE in obj1_CMqlTimeConfig.TIME_CONSTANTS['TIMEFRAME']:
+         TIMEFRAME = obj1_CMqlTimeConfig.TIME_CONSTANTS['TIMEFRAME'][TIMESAMPLE]
       else:
-         raise ValueError("TIME_CONSTANTS['TIMEFRAME']['H4'] is missing")
+         raise ValueError("TIME_CONSTANTS['TIMEFRAME'][TIMESAMPLE] is missing")
 
         # Initialize environments
       environments = {
@@ -134,16 +134,27 @@ def main():
       mp_data_history_size = environments["dataenv"].mp_data_history_size if hasattr(environments["dataenv"], 'mp_data_history_size') else 0
       print(f"CURRENTYEAR: {CURRENTYEAR}, CURRENTYEAR-mp_data_history_size: {CURRENTYEAR - mp_data_history_size}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, TIMEZONE: {TIMEZONE}")
       
+      # Set the UTC time for the data
+      datenv = environments["dataenv"]
+      mlenv = environments["mlenv"]
+      globalenv = environments["globalenv"]
+      obj2_CDataLoader = CDataLoader(datenv, mlenv, globalenv)
+      mv_data_utc_from = obj2_CDataLoader.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
+      mv_data_utc_to = obj2_CDataLoader.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)   
+      print(f"UTC From: {mv_data_utc_from}")
+      print(f"UTC To: {mv_data_utc_to}")
+
       try:
          # Load tick data from MQL and FILE
          obj1_params = CDataLoader(
+            datenv, mlenv, globalenv,
             api_ticks=environments["dataenv"].mp_data_loadapiticks,
             api_rates=environments["dataenv"].mp_data_loadapirates,
             file_ticks=environments["dataenv"].mp_data_loadfileticks, 
             file_rates=environments["dataenv"].mp_data_loadfilerates,
             dfname1=environments["dataenv"].mv_data_dfname1, 
             dfname2=environments["dataenv"].mv_data_dfname2, 
-            utc_from=None,
+            utc_from=mv_data_utc_from,
             symbol_primary=mp_symbol_primary, 
             rows=environments["dataenv"].mp_data_rows, 
             rowcount=environments["dataenv"].mp_data_rowcount,
@@ -155,14 +166,7 @@ def main():
             timeframe=TIMEFRAME
          )
         
-        
          try:
-            mv_data_utc_from = obj1_params.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
-            mv_data_utc_to = obj1_params.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
-            
-            print(f"UTC From: {mv_data_utc_from}")
-            print(f"UTC To: {mv_data_utc_to}")
-
             mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_params.load_market_data(obj1_CDataProcess, obj1_params)
          except Exception as e:
             print(f"An error occurred: {e}")
