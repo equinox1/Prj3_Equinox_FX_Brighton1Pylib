@@ -14,11 +14,8 @@ from tsMqlPlatformPkg import platform_checker
 # Initialize PlatformHelper correctly
 platform_helper = CPlatformHelper()
 
-
-
-
 #--------------------------------------------------------------------
-# create class  "CMqlinit"
+# create class  "CMqlinit"dir
 # usage: connect services mql api
 #
 # section:params
