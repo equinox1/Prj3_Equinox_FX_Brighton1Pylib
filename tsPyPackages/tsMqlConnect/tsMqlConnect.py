@@ -10,9 +10,9 @@
 import os
 # Ensure the module name is correctly spelled and matches the actual package name
 
-from tsMqlPlatformPkg import platform_checker
+from tsMqlPlatform import CPlatformHelper
 # Initialize PlatformHelper correctly
-platform_helper = CPlatformHelper()
+#platform_helper = CPlatformHelper()
 
 #--------------------------------------------------------------------
 # create class  "CMqlinit"dir

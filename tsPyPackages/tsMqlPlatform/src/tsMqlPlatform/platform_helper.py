@@ -1,5 +1,4 @@
 import os
-from tsMqlPlatformPkg import platform_checker, PLATFORM_DEPENDENCIES, logger, config
 
 
 class CPlatformHelper:
