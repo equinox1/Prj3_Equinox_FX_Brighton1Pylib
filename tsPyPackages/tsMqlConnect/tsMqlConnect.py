@@ -1,18 +1,15 @@
 #+------------------------------------------------------------------+
-#|                                                    tsmqlmod1.pyw
+#|                                                  tsmqlconnect.pyw
 #|                                                    tony shepherd |
-#|                                                  https://www.xercescloud.co.uk |
+#|                                    https://www.xercescloud.co.uk |
 #+------------------------------------------------------------------+
 #property copyright "tony shepherd"
 #property link      "https://www.xercescloud.co.uk"
 #property version   "1.01"
 #+-------------------------------------------------------------------
-import os
-# Ensure the module name is correctly spelled and matches the actual package name
-
-from tsMqlPlatform import CPlatformHelper
-# Initialize PlatformHelper correctly
-#platform_helper = CPlatformHelper()
+from tsMqlPlatform import run_platform,platform_checker, PLATFORM_DEPENDENCIES, logger, config
+pchk=run_platform.RunPlatform()
+os_platform = platform_checker.get_platform()
 
 #--------------------------------------------------------------------
 # create class  "CMqlinit"dir

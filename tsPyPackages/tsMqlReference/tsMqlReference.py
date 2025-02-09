@@ -7,6 +7,9 @@
 #property link      "https://www.xercescloud.co.uk"
 #property version   "1.01"
 #+-------------------------------------------------------------------
+from tsMqlPlatform import run_platform,platform_checker, PLATFORM_DEPENDENCIES, logger, config
+pchk=run_platform.RunPlatform()
+os_platform = platform_checker.get_platform()
 
 # classes for mql
 

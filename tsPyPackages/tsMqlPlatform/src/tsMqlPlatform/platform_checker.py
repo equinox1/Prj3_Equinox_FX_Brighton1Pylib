@@ -1,8 +1,12 @@
 import sys
 import platform
-import os
+
+import pip
 from .logger import logger
 from .config import config
+import os
+
+
 
 class PlatformChecker:
     def __init__(self):
