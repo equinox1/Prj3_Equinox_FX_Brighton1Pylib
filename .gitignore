@@ -209,7 +209,7 @@ ehthumbs.db
 Thumbs.db
 
 
-tsEquinox1-env/Lib/site-packages/*
+# Project specific
 tsProjects/ExampleModel/EURUSD_ratesdata1-LAPTOP-5H9JUASS.csv
 tsProjects/ExampleModel/EURUSD_ratesdata1.csv
 tsProjects/ExampleModel/EURUSD_ratesdata1.csv
@@ -219,4 +219,11 @@ tsProjects/TfWeather/datasets/*extracted
 Venvironments/*
 PyRuntimeWin64/*
 PyRuntimeLin64/*
-PyRuntimeMac64
+PyRuntimeLin32/*
+venvwin1/*
+venvlin1/*
+venvlin2/*
+tsModelData/*
+Workspaces/*
+.venv/*
+
