@@ -216,4 +216,7 @@ tsProjects/ExampleModel/EURUSD_ratesdata1.csv
 tsProjects/TfWeather/datasets/*.csv
 tsProjects/TfWeather/datasets/*.zip
 tsProjects/TfWeather/datasets/*extracted
-Venvironments
+Venvironments/*
+PyRuntimeWin64/*
+PyRuntimeLin64/*
+PyRuntimeMac64
