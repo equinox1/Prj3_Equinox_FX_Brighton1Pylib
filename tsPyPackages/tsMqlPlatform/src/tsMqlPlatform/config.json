@@ -1,4 +1,5 @@
 {
    "default_platform": "Windows",
-   "enable_logging": true
+   "enable_logging": true,
+   "debug": false
 }

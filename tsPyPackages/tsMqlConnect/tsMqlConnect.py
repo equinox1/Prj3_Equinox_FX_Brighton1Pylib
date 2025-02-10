@@ -8,9 +8,20 @@
 #property version   "1.01"
 #+-------------------------------------------------------------------
 from tsMqlPlatform import run_platform,platform_checker, PLATFORM_DEPENDENCIES, logger, config
-pchk=run_platform.RunPlatform()
+from tsMqlPlatform import run_platform,platform_checker, PLATFORM_DEPENDENCIES, logger, config
+from tsMqlPlatform import run_platform, platform_checker
+
+pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 
+if os_platform == 'Windows':
+    if pchk.mt5 is None or pchk.onnx is None:
+        raise RuntimeError("MetaTrader5 or ONNX dependencies are missing.")
+    else:
+        mt5 = pchk.mt5
+        onnx = pchk.onnx
+else:
+    nomql = True
 #--------------------------------------------------------------------
 # create class  "CMqlinit"dir
 # usage: connect services mql api

@@ -7,19 +7,23 @@
 # property link      "https://www.xercescloud.co.uk"
 # property version   "1.01"
 # +------------------------------------------------------------------+
-# STEP: Platform settttings
+# STEP: Platform settings
 # +-------------------------------------------------------------------
-osarch = 'windows' # 'windows' or 'linux' or 'macos'
-if osarch == 'windows':
-      import MetaTrader5 as mt5
-      import onnx
-      import tf2onnx
-      import onnxruntime as ort
-      import onnxruntime.backend as backend
-      import onnxruntime.tools.symbolic_shape_infer as symbolic_shape_infer
-      from onnx import checker
-elif osarch == 'linux' or osarch == 'macos':
-      print("Linux or Macos platform does not support Metatrader 5 and ONNX")
+from tsMqlPlatform import run_platform,platform_checker, PLATFORM_DEPENDENCIES, logger, config
+from tsMqlPlatform import run_platform, platform_checker
+
+pchk = run_platform.RunPlatform()
+os_platform = platform_checker.get_platform()
+
+if os_platform == 'Windows':
+    if pchk.mt5 is None or pchk.onnx is None:
+        raise RuntimeError("MetaTrader5 or ONNX dependencies are missing.")
+    else:
+        mt5 = pchk.mt5
+        onnx = pchk.onnx
+else:
+    nomql = True
+
 
 # +-------------------------------------------------------------------
 # STEP: Import standard Python packages

@@ -4,26 +4,24 @@ logger.info("Starting application...")
 
 class RunPlatform:
     def __init__(self):
-        # Get platform from the checker
-        platform_name = platform_checker.get_platform()
-        print(f"Running on: {platform_name}")
+        self.debug = config.get("debug", False)
+        self.platform_name = platform_checker.get_platform()
 
-        # Check if platform settings were modified
-        default_platform = config.get("default_platform")
-        if default_platform:
-            print(f"Config-set default platform: {default_platform}")
+        if self.debug:
+            print(f"Running on: {self.platform_name}")
 
-        # Override platform using an environment variable (Example)
-        # export FORCE_PLATFORM=Linux  # (Linux/MacOS users)
-        # set FORCE_PLATFORM=Linux  # (Windows users)
+        self.mt5 = None  # Initialize mt5 attribute
+        self.onnx = None  # Initialize onnx attribute
 
         if platform_checker.is_windows():
             if PLATFORM_DEPENDENCIES:
-                mt5 = PLATFORM_DEPENDENCIES.get("mt5")
-                onnx = PLATFORM_DEPENDENCIES.get("onnx")
-                if mt5 and onnx:
+                self.mt5 = PLATFORM_DEPENDENCIES.get("mt5")  # Assign to class attributes
+                self.onnx = PLATFORM_DEPENDENCIES.get("onnx")
+
+                if self.mt5 and self.onnx and self.debug:
                     logger.info("MetaTrader5 and ONNX are ready for use.")
-                    print("MetaTrader5 and ONNX are available.")
+                    if self.debug:
+                        print("MetaTrader5 and ONNX are available.")
                 else:
                     logger.error("MetaTrader5 or ONNX dependencies are missing.")
             else:

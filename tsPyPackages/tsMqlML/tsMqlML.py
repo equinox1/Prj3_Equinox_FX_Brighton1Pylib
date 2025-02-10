@@ -10,7 +10,7 @@
 from tsMqlPlatform import run_platform,platform_checker, PLATFORM_DEPENDENCIES, logger, config
 pchk=run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
--
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
