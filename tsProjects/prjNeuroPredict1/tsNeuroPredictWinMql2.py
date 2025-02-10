@@ -15,12 +15,11 @@ pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 
 if pchk.mt5 is None or pchk.onnx is None:
-    nomql = True
+    loadmql = False
 else:
     mt5 = pchk.mt5
     onnx = pchk.onnx
-    nomql = False  # Ensure nomql is set to False if mt5 and onnx are not None
-
+    loadmql = True
 # +-------------------------------------------------------------------
 # STEP: Import standard Python packages
 # +-------------------------------------------------------------------
@@ -46,6 +45,7 @@ from dataclasses import dataclass
 import tensorflow as tf
 import warnings
 from numpy import concatenate
+
 from tsMqlConnect import CMqlinit, CMqlBrokerConfig
 from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
 from tsMqlMLTune import CMdtuner
@@ -70,6 +70,29 @@ MPDATAFILE2 = "ratesdata1.csv"
 feature_scaler = MinMaxScaler()
 label_scaler = MinMaxScaler()
 TIMESAMPLE = 'M1'  # exception for api mql load
+mp_data_tab_rows = 10
+mp_data_tab_width = 30
+mp_data_cfg_usedata = 'loadfilerates' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
+mp_ml_show_plot=False
+ONNX_save=False
+mp_ml_hard_run= True
+mp_ml_tunemode = True
+mp_ml_tunemodeepochs = True
+mp_data_rows = 2000 # number of mp_data_tab_rows to fetch
+mp_data_rowcount = 10000 # number of mp_data_tab_rows to fetch
+mp_ml_Keras_tuner = 'hyperband' # 'hyperband' or 'randomsearch' or 'bayesian' or 'skopt' or 'optuna'
+mp_ml_batch_size = 4
+# scaling
+all_modelscale = 2 # divide the model by this number
+cnn_modelscale = 2 # divide the model by this number
+lstm_modelscale = 2 # divide the model by this number
+gru_modelscale = 2 # divide the model by this number
+trans_modelscale = 2 # divide the model by this number
+transh_modelscale = 1 # divide the model by this number
+transff_modelscale = 4 # divide the model by this number
+dense_modelscale = 2 # divide the model by this number
+
+
 
 def main():
     with strategy.scope():
@@ -97,13 +120,24 @@ def main():
             "mlenv": CMqlEnvML(),
             "globalenv": CMqlEnvGlobal()
         }
+        # Tuner Parameters
+        tuner_environments = {
+            "tunerparams": CMdtunerHyperModel()
+            }
 
         # Retrieve parameters safely
         params = {name: env.get_params() for name, env in environments.items()}
 
+        tunerparams = {name: env.get_params() for name, env in tuner_environments.items()}
+
         # Print environments and their parameters
         for name, env in environments.items():
             print(f"{name}: {params[name]}")
+
+        # Print tuner environments and their parameters
+        for name, env in tuner_environments.items():
+            print(f"{name}: {tunerparams[name]}")
+
 
         # +-------------------------------------------------------------------
         # STEP: CBroker Login
@@ -172,24 +206,38 @@ def main():
         obj1_CDataProcess = CDataProcess(environments["dataenv"], environments["mlenv"], environments["globalenv"])
 
         # Wrangle the data merging and transforming time to numeric
-        if len(mv_tdata1apiticks) > 0 and not nomql:
+        if len(mv_tdata1apiticks) > 0 and not loadmql:
             mv_tdata1apiticks = obj1_CDataProcess.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
-        if len(mv_tdata1apirates) > 0 and not nomql:
+        if len(mv_tdata1apirates) > 0 and not loadmql:
             mv_tdata1apirates = obj1_CDataProcess.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
         if len(mv_tdata1loadticks) > 0:
             mv_tdata1loadticks = obj1_CDataProcess.wrangle_time(mv_tdata1loadticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
         if len(mv_tdata1loadrates) > 0:
             mv_tdata1loadrates = obj1_CDataProcess.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
 
+        scolumn_out1 = environments["mlenv"].mp_ml_custom_input_keyfeat
+        scolumn_out2 = environments["mlenv"].mp_ml_custom_output_label_scaled
+
+        # Extract single elements from sets
+        column_out1 = list(scolumn_out1)[0] if isinstance(scolumn_out1, set) else scolumn_out1
+        column_out2 = list(scolumn_out2)[0] if isinstance(scolumn_out2, set) else scolumn_out2
+
+        column_out1 = str(column_out1)
+        column_out2 = str(column_out2)
+
+
+        print("column_out1:", column_out1)
+        print("column_out2:", column_out2)
+
         # Create labels
-        if len(mv_tdata1apiticks) > 0 and not nomql:
+        if len(mv_tdata1apiticks) > 0 and not loadmql:
             mv_tdata1apiticks = obj1_CDataProcess.create_label_wrapper(
                 df=mv_tdata1apiticks,
                 bid_column="T1_Bid_Price",
                 ask_column="T1_Ask_Price",
                 column_in="T1_Bid_Price",
-                column_out1=environments["mlenv"].mp_ml_custom_input_keyfeat,  # Ensure this is a string
-                column_out2=environments["mlenv"].mp_ml_custom_output_label_scaled,
+                Column_out1='Close',
+                column_out2='Close_Scaled',
                 open_column="R1_Open",
                 high_column="R1_High",
                 low_column="R1_Low",
@@ -205,14 +253,14 @@ def main():
                 create_label=False,
             )
 
-        if len(mv_tdata1apirates) > 0 and not nomql:
+        if len(mv_tdata1apirates) > 0 and not loadmql:
             mv_tdata1apirates = obj1_CDataProcess.create_label_wrapper(
                 df=mv_tdata1apirates,
                 bid_column="R1_Bid_Price",
                 ask_column="R1_Ask_Price",
                 column_in="R1_Close",
-                column_out1=environments["mlenv"].mp_ml_custom_input_keyfeat,  # Ensure this is a string
-                column_out2=environments["mlenv"].mp_ml_custom_output_label_scaled,
+                column_out1='Close',
+                column_out2='Close_Scaled',
                 open_column="R1_Open",
                 high_column="R1_High",
                 low_column="R1_Low",
@@ -228,13 +276,16 @@ def main():
                 create_label=False,
             )
 
+        
+        print("mv_tdata1loadrates head:", mv_tdata1loadrates.head(3))
+
         mv_tdata1loadticks = obj1_CDataProcess.create_label_wrapper(
             df=mv_tdata1loadticks,
             bid_column="T2_Bid_Price",
             ask_column="T2_Ask_Price",
             column_in="T2_Bid_Price",
-            column_out1=environments["mlenv"].mp_ml_custom_input_keyfeat,  # Ensure this is a string
-            column_out2=environments["mlenv"].mp_ml_custom_output_label_scaled,
+            column_out1='Close',
+            column_out2='Close_Scaled',
             open_column="R2_Open",
             high_column="R2_High",
             low_column="R2_Low",
@@ -255,8 +306,8 @@ def main():
             bid_column="R2_Bid_Price",
             ask_column="R2_Ask_Price",
             column_in="R2_Close",
-            column_out1=environments["mlenv"].mp_ml_custom_input_keyfeat,  # Ensure this is a string
-            column_out2=environments["mlenv"].mp_ml_custom_output_label_scaled,
+            column_out1='Close',
+            column_out2='Close_Scaled',
             open_column="R2_Open",
             high_column="R2_High",
             low_column="R2_Low",
@@ -273,39 +324,40 @@ def main():
         )
 
         # Display the data
-        if not nomql:
+        if not loadmql:
             obj1_CDataProcess.run_mql_print(mv_tdata1apiticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
             obj1_CDataProcess.run_mql_print(mv_tdata1apirates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
         obj1_CDataProcess.run_mql_print(mv_tdata1loadticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
         obj1_CDataProcess.run_mql_print(mv_tdata1loadrates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
 
-        # Copy the data for config selection
-        if not nomql:
-            data_sources = [mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates]
+        # copy the data for config selection
+        if loadmql == True:
+           data_sources = [mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates]
+           data_copies = [data.copy() for data in data_sources]
+           mv_tdata2a, mv_tdata2b, mv_tdata2c, mv_tdata2d = data_copies
+           data_mapping = {
+            'loadapiticks': mv_tdata2a,
+            'loadapirates': mv_tdata2b,
+            'loadfileticks': mv_tdata2c,
+            'loadfilerates': mv_tdata2d
+        }
         else:
             data_sources = [mv_tdata1loadticks, mv_tdata1loadrates]
+            data_copies = [data.copy() for data in data_sources]
+            mv_tdata1c, mv_tdata1d = data_copies
+            data_mapping = {
+                'loadfileticks': mv_tdata2c,
+                'loadfilerates': mv_tdata2d 
+            }
 
-        # Create copies of the data
-        data_copies = [data.copy() for data in data_sources]
-
-        # Dynamically map available data sources
-        data_keys = ['loadapiticks', 'loadapirates', 'loadfileticks', 'loadfilerates']
-        data_mapping = {key: value for key, value in zip(data_keys, data_copies)}
-
-        # Check if the selected configuration exists
+        # Check the switch of which file to use
         if mp_data_cfg_usedata in data_mapping:
-            formatted_name = (
-                mp_data_cfg_usedata.replace('load', '')
-                .replace('api', 'API ')
-                .replace('file', 'File ')
-                .replace('ticks', 'Tick data')
-                .replace('rates', 'Rates data')
-            )
-            print(f"Using {formatted_name}")
+            print(f"Using {mp_data_cfg_usedata.replace('load', '').replace('api', 'API ').replace('file', 'File ').replace('ticks', 'Tick data').replace('rates', 'Rates data')}")
             mv_tdata2 = data_mapping[mp_data_cfg_usedata]
         else:
             print("Invalid data configuration")
             mv_tdata2 = None
+
 
         # print shapes of the data
         print("SHAPE: mv_tdata2 shape:", mv_tdata2.shape)
@@ -315,12 +367,22 @@ def main():
         # +-------------------------------------------------------------------
         # Normalize the 'Close' column
         scaler = MinMaxScaler()
-        mp_ml_custom_input_keyfeat_list = list(mp_ml_custom_input_keyfeat)
-        mp_ml_custom_input_keyfeat_scaled = [feat + '_Scaled' for feat in mp_ml_custom_input_keyfeat_list]
-        mv_tdata2[mp_ml_custom_input_keyfeat_scaled] = scaler.fit_transform(mv_tdata2[mp_ml_custom_input_keyfeat_list])
 
+        mp_ml_custom_input_keyfeat = list(environments["mlenv"].mp_ml_custom_input_keyfeat)  # Convert to list
+        mp_ml_custom_input_keyfeat_scaled = list(environments["mlenv"].mp_ml_custom_input_keyfeat_scaled)  # Convert to list
+
+        print("mp_ml_custom_input_keyfeat:", mp_ml_custom_input_keyfeat)
+        print("mp_ml_custom_input_keyfeat_scaled:", mp_ml_custom_input_keyfeat_scaled)
+
+        # Ensure these remain as lists when used as column names
+        print("mv_tdata2 columns:", mv_tdata2.columns)
+        print("mv_tdata2 head:", mv_tdata2.head(3))
+
+      
+        mv_tdata2[mp_ml_custom_input_keyfeat_scaled] = scaler.fit_transform(mv_tdata2[mp_ml_custom_input_keyfeat])
+        
         print("print Normalise")
-        obj1_CDataProcess = CDataProcess(dataenv, mlenv, globalenv)
+        obj1_CDataProcess = CDataProcess(environments["dataenv"], environments["mlenv"], environments["globalenv"])
         print("Type after wrangle_time:", type(mv_tdata2))
         obj1_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
         print("End of Normalise print")
@@ -347,22 +409,22 @@ def main():
         # STEP: set the dataset to just the features and the label and sort by time
         # +-------------------------------------------------------------------
         print("Type before set default:", type(mv_tdata2))
-        if mp_data_data_label == 1:
+        
+        if environments["dataenv"].mp_data_data_label == 1:
             mv_tdata2 = mv_tdata2[[list(mp_ml_custom_input_keyfeat_scaled)[0]]]
-            obj1_CDataLoader.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
+            obj1_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
             
-        elif mp_data_data_label == 2:
+        elif environments["dataenv"].mp_data_data_label == 2:
             mv_tdata2 = mv_tdata2[[mv_tdata2.columns[0]] + [list(mp_ml_custom_input_keyfeat_scaled)[0]]]
             # Ensure the data is sorted by time
-            mv_tdata2 = mv_tdata2.sort_index()
-            obj1_CDataLoader.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
+            mv_tdata2 = mv_tobj1_CDataProcessobj2_CDataLoader.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
 
-        elif mp_data_data_label == 3:
+        elif environments["dataenv"].mp_data_data_label == 3:
             # Ensure the data is sorted by time use full dataset
             mv_tdata2 = mv_tdata2.sort_index()
             print("Count of Tdata2:",len(mv_tdata2))
-            obj1_CDataLoader.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
-
+            obj1_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
+            
         # +-------------------------------------------------------------------
         # STEP: Generate X and y from the Time Series
         # +-------------------------------------------------------------------
@@ -374,9 +436,9 @@ def main():
         pasttimeperiods = 24
         futuretimeperiods = 24
         predtimeperiods = 1
-        features_count = len(mp_ml_custom_input_keyfeat)  # Number of features in input
-        labels_count = len(mp_ml_custom_output_label)  # Number of labels in output
-        batch_size = mp_ml_batch_size
+        features_count = len(environments["mlenv"].mp_ml_custom_input_keyfeat)  # Number of features in input
+        labels_count = len(environments["mlenv"].mp_ml_custom_output_label)  # Number of labels in output
+        batch_size = environments["mlenv"].mp_ml_batch_size
 
         print("timeval:",timeval, "pasttimeperiods:",pasttimeperiods, "futuretimeperiods:",futuretimeperiods, "predtimeperiods:",predtimeperiods)
         past_width = pasttimeperiods * timeval
@@ -402,7 +464,7 @@ def main():
         # STEP: Split the data into training and test sets Fixed Partitioning
         # +-------------------------------------------------------------------
         # Batch size alignment fit the number of rows as whole number divisible by the batch size to avoid float errors
-        batch_size = mp_ml_batch_size
+        batch_size = environments["mlenv"].mp_ml_batch_size
         precountX = len(mv_tdata2_X)
         precounty = len(mv_tdata2_y)
         mv_tdata2_X,mv_tdata2_y = obj1_Mqlmlsetup.align_to_batch_size(mv_tdata2_X,mv_tdata2_y, batch_size)
@@ -415,8 +477,8 @@ def main():
         # Split the data into training, validation, and test sets
 
         # STEP: Split data into training, validation, and test sets
-        X_train, X_temp, y_train, y_temp = train_test_split(mv_tdata2_X,mv_tdata2_y, test_size=(mp_ml_validation_split + mp_ml_test_split), shuffle=False)
-        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=(mp_ml_test_split / (mp_ml_validation_split + mp_ml_test_split)), shuffle=False)
+        X_train, X_temp, y_train, y_temp = train_test_split(mv_tdata2_X,mv_tdata2_y, test_size=(environments["mlenv"].mp_ml_validation_split + environments["mlenv"].mp_ml_test_split), shuffle=False)
+        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=(environments["mlenv"].mp_ml_test_split / (environments["mlenv"].mp_ml_validation_split + environments["mlenv"].mp_ml_test_split)), shuffle=False)
 
         print(f"Training set: X_train: {X_train.shape}, y_train: {y_train.shape}")
         print(f"Validation set: X_val: {X_val.shape}, y_val: {y_val.shape}")
@@ -425,7 +487,7 @@ def main():
         # STEP: convert numpy arrays to TF datasets
         # +-------------------------------------------------------------------
         # initiate the object using a window generatorwindow is not  used in this model Parameters
-        tf_batch_size = mp_ml_batch_size
+        tf_batch_size = environments["mlenv"].mp_ml_batch_size
 
         train_dataset = obj1_Mqlmlsetup.create_tf_dataset(X_train, y_train, batch_size=tf_batch_size, shuffle=True)
         val_dataset = obj1_Mqlmlsetup.create_tf_dataset(X_val, y_val, batch_size=tf_batch_size, shuffle=False)
@@ -460,12 +522,12 @@ def main():
         print(f"Full Input shape for model: {X_train.shape}, Label shape for model: {y_train.shape}")
         print(f"No Batch Input shape for model: {input_shape}, Label shape for model: {label_shape}")
         #batch components
-        input_keras_batch=mp_ml_batch_size
+        input_keras_batch=environments["mlenv"].mp_ml_batch_size
         input_def_keras_batch=None
         # Get the input shape for the model
         input_rows_X=len(X_train)
         input_rows_y=len(y_train)
-        input_batch_size=mp_ml_batch_size
+        input_batch_size=environments["mlenv"].mp_ml_batch_size
         input_batches= X_train.shape[0]
         input_timesteps = X_train.shape[1]
         input_features = X_train.shape[2]
@@ -479,192 +541,26 @@ def main():
         # pass in the data shape for the model
 
         input_shape = (input_timesteps, input_features)  
-        output_label_shape = (output_label, mp_ml_custom_output_label_count)
+        output_label_shape = (output_label, environments["mlenv"].mp_ml_custom_output_label_count)
         print(f"Input shape for model: {input_shape}, Output shape for model: {output_label_shape}")
         # +-------------------------------------------------------------------
         # STEP: Tune best model Hyperparameter tuning and model setup
         # +-------------------------------------------------------------------
         # Hyperparameter configuration
-        def get_hypermodel_params():
-            today_date = date.today().strftime('%Y-%m-%d %H:%M:%S')
-            random_seed = np.random.randint(0, 1000)
-            base_path = r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/PythonLib/tsModelData/"
-            project_name = "prjEquinox1_prod.keras"
-            subdir = os.path.join(base_path, 'tshybrid_ensemble_tuning_prod', str(1))
+        obj1_TunerParams = CMdtunerHyperModel()  
+        hypermodel_params = obj1_TunerParams.get_hypermodel_params()
+        print("Tuner Parameters:", hypermodel_params)  # Print the tuner parameters
 
-            # Ensure the directory exists
-            os.makedirs(subdir, exist_ok=True)
-
-            return {
-                'objective': 'val_loss',
-                'max_epochs': mp_ml_tf_param_max_epochs,
-                'factor': 3,
-                'seed': 42,
-                'hyperband_iterations': 1,
-                'tune_new_entries':True,
-                'allow_new_entries': True,
-                'max_retries_per_trial': 0,
-                'max_consecutive_failed_trials': 3,
-                'validation_split': 0.2,
-                'epochs': mp_ml_tf_param_epochs,
-                'batch_size': mp_ml_batch_size,
-                'dropout': 0.2,
-                'optimizer': 'adam',
-                'loss': 'mean_squared_error',
-                'metrics': 'mean_squared_error',
-                'directory': subdir,
-                'logger': None,
-                'tuner_id': None,
-                'overwrite': True,
-                'executions_per_trial': 1,
-                'chk_fullmodel': True,
-                'chk_verbosity': 0,
-                'chk_mode': 'min',
-                'chk_monitor': 'val_loss',
-                'chk_sav_freq': 'epoch',
-                'chk_patience': mp_ml_tf_param_chk_patience,
-                'modeldatapath': base_path,
-                'project_name': project_name,
-                'today': today_date,
-                'random': random_seed,
-                'baseuniq': str(1),
-                'basepath': subdir,
-                'checkpoint_filepath': posixpath.join(base_path, 'tshybrid_ensemble_tuning_prod', project_name),
-                'unitmin': mp_ml_unit_min,
-                'unitmax': mp_ml_unit_max,
-                'unitstep': mp_ml_unit_step,
-                'defaultunits': mp_ml_default_units,
-                'num_trials': mp_ml_num_trials,
-                'keras_tuner': mp_ml_Keras_tuner, 
-                'all_modelscale': all_modelscale,
-                'cnn_modelscale': cnn_modelscale,
-                'lstm_modelscale': lstm_modelscale,
-                'gru_modelscale': gru_modelscale,
-                'trans_modelscale': trans_modelscale,
-                'transh_modelscale': transh_modelscale,
-                'transff_modelscale': transff_modelscale,
-                'dense_modelscale': dense_modelscale
-
-            }
-
-        # Print configuration details for logging
-        def log_config(hypermodel_params):
-            print(f"mp_ml_random: {hypermodel_params['random']}")
-            print(f"mp_ml_today: {hypermodel_params['today']}")
-            print(f"mp_checkpoint_filepath: {hypermodel_params['checkpoint_filepath']}")
-
-        # Initialize the tuner class
-        def initialize_tuner(hypermodel_params, train_dataset, val_dataset, test_dataset):
-            try:
-                print("Creating an instance of the tuner class")
-                mt = CMdtuner(
-                    # tf datasets
-                    traindataset=train_dataset,
-                    valdataset=val_dataset,
-                    testdataset=test_dataset,
-                    # Model selection
-                    cnn_model=mp_ml_cnn_model,
-                    lstm_model=mp_ml_lstm_model,
-                    gru_model=mp_ml_gru_model,
-                    transformer_model=mp_ml_transformer_model,
-                    multiactivate=True,
-                    # Model inputs directly from the data traindataset shape
-                    data_input_shape=input_shape,
-                    # Model inputs from the shape selection options 1-4
-                    main_custom_shape_selector=mp_ml_custom_input_shape,
-                    cnn_custom_shape_selector=mp_ml_custom_input_cnn_shape,
-                    lstm_custom_shape_selector=mp_ml_custom_input_lstm_shape,
-                    gru_custom_shape_selector=mp_ml_custom_input_gru_shape,
-                    transformer_custom_shape_selector=mp_ml_custom_input_transformer_shape,
-                    # Use merge of different shapes in final input output
-                    multi_inputs=mp_ml_multi_inputs,
-                    multi_outputs=mp_ml_multi_outputs,
-                    multi_branches=mp_ml_multi_branches,
-                    #Logging
-                    tf1=False,
-                    tf2T=False,
-                    # Model parameters and hypermodel params
-                    step=mp_ml_tf_param_steps,
-                    objective=hypermodel_params['objective'],
-                    max_epochs=hypermodel_params['max_epochs'],
-                    min_epochs=mp_ml_tf_param_min_epochs,
-                    factor=hypermodel_params['factor'],
-                    seed=hypermodel_params['seed'],
-                    hyperband_iterations=hypermodel_params['hyperband_iterations'],
-                    tune_new_entries=hypermodel_params['tune_new_entries'],
-                    allow_new_entries=hypermodel_params['allow_new_entries'],
-                    max_retries_per_trial=hypermodel_params['max_retries_per_trial'],
-                    max_consecutive_failed_trials=hypermodel_params['max_consecutive_failed_trials'],
-                    validation_split=hypermodel_params['validation_split'],
-                    epochs=hypermodel_params['epochs'],
-                    batch_size=hypermodel_params['batch_size'],
-                    dropout=hypermodel_params['dropout'],
-                    optimizer=hypermodel_params['optimizer'],
-                    loss=hypermodel_params['loss'],
-                    metrics=hypermodel_params['metrics'],
-                    directory=hypermodel_params['directory'],
-                    basepath=hypermodel_params['basepath'],
-                    project_name=hypermodel_params['project_name'],
-                    logger=hypermodel_params['logger'],
-                    tuner_id=hypermodel_params['tuner_id'],
-                    overwrite=hypermodel_params['overwrite'],
-                    executions_per_trial=hypermodel_params['executions_per_trial'],
-                    chk_fullmodel=hypermodel_params['chk_fullmodel'],
-                    chk_verbosity=hypermodel_params['chk_verbosity'],
-                    chk_mode=hypermodel_params['chk_mode'],
-                    chk_monitor=hypermodel_params['chk_monitor'],
-                    chk_sav_freq=hypermodel_params['chk_sav_freq'],
-                    chk_patience=hypermodel_params['chk_patience'],
-                    checkpoint_filepath=hypermodel_params['checkpoint_filepath'],
-                    modeldatapath=hypermodel_params['modeldatapath'],
-                    tunemode =  mp_ml_tunemode,
-                    tunemodeepochs = mp_ml_tunemodeepochs,
-                    modelsummary = mp_ml_modelsummary,
-                    unitmin=hypermodel_params['unitmin'],
-                    unitmax=hypermodel_params['unitmax'],
-                    unitstep=hypermodel_params['unitstep'],
-                    defaultunits=hypermodel_params['defaultunits'],
-                    num_trials=hypermodel_params['num_trials'],
-                    steps_per_execution=mp_ml_steps_per_execution,
-                    keras_tuner=hypermodel_params['keras_tuner'],
-                    all_modelscale=hypermodel_params['all_modelscale'],
-                    cnn_modelscale=hypermodel_params['cnn_modelscale'],
-                    lstm_modelscale=hypermodel_params['lstm_modelscale'],
-                    gru_modelscale=hypermodel_params['gru_modelscale'],
-                    trans_modelscale = hypermodel_params['trans_modelscale'],
-                    transh_modelscale=hypermodel_params['transh_modelscale'],
-                    transff_modelscale=hypermodel_params['transff_modelscale'],
-                    dense_modelscale=hypermodel_params['dense_modelscale']  
-
-                    )
-                print("Tuner initialized successfully.")
-                return mt
-            except Exception as e:
-                print(f"Error initializing the tuner: {e}")
-                raise
-
-
-        # +-------------------------------------------------------------------
-        # STEP:Run the Tuner to find the best model configuration
-        # +-------------------------------------------------------------------
-        # Run the tuner to find the best model configuration
-
-        # Load hyperparameters
-        hypermodel_params = get_hypermodel_params()
-
-        # Log the configuration
-        log_config(hypermodel_params)
-
+        
         # Initialize tuner
-        mt = initialize_tuner(
+        obj1_CMdtuner=CMdtuner()
+        mt = obj1_CMdtuner.initialize_tuner(
             hypermodel_params=hypermodel_params,
             train_dataset=train_dataset,
             val_dataset=val_dataset,
             test_dataset=test_dataset
-        )
-
-        print("Running Main call to tuner")
-
+         )
+       
         # Check and load the model
         best_model = mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')
 
@@ -792,10 +688,10 @@ def main():
                 # finish
                 mt5.shutdown()
                 print("Finished")
-            else:
-                print("No data loaded")
-                mt5.shutdown()
-                print("Finished")    
-        
+        else:
+            print("No data loaded")
+        mt5.shutdown()
+        print("Finished")    
+  
 if __name__ == "__main__":
     main()

@@ -30,7 +30,7 @@ from datetime import date
 import random
 
 class CMdtunerHyperModel:
-    def __init__(self, **kwargs):
+   def __init__(self, **kwargs):
         self.input_width = kwargs.get('input_width', 24)
         self.shift = kwargs.get('shift', 24)
         self.label_width = kwargs.get('label_width', 1)
@@ -83,8 +83,14 @@ class CMdtunerHyperModel:
         self.defaultunits = kwargs.get('defaultunits', 128)
         self.num_trials = kwargs.get('num_trials', 3)
         self.steps_per_execution = kwargs.get('steps_per_execution', 50)
+        self.keras_tuner = kwargs.get('keras_tuner', 'Hyperband') # 'Hyperband' or 'RandomSearch'
+        self.all_modelscale = kwargs.get('all_modelscale', 1.0)
+        self.cnn_modelscale = kwargs.get('cnn_modelscale', 1.0)
+        self.lstm_modelscale = kwargs.get('lstm_modelscale', 1.0)
+        self.gru_modelscale = kwargs.get('gru_modelscale', 1.0)
+       
 
-    def get_hypermodel_params(self, basepath=None, **kwargs):
+   def get_hypermodel_params(self, basepath=None, **kwargs):
         today_date = date.today().strftime('%Y-%m-%d %H:%M:%S')
         random_seed = self.seed  # Using self.seed for consistency
         base_path = pathlib.Path(basepath) if basepath else pathlib.Path(os.getcwd())
@@ -133,3 +139,95 @@ class CMdtunerHyperModel:
             'defaultunits': self.defaultunits,
             'num_trials': self.num_trials
         }
+
+   # Initialize the tuner class
+   def initialize_tuner(hypermodel_params, train_dataset, val_dataset, test_dataset):
+      try:
+         print("Creating an instance of the tuner class")
+         mt = CMdtuner(
+               # tf datasets
+               traindataset=train_dataset,
+               valdataset=val_dataset,
+               testdataset=test_dataset,
+               # Model selection
+               cnn_model=mp_ml_cnn_model,
+               lstm_model=mp_ml_lstm_model,
+               gru_model=mp_ml_gru_model,
+               transformer_model=mp_ml_transformer_model,
+               multiactivate=True,
+               # Model inputs directly from the data traindataset shape
+               data_input_shape=input_shape,
+               # Model inputs from the shape selection options 1-4
+               main_custom_shape_selector=mp_ml_custom_input_shape,
+               cnn_custom_shape_selector=mp_ml_custom_input_cnn_shape,
+               lstm_custom_shape_selector=mp_ml_custom_input_lstm_shape,
+               gru_custom_shape_selector=mp_ml_custom_input_gru_shape,
+               transformer_custom_shape_selector=mp_ml_custom_input_transformer_shape,
+               # Use merge of different shapes in final input output
+               multi_inputs=mp_ml_multi_inputs,
+               multi_outputs=mp_ml_multi_outputs,
+               multi_branches=mp_ml_multi_branches,
+               #Logging
+               tf1=False,
+               tf2T=False,
+               # Model parameters and hypermodel params
+               step=mp_ml_tf_param_steps,
+               objective=hypermodel_params['objective'],
+               max_epochs=hypermodel_params['max_epochs'],
+               min_epochs=mp_ml_tf_param_min_epochs,
+               factor=hypermodel_params['factor'],
+               seed=hypermodel_params['seed'],
+               hyperband_iterations=hypermodel_params['hyperband_iterations'],
+               tune_new_entries=hypermodel_params['tune_new_entries'],
+               allow_new_entries=hypermodel_params['allow_new_entries'],
+               max_retries_per_trial=hypermodel_params['max_retries_per_trial'],
+               max_consecutive_failed_trials=hypermodel_params['max_consecutive_failed_trials'],
+               validation_split=hypermodel_params['validation_split'],
+               epochs=hypermodel_params['epochs'],
+               batch_size=hypermodel_params['batch_size'],
+               dropout=hypermodel_params['dropout'],
+               optimizer=hypermodel_params['optimizer'],
+               loss=hypermodel_params['loss'],
+               metrics=hypermodel_params['metrics'],
+               directory=hypermodel_params['directory'],
+               basepath=hypermodel_params['basepath'],
+               project_name=hypermodel_params['project_name'],
+               logger=hypermodel_params['logger'],
+               tuner_id=hypermodel_params['tuner_id'],
+               overwrite=hypermodel_params['overwrite'],
+               executions_per_trial=hypermodel_params['executions_per_trial'],
+               chk_fullmodel=hypermodel_params['chk_fullmodel'],
+               chk_verbosity=hypermodel_params['chk_verbosity'],
+               chk_mode=hypermodel_params['chk_mode'],
+               chk_monitor=hypermodel_params['chk_monitor'],
+               chk_sav_freq=hypermodel_params['chk_sav_freq'],
+               chk_patience=hypermodel_params['chk_patience'],
+               checkpoint_filepath=hypermodel_params['checkpoint_filepath'],
+               modeldatapath=hypermodel_params['modeldatapath'],
+               tunemode =  mp_ml_tunemode,
+               tunemodeepochs = mp_ml_tunemodeepochs,
+               modelsummary = mp_ml_modelsummary,
+               unitmin=hypermodel_params['unitmin'],
+               unitmax=hypermodel_params['unitmax'],
+               unitstep=hypermodel_params['unitstep'],
+               defaultunits=hypermodel_params['defaultunits'],
+               num_trials=hypermodel_params['num_trials'],
+               steps_per_execution=mp_ml_steps_per_execution,
+               keras_tuner=hypermodel_params['keras_tuner'],
+               all_modelscale=hypermodel_params['all_modelscale'],
+               cnn_modelscale=hypermodel_params['cnn_modelscale'],
+               lstm_modelscale=hypermodel_params['lstm_modelscale'],
+               gru_modelscale=hypermodel_params['gru_modelscale'],
+               trans_modelscale = hypermodel_params['trans_modelscale'],
+               transh_modelscale=hypermodel_params['transh_modelscale'],
+               transff_modelscale=hypermodel_params['transff_modelscale'],
+               dense_modelscale=hypermodel_params['dense_modelscale']  
+         )
+         print("Tuner initialized successfully.")
+         return mt
+      except Exception as e:
+         print(f"Error initializing the tuner: {e}")
+         raise
+   
+   def get_params(self):
+            return self.__dict__  # Returns all attributes as a dictionary

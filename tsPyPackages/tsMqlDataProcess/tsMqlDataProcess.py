@@ -358,27 +358,35 @@ class CDataProcess:
     # class: cmqldatasetup      
     # usage: mql data
     # /param  var    
-    def run_mql_print(self, df, hrows,colwidth,tablefmt = "pretty",floatfmt = ".5f",numalign = "left",stralign = "left"):
+    def run_mql_print(self, df, hrows, colwidth, tablefmt="pretty", floatfmt=".5f", numalign="left", stralign="left"):
         print("Type of df before run_mql_print:", type(df))
+
         if not isinstance(df, pd.DataFrame):
             raise TypeError(f"Expected a DataFrame, but got {type(df)}")
 
-        
+        if df.empty:
+            print("Warning: The DataFrame is empty. Nothing to display.")
+            return
+
+        # Ensure `hrows` is valid
+        hrows = min(hrows, len(df))  # Prevent `hrows` from exceeding available rows
+
         # Wrap long text in columns
         def wrap_column_data(column, width):
-            return column.apply(lambda x: '\n'.join(textwrap.wrap(str(x), width)))
-        
-        df = df.apply(lambda col: wrap_column_data(col, colwidth))  # Adjust width as needed
+            return column.apply(lambda x: '\n'.join(textwrap.wrap(str(x), width)) if pd.notnull(x) else "")
 
+        df = df.apply(lambda col: wrap_column_data(col, colwidth))
+
+        # Display the table
         print(tabulate(
-            df.head(hrows), 
+            df.head(hrows),
             showindex=False,
             headers=df.columns,
-            tablefmt="pretty", # "plain", "grid", "pipe", "orgtbl", "jira", "presto", "pretty", "psql", "rst", "mediawiki", "moinmoin", "youtrack", "html", "unsafehtml", "latex", "latex_raw", "latex_booktabs", "textile"
-            numalign="left",
-            stralign="left", 
-            maxcolwidths=[colwidth] * len(df.columns),  # Limit column widths to 10
-            floatfmt=".5f"
+            tablefmt=tablefmt,
+            numalign=numalign,
+            stralign=stralign,
+            floatfmt=floatfmt,
+            maxcolwidths=[colwidth] * len(df.columns)  # Ensure max column width
         ))
 
     # create method  "move_col_to_end".

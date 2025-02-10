@@ -480,8 +480,7 @@ def main():
         scaler = MinMaxScaler()
         mp_ml_custom_input_keyfeat_list = list(mp_ml_custom_input_keyfeat) 
         mp_ml_custom_input_keyfeat_scaled = [feat + '_Scaled' for feat in mp_ml_custom_input_keyfeat_list]
-        mv_tdata2[mp_ml_custom_input_keyfeat_scaled] = scaler.fit_transform(mv_tdata2[mp_ml_custom_input_keyfeat_list])
-
+        mv_tdata2[mp_ml_custom_input_keyfeat_scaled] = scaler.fit_transform(mv_tdata2mp_ml_custom_input_keyfeat_list])
         print("print Normalise")
         obj1_CDataProcess= CDataProcess(dataenv,mlenv,globalenv)
         print("Type after wrangle_time:", type(mv_tdata2))
