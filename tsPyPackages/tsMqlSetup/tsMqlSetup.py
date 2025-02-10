@@ -185,7 +185,7 @@ class CMqlEnvML:
         
         # Data Processing
         self.mp_ml_custom_input_keyfeat = kwargs.get('mp_ml_custom_input_keyfeat', {'Close'})
-        self.mp_ml_custom_output_label = kwargs.get('mp_ml_custom_output_label', {'Label'})
+        self.mp_ml_custom_output_label = kwargs.get('mp_ml_custom_output_label', self.mp_ml_custom_input_keyfeat)
 
         self.mp_ml_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in self.mp_ml_custom_input_keyfeat}  # the feature to predict
         self.mp_ml_custom_output_label_scaled = {targ + '_Scaled' for targ in self.mp_ml_custom_output_label}  # the label shifted to predict
