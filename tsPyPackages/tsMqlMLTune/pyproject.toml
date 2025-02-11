@@ -1,6 +1,6 @@
 [project]
 name = "tsMqlMLTune"
-version = "2.2.73"
+version = "2.3.1"
 authors = [
   { name="Tony Shepherd", email="shep.antony@gmail.com" },
 ]
