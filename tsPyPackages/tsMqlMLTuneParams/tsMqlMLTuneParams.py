@@ -29,6 +29,7 @@ import numpy as np
 from datetime import date
 import random
 
+
 class CMdtunerHyperModel:
    def __init__(self, **kwargs):
 
@@ -40,7 +41,6 @@ class CMdtunerHyperModel:
          #Id parameters
          self.today = kwargs.get('today', date.today().strftime('%Y-%m-%d %H:%M:%S'))
          self.seed = kwargs.get('seed', 42)
-         self.random_seed = np.random(self.seed)  # Ensuring reproducibility
          self.tuner_id = kwargs.get('tuner_id', None)
 
          #datasets
@@ -263,7 +263,6 @@ class CMqlEnvML:
          #Id parameters
          self.today = kwargs.get('today', date.today().strftime('%Y-%m-%d %H:%M:%S'))
          self.seed = kwargs.get('seed', 42)
-         self.random_seed = np.random(self.seed)  # Ensuring reproducibility
          self.tuner_id = kwargs.get('tuner_id', None)
 
          #datasets
@@ -284,7 +283,17 @@ class CMqlEnvML:
          # File paths
          # environment settings
          mp_ml_src_base=r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/"
-         mp_ml_platform_base='equinrun'
+        
+         # environment settings
+         self.config_platform = config.get("default_platform", "Windows")
+         if self.config_platform == "Windows":
+               mp_pl_platform_base='equinrun'
+         elif self.config_platform == "Linux":
+            mp_pl_platform_base='equinrunlin'
+         else:
+            self.config_platform = "MacOS"
+            mp_pl_platform_base='equinrunmac'
+         
          mp_ml_src_lib=r"PythonLib"
          mp_ml_src_data=r"tsModelData"
          mp_ml_directory=r"tshybrid_ensemble_tuning_prod"
