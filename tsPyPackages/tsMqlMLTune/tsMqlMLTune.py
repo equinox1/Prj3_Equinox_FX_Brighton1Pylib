@@ -23,6 +23,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.metrics import MeanAbsoluteError
+from tensorflow.keras.metrics import BinaryCrossentropy
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, ReduceLROnPlateau
 import keras_tuner as kt
 import os
@@ -108,15 +109,15 @@ class CMdtuner:
 
         #unit for LSTM and GRU
         self.unitmin = kwargs.get('unitmin', 32/self.all_modelscale)
-        self.unitmax = kwargs.get('unitmax', 128/self.all_mmodelscale)
-        self.unitstep = kwargs.get('unitstep', 32/self.all_mmodelscale)
-        self.unitdefault = kwargs.get('unitdefault', 64/self.all_gru_mmodelscale)
+        self.unitmax = kwargs.get('unitmax', 128/self.all_modelscale)
+        self.unitstep = kwargs.get('unitstep', 32/self.all_modelscale)
+        self.unitdefault = kwargs.get('unitdefault', 64/self.all_modelscale)
        
         # Transformer configurations
         self.trans_dim_min = kwargs.get('trans_dim_min', 32/self.trans_modelscale)
         self.trans_dim_max = kwargs.get('trans_dim_max', 256/self.trans_modelscale)
-        self.trans_dim_step = kwargs.get('trans_dim_step', 32/trans_modelscale)
-        self.trans_dim_default =kwargs.get('trans_dim_default', 64/trans_modelscale)
+        self.trans_dim_step = kwargs.get('trans_dim_step', 32/self.trans_modelscale)
+        self.trans_dim_default =kwargs.get('trans_dim_default', 64/self.trans_modelscale)
 
         
         self.lstm_units_min = kwargs.get('lstm_units_min', 32/self.lstm_modelscale)
@@ -129,22 +130,22 @@ class CMdtuner:
         self.gru_units_step = kwargs.get('gru_units_step', 32/self.gru_modelscale)
         self.gru_units_default = kwargs.get('gru_units_default', 64/self.gru_modelscale)
 
-        self.cnn_units_min = kwargs.get('cnn_units_min', 32/cnn_modelscale)
-        self.cnn_units_max = kwargs.get('cnn_units_max', 128/cnn_modelscale)
-        self.cnn_units_step = kwargs.get('cnn_units_step', 32/cnn_modelscale)
-        self.cnn_units_default = kwargs.get('cnn_units_default', 64/cnn_modelscale)
+        self.cnn_units_min = kwargs.get('cnn_units_min', 32/self.cnn_modelscale)
+        self.cnn_units_max = kwargs.get('cnn_units_max', 128/self.cnn_modelscale)
+        self.cnn_units_step = kwargs.get('cnn_units_step', 32/self.cnn_modelscale)
+        self.cnn_units_default = kwargs.get('cnn_units_default', 64/self.cnn_modelscale)
 
-        self.trans_heads_min = kwargs.get('trans_heads_min', 2/transh_modelscale)
-        self.trans_heads_max = kwargs.get('trans_heads_max', 8/transh_modelscale)
-        self.trans_heads_step = kwargs.get('trans_heads_step', 2/transh_modelscale)
+        self.trans_heads_min = kwargs.get('trans_heads_min', 2/self.transh_modelscale)
+        self.trans_heads_max = kwargs.get('trans_heads_max', 8/self.transh_modelscale)
+        self.trans_heads_step = kwargs.get('trans_heads_step', 2/self.transh_modelscale)
 
-        self.trans_ff_min = kwargs.get('trans_ff_min', 64/transff_modelscale) 
-        self.trans_ff_max = kwargs.get('trans_ff_max',512/transff_modelscale)
-        self.trans_ff_step = kwargs.get('trans_ff_step', 64/transff_modelscale) 
+        self.trans_ff_min = kwargs.get('trans_ff_min', 64/self.transff_modelscale) 
+        self.trans_ff_max = kwargs.get('trans_ff_max',512/self.transff_modelscale)
+        self.trans_ff_step = kwargs.get('trans_ff_step', 64/self.transff_modelscale) 
 
-        self.dense_units_min = kwargs.get('dense_units_min', 32/dense_modelscale)
-        self.dense_units_max = kwargs.get('dense_units_max', 128/dense_modelscale)
-        self.dense_units_step = kwargs.get('dense_units_step', 32/dense_modelscale)
+        self.dense_units_min = kwargs.get('dense_units_min', 32/self.dense_modelscale)
+        self.dense_units_max = kwargs.get('dense_units_max', 128/self.dense_modelscale)
+        self.dense_units_step = kwargs.get('dense_units_step', 32/self.dense_modelscale)
         
         # Loss and metric configurations
         self.loss_functions = {
@@ -193,16 +194,16 @@ class CMdtuner:
         print(f"Number of devices: {self.strategy.num_replicas_in_sync}")
 
         # TensorFlow debugging (optional)
-        self.enable_debugging(kwargs)
+        self.enable_debugging(self,kwargs)
 
         # Prepare input shapes
         self.prepare_shapes()
 
         # Validate configurations
-        self.validate_config()
+        self.validate_config(self,kwargs)
 
         # Initialize the tuner
-        self.initialize_tuner()
+        self.initialize_tuner(self,kwargs)
 
     @staticmethod
     def cast_to_float32(x, y):

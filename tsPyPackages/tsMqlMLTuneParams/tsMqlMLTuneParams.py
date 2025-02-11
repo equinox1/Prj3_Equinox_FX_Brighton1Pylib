@@ -71,7 +71,9 @@ class CMdtunerHyperModel:
         self.chk_sav_freq = kwargs.get('chk_sav_freq', 'epoch')
         self.chk_patience = kwargs.get('chk_patience', 3)
         self.modeldatapath = kwargs.get('modeldatapath', None)
+        self.base_path =  kwargs.get('base_path', r"c:/users/shepa/onedrive/8.0 projects/8.3 projectmodelsequinox/equinrun/PythonLib/tsModelData/")
         self.project_name = kwargs.get('project_name', "prjEquinox1_prod.keras")
+        self.subdir = os.path.join(self.base_path, 'tshybrid_ensemble_tuning_prod', str(1))
         self.today = kwargs.get('today', None)
         self.random = kwargs.get('random', None)
         self.baseuniq = kwargs.get('baseuniq', None)
@@ -89,20 +91,23 @@ class CMdtunerHyperModel:
         self.lstm_modelscale = kwargs.get('lstm_modelscale', 1.0)
         self.gru_modelscale = kwargs.get('gru_modelscale', 1.0)
        
-
+      
+        
+         
    def get_hypermodel_params(self, basepath=None, **kwargs):
         today_date = date.today().strftime('%Y-%m-%d %H:%M:%S')
         random_seed = self.seed  # Using self.seed for consistency
-        base_path = pathlib.Path(basepath) if basepath else pathlib.Path(os.getcwd())
+        base_path = self.base_path or pathlib.Path(basepath)
         project_name = self.project_name or "prjEquinox1_prod.keras"
-
-        subdir = base_path / 'tshybrid_ensemble_tuning_prod' / '1'
-        subdir.mkdir(parents=True, exist_ok=True)
+        subdir = self.subdir or os.path.join(base_path, 'tshybrid_ensemble_tuning_prod', str(1))
+        
+        # Ensure the directory exists
+        os.makedirs(subdir, exist_ok=True)
 
         return {
             'directory': str(subdir),
             'basepath': str(subdir),
-            'checkpoint_filepath': str(base_path / 'tshybrid_ensemble_tuning_prod' / self.project_name),
+            'checkpoint_filepath': os.path.join(self.base_path, 'tshybrid_ensemble_tuning_prod', self.project_name),
             'objective': self.objective,
             'max_epochs': self.max_epochs,
             'min_epochs': self.min_epochs,
