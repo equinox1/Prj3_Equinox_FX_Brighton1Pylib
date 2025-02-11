@@ -51,10 +51,11 @@ from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
 from tsMqlMLTune import CMdtuner
 from tsMqlReference import CMqlTimeConfig
 from tsMqlSetup import CMqlSetup
-from tsMqlMLTuneParams import CMdtunerHyperModel
+from tsMqlMLTuneParams import CMdtunerHyperModel,CMqlEnvML
 from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
-from tsMqlSetup import CMqlEnvData, CMqlEnvML, CMqlEnvGlobal
+from tsMqlDataParams import CMqlEnvData
+from tsMqlSetup import CMqlEnvGlobal
 
 # Setup the logging and tensor platform dependencies
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
@@ -215,8 +216,8 @@ def main():
         if len(mv_tdata1loadrates) > 0:
             mv_tdata1loadrates = obj1_CDataProcess.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
 
-        scolumn_out1 = environments["mlenv"].mp_ml_custom_input_keyfeat
-        scolumn_out2 = environments["mlenv"].mp_ml_custom_output_label_scaled
+        scolumn_out1 = environments["mlenv"].mp_data_custom_input_keyfeat
+        scolumn_out2 = environments["mlenv"].mp_data_custom_output_label_scaled
 
         # Extract single elements from sets
         column_out1 = list(scolumn_out1)[0] if isinstance(scolumn_out1, set) else scolumn_out1
@@ -368,18 +369,18 @@ def main():
         # Normalize the 'Close' column
         scaler = MinMaxScaler()
 
-        mp_ml_custom_input_keyfeat = list(environments["mlenv"].mp_ml_custom_input_keyfeat)  # Convert to list
-        mp_ml_custom_input_keyfeat_scaled = list(environments["mlenv"].mp_ml_custom_input_keyfeat_scaled)  # Convert to list
+        mp_data_custom_input_keyfeat = list(environments["mlenv"].mp_data_custom_input_keyfeat)  # Convert to list
+        mp_data_custom_input_keyfeat_scaled = list(environments["mlenv"].mp_data_custom_input_keyfeat_scaled)  # Convert to list
 
-        print("mp_ml_custom_input_keyfeat:", mp_ml_custom_input_keyfeat)
-        print("mp_ml_custom_input_keyfeat_scaled:", mp_ml_custom_input_keyfeat_scaled)
+        print("mp_data_custom_input_keyfeat:", mp_data_custom_input_keyfeat)
+        print("mp_data_custom_input_keyfeat_scaled:", mp_data_custom_input_keyfeat_scaled)
 
         # Ensure these remain as lists when used as column names
         print("mv_tdata2 columns:", mv_tdata2.columns)
         print("mv_tdata2 head:", mv_tdata2.head(3))
 
       
-        mv_tdata2[mp_ml_custom_input_keyfeat_scaled] = scaler.fit_transform(mv_tdata2[mp_ml_custom_input_keyfeat])
+        mv_tdata2[mp_data_custom_input_keyfeat_scaled] = scaler.fit_transform(mv_tdata2[mp_data_custom_input_keyfeat])
         
         print("print Normalise")
         obj1_CDataProcess = CDataProcess(environments["dataenv"], environments["mlenv"], environments["globalenv"])
@@ -411,11 +412,11 @@ def main():
         print("Type before set default:", type(mv_tdata2))
         
         if environments["dataenv"].mp_data_data_label == 1:
-            mv_tdata2 = mv_tdata2[[list(mp_ml_custom_input_keyfeat_scaled)[0]]]
+            mv_tdata2 = mv_tdata2[[list(mp_data_custom_input_keyfeat_scaled)[0]]]
             obj1_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
             
         elif environments["dataenv"].mp_data_data_label == 2:
-            mv_tdata2 = mv_tdata2[[mv_tdata2.columns[0]] + [list(mp_ml_custom_input_keyfeat_scaled)[0]]]
+            mv_tdata2 = mv_tdata2[[mv_tdata2.columns[0]] + [list(mp_data_custom_input_keyfeat_scaled)[0]]]
             # Ensure the data is sorted by time
             mv_tdata2 = mv_tobj1_CDataProcessobj2_CDataLoader.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
 
@@ -436,8 +437,8 @@ def main():
         pasttimeperiods = 24
         futuretimeperiods = 24
         predtimeperiods = 1
-        features_count = len(environments["mlenv"].mp_ml_custom_input_keyfeat)  # Number of features in input
-        labels_count = len(environments["mlenv"].mp_ml_custom_output_label)  # Number of labels in output
+        features_count = len(environments["mlenv"].mp_data_custom_input_keyfeat)  # Number of features in input
+        labels_count = len(environments["mlenv"].mp_data_custom_output_label)  # Number of labels in output
         batch_size = environments["mlenv"].mp_ml_batch_size
 
         print("timeval:",timeval, "pasttimeperiods:",pasttimeperiods, "futuretimeperiods:",futuretimeperiods, "predtimeperiods:",predtimeperiods)
@@ -447,11 +448,11 @@ def main():
         print("past_width:", past_width, "future_width:", future_width, "pred_width:", pred_width)
 
         # Create the input features (X) and label values (y)
-        print("list(mp_ml_custom_input_keyfeat_scaled)", list(mp_ml_custom_input_keyfeat_scaled))
+        print("list(mp_data_custom_input_keyfeat_scaled)", list(mp_data_custom_input_keyfeat_scaled))
 
         # STEP: Create input (X) and label (Y) tensors Ensure consistent data shape
         # Create the input (X) and label (Y) tensors Close_scaled is the feature to predict and Close last entry in future the label
-        mv_tdata2_X, mv_tdata2_y = obj1_Mqlmlsetup.create_Xy_time_windows3(mv_tdata2, past_width, future_width, target_column=list(mp_ml_custom_input_keyfeat_scaled), feature_column=list(mp_ml_custom_input_keyfeat))
+        mv_tdata2_X, mv_tdata2_y = obj1_Mqlmlsetup.create_Xy_time_windows3(mv_tdata2, past_width, future_width, target_column=list(mp_data_custom_input_keyfeat_scaled), feature_column=list(mp_data_custom_input_keyfeat))
         print("mv_tdata2_X.shape", mv_tdata2_X.shape, "mv_tdata2_y.shape", mv_tdata2_y.shape)
         
         # +-------------------------------------------------------------------
@@ -541,13 +542,27 @@ def main():
         # pass in the data shape for the model
 
         input_shape = (input_timesteps, input_features)  
-        output_label_shape = (output_label, environments["mlenv"].mp_ml_custom_output_label_count)
+        output_label_shape = (output_label, environments["mlenv"].mp_data_custom_output_label_count)
         print(f"Input shape for model: {input_shape}, Output shape for model: {output_label_shape}")
         # +-------------------------------------------------------------------
         # STEP: Tune best model Hyperparameter tuning and model setup
         # +-------------------------------------------------------------------
         # Hyperparameter configuration
-        obj1_TunerParams = CMdtunerHyperModel()  
+        obj1_TunerParams = CMdtunerHyperModel(
+         tuner_params=tunerparams["tunerparams"],
+         input_shape=input_shape,
+         output_shape=output_label_shape,
+         input_batch_size=input_keras_batch,
+         train_dataset=train_dataset,
+         val_dataset=val_dataset,
+         test_dataset=test_dataset,
+         tunemode=True,
+         tunemodeepochs=True,
+         batch_size=mp_ml_batch_size,
+         epochs=environments['mlenv'].mp_ml_tf_param_epochs,
+
+         
+        )  
         hypermodel_params = obj1_TunerParams.get_hypermodel_params()
         print("Tuner Parameters:", hypermodel_params)  # Print the tuner parameters
 
@@ -557,9 +572,6 @@ def main():
         
         mt = obj1_CMdtuner.initialize_tuner(
             hypermodel_params=hypermodel_params,
-            train_dataset=train_dataset,
-            val_dataset=val_dataset,
-            test_dataset=test_dataset
          )
        
         # Check and load the model
