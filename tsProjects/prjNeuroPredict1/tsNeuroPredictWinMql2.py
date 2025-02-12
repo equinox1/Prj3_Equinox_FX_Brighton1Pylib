@@ -47,11 +47,11 @@ import warnings
 from numpy import concatenate
 
 from tsMqlConnect import CMqlinit, CMqlBrokerConfig
-from tsMqlML import CMqlmlsetup, CMqlWindowGenerator
+from tsMqlML import CMqlmlsetup, CMqlWindowGenerator ,CMqlEnvML
 from tsMqlMLTune import CMdtuner
 from tsMqlReference import CMqlTimeConfig
 from tsMqlSetup import CMqlSetup
-from tsMqlMLTuneParams import CMdtunerHyperModel,CMqlEnvML
+from tsMqlMLTuneParams import CMdtunerHyperModel,CMqlEnvTuneML
 from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
 from tsMqlDataParams import CMqlEnvData
@@ -82,7 +82,7 @@ mp_ml_tunemodeepochs = True
 mp_data_rows = 2000 # number of mp_data_tab_rows to fetch
 mp_data_rowcount = 10000 # number of mp_data_tab_rows to fetch
 mp_ml_Keras_tuner = 'hyperband' # 'hyperband' or 'randomsearch' or 'bayesian' or 'skopt' or 'optuna'
-mp_ml_batch_size = 4
+batch_size = 4
 # scaling
 all_modelscale = 2 # divide the model by this number
 cnn_modelscale = 2 # divide the model by this number
@@ -92,7 +92,6 @@ trans_modelscale = 2 # divide the model by this number
 transh_modelscale = 1 # divide the model by this number
 transff_modelscale = 4 # divide the model by this number
 dense_modelscale = 2 # divide the model by this number
-
 
 
 def main():
@@ -119,6 +118,7 @@ def main():
         environments = {
             "dataenv": CMqlEnvData(),
             "mlenv": CMqlEnvML(),
+            "tuneenv": CMqlEnvTuneML(),
             "globalenv": CMqlEnvGlobal()
         }
         # Tuner Parameters
@@ -216,8 +216,8 @@ def main():
         if len(mv_tdata1loadrates) > 0:
             mv_tdata1loadrates = obj1_CDataProcess.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
 
-        scolumn_out1 = environments["mlenv"].mp_data_custom_input_keyfeat
-        scolumn_out2 = environments["mlenv"].mp_data_custom_output_label_scaled
+        scolumn_out1 = environments["dataenv"].mp_data_custom_input_keyfeat
+        scolumn_out2 = environments["dataenv"].mp_data_custom_output_label_scaled
 
         # Extract single elements from sets
         column_out1 = list(scolumn_out1)[0] if isinstance(scolumn_out1, set) else scolumn_out1
@@ -369,8 +369,8 @@ def main():
         # Normalize the 'Close' column
         scaler = MinMaxScaler()
 
-        mp_data_custom_input_keyfeat = list(environments["mlenv"].mp_data_custom_input_keyfeat)  # Convert to list
-        mp_data_custom_input_keyfeat_scaled = list(environments["mlenv"].mp_data_custom_input_keyfeat_scaled)  # Convert to list
+        mp_data_custom_input_keyfeat = list(environments["dataenv"].mp_data_custom_input_keyfeat)  # Convert to list
+        mp_data_custom_input_keyfeat_scaled = list(environments["dataenv"].mp_data_custom_input_keyfeat_scaled)  # Convert to list
 
         print("mp_data_custom_input_keyfeat:", mp_data_custom_input_keyfeat)
         print("mp_data_custom_input_keyfeat_scaled:", mp_data_custom_input_keyfeat_scaled)
@@ -437,9 +437,9 @@ def main():
         pasttimeperiods = 24
         futuretimeperiods = 24
         predtimeperiods = 1
-        features_count = len(environments["mlenv"].mp_data_custom_input_keyfeat)  # Number of features in input
-        labels_count = len(environments["mlenv"].mp_data_custom_output_label)  # Number of labels in output
-        batch_size = environments["mlenv"].mp_ml_batch_size
+        features_count = len(environments["dataenv"].mp_data_custom_input_keyfeat)  # Number of features in input
+        labels_count = len(environments["dataenv"].mp_data_custom_output_label)  # Number of labels in output
+        batch_size = environments["tuneenv"].batch_size
 
         print("timeval:",timeval, "pasttimeperiods:",pasttimeperiods, "futuretimeperiods:",futuretimeperiods, "predtimeperiods:",predtimeperiods)
         past_width = pasttimeperiods * timeval
@@ -465,7 +465,7 @@ def main():
         # STEP: Split the data into training and test sets Fixed Partitioning
         # +-------------------------------------------------------------------
         # Batch size alignment fit the number of rows as whole number divisible by the batch size to avoid float errors
-        batch_size = environments["mlenv"].mp_ml_batch_size
+        batch_size = environments["tuneenv"].batch_size
         precountX = len(mv_tdata2_X)
         precounty = len(mv_tdata2_y)
         mv_tdata2_X,mv_tdata2_y = obj1_Mqlmlsetup.align_to_batch_size(mv_tdata2_X,mv_tdata2_y, batch_size)
@@ -478,8 +478,8 @@ def main():
         # Split the data into training, validation, and test sets
 
         # STEP: Split data into training, validation, and test sets
-        X_train, X_temp, y_train, y_temp = train_test_split(mv_tdata2_X,mv_tdata2_y, test_size=(environments["mlenv"].mp_ml_validation_split + environments["mlenv"].mp_ml_test_split), shuffle=False)
-        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=(environments["mlenv"].mp_ml_test_split / (environments["mlenv"].mp_ml_validation_split + environments["mlenv"].mp_ml_test_split)), shuffle=False)
+        X_train, X_temp, y_train, y_temp = train_test_split(mv_tdata2_X,mv_tdata2_y, test_size=(environments["tuneenv"].validation_split + environments["tuneenv"].test_split), shuffle=False)
+        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=(environments["tuneenv"].test_split / (environments["tuneenv"].validation_split + environments["tuneenv"].test_split)), shuffle=False)
 
         print(f"Training set: X_train: {X_train.shape}, y_train: {y_train.shape}")
         print(f"Validation set: X_val: {X_val.shape}, y_val: {y_val.shape}")
@@ -488,7 +488,7 @@ def main():
         # STEP: convert numpy arrays to TF datasets
         # +-------------------------------------------------------------------
         # initiate the object using a window generatorwindow is not  used in this model Parameters
-        tf_batch_size = environments["mlenv"].mp_ml_batch_size
+        tf_batch_size = environments["tuneenv"].batch_size
 
         train_dataset = obj1_Mqlmlsetup.create_tf_dataset(X_train, y_train, batch_size=tf_batch_size, shuffle=True)
         val_dataset = obj1_Mqlmlsetup.create_tf_dataset(X_val, y_val, batch_size=tf_batch_size, shuffle=False)
@@ -523,12 +523,12 @@ def main():
         print(f"Full Input shape for model: {X_train.shape}, Label shape for model: {y_train.shape}")
         print(f"No Batch Input shape for model: {input_shape}, Label shape for model: {label_shape}")
         #batch components
-        input_keras_batch=environments["mlenv"].mp_ml_batch_size
+        input_keras_batch=environments["tuneenv"].batch_size
         input_def_keras_batch=None
         # Get the input shape for the model
         input_rows_X=len(X_train)
         input_rows_y=len(y_train)
-        input_batch_size=environments["mlenv"].mp_ml_batch_size
+        input_batch_size=environments["tuneenv"].batch_size
         input_batches= X_train.shape[0]
         input_timesteps = X_train.shape[1]
         input_features = X_train.shape[2]
@@ -542,7 +542,7 @@ def main():
         # pass in the data shape for the model
 
         input_shape = (input_timesteps, input_features)  
-        output_label_shape = (output_label, environments["mlenv"].mp_data_custom_output_label_count)
+        output_label_shape = (output_label, environments["dataenv"].mp_data_custom_output_label_count)
         print(f"Input shape for model: {input_shape}, Output shape for model: {output_label_shape}")
         # +-------------------------------------------------------------------
         # STEP: Tune best model Hyperparameter tuning and model setup
@@ -551,31 +551,32 @@ def main():
         obj1_TunerParams = CMdtunerHyperModel(
          tuner_params=tunerparams["tunerparams"],
          input_shape=input_shape,
+         data_input_shape=input_shape,
          output_shape=output_label_shape,
-         input_batch_size=input_keras_batch,
-         train_dataset=train_dataset,
-         val_dataset=val_dataset,
-         test_dataset=test_dataset,
+         input_batch_size=batch_size,
          tunemode=True,
          tunemodeepochs=True,
-         batch_size=mp_ml_batch_size,
-         epochs=environments['mlenv'].mp_ml_tf_param_epochs,
-
-         
+         model_summary=True,
+         batch_size=batch_size,
+         epochs=15
         )  
         hypermodel_params = obj1_TunerParams.get_hypermodel_params()
         print("Tuner Parameters:", hypermodel_params)  # Print the tuner parameters
 
         
-        # Initialize tuner
-        obj1_CMdtuner=CMdtuner()
-        
-        mt = obj1_CMdtuner.initialize_tuner(
-            hypermodel_params=hypermodel_params,
-         )
+        #instansiate tuner claa
+        obj1_CMdtuner = CMdtuner(
+                  hypermodel_params=hypermodel_params,
+                  traindataset=train_dataset,
+                  valdataset=val_dataset,
+                  testdataset=test_dataset,
+                  
+                  )
+        #initialize tuner
+        obj1_CMdtuner.initialize_tuner()
        
         # Check and load the model
-        best_model = mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')
+        best_model = obj1_CMdtuner.check_and_load_model(mp_ml_mbase_path, ftype='tf')
 
         # If no model or a hard run is required, run the search
         runtuner = False
@@ -610,7 +611,7 @@ def main():
             best_model.fit(
                 train_dataset,
                 validation_data=val_dataset,
-                batch_size=mp_ml_batch_size,
+                batch_size=batch_size,
                 epochs=mp_ml_tf_param_epochs
             )
             print("Training completed.")

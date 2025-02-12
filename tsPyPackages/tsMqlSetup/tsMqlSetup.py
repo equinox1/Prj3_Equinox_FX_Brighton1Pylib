@@ -34,14 +34,12 @@ class CMqlSetup:
         self.tfdebug = kwargs.get('tfdebug', False)
         self.precision = kwargs.get('precision', 'mixed_float16')
 
-        
-        
         warnings.filterwarnings(self.warn)
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = self.tflog
         
         # Set the global policy for mixed precision
-        from tensorflow.keras.mixed_precision import set_global_policy
-        set_global_policy(self.precision)
+        from tensorflow.keras.mixed_precision import set_policy
+        set_policy(self.precision)
         
         print("TensorFlow Version:", tf.__version__)
         

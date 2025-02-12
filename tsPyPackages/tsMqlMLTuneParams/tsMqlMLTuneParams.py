@@ -29,6 +29,7 @@ import numpy as np
 from datetime import date
 import random
 
+# This class when instansiated takes the hypermodel parameters and the datasets as input and returns the hyperparam set # to apply to the Tuner. the inputs are taken from CMqlEnvTuneML and also overrides.
 
 class CMdtunerHyperModel:
    def __init__(self, **kwargs):
@@ -53,9 +54,9 @@ class CMdtunerHyperModel:
          self.validation_split = kwargs.get('validation_split', 0.2)
 
          # File paths
-         self.base_path =  kwargs.get('base_path', None)
+         self.base_path =  kwargs.get('base_path', '')
          self.project_name = kwargs.get('project_name', "prjEquinox1_prod.keras")
-         self.subdir = os.path.join(self.base_path, 'tshybrid_ensemble_tuning_prod', str(1))
+         self.subdir = os.path.join(self.base_path or '', 'tshybrid_ensemble_tuning_prod', str(1))
          self.baseuniq = kwargs.get('baseuniq', None)
          self.basepath = kwargs.get('basepath', self.base_path)
          self.modeldatapath = kwargs.get('modeldatapath', None)
@@ -96,7 +97,7 @@ class CMdtunerHyperModel:
          #Tuner epochs
          self.max_epochs = kwargs.get('max_epochs', 100)
          self.min_epochs = kwargs.get('min_epochs', 10)
-         self.tf_param_steps = kwargs.get('tf_param_steps', 10)
+         self.tf_param_epochs = kwargs.get('tf_param_epochs', 10)
          self.epochs = kwargs.get('epochs', 2)
          self.tune_new_entries = kwargs.get('tune_new_entries', True)
          self.allow_new_entries = kwargs.get('allow_new_entries', True)
@@ -158,11 +159,10 @@ class CMdtunerHyperModel:
             'modelsummary' : self.modelsummary,
             'today' : self.today,
             'seed' : self.seed,
-            'random_seed' : self.random_seed,
             'tuner_id' : self.tuner_id,
-            'train_df' : self.train_df,
-            'val_df' : self.val_df,
-            'test_df' : self.test_df,
+            'train_dataset' : self.train_dataset,
+            'val_dataset' : self.val_dataset,
+            'test_dataset' : self.test_dataset,
             'validation_split' : self.validation_split,
             'base_path' : self.base_path,
             'project_name' : self.project_name,
@@ -193,7 +193,7 @@ class CMdtunerHyperModel:
             'hyperband_iterations' : self.hyperband_iterations,
             'max_epochs' : self.max_epochs,
             'min_epochs' : self.min_epochs,
-            'tf_param_steps' : self.tf_param_steps,
+            'tf_param_epochs' : self.tf_param_epochs,
             'epochs' : self.epochs,
             'tune_new_entries' : self.tune_new_entries,
             'allow_new_entries' : self.allow_new_entries,
@@ -233,25 +233,12 @@ class CMdtunerHyperModel:
             'dense_modelscale' : self.dense_modelscale
          }
 
-         
-   # Initialize the tuner class
-   def initialize_tuner(hypermodel_params, train_dataset, val_dataset, test_dataset):
-      try:
-         print("Creating an instance of the tuner class")
-         mt = CMdtuner(
-              self.get_hypermodel_params(**hypermodel_params),
-         )
-         print("Tuner initialized successfully.")
-         return mt
-      except Exception as e:
-         print(f"Error initializing the tuner: {e}")
-         raise
    
    def get_params(self):
             return self.__dict__  # Returns all attributes as a dictionary
 
 
-class CMqlEnvML:
+class CMqlEnvTuneML:
     def __init__(self, **kwargs):
          self.kwargs = kwargs
         
@@ -300,8 +287,8 @@ class CMqlEnvML:
          mp_ml_baseuniq=str(1)# str(mp_random)
          mp_ml_project_name=r"prjEquinox1_prod.keras"
          
-         mp_ml_def_base_path=os.path.join(mp_ml_src_base,mp_ml_platform_base ,mp_ml_src_lib, mp_ml_src_data, mp_ml_directory)
-         mp_ml_num_base_path=os.path.join(mp_ml_src_base,mp_ml_platform_base ,mp_ml_src_lib, mp_ml_src_data, mp_ml_directory,mp_ml_baseuniq)
+         mp_ml_def_base_path=os.path.join(mp_ml_src_base,mp_pl_platform_base ,mp_ml_src_lib, mp_ml_src_data, mp_ml_directory)
+         mp_ml_num_base_path=os.path.join(mp_ml_src_base,mp_pl_platform_base ,mp_ml_src_lib, mp_ml_src_data, mp_ml_directory,mp_ml_baseuniq)
         
          #tuner parameters file path names
          self.base_path =  kwargs.get('base_path', mp_ml_num_base_path)
@@ -346,7 +333,7 @@ class CMqlEnvML:
          #Tuner epochs
          self.max_epochs = kwargs.get('max_epochs', 100)
          self.min_epochs = kwargs.get('min_epochs', 10)
-         self.tf_param_steps = kwargs.get('tf_param_steps', 10)
+         self.tf_param_epochs = kwargs.get('tf_param_epochs', 10)
          self.epochs = kwargs.get('epochs', 2)
          self.tune_new_entries = kwargs.get('tune_new_entries', True)
          self.allow_new_entries = kwargs.get('allow_new_entries', True)
@@ -402,3 +389,6 @@ class CMqlEnvML:
    
     def get_params(self):
         return self.__dict__  # Returns all attributes as a dictionary
+
+
+       

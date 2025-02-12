@@ -14,11 +14,11 @@ class RunPlatform:
         self.onnx = None  # Initialize onnx attribute
 
         if platform_checker.is_windows():
-            if PLATFORM_DEPENDENCIES:
+            if PLATFORM_DEPENDENCIES is not None:
                 self.mt5 = PLATFORM_DEPENDENCIES.get("mt5")  # Assign to class attributes
                 self.onnx = PLATFORM_DEPENDENCIES.get("onnx")
 
-                if self.mt5 and self.onnx and self.debug:
+                if self.mt5 and self.onnx:
                     logger.info("MetaTrader5 and ONNX are ready for use.")
                     if self.debug:
                         print("MetaTrader5 and ONNX are available.")

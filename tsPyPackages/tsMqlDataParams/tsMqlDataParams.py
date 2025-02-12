@@ -19,7 +19,6 @@ else:
     onnx = pchk.onnx
     loadmql = True
 
-
 import tensorflow as tf
 from tensorflow.keras.layers import Input
 import os
@@ -27,9 +26,6 @@ import warnings
 import posixpath  # For path handling
 import pandas as pd
 import numpy as np
-
-
-
 
 class CMqlEnvData:
     def __init__(self, **kwargs):
@@ -71,15 +67,15 @@ class CMqlEnvData:
         self.mp_data_rownumber = kwargs.get('mp_data_rownumber', False)
         self.mp_data_show_dtype = kwargs.get('mp_data_show_dtype', False)
         self.mp_data_show_head = kwargs.get('mp_data_show_head', False)
+        self.mp_data_rownumber = kwargs.get('mp_data_rownumber', False)
+        self.mp_data_show_dtype = kwargs.get('mp_data_show_dtype', False)
+
         self.mp_hl_avg_col = kwargs.get('mp_hl_avg_col', 'HLAvg')
         self.mp_ma_col = kwargs.get('mp_ma_col', 'SMA')
         self.mp_returns_col = kwargs.get('mp_returns_col', 'LogReturns')
         self.mp_returns_col_scaled = kwargs.get('mp_returns_col_scaled', 'LogReturns_scaled')
         self.mp_create_label = kwargs.get('mp_create_label', False)
         self.mp_create_label_scaled = kwargs.get('mp_create_label_scaled', False)
-        self.mp_data_rownumber = kwargs.get('mp_data_rownumber', False)
-        self.mp_data_show_dtype = kwargs.get('mp_data_show_dtype', False)
-        
-        
+       
     def get_params(self):
         return self.__dict__  # Returns all attributes as a dictionary
