@@ -35,7 +35,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 
 class CMdtuner:
-    def __init__(self, **kwargs):
+   def __init__(self, **kwargs):
         # Initialize hypermodel parameters
         self.hypermodel_params = kwargs.get('hypermodel_params', {})
         self.traindataset = kwargs.get('traindataset')
@@ -204,32 +204,32 @@ class CMdtuner:
         # Initialize the tuner
         self.initialize_tuner()
 
-    @staticmethod
-    def cast_to_float32(x, y):
+   @staticmethod
+   def cast_to_float32(x, y):
         return tf.cast(x, tf.float32), y
 
-    def enable_debugging(self, kwargs):
+   def enable_debugging(self, kwargs):
         if kwargs.get('tf1', False):
             tf.debugging.set_log_device_placement(True)
         if kwargs.get('tf2', False):
             tf.debugging.enable_check_numerics()
 
-    def prepare_shapes(self):
+   def prepare_shapes(self):
         if not self.data_input_shape:
             raise ValueError("Data input shape must be specified.")
         self.main_input_shape = self.get_shape(self.data_input_shape)
 
-    @staticmethod
-    def get_shape(data_shape):
+   @staticmethod
+   def get_shape(data_shape):
         if len(data_shape) not in [2, 3]:
             raise ValueError(f"Unsupported input shape: {data_shape}. Must be 2D or 3D.")
         return tuple(data_shape)
 
-    def validate_config(self):
+   def validate_config(self):
         if not (self.cnn_model or self.lstm_model or self.gru_model or self.transformer_model):
             raise ValueError("At least one model type (CNN, LSTM, GRU, Transformer) must be enabled.")
 
-    def initialize_tuner(self):
+   def initialize_tuner(self):
         hp = kt.HyperParameters()
         
         hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax', 'ftrl'])
@@ -306,7 +306,7 @@ class CMdtuner:
 
 
         
-    def build_model(self, hp):
+   def build_model(self, hp):
         # Shared Input Logic
         shared_input = Input(shape=self.main_input_shape, name='shared_input') if not self.multi_inputs else None
         inputs = [] if self.multi_inputs else [shared_input]
@@ -316,7 +316,8 @@ class CMdtuner:
         # CNN Branch
         if self.cnn_model:
             cnn_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='cnn_input')
-            if self.multi_inputs: inputs.append(cnn_input)
+            if self.multi_inputs:
+                inputs.append(cnn_input)
             print(f"Input shape cnn: {cnn_input.shape}")
                 
             if self.tunemode:
@@ -490,7 +491,7 @@ class CMdtuner:
          
         return model
 
-    def get_optimizer(self, optimizer_name, learning_rate):
+   def get_optimizer(self, optimizer_name, learning_rate):
         optimizers = {
             'adam': Adam,
             'rmsprop': tf.keras.optimizers.RMSprop,
@@ -511,7 +512,7 @@ class CMdtuner:
             ReduceLROnPlateau(monitor=self.objective, factor=0.1, patience=self.patience, min_lr=1e-6, verbose=self.verbose) # Learning rate scheduler
         ]
 
-    def transformer_block(self, inputs, hp, block_num,dim):
+   def transformer_block(self, inputs, hp, block_num,dim):
         key_dim = hp.Int(f'key_dim_{block_num}', min_value=self.trans_dim_min, max_value=self.trans_dim_max, step=self.trans_dim_step)
         num_heads = hp.Int(f'num_heads_{block_num}', min_value=self.trans_heads_min, max_value=self.trans_heads_max, step=self.trans_heads_step)
         ff_dim = hp.Int(f'ff_dim_{block_num}', min_value=self.trans_ff_min, max_value=self.trans_ff_max, step=self.trans_ff_step)
@@ -531,7 +532,7 @@ class CMdtuner:
         return ffn_out
 
 
-    def run_search(self):
+   def run_search(self):
         logging.info("Running tuner search...")
         try:
             self.tuner.search(
@@ -552,7 +553,7 @@ class CMdtuner:
             logging.error(f"Error during tuning: {e}")
 
 
-    def export_best_model(self, ftype='tf'):
+   def export_best_model(self, ftype='tf'):
 
         try:
             best_model = self.tuner.get_best_models(num_models=1)[0]
@@ -570,7 +571,7 @@ class CMdtuner:
             print(f"Error saving the model: {e}")
 
 
-    def check_and_load_model(self,lpbasepath,ftype='tf'):
+   def check_and_load_model(self,lpbasepath,ftype='tf'):
         """
         Check if the model file exists and load it.
         """
@@ -599,14 +600,14 @@ class CMdtuner:
             print(f"Error loading model: {e}")
             return None
 
-    def get_best_hyperparameters(self):
+   def get_best_hyperparameters(self):
         try:
             return self.tuner.get_best_hyperparameters(num_trials=1)[0]
         except Exception as e:
             print(f"Error retrieving best hyperparameters: {e}")
             return None
 
-    def run_prediction(self, test_data, batch_size=None):
+   def run_prediction(self, test_data, batch_size=None):
         try:
             best_model = self.tuner.get_best_models(num_models=1)[0]
             if isinstance(test_data, tf.data.Dataset):

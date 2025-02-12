@@ -340,3 +340,18 @@ class CMqlWindowGenerator:
     @property
     def test(self):
         return self.make_dataset(self.test_df)
+
+class CMqlEnvML:
+   def __init__(self, **kwargs):
+         self.kwargs = kwargs
+         self.mp_ml_cfg_period = kwargs.get('mp_ml_cfg_period', 24)
+         self.mp_ml_cfg_period1 = kwargs.get('mp_ml_cfg_period1', 24) #Hours
+         self.mp_ml_cfg_period2 = kwargs.get('mp_ml_cfg_period2', 6)  #Hours
+         self.mp_ml_cfg_period3 = kwargs.get('mp_ml_cfg_period3', 1)  #Hours
+         self.mp_ml_tf_ma_windowin = kwargs.get('mp_ml_tf_ma_windowing', 24)
+         self.mp_ml_tf_shiftin = kwargs.get('mp_ml_tf_shiftin', 1) 
+
+
+
+   def get_params(self):
+         return self.__dict__  # Returns all attributes as a dictionary
