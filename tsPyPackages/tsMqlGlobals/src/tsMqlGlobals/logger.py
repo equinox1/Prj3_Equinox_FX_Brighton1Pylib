@@ -2,7 +2,7 @@ import logging
 import os
 
 # Create logger instance
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("RunPlatform")
 logger.setLevel(logging.DEBUG)
 
 # Create console handler and set level to debug

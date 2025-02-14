@@ -9,10 +9,15 @@
 # +------------------------------------------------------------------+
 # STEP: Platform settings
 # +-------------------------------------------------------------------
+import logging
+# Initialize logger
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger, config
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
-loadmql=pchk.checkmqlstate()
+loadmql=pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
 # +-------------------------------------------------------------------
@@ -30,7 +35,6 @@ from datetime import datetime, date
 import pytz
 import matplotlib.pyplot as plt
 import seaborn as sns
-import logging
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
@@ -41,16 +45,19 @@ import tensorflow as tf
 import warnings
 from numpy import concatenate
 
-from tsMqlConnect import CMqlinit, CMqlBrokerConfig
-from tsMqlML import CMqlmlsetup, CMqlWindowGenerator ,CMqlEnvML
+# Equinox packages
+from tsMqlConnect import CMqlBrokerConfig, CMqlinit
+from tsMqlDataLoader import CDataLoader
+from tsMqlDataParams import CMqlEnvData
+from tsMqlDataProcess import CDataProcess
+from tsMqlGlobals import global_setter
+from tsMqlML import CMqlmlsetup ,CMqlEnvML
 from tsMqlMLTune import CMdtuner
+from tsMqlMLTuneParams import CMdtunerHyperModel, CMqlEnvTuneML
+from tsMqlPlatform import run_platform
 from tsMqlReference import CMqlTimeConfig
 from tsMqlSetup import CMqlSetup
-from tsMqlMLTuneParams import CMdtunerHyperModel,CMqlEnvTuneML
-from tsMqlDataLoader import CDataLoader
-from tsMqlDataProcess import CDataProcess
-from tsMqlDataParams import CMqlEnvData
-from tsMqlSetup import CMqlEnvGlobal
+
 
 # Setup the logging and tensor platform dependencies
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
@@ -63,10 +70,11 @@ broker = "METAQUOTES"  # "ICM" or "METAQUOTES"
 mp_symbol_primary = 'EURUSD'
 MPDATAFILE1 = "tickdata1.csv"
 MPDATAFILE2 = "ratesdata1.csv"
+
 feature_scaler = MinMaxScaler()
 label_scaler = MinMaxScaler()
 TIMESAMPLE = 'M1'  # exception for api mql load
-mp_data_tab_rows = 10
+mp_data_tab_rows = 2
 mp_data_tab_width = 30
 mp_data_cfg_usedata = 'loadfilerates' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
 mp_ml_show_plot=False
@@ -88,9 +96,7 @@ transh_modelscale = 1 # divide the model by this number
 transff_modelscale = 4 # divide the model by this number
 dense_modelscale = 2 # divide the model by this number
 
-
-def main():
-   """
+def main(logger):
     with strategy.scope():
         # +-------------------------------------------------------------------
         # STEP: Load Reference class and time variables
@@ -110,32 +116,6 @@ def main():
         else:
             raise ValueError("TIME_CONSTANTS['TIMEFRAME'][TIMESAMPLE] is missing")
 
-        # Initialize environments
-        environments = {
-            "dataenv": CMqlEnvData(),
-            "mlenv": CMqlEnvML(),
-            "tuneenv": CMqlEnvTuneML(),
-            "globalenv": CMqlEnvGlobal()
-        }
-        # Tuner Parameters
-        tuner_environments = {
-            "tunerparams": CMdtunerHyperModel()
-            }
-
-        # Retrieve parameters safely
-        params = {name: env.get_params() for name, env in environments.items()}
-
-        tunerparams = {name: env.get_params() for name, env in tuner_environments.items()}
-
-        # Print environments and their parameters
-        for name, env in environments.items():
-            print(f"{name}: {params[name]}")
-
-        # Print tuner environments and their parameters
-        for name, env in tuner_environments.items():
-            print(f"{name}: {tunerparams[name]}")
-
-
         # +-------------------------------------------------------------------
         # STEP: CBroker Login
         # +-------------------------------------------------------------------
@@ -145,47 +125,137 @@ def main():
 
         # Attempt to log in to the broker
         broker_config = obj1_CMqlBrokerConfig.set_mql_broker()
-        print("Broker Login Successful")
+        logger.info("Broker Login Successful")
 
         # Retrieve broker file paths
-        file_path = broker_config.get('MKFILES', 'Unknown Path')
-        MPDATAPATH = broker_config.get('MPDATAPATH', 'Unknown Path')
-        print(f"Broker File Path: {file_path}, MP Data Path: {MPDATAPATH}")
+        file_path  = broker_config['MKFILES']
+        MPDATAPATH = broker_config['MPDATAPATH']
+        MPFILEVALUE1 = broker_config['MPFILEVALUE1']
+        MPFILEVALUE2 = broker_config['MPFILEVALUE2']
+        logger.info(f"{__name__} ,:Broker File Path: {file_path}, MP Data Path: {MPDATAPATH} , MPFILEVALUE1: {MPFILEVALUE1}, MPFILEVALUE2: {MPFILEVALUE2}")
 
+          # +-------------------------------------------------------------------
+        # STEP: setp environment
+        # +-------------------------------------------------------------------
+        # Initialize gen_environments
+        
+        gen_environments = {
+            "globalenv": global_setter  # Ensure you pass the whole object, not just `.get_params()`
+        }
+
+        # Retrieve broker file paths
+        
+        MPDATAPATH = broker_config['MPDATAPATH']
+        logger.info(f"Broker File Path: {file_path}, MP Data Path: {MPDATAPATH}")
+
+        data_environments = { 
+            "dataenv": CMqlEnvData( 
+                        globalenv=gen_environments["globalenv"],
+                        mv_data_dfname1=MPDATAFILE1,
+                        mv_data_dfname2=MPDATAFILE2,
+                        mp_data_filename1=MPDATAFILE1,
+                        mp_data_filename2=MPDATAFILE2,
+                        )
+             }
+        
+        tuner_environments = {
+            "mlenv": CMqlEnvML(),
+            "tuneenv": CMqlEnvTuneML(globalenv=gen_environments["globalenv"])
+         }
+
+        # Tuner Parametersdataenv
+        model_environments = {
+            "modelenv": CMdtunerHyperModel(
+               globalenv=gen_environments["globalenv"],
+               mlenv=tuner_environments["mlenv"],
+               tuneenv=tuner_environments["tuneenv"]
+               )
+         }
+
+        # Retrieve parameters safely
+        genparams = {name: env.get_params() for name, env in gen_environments.items()}
+        dataparams = {name: env.get_params() for name, env in data_environments.items()}
+        tunerparams = {name: env.get_params() for name, env in tuner_environments.items()}
+        modelparams = {name: env.get_params() for name, env in model_environments.items()}
+
+
+        # Print environments and their parameters
+        for name, env in gen_environments.items():
+            logger.info(f"{name}: {genparams[name]}")
+
+         # Print data environments and their parameters
+        for name, env in data_environments.items():
+            logger.info(f"{name}: {dataparams[name]}")
+
+        # Print tuner environments and their parameters
+        for name, env in tuner_environments.items():
+            logger.info(f"{name}: {tunerparams[name]}")
+
+        # Print model environments and their parameters
+        for name, env in model_environments.items():
+            logger.info(f"{name}: {modelparams[name]}")  
+
+        globalenv = gen_environments["globalenv"]
+        dataenv = data_environments["dataenv"]
+        mlenv = tuner_environments["mlenv"]
+        tuneenv =tuner_environments["tuneenv"]
+        modelenv = model_environments["modelenv"]
+        
+
+        mv_data_dfname1 = "df_rates1"
+        mv_data_dfname2 = "df_rates2"
+        
+        obj1_CDataLoader = CDataLoader(
+            dataenv, 
+            globalenv,
+            mv_data_dfname1=mv_data_dfname1,
+            mv_data_dfname2=mv_data_dfname2,
+         )
+
+        obj1_CDataProcess= CDataProcess(
+            dataenv, 
+            globalenv,
+            mv_data_dfname1=mv_data_dfname1,
+            mv_data_dfname2=mv_data_dfname2,
+         )
+         
+        logger.info("DataLoader and DataProcess classes initialized")
+        logger.info("Genparams: %s", genparams)
+        logger.info("Tunerparams: %s", tunerparams)
+        logger.info("Modelparams: %s", modelparams)
+
+        
+        
         # +-------------------------------------------------------------------
         # STEP: Data Preparation and Loading
         # +-------------------------------------------------------------------
-        print("Data Preparation and Loading... Initializing Data Process...")
-        obj1_CDataProcess = CDataProcess(environments["dataenv"], environments["mlenv"], environments["globalenv"])
-        mp_data_history_size = environments["dataenv"].mp_data_history_size if hasattr(environments["dataenv"], 'mp_data_history_size') else 0
-        print(f"CURRENTYEAR: {CURRENTYEAR}, CURRENTYEAR-mp_data_history_size: {CURRENTYEAR - mp_data_history_size}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, TIMEZONE: {TIMEZONE}")
-
+        # Set the data history size
+        mp_data_history_size = dataenv.mp_data_history_size if hasattr(dataenv, 'mp_data_history_size') else 0
+        logger.info(f"CURRENTYEAR: {CURRENTYEAR}, CURRENTYEAR-mp_data_history_size: {CURRENTYEAR - mp_data_history_size}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, TIMEZONE: {TIMEZONE}")
+       
         # Set the UTC time for the data
-        datenv = environments["dataenv"]
-        mlenv = environments["mlenv"]
-        globalenv = environments["globalenv"]
-        obj2_CDataLoader = CDataLoader(datenv, mlenv, globalenv)
-        mv_data_utc_from = obj2_CDataLoader.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
-        mv_data_utc_to = obj2_CDataLoader.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
-        print(f"UTC From: {mv_data_utc_from}")
-        print(f"UTC To: {mv_data_utc_to}")
+        mv_data_utc_from = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
+        mv_data_utc_to = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
+        logger.info(f"UTC From: {mv_data_utc_from}")
+        logger.info(f"UTC To: {mv_data_utc_to}")
 
         try:
             # Load tick data from MQL and FILE
             obj1_params = CDataLoader(
-                datenv, mlenv, globalenv,
-                api_ticks=environments["dataenv"].mp_data_loadapiticks,
-                api_rates=environments["dataenv"].mp_data_loadapirates,
-                file_ticks=environments["dataenv"].mp_data_loadfileticks,
-                file_rates=environments["dataenv"].mp_data_loadfilerates,
-                dfname1=environments["dataenv"].mv_data_dfname1,
-                dfname2=environments["dataenv"].mv_data_dfname2,
+                globalenv,
+                dataenv,
+                api_ticks=dataenv.mp_data_loadapiticks,
+                api_rates=dataenv.mp_data_loadapirates,
+                file_ticks=dataenv.mp_data_loadfileticks,
+                file_rates=dataenv.mp_data_loadfilerates,
+                dfname1=dataenv.mv_data_dfname1,
+                dfname2=dataenv.mv_data_dfname2,
                 utc_from=mv_data_utc_from,
                 symbol_primary=mp_symbol_primary,
-                rows=environments["dataenv"].mp_data_rows,
-                rowcount=environments["dataenv"].mp_data_rowcount,
-                command_ticks=environments["dataenv"].mp_data_command_ticks,
-                command_rates=environments["dataenv"].mp_data_command_rates,
+                rows=dataenv.mp_data_rows,
+                rowcount=dataenv.mp_data_rowcount,
+                command_ticks=dataenv.mp_data_command_ticks,
+                command_rates=dataenv.mp_data_command_rates,
                 data_path=MPDATAPATH,
                 file_value1=broker_config.get('MPFILEVALUE1', 'Unknown'),
                 file_value2=broker_config.get('MPFILEVALUE2', 'Unknown'),
@@ -195,25 +265,89 @@ def main():
             try:
                 mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_params.load_market_data(obj1_CDataProcess, obj1_params)
             except Exception as e:
-                print(f"An error occurred: {e}")
+                logger.error(f"An error occurred: {e}")
         except Exception as e:
-            print(f"An error occurred in the outer try block: {e}")
+         logger.error(f"An error occurred in the outer try block: {e}")
 
         # Display the data
-        obj1_CDataProcess = CDataProcess(environments["dataenv"], environments["mlenv"], environments["globalenv"])
-
+      
+        # +-------------------------------------------------------------------
+        # STEP: DataWrangling and datetime to numeric conversion
+        # +-------------------------------------------------------------------
         # Wrangle the data merging and transforming time to numeric
-        if len(mv_tdata1apiticks) > 0 and not loadmql:
+        if len(mv_tdata1apiticks) > 0 and loadmql:
             mv_tdata1apiticks = obj1_CDataProcess.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
-        if len(mv_tdata1apirates) > 0 and not loadmql:
+        if len(mv_tdata1apirates) > 0 and loadmql:
             mv_tdata1apirates = obj1_CDataProcess.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
-        if len(mv_tdata1loadticks) > 0:
+        if len(mv_tdata1loadticks) > 0 and (loadmql == True or loadmql == False):
             mv_tdata1loadticks = obj1_CDataProcess.wrangle_time(mv_tdata1loadticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
-        if len(mv_tdata1loadrates) > 0:
+        if len(mv_tdata1loadrates) > 0 and (loadmql == True or loadmql == False):
             mv_tdata1loadrates = obj1_CDataProcess.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
 
-        scolumn_out1 = environments["dataenv"].mp_data_custom_input_keyfeat
-        scolumn_out2 = environments["dataenv"].mp_data_custom_output_label_scaled
+
+          # Create labels
+        mv_tdata1apiticks = obj1_CDataProcess.create_label_wrapper(
+            df=mv_tdata1apiticks,
+            bid_column="T1_Bid_Price",
+            ask_column="T1_Ask_Price",
+            column_in="T1_Bid_Price",
+            column_out1=list(mlenv.mp_ml_input_keyfeat)[0],
+            column_out2=list(mlenv.mp_ml_output_label_scaled)[0],
+            open_column="R1_Open",
+            high_column="R1_High",
+            low_column="R1_Low",
+            close_column="R1_Close",
+            run_mode=1,
+            **tunerparams
+        )
+
+        mv_tdata1apirates = obj1_CDataProcess.create_label_wrapper(
+            df=mv_tdata1apirates,
+            bid_column="R1_Bid_Price",
+            ask_column="R1_Ask_Price",
+            column_in="R1_Close",
+            column_out1=list(mlenv.mp_ml_input_keyfeat)[0],
+            column_out2=list(mlenv.mp_ml_output_label_scaled)[0],
+            open_column="R1_Open",
+            high_column="R1_High",
+            low_column="R1_Low",
+            close_column="R1_Close",
+            run_mode=2,
+            **tunerparams
+         )
+         
+        mv_tdata1loadticks = obj1_CDataProcess.create_label_wrapper(
+            df=mv_tdata1loadticks,
+            bid_column="T2_Bid_Price",
+            ask_column="T2_Ask_Price",
+            column_in="T2_Bid_Price",
+            column_out1=list(mlenv.mp_ml_input_keyfeat)[0],
+            column_out2=list(mlenv.mp_ml_output_label_scaled)[0],
+            open_column="R2_Open",
+            high_column="R2_High",
+            low_column="R2_Low",
+            close_column="R2_Close",
+            run_mode=3,
+            **tunerparams
+        )
+
+        mv_tdata1loadrates = obj1_CDataProcess.create_label_wrapper(
+            df=mv_tdata1loadrates,
+            bid_column="R2_Bid_Price",
+            ask_column="R2_Ask_Price",
+            column_in="R2_Close",
+            column_out1=list(mlenv.mp_ml_input_keyfeat)[0],
+            column_out2=list(mlenv.mp_ml_output_label_scaled)[0],
+            open_column="R2_Open",
+            high_column="R2_High",
+            low_column="R2_Low",
+            close_column="R2_Close",
+            run_mode=4,
+            **tunerparams
+        )
+
+        scolumn_out1 = mlenv.mp_ml_input_keyfeat
+        scolumn_out2 = mlenv.mp_ml_output_label_scaled
 
         # Extract single elements from sets
         column_out1 = list(scolumn_out1)[0] if isinstance(scolumn_out1, set) else scolumn_out1
@@ -222,61 +356,35 @@ def main():
         column_out1 = str(column_out1)
         column_out2 = str(column_out2)
 
-
-        print("column_out1:", column_out1)
-        print("column_out2:", column_out2)
-
+        logger.info("column_out1: %s", column_out1)
+        logger.info("column_out2: %s", column_out2)
+"""
         # Create labels
-        if len(mv_tdata1apiticks) > 0 and not loadmql:
-            mv_tdata1apiticks = obj1_CDataProcess.create_label_wrapper(
+        if not loadmql:
+            mv_tdata1apiticks = obj0_CDataProcess.create_label_wrapper(
                 df=mv_tdata1apiticks,
                 bid_column="T1_Bid_Price",
                 ask_column="T1_Ask_Price",
                 column_in="T1_Bid_Price",
-                Column_out1='Close',
-                column_out2='Close_Scaled',
-                open_column="R1_Open",
-                high_column="R1_High",
-                low_column="R1_Low",
-                close_column="R1_Close",
-                run_mode=1,
-                lookahead_periods=environments["mlenv"].mp_ml_cfg_period,
-                ma_window=environments["mlenv"].mp_ml_tf_ma_windowin,
-                hl_avg_col="HLAvg",
-                ma_col="SMA",
-                returns_col="LogReturns",
-                shift_in=environments["mlenv"].mp_ml_tf_shiftin,
-                rownumber=environments["dataenv"].mp_data_rownumber,
-                create_label=False,
-            )
-
-        if len(mv_tdata1apirates) > 0 and not loadmql:
-            mv_tdata1apirates = obj1_CDataProcess.create_label_wrapper(
-                df=mv_tdata1apirates,
-                bid_column="R1_Bid_Price",
-                ask_column="R1_Ask_Price",
-                column_in="R1_Close",
                 column_out1='Close',
                 column_out2='Close_Scaled',
                 open_column="R1_Open",
                 high_column="R1_High",
                 low_column="R1_Low",
                 close_column="R1_Close",
-                run_mode=2,
-                lookahead_periods=environments["mlenv"].mp_ml_cfg_period,
-                ma_window=environments["mlenv"].mp_ml_tf_ma_windowin,
-                hl_avg_col="HLAvg",
+                run_mode=1,
+                lookahead_periods=gen_environments["mlenv"].mp_ml_cfg_period,
+                ma_window=gen_environments["mlenv"].mp_ml_tf_ma_windowin,
+                hl_avg_col="HLAvg",  # Added missing parameter
                 ma_col="SMA",
                 returns_col="LogReturns",
-                shift_in=environments["mlenv"].mp_ml_tf_shiftin,
-                rownumber=environments["dataenv"].mp_data_rownumber,
+                shift_in=gen_environments["mlenv"].mp_ml_tf_shiftin,
+                rownumber=gen_environments["dataenv"].mp_data_rownumber,
                 create_label=False,
             )
 
         
-        print("mv_tdata1loadrates head:", mv_tdata1loadrates.head(3))
-
-        mv_tdata1loadticks = obj1_CDataProcess.create_label_wrapper(
+        mv_tdata1loadticks = obj0_CDataProcess.create_label_wrapper(
             df=mv_tdata1loadticks,
             bid_column="T2_Bid_Price",
             ask_column="T2_Ask_Price",
@@ -288,17 +396,17 @@ def main():
             low_column="R2_Low",
             close_column="R2_Close",
             run_mode=3,
-            lookahead_periods=environments["mlenv"].mp_ml_cfg_period,
-            ma_window=environments["mlenv"].mp_ml_tf_ma_windowin,
+            lookahead_periods=gen_environments["mlenv"].mp_ml_cfg_period,
+            ma_window=gen_environments["mlenv"].mp_ml_tf_ma_windowin,
             hl_avg_col="HLAvg",
             ma_col="SMA",
             returns_col="LogReturns",
-            shift_in=environments["mlenv"].mp_ml_tf_shiftin,
-            rownumber=environments["dataenv"].mp_data_rownumber,
+            shift_in=gen_environments["mlenv"].mp_ml_tf_shiftin,
+            rownumber=gen_environments["dataenv"].mp_data_rownumber,
             create_label=False,
         )
 
-        mv_tdata1loadrates = obj1_CDataProcess.create_label_wrapper(
+        mv_tdata1loadrates = obj0_CDataProcess.create_label_wrapper(
             df=mv_tdata1loadrates,
             bid_column="R2_Bid_Price",
             ask_column="R2_Ask_Price",
@@ -310,22 +418,25 @@ def main():
             low_column="R2_Low",
             close_column="R2_Close",
             run_mode=4,
-            lookahead_periods=environments["mlenv"].mp_ml_cfg_period,
-            ma_window=environments["mlenv"].mp_ml_tf_ma_windowin,
+            lookahead_periods=gen_environments["mlenv"].mp_ml_cfg_period,
+            ma_window=gen_environments["mlenv"].mp_ml_tf_ma_windowin,
             hl_avg_col="HLAvg",
             ma_col="SMA",
             returns_col="LogReturns",
-            shift_in=environments["mlenv"].mp_ml_tf_shiftin,
-            rownumber=environments["dataenv"].mp_data_rownumber,
+            shift_in=gen_environments["mlenv"].mp_ml_tf_shiftin,
+            rownumber=gen_environments["dataenv"].mp_data_rownumber,
             create_label=False,
         )
 
-        # Display the data
-        if not loadmql:
-            obj1_CDataProcess.run_mql_print(mv_tdata1apiticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-            obj1_CDataProcess.run_mql_print(mv_tdata1apirates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-        obj1_CDataProcess.run_mql_print(mv_tdata1loadticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-        obj1_CDataProcess.run_mql_print(mv_tdata1loadrates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+         # Display the data
+        if loadmql:
+            obj0_CDataProcess.run_mql_print(mv_tdata1apiticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+        if loadmql:   
+            obj0_CDataProcess.run_mql_print(mv_tdata1apirates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+        if loadmql ==True or loadmql == False:
+            obj0_CDataProcess.run_mql_print(mv_tdata1loadticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+        if loadmql ==True or loadmql == False:
+           obj0_CDataProcess.run_mql_print(mv_tdata1loadrates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
 
         # copy the data for config selection
         if loadmql == True:
@@ -365,8 +476,8 @@ def main():
         # Normalize the 'Close' column
         scaler = MinMaxScaler()
 
-        mp_data_custom_input_keyfeat = list(environments["dataenv"].mp_data_custom_input_keyfeat)  # Convert to list
-        mp_data_custom_input_keyfeat_scaled = list(environments["dataenv"].mp_data_custom_input_keyfeat_scaled)  # Convert to list
+        mp_data_custom_input_keyfeat = list(gen_environments["dataenv"].mp_data_custom_input_keyfeat)  # Convert to list
+        mp_data_custom_input_keyfeat_scaled = list(gen_environments["dataenv"].mp_data_custom_input_keyfeat_scaled)  # Convert to list
 
         print("mp_data_custom_input_keyfeat:", mp_data_custom_input_keyfeat)
         print("mp_data_custom_input_keyfeat_scaled:", mp_data_custom_input_keyfeat_scaled)
@@ -379,9 +490,9 @@ def main():
         mv_tdata2[mp_data_custom_input_keyfeat_scaled] = scaler.fit_transform(mv_tdata2[mp_data_custom_input_keyfeat])
         
         print("print Normalise")
-        obj1_CDataProcess = CDataProcess(environments["dataenv"], environments["mlenv"], environments["globalenv"])
+        obj0_CDataProcess = CDataProcess(gen_environments["dataenv"], gen_environments["mlenv"], gen_environments["globalenv"])
         print("Type after wrangle_time:", type(mv_tdata2))
-        obj1_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+        obj0_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
         print("End of Normalise print")
         print("mv_tdata2.shape", mv_tdata2.shape)
 
@@ -407,20 +518,20 @@ def main():
         # +-------------------------------------------------------------------
         print("Type before set default:", type(mv_tdata2))
         
-        if environments["dataenv"].mp_data_data_label == 1:
+        if gen_environments["dataenv"].mp_data_data_label == 1:
             mv_tdata2 = mv_tdata2[[list(mp_data_custom_input_keyfeat_scaled)[0]]]
-            obj1_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
+            obj0_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
             
-        elif environments["dataenv"].mp_data_data_label == 2:
+        elif gen_environments["dataenv"].mp_data_data_label == 2:
             mv_tdata2 = mv_tdata2[[mv_tdata2.columns[0]] + [list(mp_data_custom_input_keyfeat_scaled)[0]]]
             # Ensure the data is sorted by time
-            mv_tdata2 = mv_tobj1_CDataProcessobj2_CDataLoader.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
+            mv_tdata2 = mv_tobj0_CDataProcessobj0_CDataLoader.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
 
-        elif environments["dataenv"].mp_data_data_label == 3:
+        elif gen_environments["dataenv"].mp_data_data_label == 3:
             # Ensure the data is sorted by time use full dataset
             mv_tdata2 = mv_tdata2.sort_index()
             print("Count of Tdata2:",len(mv_tdata2))
-            obj1_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
+            obj0_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
             
         # +-------------------------------------------------------------------
         # STEP: Generate X and y from the Time Series
@@ -433,9 +544,9 @@ def main():
         pasttimeperiods = 24
         futuretimeperiods = 24
         predtimeperiods = 1
-        features_count = len(environments["dataenv"].mp_data_custom_input_keyfeat)  # Number of features in input
-        labels_count = len(environments["dataenv"].mp_data_custom_output_label)  # Number of labels in output
-        batch_size = environments["tuneenv"].batch_size
+        features_count = len(gen_environments["dataenv"].mp_data_custom_input_keyfeat)  # Number of features in input
+        labels_count = len(gen_environments["dataenv"].mp_data_custom_output_label)  # Number of labels in output
+        batch_size = gen_environments["tuneenv"].batch_size
 
         print("timeval:",timeval, "pasttimeperiods:",pasttimeperiods, "futuretimeperiods:",futuretimeperiods, "predtimeperiods:",predtimeperiods)
         past_width = pasttimeperiods * timeval
@@ -461,7 +572,7 @@ def main():
         # STEP: Split the data into training and test sets Fixed Partitioning
         # +-------------------------------------------------------------------
         # Batch size alignment fit the number of rows as whole number divisible by the batch size to avoid float errors
-        batch_size = environments["tuneenv"].batch_size
+        batch_size = gen_environments["tuneenv"].batch_size
         precountX = len(mv_tdata2_X)
         precounty = len(mv_tdata2_y)
         mv_tdata2_X,mv_tdata2_y = obj1_Mqlmlsetup.align_to_batch_size(mv_tdata2_X,mv_tdata2_y, batch_size)
@@ -474,8 +585,8 @@ def main():
         # Split the data into training, validation, and test sets
 
         # STEP: Split data into training, validation, and test sets
-        X_train, X_temp, y_train, y_temp = train_test_split(mv_tdata2_X,mv_tdata2_y, test_size=(environments["tuneenv"].validation_split + environments["tuneenv"].test_split), shuffle=False)
-        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=(environments["tuneenv"].test_split / (environments["tuneenv"].validation_split + environments["tuneenv"].test_split)), shuffle=False)
+        X_train, X_temp, y_train, y_temp = train_test_split(mv_tdata2_X,mv_tdata2_y, test_size=(gen_environments["tuneenv"].validation_split + gen_environments["tuneenv"].test_split), shuffle=False)
+        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=(gen_environments["tuneenv"].test_split / (gen_environments["tuneenv"].validation_split + gen_environments["tuneenv"].test_split)), shuffle=False)
 
         print(f"Training set: X_train: {X_train.shape}, y_train: {y_train.shape}")
         print(f"Validation set: X_val: {X_val.shape}, y_val: {y_val.shape}")
@@ -484,7 +595,7 @@ def main():
         # STEP: convert numpy arrays to TF datasets
         # +-------------------------------------------------------------------
         # initiate the object using a window generatorwindow is not  used in this model Parameters
-        tf_batch_size = environments["tuneenv"].batch_size
+        tf_batch_size = gen_environments["tuneenv"].batch_size
 
         train_dataset = obj1_Mqlmlsetup.create_tf_dataset(X_train, y_train, batch_size=tf_batch_size, shuffle=True)
         val_dataset = obj1_Mqlmlsetup.create_tf_dataset(X_val, y_val, batch_size=tf_batch_size, shuffle=False)
@@ -519,12 +630,12 @@ def main():
         print(f"Full Input shape for model: {X_train.shape}, Label shape for model: {y_train.shape}")
         print(f"No Batch Input shape for model: {input_shape}, Label shape for model: {label_shape}")
         #batch components
-        input_keras_batch=environments["tuneenv"].batch_size
+        input_keras_batch=gen_environments["tuneenv"].batch_size
         input_def_keras_batch=None
         # Get the input shape for the model
         input_rows_X=len(X_train)
         input_rows_y=len(y_train)
-        input_batch_size=environments["tuneenv"].batch_size
+        input_batch_size=gen_environments["tuneenv"].batch_size
         input_batches= X_train.shape[0]
         input_timesteps = X_train.shape[1]
         input_features = X_train.shape[2]
@@ -538,7 +649,7 @@ def main():
         # pass in the data shape for the model
 
         input_shape = (input_timesteps, input_features)  
-        output_label_shape = (output_label, environments["dataenv"].mp_data_custom_output_label_count)
+        output_label_shape = (output_label, gen_environments["dataenv"].mp_data_custom_output_label_count)
         print(f"Input shape for model: {input_shape}, Output shape for model: {output_label_shape}")
         # +-------------------------------------------------------------------
         # STEP: Tune best model Hyperparameter tuning and model setup
@@ -566,6 +677,7 @@ def main():
                   traindataset=train_dataset,
                   valdataset=val_dataset,
                   testdataset=test_dataset,
+                  castmode='float32',
                   
                   )
         #initialize tuner
@@ -704,4 +816,4 @@ def main():
         print("Finished")    
 """
 if __name__ == "__main__":
-    main()
+    main(logger)

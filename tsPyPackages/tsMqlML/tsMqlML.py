@@ -51,7 +51,7 @@ class CMqlmlsetup:
         self.labels_slice = slice(self.label_start, None)
         self.label_indices = np.arange(self.total_window_size)[self.labels_slice]
         
-    def dl_split_data_sets(self, X, y, train_split=0.8, shuffle=False):
+    def dl_split_ml_sets(self, X, y, train_split=0.8, shuffle=False):
         train_size = int(len(X) * train_split)
         X_train, X_test = X[:train_size], X[train_size:]
         y_train, y_test = y[:train_size], y[train_size:]
@@ -344,14 +344,63 @@ class CMqlWindowGenerator:
 class CMqlEnvML:
    def __init__(self, **kwargs):
          self.kwargs = kwargs
+         #Windowing parameters
          self.mp_ml_cfg_period = kwargs.get('mp_ml_cfg_period', 24)
          self.mp_ml_cfg_period1 = kwargs.get('mp_ml_cfg_period1', 24) #Hours
          self.mp_ml_cfg_period2 = kwargs.get('mp_ml_cfg_period2', 6)  #Hours
          self.mp_ml_cfg_period3 = kwargs.get('mp_ml_cfg_period3', 1)  #Hours
          self.mp_ml_tf_ma_windowin = kwargs.get('mp_ml_tf_ma_windowing', 24)
          self.mp_ml_tf_shiftin = kwargs.get('mp_ml_tf_shiftin', 1) 
+         
+         #Average column names
+         self.mp_ml_hl_avg_col = kwargs.get('mp_ml_hl_avg_col', 'HLAvg')
+         self.mp_ml_ma_col = kwargs.get('mp_ml_ma_col', 'SMA')
+         self.mp_ml_returns_col = kwargs.get('mp_ml_returns_col', 'LogReturns')
+         self.mp_ml_returns_col_scaled = kwargs.get('mp_ml_returns_col_scaled', 'LogReturns_scaled')
+         self.mp_ml_create_label = kwargs.get('mp_ml_create_label', False)
+         self.mp_ml_create_label_scaled = kwargs.get('mp_ml_create_label_scaled', False)
 
+          # feature Processing
+         self.mp_ml_input_keyfeat = kwargs.get('mp_ml_input_keyfeat', {'Close'})
+         self.mp_ml_output_label = kwargs.get('mp_ml_output_label', self.mp_ml_input_keyfeat)
+         self.mp_ml_input_keyfeat_scaled = {feat + '_Scaled' for feat in self.mp_ml_input_keyfeat}  # the feature to predict
+         self.mp_ml_output_label_scaled = {targ + '_Scaled' for targ in self.mp_ml_output_label}  # the label shifted to predict
+         self.mp_ml_output_label_count=len(self.mp_ml_output_label)
+
+         self.window_params = {
+            "mp_ml_cfg_period": self.mp_ml_cfg_period,
+            "lookahead_periods": self.mp_ml_cfg_period,
+            "mp_ml_cfg_period1": self.mp_ml_cfg_period1,
+            "mp_ml_cfg_period2": self.mp_ml_cfg_period2,
+            "mp_ml_cfg_period3": self.mp_ml_cfg_period3,
+            "mp_ml_tf_ma_window": self.mp_ml_tf_ma_windowin,
+            "mp_ml_tf_shiftin": self.mp_ml_tf_shiftin,
+         }
+
+         self.average_params = {
+            "mp_ml_hl_avg_col": self.mp_ml_hl_avg_col,
+            "mp_ml_ma_col": self.mp_ml_ma_col,
+            "mp_ml_returns_col": self.mp_ml_returns_col,
+            "mp_ml_returns_col_scaled": self.mp_ml_returns_col_scaled,
+            "mp_ml_create_label": self.mp_ml_create_label,
+            "mp_ml_create_label_scaled": self.mp_ml_create_label_scaled,
+         }  
+ 
+
+         self.feature_ml_params = {
+            "mp_ml_input_keyfeat": self.mp_ml_input_keyfeat,
+            "mp_ml_output_label": self.mp_ml_output_label,
+            "mp_ml_input_keyfeat_scaled": self.mp_ml_input_keyfeat_scaled,
+            "mp_ml_output_label_scaled": self.mp_ml_output_label_scaled,
+            "mp_ml_output_label_count": self.mp_ml_output_label_count,
+        }
 
 
    def get_params(self):
-         return self.__dict__  # Returns all attributes as a dictionary
+        """Returns a dictionary of all set parameters."""
+        return {
+            **self.window_params,
+            **self.average_params,
+            **self.feature_ml_params,
+         }
+

@@ -28,3 +28,21 @@ class RunPlatform:
                 logger.error("PLATFORM_DEPENDENCIES is not initialized.")
         else:
             logger.info("No additional dependencies are needed for this platform.")
+
+    def get_platform(self):
+        return self.platform_name
+
+    def get_mt5(self):
+        return self.mt5
+
+    def get_onnx(self):
+        return self.onnx
+
+    def check_mql_state(self):  # Fixed method name to be consistent
+        if self.mt5 is None or self.onnx is None:
+            return False
+        else:
+            return True
+
+
+

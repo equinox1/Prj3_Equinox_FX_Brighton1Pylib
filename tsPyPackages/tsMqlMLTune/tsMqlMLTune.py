@@ -7,10 +7,9 @@
 #property link      "https://www.xercescloud.co.uk"
 #property version   "1.01"
 
-from tsMqlPlatform import run_platform,platform_checker, PLATFORM_DEPENDENCIES, logger, config
-pchk=run_platform.RunPlatform()
+from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger, config
+pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
-
 
 import os
 import tensorflow as tf
@@ -39,7 +38,6 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-
 class CMdtuner:
     def __init__(self, **kwargs):
         # Initialize hypermodel parameters
@@ -47,111 +45,152 @@ class CMdtuner:
         self.traindataset = kwargs.get('traindataset')
         self.valdataset = kwargs.get('valdataset')
         self.testdataset = kwargs.get('testdataset')
+        self.castmode = kwargs.get('castmode', 'float64')
+
+        if self.castmode == 'float64':
+            self.castval = self.cast_to_float64
+        if self.castmode == 'float32':
+            self.castval = self.cast_to_float32
+        if self.castmode == 'float16':
+            self.castval = self.cast_to_float16 
 
         if self.traindataset is not None:
-            self.traindataset = self.traindataset.map(self.cast_to_float32)
+            self.traindataset = self.traindataset.map(self.castval)
         if self.valdataset is not None:
-            self.valdataset = self.valdataset.map(self.cast_to_float32)
+            self.valdataset = self.valdataset.map(self.castval)
         if self.testdataset is not None:
-            self.testdataset = self.testdataset.map(self.cast_to_float32)
+            self.testdataset = self.testdataset.map(self.castval)
+
+        # env src params
+        self.mp_ml_train_split = self.hypermodel_params.get('mp_ml_train_split', None)
+        self.mp_ml_validation_split = self.hypermodel_params.get('mp_ml_validation_split', None)
+        self.mp_ml_test_split = self.hypermodel_params.get('mp_ml_test_split', None)
+
+        self.train_split = self.hypermodel_params.get('train_split', self.mp_ml_train_split)
+        self.validation_split = self.hypermodel_params.get('validation_split', self.mp_ml_validation_split)
+        self.test_split = self.hypermodel_params.get('test_split', self.mp_ml_test_split)
+
+        self.mp_ml_src_base = self.hypermodel_params.get('mp_ml_src_base', None)
+        self.mp_pl_platform_base = self.hypermodel_params.get('mp_pl_platform_base', None)
+        self.mp_ml_src_lib = self.hypermodel_params.get('mp_ml_src_lib', None)
+        self.mp_ml_src_data = self.hypermodel_params.get('mp_ml_src_data', None)
+        self.mp_ml_directory = self.hypermodel_params.get('mp_ml_directory', None)
+        self.mp_ml_baseuniq = self.hypermodel_params.get('mp_ml_baseuniq', None)
+        self.mp_ml_project_name = self.hypermodel_params.get('mp_ml_project_name', None)
+
+        self.mp_ml_def_base_path = self.hypermodel_params.get('mp_ml_def_base_path', None)
+        self.mp_ml_num_base_path = self.hypermodel_params.get('mp_ml_num_base_path', None)
+
+        self.base_path = self.hypermodel_params.get('base_path', self.mp_ml_num_base_path)
+        self.baseuniq = self.hypermodel_params.get('baseuniq', self.mp_ml_baseuniq)
+        self.project_name = self.hypermodel_params.get('project_name', self.mp_ml_project_name)
+        self.subdir = os.path.join(self.base_path, self.mp_ml_project_name, self.baseuniq)
+        self.modeldatapath = self.hypermodel_params.get('modeldatapath', self.mp_ml_num_base_path)
+        self.directory = self.hypermodel_params.get('directory', self.mp_ml_directory)
+        self.base_checkpoint_filepath = self.hypermodel_params.get('base_checkpoint_filepath', self.mp_ml_num_base_path)
+
+        print(f"Base path: {self.base_path} ")
+        print(f"Subdir: {self.subdir}")
+        print(f"Model data path: {self.modeldatapath}")
+        print(f"Directory: {self.directory}")
+        print(f"Base checkpoint filepath: {self.base_checkpoint_filepath}")
+
+        # Hypermodel parameters
+        self.cnn_model = self.hypermodel_params.get('cnn_model', True)
+        self.lstm_model = self.hypermodel_params.get('lstm_model', True)
+        self.gru_model = self.hypermodel_params.get('gru_model', True)
+        self.transformer_model = self.hypermodel_params.get('transformer_model', True)
+        self.multiactivate = self.hypermodel_params.get('multiactivate', True)
+        self.multi_branches = self.hypermodel_params.get('multi_branches', True)
+        self.input_shape = self.hypermodel_params.get('input_shape', None)
+        self.data_input_shape = self.hypermodel_params.get('data_input_shape', None)
+        self.multi_inputs = self.hypermodel_params.get('multi_inputs', False)
+        self.batch_size = self.hypermodel_params.get('batch_size', 32)
+        self.multi_outputs = self.hypermodel_params.get('multi_outputs', False)
+        self.label_columns = self.hypermodel_params.get('label_columns', None)
+        self.input_width = self.hypermodel_params.get('input_width', 24)
+        self.shift = self.hypermodel_params.get('shift', 24)
+        self.total_window_size = self.input_width + self.shift
+        self.label_width = self.hypermodel_params.get('label_width', 1)
+        self.batch_size = self.hypermodel_params.get('batch_size', 8)
+        self.keras_tuner = self.hypermodel_params.get('keras_tuner', 'Hyperband') # 'Hyperband' or 'RandomSearch'
+        self.hyperband_iterations = self.hypermodel_params.get('hyperband_iterations', 1)
+        self.max_epochs = self.hypermodel_params.get('max_epochs', 100)
+        self.min_epochs = self.hypermodel_params.get('min_epochs', 10)
+        self.tf_param_epochs = self.hypermodel_params.get('tf_param_epochs', 10)
+        self.epochs = self.hypermodel_params.get('epochs', 2)
+        self.tune_new_entries = self.hypermodel_params.get('tune_new_entries', True)
+        self.allow_new_entries = self.hypermodel_params.get('allow_new_entries', True)
+        self.num_trials = self.hypermodel_params.get('num_trials', 3)
+        self.max_retries_per_trial = self.hypermodel_params.get('max_retries_per_trial', 5)
+        self.max_consecutive_failed_trials = self.hypermodel_params.get('max_consecutive_failed_trials', 3)
+        self.steps_per_execution = self.hypermodel_params.get('steps_per_execution', 50)
+        self.executions_per_trial = self.hypermodel_params.get('executions_per_trial', 1)
+        self.overwrite = self.hypermodel_params.get('overwrite', True)
+        self.factor = self.hypermodel_params.get('factor', 10)
+        self.objective = self.hypermodel_params.get('objective', 'val_loss')
+        self.logger = self.hypermodel_params.get('logger', None)
+        self.tf1 = self.hypermodel_params.get('tf1', False)
+        self.tf2 = self.hypermodel_params.get('tf2T', False)
+        self.optimizer = self.hypermodel_params.get('optimizer', 'adam')
+        self.loss = self.hypermodel_params.get('loss', 'mean_squared_error')
+        self.metrics = self.hypermodel_params.get('metrics', ['mean_squared_error'])
+        self.dropout = self.hypermodel_params.get('dropout', 0.2)
+        self.checkpoint_filepath = self.base_checkpoint_filepath or 'best_model.keras'
+        self.chk_fullmodel = self.hypermodel_params.get('chk_fullmodel', True)
+        self.chk_verbosity = self.hypermodel_params.get('chk_verbosity', 1)
+        self.chk_mode = self.hypermodel_params.get('chk_mode', 'min')
+        self.chk_monitor = self.hypermodel_params.get('chk_monitor', 'val_loss')
+        self.chk_sav_freq = self.hypermodel_params.get('chk_sav_freq', 'epoch')
+        self.chk_patience = self.hypermodel_params.get('chk_patience', 3)
+        self.unitmin = self.hypermodel_params.get('unitmin', 32)
+        self.unitmax = self.hypermodel_params.get('unitmax', 512)
+        self.unitstep = self.hypermodel_params.get('unitstep', 32)
+        self.defaultunits = self.hypermodel_params.get('defaultunits', 128)
+        self.all_modelscale = self.hypermodel_params.get('all_modelscale', 1.0)
+        self.cnn_modelscale = self.hypermodel_params.get('cnn_modelscale', 1.0)
+        self.lstm_modelscale = self.hypermodel_params.get('lstm_modelscale', 1.0)
+        self.gru_modelscale = self.hypermodel_params.get('gru_modelscale', 1.0)
+        self.trans_modelscale = self.hypermodel_params.get('trans_modelscale', 1.0)
+        self.transh_modelscale = self.hypermodel_params.get('transh_modelscale', 1.0)
+        self.transff_modelscale = self.hypermodel_params.get('transff_modelscale', 1.0)
+        self.dense_modelscale = self.hypermodel_params.get('dense_modelscale', 1.0)
 
         # Model configuration
-        
-        self.keras_tuner = kwargs.get('keras_tuner', 'hyperband') # bayesian, random, hyperband
 
-        self.cnn_model = kwargs.get('cnn_model', False)
-        self.lstm_model = kwargs.get('lstm_model', False)
-        self.gru_model = kwargs.get('gru_model', False)
-        self.transformer_model = kwargs.get('transformer_model', False)
-        self.multi_inputs = kwargs.get('multi_inputs', False)
-        self.multi_outputs = kwargs.get('multi_outputs', False)
-        self.multi_branches = kwargs.get('multi_branches', False)
-        self.tunemode = kwargs.get('tunemode', False)
-        self.tunemodeepochs = kwargs.get('tunemodeepochs', False)
-        self.modelsummary = kwargs.get('modelsummary', False)
-        
-        # Data shapes
-        self.data_input_shape = kwargs.get('data_input_shape')
-        self.batch_size = kwargs.get('batch_size', 32)
-        self.dropout = kwargs.get('dropout', 0.3)
-        self.steps_per_execution = kwargs.get('steps_per_execution', 32)
-        self.executions_per_trial = kwargs.get('executions_per_trial', 1)
+        # Transformer configurations these are set with default values with scaling from outside in hyperparams
+        self.trans_dim_min = kwargs.get('trans_dim_min', 32 / self.trans_modelscale)
+        self.trans_dim_max = kwargs.get('trans_dim_max', 256 / self.trans_modelscale)
+        self.trans_dim_step = kwargs.get('trans_dim_step', 32 / self.trans_modelscale)
+        self.trans_dim_default = kwargs.get('trans_dim_default', 64 / self.trans_modelscale)
 
-        # Training configurations
-        self.objective = kwargs.get('objective', 'val_loss')
-        self.max_epochs = kwargs.get('max_epochs', 10)
-        self.min_epochs = kwargs.get('min_epochs', 1)
-        self.step = kwargs.get('step', 1)
-        self.factor = kwargs.get('factor', 3)
-        self.checkpoint_filepath = kwargs.get('checkpoint_filepath', 'best_model.keras')
-        self.basepath = kwargs.get('basepath', 'tuner_results')
-        self.project_name = kwargs.get('project_name', 'cm_tuning')
-        self.num_trials = kwargs.get('num_trials', 3)
-        self.overwrite = kwargs.get('overwrite', True)
-        self.tune_new_entries = kwargs.get('tune_new_entries', True)
-        self.allow_new_entries = kwargs.get('allow_new_entries', True)
-        self.max_retries_per_trial = kwargs.get('max_retries_per_trial', 9)
-        self.max_consecutive_failed_trials = kwargs.get('max_consecutive_failed_trials', 3)
-        self.hyperband_iterations = kwargs.get('hyperband_iterations', 1)
-        self.verbose = kwargs.get('verbose', 1)
-        self.patience = kwargs.get('patience', 10)
-        self.restore_best_weights = kwargs.get('restore_best_weights', True)
-        self.save_best_only = kwargs.get('save_best_only', True)
-        
-        
-        # Optimizer configurations
-        self.scaler = None  # Initialize scaler
+        self.lstm_units_min = kwargs.get('lstm_units_min', 32 / self.lstm_modelscale)
+        self.lstm_units_max = kwargs.get('lstm_units_max', 128 / self.lstm_modelscale)
+        self.lstm_units_step = kwargs.get('lstm_units_step', 32 / self.lstm_modelscale)
+        self.lstm_units_default = kwargs.get('lstm_units_default', 64 / self.lstm_modelscale)
 
-        # model scaling
-        self.all_modelscale = kwargs.get('allmodelscale', 1)
-        self.cnn_modelscale = kwargs.get('cnnmodelscale', 1)
-        self.lstm_modelscale = kwargs.get('lstmmodelscale', 1)
-        self.gru_modelscale = kwargs.get('grumodelscale', 1)
-        self.trans_modelscale = kwargs.get('transmodelscale', 1)
-        self.transh_modelscale = kwargs.get('transhmodelscale', 1)
-        self.transff_modelscale = kwargs.get('transffmodelscale', 1)
-        self.dense_modelscale = kwargs.get('densemodelscale', 1)
+        self.gru_units_min = kwargs.get('gru_units_min', 32 / self.gru_modelscale)
+        self.gru_units_max = kwargs.get('gru_units_max', 128 / self.gru_modelscale)
+        self.gru_units_step = kwargs.get('gru_units_step', 32 / self.gru_modelscale)
+        self.gru_units_default = kwargs.get('gru_units_default', 64 / self.gru_modelscale)
 
-        #unit for LSTM and GRU
-        self.unitmin = kwargs.get('unitmin', 32/self.all_modelscale)
-        self.unitmax = kwargs.get('unitmax', 128/self.all_modelscale)
-        self.unitstep = kwargs.get('unitstep', 32/self.all_modelscale)
-        self.unitdefault = kwargs.get('unitdefault', 64/self.all_modelscale)
-       
-        # Transformer configurations
-        self.trans_dim_min = kwargs.get('trans_dim_min', 32/self.trans_modelscale)
-        self.trans_dim_max = kwargs.get('trans_dim_max', 256/self.trans_modelscale)
-        self.trans_dim_step = kwargs.get('trans_dim_step', 32/self.trans_modelscale)
-        self.trans_dim_default =kwargs.get('trans_dim_default', 64/self.trans_modelscale)
+        self.cnn_units_min = kwargs.get('cnn_units_min', 32 / self.cnn_modelscale)
+        self.cnn_units_max = kwargs.get('cnn_units_max', 128 / self.cnn_modelscale)
+        self.cnn_units_step = kwargs.get('cnn_units_step', 32 / self.cnn_modelscale)
+        self.cnn_units_default = kwargs.get('cnn_units_default', 64 / self.cnn_modelscale)
 
-        
-        self.lstm_units_min = kwargs.get('lstm_units_min', 32/self.lstm_modelscale)
-        self.lstm_units_max = kwargs.get('lstm_units_max', 128/self.lstm_modelscale)
-        self.lstm_units_step = kwargs.get('lstm_units_step', 32/self.lstm_modelscale)
-        self.lstm_units_default = kwargs.get('lstm_units_default', 64/self.lstm_modelscale)
+        self.trans_heads_min = kwargs.get('trans_heads_min', 2 / self.transh_modelscale)
+        self.trans_heads_max = kwargs.get('trans_heads_max', 8 / self.transh_modelscale)
+        self.trans_heads_step = kwargs.get('trans_heads_step', 2 / self.transh_modelscale)
 
-        self.gru_units_min = kwargs.get('gru_units_min', 32/self.gru_modelscale)
-        self.gru_units_max = kwargs.get('gru_units_max', 128/self.gru_modelscale)
-        self.gru_units_step = kwargs.get('gru_units_step', 32/self.gru_modelscale)
-        self.gru_units_default = kwargs.get('gru_units_default', 64/self.gru_modelscale)
+        self.trans_ff_min = kwargs.get('trans_ff_min', 64 / self.transff_modelscale)
+        self.trans_ff_max = kwargs.get('trans_ff_max', 512 / self.transff_modelscale)
+        self.trans_ff_step = kwargs.get('trans_ff_step', 64 / self.transff_modelscale)
 
-        self.cnn_units_min = kwargs.get('cnn_units_min', 32/self.cnn_modelscale)
-        self.cnn_units_max = kwargs.get('cnn_units_max', 128/self.cnn_modelscale)
-        self.cnn_units_step = kwargs.get('cnn_units_step', 32/self.cnn_modelscale)
-        self.cnn_units_default = kwargs.get('cnn_units_default', 64/self.cnn_modelscale)
+        self.dense_units_min = kwargs.get('dense_units_min', 32 / self.dense_modelscale)
+        self.dense_units_max = kwargs.get('dense_units_max', 128 / self.dense_modelscale)
+        self.dense_units_step = kwargs.get('dense_units_step', 32 / self.dense_modelscale)
 
-        self.trans_heads_min = kwargs.get('trans_heads_min', 2/self.transh_modelscale)
-        self.trans_heads_max = kwargs.get('trans_heads_max', 8/self.transh_modelscale)
-        self.trans_heads_step = kwargs.get('trans_heads_step', 2/self.transh_modelscale)
-
-        self.trans_ff_min = kwargs.get('trans_ff_min', 64/self.transff_modelscale) 
-        self.trans_ff_max = kwargs.get('trans_ff_max',512/self.transff_modelscale)
-        self.trans_ff_step = kwargs.get('trans_ff_step', 64/self.transff_modelscale) 
-
-        self.dense_units_min = kwargs.get('dense_units_min', 32/self.dense_modelscale)
-        self.dense_units_max = kwargs.get('dense_units_max', 128/self.dense_modelscale)
-        self.dense_units_step = kwargs.get('dense_units_step', 32/self.dense_modelscale)
-        
         # Loss and metric configurations
         self.loss_functions = {
             'mse': MeanSquaredError,
@@ -175,7 +214,7 @@ class CMdtuner:
             'cosine_similarity': CosineSimilarity
         }
 
-        #debugging
+        # debugging
         self.tf1 = kwargs.get('tf1', False)
         self.tf2 = kwargs.get('tf2', False)
 
@@ -183,7 +222,8 @@ class CMdtuner:
         self.output_dim = kwargs.get('output_dim', 1)
 
         # Ensure the base path exists
-        os.makedirs(self.basepath, exist_ok=True)
+        print(f"Base path: {self.base_path}")
+        os.makedirs(self.base_path, exist_ok=True)
 
         # Enable XLA for performance boost
         tf.config.optimizer.set_jit(True)
@@ -234,7 +274,7 @@ class CMdtuner:
 
     def initialize_tuner(self):
         hp = kt.HyperParameters()
-        
+
         hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax', 'ftrl'])
         hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4, 1e-5])
         hp.Choice('loss', ['binary_crossentropy', 'mse', 'mae', 'mape', 'msle', 'poisson', 'kld', 'cosine_similarity'])
@@ -244,21 +284,23 @@ class CMdtuner:
 
         hp.Float('l2_reg', min_value=1e-6, max_value=1e-2, sampling='log', default=1e-4)
 
+        self.tunemodeepochs = self.hypermodel_params.get('tunemodeepochs', False)
+        self.tunemode = self.hypermodel_params.get('tunemode', False)
+
         if self.tunemodeepochs:
             hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=1)
         else:
             hp.Fixed('epochs', self.min_epochs)
 
         if self.tunemode:
-            hp.Int('cnn_filters', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
-            hp.Int('cnn_kernel_size', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
+            hp.Int('cnn_filters', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.defaultunits)
+            hp.Int('cnn_kernel_size', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.defaultunits)
         else:
             hp.Int('cnn_filters', min_value=2, max_value=5, step=1, default=3)
             hp.Int('cnn_kernel_size', min_value=2, max_value=5, step=1, default=3)
-                
-        
-        hp.Int('lstm_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
-        hp.Int('gru_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
+
+        hp.Int('lstm_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.defaultunits)
+        hp.Int('gru_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.defaultunits)
         hp.Int('cnn_units', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.unitdefault)
         hp.Int('dense_1_units', min_value=self.dense_units_min, max_value=self.dense_units_max, step=self.dense_units_step)
 
@@ -290,7 +332,7 @@ class CMdtuner:
                     objective=self.objective,
                     max_epochs=self.max_epochs,
                     factor=self.factor,
-                    directory=self.basepath,
+                    directory=self.base_path,
                     project_name=self.project_name,
                     overwrite=self.overwrite,
                     tune_new_entries=self.tune_new_entries,
@@ -510,7 +552,7 @@ class CMdtuner:
         return [
             EarlyStopping(monitor=self.objective, patience=self.patience, verbose=self.verbose, restore_best_weights=self.restore_best_weights), # restore_best_weights added
             ModelCheckpoint(filepath=self.checkpoint_filepath, save_best_only=self.save_best_only, verbose=self.verbose),
-            TensorBoard(log_dir=os.path.join(self.basepath, 'logs')),
+            TensorBoard(log_dir=os.path.join(self.base_path, 'logs')),
             ReduceLROnPlateau(monitor=self.objective, factor=0.1, patience=self.patience, min_lr=1e-6, verbose=self.verbose) # Learning rate scheduler
         ]
 
@@ -559,7 +601,7 @@ class CMdtuner:
 
         try:
             best_model = self.tuner.get_best_models(num_models=1)[0]
-            export_path = os.path.join(self.basepath, self.project_name, 'best_model')
+            export_path = os.path.join(self.base_path, self.project_name, 'best_model')
             print(f"Exporting best model to {export_path}")
             if ftype == 'h5':
                 best_model.save(export_path + '.h5')
@@ -573,20 +615,20 @@ class CMdtuner:
             print(f"Error saving the model: {e}")
 
 
-    def check_and_load_model(self,lpbasepath,ftype='tf'):
+    def check_and_load_model(self,lpbase_path,ftype='tf'):
         """
         Check if the model file exists and load it.
         """
-        print(f"Checking for model file at basepath {lpbasepath}")
+        print(f"Checking for model file at base_path {lpbase_path}")
         print(f"Project name: {self.project_name}")
 
         if ftype == 'h5':
             modelext = 'h5'
-            model_path = os.path.join(lpbasepath, self.project_name)
+            model_path = os.path.join(lpbase_path, self.project_name)
             print(f"Model path: {model_path}")
         else:
             modelext = 'keras'
-            model_path = os.path.join(lpbasepath, self.project_name)
+            model_path = os.path.join(lpbase_path, self.project_name)
             print(f"Model path: {model_path}")
 
         try:
