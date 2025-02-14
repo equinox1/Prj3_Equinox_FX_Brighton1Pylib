@@ -8,9 +8,17 @@
 #property version   "1.01"
 #+-------------------------------------------------------------------
 
-from tsMqlPlatform import run_platform,platform_checker, PLATFORM_DEPENDENCIES, logger, config
-pchk=run_platform.RunPlatform()
+import logging
+# Initialize logger
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger, config
+pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
+loadmql=pchk.check_mql_state()
+logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
+
 
 import numpy as np
 import pandas as pd
@@ -26,77 +34,148 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 class CDataLoader:
     """Class to store and manage market data parameters."""
 
-    def __init__(self, datenv, mlenv, globalenv, **kwargs):
-        self.dataenv = datenv
-        self.mlenv = mlenv
-        self.globalenv = globalenv
+    def __init__(self, globalenv, datenv, **kwargs):
+         #input of all environment settings
+         self.globalenv = globalenv
+         self.dataenv = datenv
+        
+         #file and path parameters
+         self.mp_data_path = self.globalenv.get_params().get('mp_data_path', None)
+         self.mp_data_file_value1 = self.dataenv.get_params().get('mp_data_filename1', None)
+         self.mp_data_file_value2 = self.dataenv.get_params().get('mp_data_filename2', None)
+         
 
-        # Data Loading Options
-        self.api_ticks = kwargs.get("api_ticks", True)
-        self.api_rates = kwargs.get("api_rates", True)
-        self.file_ticks = kwargs.get("file_ticks", True)
-        self.file_rates = kwargs.get("file_rates", True)
-        self.dfname1 = kwargs.get("dfname1", "df_rates1")
-        self.dfname2 = kwargs.get("dfname2", "df_rates2")
-        self.utc_from = kwargs.get("utc_from", None)
-        self.symbol_primary = kwargs.get("symbol_primary", None)
-        self.rows = kwargs.get("rows", 1000)
-        self.rowcount = kwargs.get("rowcount", 10000)
+         logger.info(f"mp_data_path: {self.mp_data_path}")
+         logger.info(f"Data file value1: {self.mp_data_file_value1}")
+         logger.info(f"Data file value2: {self.mp_data_file_value2}")
 
-        # File Paths
-        self.data_path = kwargs.get("data_path", None)
-        self.file_value1 = kwargs.get("file_value1", None)
-        self.file_value2 = kwargs.get("file_value2", None)
-        self.timeframe = kwargs.get("timeframe", None)
-        self.os = kwargs.get("os", "windows")  # 'windows', 'linux', or 'macos'
+         # load data params
+         self.mp_data_loadapiticks = self.dataenv.get_params().get('mp_data_loadapiticks', True)
+         self.mp_data_loadapirates = self.dataenv.get_params().get('mp_data_loadapirates', True)
+         self.mp_data_loadfileticks = self.dataenv.get_params().get('mp_data_loadfileticks', True)
+         self.mp_data_loadfilerates = self.dataenv.get_params().get('mp_data_loadfilerates', True)
+         self.mp_data_cfg_usedata = self.dataenv.get_params().get('mp_data_cfg_usedata', 'loadfilerates')
+         self.mp_data_show_dtype = self.dataenv.get_params().get('mp_data_show_dtype', False)
+         self.mp_data_show_head = self.dataenv.get_params().get('mp_data_show_head', False)
+                  
+         # datafile parameters
+         self.mv_data_dfname1 = self.dataenv.get_params().get('mv_data_dfname1', "df_rates1")
+         self.mv_data_dfname2 = self.dataenv.get_params().get('mv_data_dfname2', "df_rates2")
+         self.mp_data_rows = self.dataenv.get_params().get('mp_data_rows', 1000)
+         self.mp_data_rowcount = self.dataenv.get_params().get('mp_data_rowcount', 10000)
+         self.mp_data_rownumber = self.dataenv.get_params().get('mp_data_rownumber', False)
+         self.mp_data_history_size = self.dataenv.get_params().get('mp_data_history_size', 5)
+         self.mp_data_timeframe = self.dataenv.get_params().get('mp_data_timeframe', None)
+         self.mp_data_tab_rows = self.dataenv.get_params().get('mp_data_tab_rows', 10)
+         self.mp_data_tab_width = self.dataenv.get_params().get('mp_data_tab_width', 30)
+         self.mp_data_symbol = self.dataenv.get_params().get('mp_data_symbol', 'EURUSD')
+         self.mp_data_utc_from = self.dataenv.get_params().get('mp_data_utc_from', self.set_mql_timezone(2021, 1, 1, 'UTC'))
+     
+         #feature and label parameters
+         self.mp_data_custom_input_keyfeat = self.dataenv.get_params().get('mp_data_custom_input_keyfeat', {'Close'})
+         self.mp_data_custom_output_label = self.dataenv.get_params().get('mp_data_custom_output_label', self.mp_data_custom_input_keyfeat)
+         self.mp_data_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in self.mp_data_custom_input_keyfeat}  # the feature to predict
+         self.mp_data_custom_output_label_scaled = {targ + '_Scaled' for targ in self.mp_data_custom_output_label}  # the label shifted to predict
+         self.mp_data_custom_output_label_count=len(self.mp_data_custom_output_label)
 
-        # Ensure MetaTrader5 is available if using Windows
-        if self.os == "windows":
-            try:
-                import MetaTrader5 as mt5
-                self.command_ticks = kwargs.get("command_ticks", mt5.COPY_TICKS_ALL)
-                self.command_rates = kwargs.get("command_rates", None)
-            except ImportError:
-                logging.error("MetaTrader5 package is missing. Install it with 'pip install MetaTrader5'")
-                raise
-        else:
-            self.command_ticks = kwargs.get("command_ticks", None)
-            self.command_rates = kwargs.get("command_rates", None)
 
-        # Store Parameters
-        self.api_params = {"ticks": self.api_ticks, "rates": self.api_rates}
-        self.file_params = {"ticks": self.file_ticks, "rates": self.file_rates}
-        self.data_params = {
-            "dfname1": self.dfname1,
-            "dfname2": self.dfname2,
-            "utc_from": self.utc_from,
-            "symbol_primary": self.symbol_primary,
-            "rows": self.rows,
-            "rowcount": self.rowcount,
-        }
-        self.command_params = {"ticks": self.command_ticks, "rates": self.command_rates}
-        self.file_settings = {"data_path": self.data_path, "file_value1": self.file_value1, "file_value2": self.file_value2}
+         #data averaging parameters
+         self.mp_hl_avg_col = self.mlenv.get_params().get('mp_hl_avg_col', 'HLAvg')
+         self.mp_ma_col = self.mlenv.get_params().get('mp_ma_col', 'SMA')
+         self.mp_returns_col = self.mlenv.get_params().get('mp_returns_col', 'LogReturns')
+         self.mp_returns_col_scaled = self.mlenv.get_params().get('mp_returns_col_scaled', 'LogReturns_scaled')
+         self.mp_create_label = self.mlenv.get_params().get('mp_create_label', False)
+         self.mp_create_label_scaled = self.mlenv.get_params().get('mp_create_label_scaled', False)
+         self.mp_data_data_label = self.mlenv.get_params().get('mp_data_data_label', 3)
 
+
+         #Api Command values
+         self.mp_data_command_ticks = self.dataenv.get_params().get('mp_data_command_ticks', None)
+         self.mp_data_command_rates = self.dataenv.get_params().get('mp_data_command_rates', None)
+
+         # load of datafile parameters
+         self.load_params ={
+            "loadapiticks": self.mp_data_loadapiticks,
+            "loadapirates": self.mp_data_loadapirates,
+            "loadfileticks": self.mp_data_loadfileticks,
+            "loadfilerates": self.mp_data_loadfilerates,
+            "cfg_usedata": self.mp_data_cfg_usedata,
+            "show_dtype": self.mp_data_show_dtype,
+            "show_head": self.mp_data_show_head,         
+         }
+
+         self.datafile_params = {
+            "dfname1": self.mv_data_dfname1,
+            "dfname2": self.mv_data_dfname2,
+            "rows": self.mp_data_rows,
+            "rowcount": self.mp_data_rowcount,
+            "rownumber": self.mp_data_rownumber,
+            "history_size": self.mp_data_history_size,
+            "timeframe": self.mp_data_timeframe,
+            "tab_rows": self.mp_data_tab_rows,
+            "tab_width": self.mp_data_tab_width,
+            "symbol": self.mp_data_symbol,
+            "utc_from": self.mp_data_utc_from, 
+         }
+ 
+         # feature and label parameters
+         self.feature_params = {
+            "input_keyfeat": self.mp_data_custom_input_keyfeat,
+            "output_label": self.mp_data_custom_output_label,
+            "input_keyfeat_scaled": self.mp_data_custom_input_keyfeat_scaled,
+            "output_label_scaled": self.mp_data_custom_output_label_scaled,
+            "output_label_count": self.mp_data_custom_output_label_count,
+         }
+
+
+         self.avg_params = {
+            "hl_avg_col": self.mp_hl_avg_col,
+            "ma_col": self.mp_ma_col,
+            "returns_col": self.mp_returns_col,
+            "returns_col_scaled": self.mp_returns_col_scaled,
+            "create_label": self.mp_create_label,
+            "create_label_scaled": self.mp_create_label_scaled,
+            "data_label": self.mp_data_data_label,
+         }
+   
+        
+
+         # Store API command parameters
+         self.command_params = {
+             "ticks": self.mp_data_command_ticks,
+             "rates": self.mp_data_command_rates
+         }
+        
+         # Initialize the MT5 api commands if supported on platform
+         if loadmql:
+            import MetaTrader5 as mt5
+            self.command_params = {
+                "ticks": mt5.COPY_TICKS_ALL,
+                "rates": None
+            }
+         else:
+            self.command_params = {
+                "ticks": None,
+                "rates": None
+            }
+
+         self.files_params = {
+            "datapath": self.mp_data_path,
+            "filename1": self.mp_data_file_value1,
+            "filename2": self.mp_data_file_value2,
+         }
+        
     def get_params(self):
         """Returns a dictionary of all set parameters."""
         return {
-            "loadapiticks": self.api_params["ticks"],
-            "loadapirates": self.api_params["rates"],
-            "loadfileticks": self.file_params["ticks"],
-            "loadfilerates": self.file_params["rates"],
-            "rates1": None,
-            "rates2": None,
-            "utc_from": self.data_params["utc_from"],
-            "symbol": self.data_params["symbol_primary"],
-            "rows": self.data_params["rows"],
-            "rowcount": self.data_params["rowcount"],
-            "command_ticks": self.command_params["ticks"],
-            "command_rates": self.command_params["rates"],
-            "path": self.file_settings["data_path"],
-            "filename1": self.file_settings["file_value1"],
-            "filename2": self.file_settings["file_value2"],
-            "timeframe": self.timeframe,
-        }
+            "load_params": self.load_params,
+            "datafile_params": self.datafile_params,
+            "feature_params": self.feature_params,
+            "avg_params": self.avg_params,
+            "command_params": self.command_params,
+            "files_params": self.files_params,
+         }
+
 
     def load_market_data(self, obj, params_obj):
         """Loads market data using the provided parameters."""
@@ -122,19 +201,9 @@ class CDataLoader:
         # Reset DataFrames
         rates1, rates2, rates3, rates4 = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         # Ensure MetaTrader5 is available if using Windows
-        if self.os == "windows":
-            try:
-                import MetaTrader5 as mt5
-                self.command_ticks = kwargs.get("command_ticks", mt5.COPY_TICKS_ALL)
-                self.command_rates = kwargs.get("command_rates", None)
-            except ImportError:
-                logging.error("MetaTrader5 package is missing. Install it with 'pip install MetaTrader5'")
-                raise
-        else:
-            self.command_ticks = kwargs.get("command_ticks", None)
-            self.command_rates = kwargs.get("command_rates", None)
+        
 
-        if self.os == "windows" :
+        if loadmql :
             if loadapiticks:
                 try:
                     logging.info("Fetching tick data from MetaTrader5 API")
@@ -185,3 +254,31 @@ class CDataLoader:
         except Exception as e:
             logging.error(f"Timezone conversion error: {e}")
             return None
+
+
+    def display_params(self, params, hrows, colwidth_env, colwidth_param, colwidth_value, tablefmt="pretty", floatfmt=".5f", numalign="left", stralign="left"):
+        """Displays the current parameters in a tabular format."""
+        # Convert dictionary into a tabulated format
+        table_data = []
+        for name, param_dict in params.items():
+            if param_dict is None:  # Handle NoneType
+                param_dict = {}  # Set an empty dictionary if None
+            for key, value in param_dict.items():
+                if value is None:
+                    value = "N/A"  # Replace None values with a placeholder
+                table_data.append([name, key, value])
+        
+        # Generate tabulated output
+        formatted_table = tabulate(
+            table_data,
+            headers=["Environment", "Parameter", "Value"],
+            tablefmt=tablefmt,
+            floatfmt=floatfmt,
+            numalign=numalign,
+            stralign=stralign,
+            maxcolwidths=[colwidth_env, colwidth_param, colwidth_value]  # Set individual column widths
+        )
+
+        # Display the formatted table
+        print(formatted_table)
+        return formatted_table
