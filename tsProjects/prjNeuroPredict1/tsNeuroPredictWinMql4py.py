@@ -410,7 +410,7 @@ def main(logger):
                 ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
                 hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
                 ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
-                returns_col=tuner_environments.mp_ml_returns_col ,
+                returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
                 shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
                 rownumber=data_environments["dataenv"].mp_data_rownumber,
                 create_label=True 
@@ -433,7 +433,7 @@ def main(logger):
                 ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
                 hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
                 ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
-                returns_col=tuner_environments.mp_ml_returns_col ,
+                returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
                 shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
                 rownumber=data_environments["dataenv"].mp_data_rownumber,
                 create_label=True 
@@ -456,7 +456,7 @@ def main(logger):
                   ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
                   hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
                   ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
-                  returns_col=tuner_environments.mp_ml_returns_col ,
+                  returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
                   shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
                   rownumber=data_environments["dataenv"].mp_data_rownumber,
                   create_label=True 
@@ -479,7 +479,7 @@ def main(logger):
                   ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
                   hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
                   ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
-                  returns_col=tuner_environments.mp_ml_returns_col ,
+                  returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
                   shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
                   rownumber=data_environments["dataenv"].mp_data_rownumber,
                   create_label=True 
