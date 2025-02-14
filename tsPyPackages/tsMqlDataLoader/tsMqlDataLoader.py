@@ -34,11 +34,12 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 class CDataLoader:
     """Class to store and manage market data parameters."""
 
-    def __init__(self, globalenv, datenv, **kwargs):
+    def __init__(self, globalenv, datenv,mlenv ,**kwargs):
          #input of all environment settings
          self.globalenv = globalenv
          self.dataenv = datenv
-        
+         self.mlenv = mlenv
+         
          #file and path parameters
          self.mp_data_path = self.globalenv.get_params().get('mp_data_path', None)
          self.mp_data_file_value1 = self.dataenv.get_params().get('mp_data_filename1', None)

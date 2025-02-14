@@ -155,8 +155,9 @@ def main(logger):
                         mv_data_dfname2=MPDATAFILE2,
                         mp_data_filename1=MPDATAFILE1,
                         mp_data_filename2=MPDATAFILE2,
-                        )
+                   ) 
              }
+        
         
         tuner_environments = {
             "mlenv": CMqlEnvML(),
@@ -208,6 +209,7 @@ def main(logger):
         obj1_CDataLoader = CDataLoader(
             dataenv, 
             globalenv,
+            mlenv,
             mv_data_dfname1=mv_data_dfname1,
             mv_data_dfname2=mv_data_dfname2,
          )
@@ -215,6 +217,7 @@ def main(logger):
         obj1_CDataProcess= CDataProcess(
             dataenv, 
             globalenv,
+            mlenv,
             mv_data_dfname1=mv_data_dfname1,
             mv_data_dfname2=mv_data_dfname2,
          )
@@ -224,7 +227,7 @@ def main(logger):
         logger.info("Tunerparams: %s", tunerparams)
         logger.info("Modelparams: %s", modelparams)
 
-        
+     
         
         # +-------------------------------------------------------------------
         # STEP: Data Preparation and Loading
@@ -242,8 +245,7 @@ def main(logger):
         try:
             # Load tick data from MQL and FILE
             obj1_params = CDataLoader(
-                globalenv,
-                dataenv,
+                globalenv,dataenv,mlenv,
                 api_ticks=dataenv.mp_data_loadapiticks,
                 api_rates=dataenv.mp_data_loadapirates,
                 file_ticks=dataenv.mp_data_loadfileticks,
@@ -257,8 +259,8 @@ def main(logger):
                 command_ticks=dataenv.mp_data_command_ticks,
                 command_rates=dataenv.mp_data_command_rates,
                 data_path=MPDATAPATH,
-                file_value1=broker_config.get('MPFILEVALUE1', 'Unknown'),
-                file_value2=broker_config.get('MPFILEVALUE2', 'Unknown'),
+                file_value1=broker_config['MPFILEVALUE1'],
+                file_value2=broker_config['MPFILEVALUE2'],
                 timeframe=TIMEFRAME
             )
 
@@ -268,6 +270,9 @@ def main(logger):
                 logger.error(f"An error occurred: {e}")
         except Exception as e:
          logger.error(f"An error occurred in the outer try block: {e}")
+
+
+         
 
         # Display the data
       
@@ -298,7 +303,14 @@ def main(logger):
             low_column="R1_Low",
             close_column="R1_Close",
             run_mode=1,
-            **tunerparams
+            lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
+            ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
+            hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
+            ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
+            returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
+            shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
+            rownumber=data_environments["dataenv"].mp_data_rownumber,
+            create_label=True
         )
 
         mv_tdata1apirates = obj1_CDataProcess.create_label_wrapper(
@@ -313,9 +325,16 @@ def main(logger):
             low_column="R1_Low",
             close_column="R1_Close",
             run_mode=2,
-            **tunerparams
+            lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
+            ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
+            hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
+            ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
+            returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
+            shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
+            rownumber=data_environments["dataenv"].mp_data_rownumber,
+            create_label=True
          )
-         
+
         mv_tdata1loadticks = obj1_CDataProcess.create_label_wrapper(
             df=mv_tdata1loadticks,
             bid_column="T2_Bid_Price",
@@ -328,7 +347,14 @@ def main(logger):
             low_column="R2_Low",
             close_column="R2_Close",
             run_mode=3,
-            **tunerparams
+            lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
+            ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
+            hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
+            ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
+            returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
+            shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
+            rownumber=data_environments["dataenv"].mp_data_rownumber,
+            create_label=True
         )
 
         mv_tdata1loadrates = obj1_CDataProcess.create_label_wrapper(
@@ -343,7 +369,14 @@ def main(logger):
             low_column="R2_Low",
             close_column="R2_Close",
             run_mode=4,
-            **tunerparams
+            lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
+            ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
+            hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
+            ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
+             returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
+            shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
+            rownumber=data_environments["dataenv"].mp_data_rownumber,
+            create_label=True
         )
 
         scolumn_out1 = mlenv.mp_ml_input_keyfeat
@@ -358,9 +391,9 @@ def main(logger):
 
         logger.info("column_out1: %s", column_out1)
         logger.info("column_out2: %s", column_out2)
-"""
+
         # Create labels
-        if not loadmql:
+        if loadmql:
             mv_tdata1apiticks = obj0_CDataProcess.create_label_wrapper(
                 df=mv_tdata1apiticks,
                 bid_column="T1_Bid_Price",
@@ -373,61 +406,85 @@ def main(logger):
                 low_column="R1_Low",
                 close_column="R1_Close",
                 run_mode=1,
-                lookahead_periods=gen_environments["mlenv"].mp_ml_cfg_period,
-                ma_window=gen_environments["mlenv"].mp_ml_tf_ma_windowin,
-                hl_avg_col="HLAvg",  # Added missing parameter
-                ma_col="SMA",
-                returns_col="LogReturns",
-                shift_in=gen_environments["mlenv"].mp_ml_tf_shiftin,
-                rownumber=gen_environments["dataenv"].mp_data_rownumber,
-                create_label=False,
-            )
+                lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
+                ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
+                hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
+                ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
+                returns_col=tuner_environments.mp_ml_returns_col ,
+                shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
+                rownumber=data_environments["dataenv"].mp_data_rownumber,
+                create_label=True 
+               )
 
-        
-        mv_tdata1loadticks = obj0_CDataProcess.create_label_wrapper(
-            df=mv_tdata1loadticks,
-            bid_column="T2_Bid_Price",
-            ask_column="T2_Ask_Price",
-            column_in="T2_Bid_Price",
-            column_out1='Close',
-            column_out2='Close_Scaled',
-            open_column="R2_Open",
-            high_column="R2_High",
-            low_column="R2_Low",
-            close_column="R2_Close",
-            run_mode=3,
-            lookahead_periods=gen_environments["mlenv"].mp_ml_cfg_period,
-            ma_window=gen_environments["mlenv"].mp_ml_tf_ma_windowin,
-            hl_avg_col="HLAvg",
-            ma_col="SMA",
-            returns_col="LogReturns",
-            shift_in=gen_environments["mlenv"].mp_ml_tf_shiftin,
-            rownumber=gen_environments["dataenv"].mp_data_rownumber,
-            create_label=False,
-        )
+        if loadmql:
+            mv_tdata1apirates = obj0_CDataProcess.create_label_wrapper(
+                df=mv_tdata1apirates,
+                bid_column="R1_Bid_Price",
+                ask_column="R1_Ask_Price",
+                column_in="R1_Close",
+                column_out1='Close',
+                column_out2='Close_Scaled',
+                open_column="R1_Open",
+                high_column="R1_High",
+                low_column="R1_Low",
+                close_column="R1_Close",
+                run_mode=2,
+                lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
+                ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
+                hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
+                ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
+                returns_col=tuner_environments.mp_ml_returns_col ,
+                shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
+                rownumber=data_environments["dataenv"].mp_data_rownumber,
+                create_label=True 
+               )
 
-        mv_tdata1loadrates = obj0_CDataProcess.create_label_wrapper(
-            df=mv_tdata1loadrates,
-            bid_column="R2_Bid_Price",
-            ask_column="R2_Ask_Price",
-            column_in="R2_Close",
-            column_out1='Close',
-            column_out2='Close_Scaled',
-            open_column="R2_Open",
-            high_column="R2_High",
-            low_column="R2_Low",
-            close_column="R2_Close",
-            run_mode=4,
-            lookahead_periods=gen_environments["mlenv"].mp_ml_cfg_period,
-            ma_window=gen_environments["mlenv"].mp_ml_tf_ma_windowin,
-            hl_avg_col="HLAvg",
-            ma_col="SMA",
-            returns_col="LogReturns",
-            shift_in=gen_environments["mlenv"].mp_ml_tf_shiftin,
-            rownumber=gen_environments["dataenv"].mp_data_rownumber,
-            create_label=False,
-        )
+        if loadmql == True or loadmql == False:
+            mv_tdata1loadticks = obj0_CDataProcess.create_label_wrapper(
+                  df=mv_tdata1loadticks,
+                  bid_column="T2_Bid_Price",
+                  ask_column="T2_Ask_Price",
+                  column_in="T2_Bid_Price",
+                  column_out1='Close',
+                  column_out2='Close_Scaled',
+                  open_column="R2_Open",
+                  high_column="R2_High",
+                  low_column="R2_Low",
+                  close_column="R2_Close",
+                  run_mode=3,
+                  lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
+                  ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
+                  hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
+                  ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
+                  returns_col=tuner_environments.mp_ml_returns_col ,
+                  shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
+                  rownumber=data_environments["dataenv"].mp_data_rownumber,
+                  create_label=True 
+                  )
 
+        if loadmql == True or loadmql == False: 
+            mv_tdata1loadrates = obj0_CDataProcess.create_label_wrapper(
+                  df=mv_tdata1loadrates,
+                  bid_column="R2_Bid_Price",
+                  ask_column="R2_Ask_Price",
+                  column_in="R2_Close",
+                  column_out1='Close',
+                  column_out2='Close_Scaled',
+                  open_column="R2_Open",
+                  high_column="R2_High",
+                  low_column="R2_Low",
+                  close_column="R2_Close",
+                  run_mode=4,
+                  lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
+                  ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
+                  hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
+                  ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
+                  returns_col=tuner_environments.mp_ml_returns_col ,
+                  shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
+                  rownumber=data_environments["dataenv"].mp_data_rownumber,
+                  create_label=True 
+                  )
+"""
          # Display the data
         if loadmql:
             obj0_CDataProcess.run_mql_print(mv_tdata1apiticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
