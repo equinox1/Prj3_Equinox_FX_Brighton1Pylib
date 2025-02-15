@@ -75,6 +75,8 @@ broker = "METAQUOTES"  # "ICM" or "METAQUOTES"
 mp_symbol_primary = 'EURUSD'
 MPDATAFILE1 = "tickdata1.csv"
 MPDATAFILE2 = "ratesdata1.csv"
+DFNAME1="df_rates1"
+DFNAME2="df_rates2"
 mp_data_cfg_usedata = 'loadfilerates' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
 mp_data_rows = 2000 # number of mp_data_tab_rows to fetch
 mp_data_rowcount = 10000 # number of mp_data_tab_rows to fetch
@@ -104,76 +106,46 @@ def main(logger):
         # +-------------------------------------------------------------------
         # STEP: Load Reference class and time variables
         # +-------------------------------------------------------------------
-        obj1_CMqlTimeConfig = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES')
-        MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH = obj1_CMqlTimeConfig.get_current_time(obj1_CMqlTimeConfig)
-        logger.info(f"MINUTES: {MINUTES}, HOURS: {HOURS}, DAYS: {DAYS}, TIMEZONE: {TIMEZONE}")
-
-        # Ensure TIME_CONSTANTS dictionary exists and has expected keys
-        if 'SYMBOLS' in obj1_CMqlTimeConfig.TIME_CONSTANTS and obj1_CMqlTimeConfig.TIME_CONSTANTS['SYMBOLS']:
-            mp_symbol_primary = str(obj1_CMqlTimeConfig.TIME_CONSTANTS['SYMBOLS'][0])
-            print(f"mp_symbol_primary: {mp_symbol_primary}")
-        else:
-            raise ValueError("TIME_CONSTANTS['SYMBOLS'] is missing or empty")
-        if 'TIMEFRAME' in obj1_CMqlTimeConfig.TIME_CONSTANTS and TIMESAMPLE in obj1_CMqlTimeConfig.TIME_CONSTANTS['TIMEFRAME']:
-            TIMEFRAME = obj1_CMqlTimeConfig.TIME_CONSTANTS['TIMEFRAME'][TIMESAMPLE]
-        else:
-            raise ValueError("TIME_CONSTANTS['TIMEFRAME'][TIMESAMPLE] is missing")
-
+        obj1_CMqlTimeConfig = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES', timesample='H4')
+        timevalue, MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH, PRIMARY_SYMBOL = obj1_CMqlTimeConfig.run_service()
+        logger.info(f"MINUTES: {MINUTES}, HOURS: {HOURS}, DAYS: {DAYS}, TIMEZONE: {TIMEZONE} , TIMEFRAME: {TIMEFRAME}, CURRENTYEAR: {CURRENTYEAR}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, PRIMARY_SYMBOL: {PRIMARY_SYMBOL}")
         # +-------------------------------------------------------------------
         # STEP: CBroker Login
         # +-------------------------------------------------------------------
-        obj1_CMqlBrokerConfig = CMqlBrokerConfig(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
         # Initialize MT5 connection
+        obj1_CMqlBrokerConfig = CMqlBrokerConfig(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
         broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit = obj1_CMqlBrokerConfig.initialize_mt5(broker, obj1_CMqlTimeConfig)
-
-        # Attempt to log in to the broker
-        broker_config = obj1_CMqlBrokerConfig.set_mql_broker()
-        logger.info("Broker Login Successful")
-
         # Retrieve broker file paths
-        file_path  = broker_config['MKFILES']
-        MPDATAPATH = broker_config['MPDATAPATH']
-        MPFILEVALUE1 = broker_config['MPFILEVALUE1']
-        MPFILEVALUE2 = broker_config['MPFILEVALUE2']
+        file_path, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2 = (broker_config := obj1_CMqlBrokerConfig.set_mql_broker())['MKFILES'], broker_config['MPDATAPATH'], broker_config['MPFILEVALUE1'], broker_config['MPFILEVALUE2']
         logger.info(f"{__name__} ,:Broker File Path: {file_path}, MP Data Path: {MPDATAPATH} , MPFILEVALUE1: {MPFILEVALUE1}, MPFILEVALUE2: {MPFILEVALUE2}")
-
-          # +-------------------------------------------------------------------
-        # STEP: setp environment
+        # +-------------------------------------------------------------------
+        # STEP: setup environment
         # +-------------------------------------------------------------------
         # Initialize gen_environments
-        
         gen_environments = {
             "globalenv": global_setter  # Ensure you pass the whole object, not just `.get_params()`
         }
-
-        # Retrieve broker file paths
-        
-        MPDATAPATH = broker_config['MPDATAPATH']
-        logger.info(f"Broker File Path: {file_path}, MP Data Path: {MPDATAPATH}")
-
+        #Initialize data environments
         data_environments = { 
             "dataenv": CMqlEnvData( 
                         globalenv=gen_environments["globalenv"],
-                        mv_data_dfname1=MPDATAFILE1,
-                        mv_data_dfname2=MPDATAFILE2,
+                        mv_data_dfname1=DFNAME1,
+                        mv_data_dfname2=DFNAME2,
                         mp_data_filename1=MPDATAFILE1,
                         mp_data_filename2=MPDATAFILE2,
                    ) 
              }
         
-        
+        mlearn_environments = {
+            "mlenv": CMqlEnvML().get_params(),
+         }
         tuner_environments = {
-            "mlenv": CMqlEnvML(),
-            "tuneenv": CMqlEnvTuneML(globalenv=gen_environments["globalenv"])
+            "tuneenv": CMqlEnvTuneML().get_params()
          }
 
         # Tuner Parametersdataenv
         model_environments = {
-            "modelenv": CMdtunerHyperModel(
-               globalenv=gen_environments["globalenv"],
-               mlenv=tuner_environments["mlenv"],
-               tuneenv=tuner_environments["tuneenv"]
-               )
+            "modelenv": CMdtunerHyperModel().get_params()
          }
 
         # Retrieve parameters safely
@@ -205,7 +177,11 @@ def main(logger):
         tuneenv =tuner_environments["tuneenv"]
         modelenv = model_environments["modelenv"]
         
+        # Example usage (no global instance):
+         global_config = CMqlEnvGlobal("my_config.yaml")  # Load configuration
+         global_config, data_env, ml_env, _, _ = global_config.run_service()
 
+# ... (Use global_config, data_env, etc., as needed)
         mv_data_dfname1 = "df_rates1"
         mv_data_dfname2 = "df_rates2"
         
