@@ -23,27 +23,30 @@ logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 # +-------------------------------------------------------------------
 # STEP: Import standard Python packages
 # +-------------------------------------------------------------------
+# System packages
 import os
 import pathlib
-from pathlib import Path, PurePosixPath
-import posixpath
-import sys
-import time
+from pathlib import Path
 import json
-import keyring as kr
 from datetime import datetime, date
 import pytz
+
+# Data packages
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import pandas as pd
+from dataclasses import dataclass
+
+# Machine Learning packages
+import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
-import pandas as pd
-from dataclasses import dataclass
-import tensorflow as tf
-import warnings
-from numpy import concatenate
+
+# set package options
+feature_scaler = MinMaxScaler()
+label_scaler = MinMaxScaler()
 
 # Equinox packages
 from tsMqlConnect import CMqlBrokerConfig, CMqlinit
@@ -58,32 +61,29 @@ from tsMqlPlatform import run_platform
 from tsMqlReference import CMqlTimeConfig
 from tsMqlSetup import CMqlSetup
 
-
 # Setup the logging and tensor platform dependencies
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
 strategy = obj1_CMqlSetup.get_computation_strategy()
-
+# format values
+mp_data_tab_rows = 2
+mp_data_tab_width = 30
 # +-------------------------------------------------------------------
-# STEP: switch values for the model
+# STEP: switch values for the application
 # +-------------------------------------------------------------------
+# Data Parameters
 broker = "METAQUOTES"  # "ICM" or "METAQUOTES"
 mp_symbol_primary = 'EURUSD'
 MPDATAFILE1 = "tickdata1.csv"
 MPDATAFILE2 = "ratesdata1.csv"
-
-feature_scaler = MinMaxScaler()
-label_scaler = MinMaxScaler()
-TIMESAMPLE = 'M1'  # exception for api mql load
-mp_data_tab_rows = 2
-mp_data_tab_width = 30
 mp_data_cfg_usedata = 'loadfilerates' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
-mp_ml_show_plot=False
+mp_data_rows = 2000 # number of mp_data_tab_rows to fetch
+mp_data_rowcount = 10000 # number of mp_data_tab_rows to fetch
+# Model Tuning
 ONNX_save=False
+mp_ml_show_plot=False
 mp_ml_hard_run= True
 mp_ml_tunemode = True
 mp_ml_tunemodeepochs = True
-mp_data_rows = 2000 # number of mp_data_tab_rows to fetch
-mp_data_rowcount = 10000 # number of mp_data_tab_rows to fetch
 mp_ml_Keras_tuner = 'hyperband' # 'hyperband' or 'randomsearch' or 'bayesian' or 'skopt' or 'optuna'
 batch_size = 4
 # scaling
@@ -95,6 +95,9 @@ trans_modelscale = 2 # divide the model by this number
 transh_modelscale = 1 # divide the model by this number
 transff_modelscale = 4 # divide the model by this number
 dense_modelscale = 2 # divide the model by this number
+# +-------------------------------------------------------------------
+# STEP: End of driving parameters
+# +-------------------------------------------------------------------
 
 def main(logger):
     with strategy.scope():
@@ -103,7 +106,7 @@ def main(logger):
         # +-------------------------------------------------------------------
         obj1_CMqlTimeConfig = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES')
         MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH = obj1_CMqlTimeConfig.get_current_time(obj1_CMqlTimeConfig)
-        print("MINUTES:", MINUTES, "HOURS:", HOURS, "DAYS:", DAYS, "TIMEZONE:", TIMEZONE)
+        logger.info(f"MINUTES: {MINUTES}, HOURS: {HOURS}, DAYS: {DAYS}, TIMEZONE: {TIMEZONE}")
 
         # Ensure TIME_CONSTANTS dictionary exists and has expected keys
         if 'SYMBOLS' in obj1_CMqlTimeConfig.TIME_CONSTANTS and obj1_CMqlTimeConfig.TIME_CONSTANTS['SYMBOLS']:
@@ -271,7 +274,14 @@ def main(logger):
         except Exception as e:
          logger.error(f"An error occurred in the outer try block: {e}")
 
-
+         # Display the data
+         logger.info("###############LookatDB##################")
+         logger.info("mv_tdata1apiticks:", mv_tdata1apiticks.head(3))
+         logger.info("mv_tdata1apirates:", mv_tdata1apirates.head(3))
+         logger.info("mv_tdata1loadticks:", mv_tdata1loadticks.head(3))
+         logger.info("mv_tdata1loadrates:", mv_tdata1loadrates.head(3))
+         logger.info("###############LookatDB##################")
+"""         
          
 
         # Display the data
@@ -484,7 +494,7 @@ def main(logger):
                   rownumber=data_environments["dataenv"].mp_data_rownumber,
                   create_label=True 
                   )
-"""
+
          # Display the data
         if loadmql:
             obj0_CDataProcess.run_mql_print(mv_tdata1apiticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
