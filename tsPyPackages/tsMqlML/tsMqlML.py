@@ -7,9 +7,11 @@
 #property link      "https://www.xercescloud.co.uk"
 #property version   "1.01"
 
-from tsMqlPlatform import run_platform,platform_checker, PLATFORM_DEPENDENCIES, logger, config
-pchk=run_platform.RunPlatform()
+from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger, config
+pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
+loadmql=pchk.check_mql_state()
+logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
 import numpy as np
 import pandas as pd

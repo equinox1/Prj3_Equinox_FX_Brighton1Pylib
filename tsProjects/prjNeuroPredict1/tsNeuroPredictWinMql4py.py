@@ -58,7 +58,7 @@ from tsMqlML import CMqlmlsetup ,CMqlEnvML
 from tsMqlMLTune import CMdtuner
 from tsMqlMLTuneParams import CMdtunerHyperModel, CMqlEnvTuneML
 from tsMqlPlatform import run_platform
-from tsMqlReference import CMqlTimeConfig
+from tsMqlReference import CMqlRefConfig
 from tsMqlSetup import CMqlSetup
 
 # Setup the logging and tensor platform dependencies
@@ -67,124 +67,73 @@ strategy = obj1_CMqlSetup.get_computation_strategy()
 # format values
 mp_data_tab_rows = 2
 mp_data_tab_width = 30
-# +-------------------------------------------------------------------
-# STEP: switch values for the application
-# +-------------------------------------------------------------------
-# Data Parameters
-broker = "METAQUOTES"  # "ICM" or "METAQUOTES"
-mp_symbol_primary = 'EURUSD'
-MPDATAFILE1 = "tickdata1.csv"
-MPDATAFILE2 = "ratesdata1.csv"
-DFNAME1="df_rates1"
-DFNAME2="df_rates2"
-mp_data_cfg_usedata = 'loadfilerates' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
-mp_data_rows = 2000 # number of mp_data_tab_rows to fetch
-mp_data_rowcount = 10000 # number of mp_data_tab_rows to fetch
-# Model Tuning
-ONNX_save=False
-mp_ml_show_plot=False
-mp_ml_hard_run= True
-mp_ml_tunemode = True
-mp_ml_tunemodeepochs = True
-mp_ml_Keras_tuner = 'hyperband' # 'hyperband' or 'randomsearch' or 'bayesian' or 'skopt' or 'optuna'
-batch_size = 4
-# scaling
-all_modelscale = 2 # divide the model by this number
-cnn_modelscale = 2 # divide the model by this number
-lstm_modelscale = 2 # divide the model by this number
-gru_modelscale = 2 # divide the model by this number
-trans_modelscale = 2 # divide the model by this number
-transh_modelscale = 1 # divide the model by this number
-transff_modelscale = 4 # divide the model by this number
-dense_modelscale = 2 # divide the model by this number
+
 # +-------------------------------------------------------------------
 # STEP: End of driving parameters
 # +-------------------------------------------------------------------
 
 def main(logger):
     with strategy.scope():
+
+      # +-------------------------------------------------------------------
+      # STEP: switch values for the application
+      # +-------------------------------------------------------------------
+        # Data Parameters
+        broker = "METAQUOTES"  # "ICM" or "METAQUOTES"
+        mp_symbol_primary = 'EURUSD'
+        MPDATAFILE1 = "tickdata1.csv"
+        MPDATAFILE2 = "ratesdata1.csv"
+        DFNAME1="df_rates1"
+        DFNAME2="df_rates2"
+        mp_data_cfg_usedata = 'loadfilerates' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
+        mp_data_rows = 2000 # number of mp_data_tab_rows to fetch
+        mp_data_rowcount = 10000 # number of mp_data_tab_rows to fetch
+        # Model Tuning
+        ONNX_save=False
+        mp_ml_show_plot=False
+        mp_ml_hard_run= True
+        mp_ml_tunemode = True
+        mp_ml_tunemodeepochs = True
+        mp_ml_Keras_tuner = 'hyperband' # 'hyperband' or 'randomsearch' or 'bayesian' or 'skopt' or 'optuna'
+        batch_size = 4
+        # scaling
+        all_modelscale = 2 # divide the model by this number
+        cnn_modelscale = 2 # divide the model by this number
+        lstm_modelscale = 2 # divide the model by this number
+        gru_modelscale = 2 # divide the model by this number
+        trans_modelscale = 2 # divide the model by this number
+        transh_modelscale = 1 # divide the model by this number
+        transff_modelscale = 4 # divide the model by this number
+        dense_modelscale = 2 # divide the model by this number
         # +-------------------------------------------------------------------
         # STEP: Load Reference class and time variables
         # +-------------------------------------------------------------------
-        obj1_CMqlTimeConfig = CMqlTimeConfig(basedatatime='SECONDS', loadeddatatime='MINUTES', timesample='H4')
-        timevalue, MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH, PRIMARY_SYMBOL = obj1_CMqlTimeConfig.run_service()
+        obj1_CMqlRefConfig = CMqlRefConfig(basedatatime='SECONDS', loadeddatatime='MINUTES', timesample='H4')
+        timevalue, MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH, PRIMARY_SYMBOL = obj1_CMqlRefConfig.run_service()
         logger.info(f"MINUTES: {MINUTES}, HOURS: {HOURS}, DAYS: {DAYS}, TIMEZONE: {TIMEZONE} , TIMEFRAME: {TIMEFRAME}, CURRENTYEAR: {CURRENTYEAR}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, PRIMARY_SYMBOL: {PRIMARY_SYMBOL}")
         # +-------------------------------------------------------------------
         # STEP: CBroker Login
         # +-------------------------------------------------------------------
         # Initialize MT5 connection
+        print("Broker:", broker, "Primary Symbol:", mp_symbol_primary, "Datafile1:", MPDATAFILE1, "Datafile2:", MPDATAFILE2)
         obj1_CMqlBrokerConfig = CMqlBrokerConfig(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
-        broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit = obj1_CMqlBrokerConfig.initialize_mt5(broker, obj1_CMqlTimeConfig)
+        broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit = obj1_CMqlBrokerConfig.initialize_mt5(broker, obj1_CMqlRefConfig)
         # Retrieve broker file paths
         file_path, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2 = (broker_config := obj1_CMqlBrokerConfig.set_mql_broker())['MKFILES'], broker_config['MPDATAPATH'], broker_config['MPFILEVALUE1'], broker_config['MPFILEVALUE2']
         logger.info(f"{__name__} ,:Broker File Path: {file_path}, MP Data Path: {MPDATAPATH} , MPFILEVALUE1: {MPFILEVALUE1}, MPFILEVALUE2: {MPFILEVALUE2}")
         # +-------------------------------------------------------------------
         # STEP: setup environment
-        # +-------------------------------------------------------------------
-        # Initialize gen_environments
-        gen_environments = {
-            "globalenv": global_setter  # Ensure you pass the whole object, not just `.get_params()`
-        }
-        #Initialize data environments
-        data_environments = { 
-            "dataenv": CMqlEnvData( 
-                        globalenv=gen_environments["globalenv"],
-                        mv_data_dfname1=DFNAME1,
-                        mv_data_dfname2=DFNAME2,
-                        mp_data_filename1=MPDATAFILE1,
-                        mp_data_filename2=MPDATAFILE2,
-                   ) 
-             }
-        
-        mlearn_environments = {
-            "mlenv": CMqlEnvML().get_params(),
-         }
-        tuner_environments = {
-            "tuneenv": CMqlEnvTuneML().get_params()
-         }
+        # +-----------------------------
+       
+        globalenv, dataenv, mlenv, tuneenv, modelenv = global_setter.run_service()
+        print("Global Environment:", globalenv)
+        print("Data Environment:", dataenv)
+        print("ML Environment:", mlenv)
+        print("Tune Environment:", tuneenv)
+        print("Model Environment:", modelenv)
 
-        # Tuner Parametersdataenv
-        model_environments = {
-            "modelenv": CMdtunerHyperModel().get_params()
-         }
-
-        # Retrieve parameters safely
-        genparams = {name: env.get_params() for name, env in gen_environments.items()}
-        dataparams = {name: env.get_params() for name, env in data_environments.items()}
-        tunerparams = {name: env.get_params() for name, env in tuner_environments.items()}
-        modelparams = {name: env.get_params() for name, env in model_environments.items()}
-
-
-        # Print environments and their parameters
-        for name, env in gen_environments.items():
-            logger.info(f"{name}: {genparams[name]}")
-
-         # Print data environments and their parameters
-        for name, env in data_environments.items():
-            logger.info(f"{name}: {dataparams[name]}")
-
-        # Print tuner environments and their parameters
-        for name, env in tuner_environments.items():
-            logger.info(f"{name}: {tunerparams[name]}")
-
-        # Print model environments and their parameters
-        for name, env in model_environments.items():
-            logger.info(f"{name}: {modelparams[name]}")  
-
-        globalenv = gen_environments["globalenv"]
-        dataenv = data_environments["dataenv"]
-        mlenv = tuner_environments["mlenv"]
-        tuneenv =tuner_environments["tuneenv"]
-        modelenv = model_environments["modelenv"]
-        
-        # Example usage (no global instance):
-         global_config = CMqlEnvGlobal("my_config.yaml")  # Load configuration
-         global_config, data_env, ml_env, _, _ = global_config.run_service()
-
-# ... (Use global_config, data_env, etc., as needed)
-        mv_data_dfname1 = "df_rates1"
-        mv_data_dfname2 = "df_rates2"
-        
+       
+"""        
         obj1_CDataLoader = CDataLoader(
             dataenv, 
             globalenv,
@@ -257,7 +206,7 @@ def main(logger):
          logger.info("mv_tdata1loadticks:", mv_tdata1loadticks.head(3))
          logger.info("mv_tdata1loadrates:", mv_tdata1loadrates.head(3))
          logger.info("###############LookatDB##################")
-"""         
+         
          
 
         # Display the data

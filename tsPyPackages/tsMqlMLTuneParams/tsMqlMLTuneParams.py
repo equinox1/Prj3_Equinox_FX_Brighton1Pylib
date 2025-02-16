@@ -10,6 +10,8 @@
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger, config
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
+loadmql=pchk.check_mql_state()
+logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
 import os
 import tensorflow as tf
@@ -238,7 +240,6 @@ class CMdtunerHyperModel:
     def get_params(self) -> dict:
         return self.__dict__  # Returns all attributes as a dictionary
 
-from tsMqlGlobals import global_setter, logger, config
 
 class CMqlEnvTuneML:
     def __init__(self,globalenv, **kwargs):
