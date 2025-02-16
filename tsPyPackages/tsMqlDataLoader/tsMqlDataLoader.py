@@ -13,8 +13,6 @@ os_platform = platform_checker.get_platform()
 loadmql=pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
-
-
 import numpy as np
 import pandas as pd
 import logging
@@ -25,82 +23,85 @@ from tabulate import tabulate
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-
 class CDataLoader:
     """Class to store and manage market data parameters."""
 
-    def __init__(self, globalenv, datenv,mlenv ,**kwargs):
-         #input of all environment settings
-         self.globalenv = globalenv
-         self.dataenv = datenv
-         self.mlenv = mlenv
-         
-         #file and path parameters
-         self.mp_data_path = self.globalenv.get_params().get('mp_data_path', None)
-         self.mp_data_file_value1 = self.dataenv.get_params().get('mp_data_filename1', None)
-         self.mp_data_file_value2 = self.dataenv.get_params().get('mp_data_filename2', None)
-         
+    def __init__(self, all_params ,**kwargs):
+        #input of all environment settings
+        self.all_params = all_params
 
-         logger.info(f"mp_data_path: {self.mp_data_path}")
-         logger.info(f"Data file value1: {self.mp_data_file_value1}")
-         logger.info(f"Data file value2: {self.mp_data_file_value2}")
-
-         # load data params
-         self.mp_data_loadapiticks = self.dataenv.get_params().get('mp_data_loadapiticks', True)
-         self.mp_data_loadapirates = self.dataenv.get_params().get('mp_data_loadapirates', True)
-         self.mp_data_loadfileticks = self.dataenv.get_params().get('mp_data_loadfileticks', True)
-         self.mp_data_loadfilerates = self.dataenv.get_params().get('mp_data_loadfilerates', True)
-         self.mp_data_cfg_usedata = self.dataenv.get_params().get('mp_data_cfg_usedata', 'loadfilerates')
-         self.mp_data_show_dtype = self.dataenv.get_params().get('mp_data_show_dtype', False)
-         self.mp_data_show_head = self.dataenv.get_params().get('mp_data_show_head', False)
-                  
-         # datafile parameters
-         self.mv_data_dfname1 = self.dataenv.get_params().get('mv_data_dfname1', "df_rates1")
-         self.mv_data_dfname2 = self.dataenv.get_params().get('mv_data_dfname2', "df_rates2")
-         self.mp_data_rows = self.dataenv.get_params().get('mp_data_rows', 1000)
-         self.mp_data_rowcount = self.dataenv.get_params().get('mp_data_rowcount', 10000)
-         self.mp_data_rownumber = self.dataenv.get_params().get('mp_data_rownumber', False)
-         self.mp_data_history_size = self.dataenv.get_params().get('mp_data_history_size', 5)
-         self.mp_data_timeframe = self.dataenv.get_params().get('mp_data_timeframe', None)
-         self.mp_data_tab_rows = self.dataenv.get_params().get('mp_data_tab_rows', 10)
-         self.mp_data_tab_width = self.dataenv.get_params().get('mp_data_tab_width', 30)
-         self.mp_data_symbol = self.dataenv.get_params().get('mp_data_symbol', 'EURUSD')
-         self.mp_data_utc_from = self.dataenv.get_params().get('mp_data_utc_from', self.set_mql_timezone(2021, 1, 1, 'UTC'))
-     
-         #feature and label parameters
-         self.mp_data_custom_input_keyfeat = self.dataenv.get_params().get('mp_data_custom_input_keyfeat', {'Close'})
-         self.mp_data_custom_output_label = self.dataenv.get_params().get('mp_data_custom_output_label', self.mp_data_custom_input_keyfeat)
-         self.mp_data_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in self.mp_data_custom_input_keyfeat}  # the feature to predict
-         self.mp_data_custom_output_label_scaled = {targ + '_Scaled' for targ in self.mp_data_custom_output_label}  # the label shifted to predict
-         self.mp_data_custom_output_label_count=len(self.mp_data_custom_output_label)
+        # file and path parameters
+        globalenv_params = self.all_params['genparams']['globalenv']  # Access the global env params
+        data_params = self.all_params['dataparams']['dataenv']  # Access the data params
+        ml_params = self.all_params['mlearnparams']['mlenv']  # Access the ml params
+        tuner_params = self.all_params['tunerparams']['tuneenv']  # Access the tuner params
+        model_params = self.all_params['modelparams']['modelenv']  # Access the model params
 
 
-         #data averaging parameters
-         self.mp_hl_avg_col = self.mlenv.get_params().get('mp_hl_avg_col', 'HLAvg')
-         self.mp_ma_col = self.mlenv.get_params().get('mp_ma_col', 'SMA')
-         self.mp_returns_col = self.mlenv.get_params().get('mp_returns_col', 'LogReturns')
-         self.mp_returns_col_scaled = self.mlenv.get_params().get('mp_returns_col_scaled', 'LogReturns_scaled')
-         self.mp_create_label = self.mlenv.get_params().get('mp_create_label', False)
-         self.mp_create_label_scaled = self.mlenv.get_params().get('mp_create_label_scaled', False)
-         self.mp_data_data_label = self.mlenv.get_params().get('mp_data_data_label', 3)
+        self.mp_data_path = globalenv_params.get('mp_data_path', None)
+        print(f"mp_data_path2: {self.mp_data_path}")
 
+        self.mp_data_file_value1 = data_params.get('mp_data_filename1', None)
+        self.mp_data_file_value2 = data_params.get('mp_data_filename2', None)
 
-         #Api Command values
-         self.mp_data_command_ticks = self.dataenv.get_params().get('mp_data_command_ticks', None)
-         self.mp_data_command_rates = self.dataenv.get_params().get('mp_data_command_rates', None)
+        logger.info(f"mp_data_path: {self.mp_data_path}")
+        logger.info(f"Data file value1: {self.mp_data_file_value1}")
+        logger.info(f"Data file value2: {self.mp_data_file_value2}")
 
-         # load of datafile parameters
-         self.load_params ={
+        # load data params
+        self.mp_data_loadapiticks = data_params.get('mp_data_loadapiticks', True)
+        self.mp_data_loadapirates = data_params.get('mp_data_loadapirates', True)
+        self.mp_data_loadfileticks = data_params.get('mp_data_loadfileticks', True)
+        self.mp_data_loadfilerates = data_params.get('mp_data_loadfilerates', True)
+        self.mp_data_cfg_usedata = data_params.get('mp_data_cfg_usedata', 'loadfilerates')
+        self.mp_data_show_dtype = data_params.get('mp_data_show_dtype', False)
+        self.mp_data_show_head = data_params.get('mp_data_show_head', False)
+
+        # datafile parameters
+        self.mv_data_dfname1 = data_params.get('mv_data_dfname1', "df_rates1")
+        self.mv_data_dfname2 = data_params.get('mv_data_dfname2', "df_rates2")
+        self.mp_data_rows = data_params.get('mp_data_rows', 1000)
+        self.mp_data_rowcount = data_params.get('mp_data_rowcount', 10000)
+        self.mp_data_rownumber = data_params.get('mp_data_rownumber', False)
+        self.mp_data_history_size = data_params.get('mp_data_history_size', 5)
+        self.mp_data_timeframe = data_params.get('mp_data_timeframe', None)
+        self.mp_data_tab_rows = data_params.get('mp_data_tab_rows', 10)
+        self.mp_data_tab_width = data_params.get('mp_data_tab_width', 30)
+        self.mp_data_symbol = data_params.get('mp_data_symbol', 'EURUSD')
+        self.mp_data_utc_from = data_params.get('mp_data_utc_from', self.set_mql_timezone(2021, 1, 1, 'UTC'))
+
+        # feature and label parameters
+        self.mp_data_custom_input_keyfeat = data_params.get('mp_data_custom_input_keyfeat', {'Close'})
+        self.mp_data_custom_output_label = data_params.get('mp_data_custom_output_label', self.mp_data_custom_input_keyfeat)
+        self.mp_data_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in self.mp_data_custom_input_keyfeat}  # the feature to predict
+        self.mp_data_custom_output_label_scaled = {targ + '_Scaled' for targ in self.mp_data_custom_output_label}  # the label shifted to predict
+        self.mp_data_custom_output_label_count = len(self.mp_data_custom_output_label)
+
+        # data averaging parameters
+        self.mp_hl_avg_col = ml_params.get('mp_hl_avg_col', 'HLAvg')
+        self.mp_ma_col = ml_params.get('mp_ma_col', 'SMA')
+        self.mp_returns_col = ml_params.get('mp_returns_col', 'LogReturns')
+        self.mp_returns_col_scaled = ml_params.get('mp_returns_col_scaled', 'LogReturns_scaled')
+        self.mp_create_label = ml_params.get('mp_create_label', False)
+        self.mp_create_label_scaled = ml_params.get('mp_create_label_scaled', False)
+        self.mp_data_data_label = ml_params.get('mp_data_data_label', 3)
+
+        # Api Command values
+        self.mp_data_command_ticks = data_params.get('mp_data_command_ticks', None)
+        self.mp_data_command_rates = data_params.get('mp_data_command_rates', None)
+
+        # load of datafile parameters
+        self.load_params = {
             "loadapiticks": self.mp_data_loadapiticks,
             "loadapirates": self.mp_data_loadapirates,
             "loadfileticks": self.mp_data_loadfileticks,
             "loadfilerates": self.mp_data_loadfilerates,
             "cfg_usedata": self.mp_data_cfg_usedata,
             "show_dtype": self.mp_data_show_dtype,
-            "show_head": self.mp_data_show_head,         
-         }
+            "show_head": self.mp_data_show_head,
+        }
 
-         self.datafile_params = {
+        self.datafile_params = {
             "dfname1": self.mv_data_dfname1,
             "dfname2": self.mv_data_dfname2,
             "rows": self.mp_data_rows,
@@ -111,20 +112,19 @@ class CDataLoader:
             "tab_rows": self.mp_data_tab_rows,
             "tab_width": self.mp_data_tab_width,
             "symbol": self.mp_data_symbol,
-            "utc_from": self.mp_data_utc_from, 
-         }
- 
-         # feature and label parameters
-         self.feature_params = {
+            "utc_from": self.mp_data_utc_from,
+        }
+
+        # feature and label parameters
+        self.feature_params = {
             "input_keyfeat": self.mp_data_custom_input_keyfeat,
             "output_label": self.mp_data_custom_output_label,
             "input_keyfeat_scaled": self.mp_data_custom_input_keyfeat_scaled,
             "output_label_scaled": self.mp_data_custom_output_label_scaled,
             "output_label_count": self.mp_data_custom_output_label_count,
-         }
+        }
 
-
-         self.avg_params = {
+        self.avg_params = {
             "hl_avg_col": self.mp_hl_avg_col,
             "ma_col": self.mp_ma_col,
             "returns_col": self.mp_returns_col,
@@ -132,34 +132,32 @@ class CDataLoader:
             "create_label": self.mp_create_label,
             "create_label_scaled": self.mp_create_label_scaled,
             "data_label": self.mp_data_data_label,
-         }
-   
-        
+        }
 
-         # Store API command parameters
-         self.command_params = {
-             "ticks": self.mp_data_command_ticks,
-             "rates": self.mp_data_command_rates
-         }
-        
-         # Initialize the MT5 api commands if supported on platform
-         if loadmql:
+        # Store API command parameters
+        self.command_params = {
+            "ticks": self.mp_data_command_ticks,
+            "rates": self.mp_data_command_rates
+        }
+
+        # Initialize the MT5 api commands if supported on platform
+        if loadmql:
             import MetaTrader5 as mt5
             self.command_params = {
                 "ticks": mt5.COPY_TICKS_ALL,
                 "rates": None
             }
-         else:
+        else:
             self.command_params = {
                 "ticks": None,
                 "rates": None
             }
 
-         self.files_params = {
+        self.files_params = {
             "datapath": self.mp_data_path,
             "filename1": self.mp_data_file_value1,
             "filename2": self.mp_data_file_value2,
-         }
+        }
         
     def get_params(self):
         """Returns a dictionary of all set parameters."""
@@ -170,8 +168,7 @@ class CDataLoader:
             "avg_params": self.avg_params,
             "command_params": self.command_params,
             "files_params": self.files_params,
-         }
-
+        }
 
     def load_market_data(self, obj, params_obj):
         """Loads market data using the provided parameters."""
@@ -197,9 +194,8 @@ class CDataLoader:
         # Reset DataFrames
         rates1, rates2, rates3, rates4 = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         # Ensure MetaTrader5 is available if using Windows
-        
 
-        if loadmql :
+        if loadmql:
             if loadapiticks:
                 try:
                     logging.info("Fetching tick data from MetaTrader5 API")
@@ -212,7 +208,7 @@ class CDataLoader:
             if loadapirates:
                 try:
                     logging.info("Fetching rate data from MetaTrader5 API")
-                    valid_timeframe = eval(timeframe)
+                    valid_timeframe = self.validate_timeframe(timeframe)
                     if valid_timeframe is None:
                         raise ValueError(f"Invalid timeframe: {timeframe}")
                     rates2 = mt5.copy_rates_from(symbol, valid_timeframe, utc_from, rows)
@@ -241,6 +237,21 @@ class CDataLoader:
 
         return rates1, rates2, rates3, rates4
 
+    def validate_timeframe(self, timeframe):
+        """Validates the timeframe string."""
+        valid_timeframes = {
+            "TIMEFRAME_M1": mt5.TIMEFRAME_M1,
+            "TIMEFRAME_M5": mt5.TIMEFRAME_M5,
+            "TIMEFRAME_M15": mt5.TIMEFRAME_M15,
+            "TIMEFRAME_M30": mt5.TIMEFRAME_M30,
+            "TIMEFRAME_H1": mt5.TIMEFRAME_H1,
+            "TIMEFRAME_H4": mt5.TIMEFRAME_H4,
+            "TIMEFRAME_D1": mt5.TIMEFRAME_D1,
+            "TIMEFRAME_W1": mt5.TIMEFRAME_W1,
+            "TIMEFRAME_MN1": mt5.TIMEFRAME_MN1,
+        }
+        return valid_timeframes.get(timeframe)
+
     def set_mql_timezone(self, year, month, day, timezone):
         """Converts a given date into a timezone-aware datetime object."""
         try:
@@ -251,8 +262,7 @@ class CDataLoader:
             logging.error(f"Timezone conversion error: {e}")
             return None
 
-
-    def display_params(self, params, hrows, colwidth_env, colwidth_param, colwidth_value, tablefmt="pretty", floatfmt=".5f", numalign="left", stralign="left"):
+    def display_params(self, params, hrows=100, colwidth_env=15, colwidth_param=40, colwidth_value=80, tablefmt="pretty", floatfmt=".5f", numalign="left", stralign="left"):
         """Displays the current parameters in a tabular format."""
         # Convert dictionary into a tabulated format
         table_data = []

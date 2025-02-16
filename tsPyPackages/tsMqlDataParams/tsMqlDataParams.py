@@ -25,9 +25,10 @@ if loadmql:
 
 
 class CMqlEnvData:
-    def __init__(self, globalenv, **kwargs):
-        self.globalenv = globalenv
+    def __init__(self,all_params, **kwargs):
+        
         self.kwargs = kwargs
+        self.all_params = all_params
 
         # Initialize MT5 API if available
         self.mp_data_command_ticks = kwargs.get('mp_data_command_ticks', mt5.COPY_TICKS_ALL if loadmql else None)
@@ -63,8 +64,8 @@ class CMqlEnvData:
 
     def _get_global_param(self, param_name, default=None):
         """Safely fetch global environment parameters."""
-        if hasattr(self.globalenv, 'get_params') and callable(self.globalenv.get_params):
-            return self.globalenv.get_params().get(param_name, default)
+        if hasattr(self.all_params, 'get_params') and callable(self.all_params.get_params):
+            return self.all_params.get_params().get(param_name, default)
         logger.warning(f"Global parameter '{param_name}' is not available.")
         return default
     
