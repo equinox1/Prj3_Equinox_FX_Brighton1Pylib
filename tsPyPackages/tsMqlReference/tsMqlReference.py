@@ -7,15 +7,10 @@
 #property link      "https://www.xercescloud.co.uk"
 #property version   "1.01"
 #+-------------------------------------------------------------------
-import logging
-# Initialize logger
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
-
-from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
+from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger, config
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
-loadmql = pchk.check_mql_state()
+loadmql=pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
 from datetime import datetime
@@ -31,6 +26,7 @@ class CMqlRefConfig:
         """
         self.basedatatime = basedatatime
         self.loadeddatatime = loadeddatatime
+        self.timesample = timesample
         self.kwargs = kwargs
         # Initialize the MT5 api
         self.os = kwargs.get('os', 'windows')  # windows or linux or macos
@@ -182,9 +178,9 @@ class CMqlRefConfig:
             raise ValueError("TIME_CONSTANTS['SYMBOLS'] is missing or empty")
         
         # Timeframe value    
-        TIMESAMPLE = timesample  # Define TIMESAMPLE variable
-        if 'TIMEFRAME' in self.TIME_CONSTANTS and TIMESAMPLE in self.TIME_CONSTANTS['TIMEFRAME']:
-            TIMEFRAME = self.TIME_CONSTANTS['TIMEFRAME'][TIMESAMPLE]
+        self.TIMESAMPLE = self.timesample  # Define TIMESAMPLE variable
+        if 'TIMEFRAME' in self.TIME_CONSTANTS and self.TIMESAMPLE in self.TIME_CONSTANTS['TIMEFRAME']:
+            TIMEFRAME = self.TIME_CONSTANTS['TIMEFRAME'][self.TIMESAMPLE]
         else:
             raise ValueError("TIME_CONSTANTS['TIMEFRAME'][TIMESAMPLE] is missing")
 

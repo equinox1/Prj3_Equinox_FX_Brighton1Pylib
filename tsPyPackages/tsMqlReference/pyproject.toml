@@ -1,12 +1,12 @@
 [project]
 name = "tsMqlReference"
-version = "2.3.6"
+version = "2.3.10"
 authors = [
-  { "name": "Tony Shepherd", "email": "shep.antony@gmail.com" },
+  { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
 description = "MQL API Data setup for ML"
 readme = "README.md"
-requires-python == ">=3.8"
+requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",

@@ -1,6 +1,6 @@
 [project]
 name = "tsMqlGlobals"
-version = "2.3.9"
+version = "2.3.27"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
@@ -24,8 +24,7 @@ homepage = "https://github.com/equinoxtsM1/Prj3_Equinox_FX_Brighton1Pylib/tree/m
 package-dir = {"" = "src"}
 
 [tool.setuptools.package-data]
-tsMqlPlatform = ["config.json"]
-
+tsMqlGlobals = ["config.json"]
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel", "setuptools_scm[toml]>=6.2"]
