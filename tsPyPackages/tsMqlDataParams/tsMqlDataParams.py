@@ -13,6 +13,7 @@ logging.basicConfig(level=logging.INFO)
 
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger as ts_logger, config
 
+
 # Run platform checker
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
@@ -23,52 +24,60 @@ logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 if loadmql:
     import MetaTrader5 as mt5
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+def get_global_param(all_params, param_name, default=None):
+    """Safely fetch global environment parameters."""
+    if hasattr(all_params, 'get_params') and callable(all_params.get_params):
+        return all_params.get_params().get(param_name, default)
+    logger.warning(f"Global parameter '{param_name}' is not available.")
+    return default
 
 class CMqlEnvData:
-    def __init__(self,all_params, **kwargs):
-        
-        self.kwargs = kwargs
-        self.all_params = all_params
+    DEFAULTS = {
+        'mp_data_data_label': 3,
+        'mp_data_history_size': 5,
+        'mp_data_timeframe': None,
+        'mp_data_tab_rows': 10,
+        'mp_data_tab_width': 30,
+        'mp_data_rownumber': False,
+        'mp_data_show_dtype': False,
+        'mp_data_show_head': False,
+        'mp_data_command_ticks': None,
+        'mp_data_command_rates': None,
+        'mp_data_cfg_usedata': 'loadfilerates',
+        'mp_data_loadapiticks': True,
+        'mp_data_loadapirates': True,
+        'mp_data_loadfileticks': True,
+        'mp_data_loadfilerates': True,
+        'mv_data_dfname1': 'df_rates1',
+        'mv_data_dfname2': 'df_rates2',
+        'mp_data_rows': 1000,
+        'mp_data_rowcount': 10000,
+        'mp_data_filename1': None,
+        'mp_data_filename2': None,
+    }
 
-        # Initialize MT5 API if available
-        self.mp_data_command_ticks = kwargs.get('mp_data_command_ticks', mt5.COPY_TICKS_ALL if loadmql else None)
-        self.mp_data_command_rates = kwargs.get('mp_data_command_rates', None)
+    def __init__(self, **kwargs):
+        self.params = self.DEFAULTS.copy()
+        self.params.update(kwargs)
         
-        # Key switching parameters
-        self.mp_data_cfg_usedata = kwargs.get('mp_data_cfg_usedata', 'loadfilerates')
-        self.mp_data_loadapiticks = kwargs.get('mp_data_loadapiticks', True)
-        self.mp_data_loadapirates = kwargs.get('mp_data_loadapirates', True)
-        self.mp_data_loadfileticks = kwargs.get('mp_data_loadfileticks', True)
-        self.mp_data_loadfilerates = kwargs.get('mp_data_loadfilerates', True)
+        # Handle dynamic values
+        if 'mp_data_command_ticks' not in kwargs:
+            self.params['mp_data_command_ticks'] = mt5.COPY_TICKS_ALL if loadmql else None
         
-        # Data storage parameters
-        self.mv_data_dfname1 = kwargs.get('mv_data_dfname1', 'df_rates1')
-        self.mv_data_dfname2 = kwargs.get('mv_data_dfname2', 'df_rates2')
-        self.mp_data_rows = kwargs.get('mp_data_rows', 1000)
-        self.mp_data_rowcount = kwargs.get('mp_data_rowcount', 10000)
+        # Fetch global parameter
+        self.params['mp_data_path'] = get_global_param(self.all_params, 'mp_data_path')
 
-        # File paths
-        self.mp_data_filename1 = kwargs.get('mp_data_filename1', None)
-        self.mp_data_filename2 = kwargs.get('mp_data_filename2', None)
-        self.mp_data_path = self._get_global_param('mp_data_path')
-        
-        # Additional configuration parameters
-        self.mp_data_data_label = kwargs.get('mp_data_data_label', 3)
-        self.mp_data_history_size = kwargs.get('mp_data_history_size', 5)
-        self.mp_data_timeframe = kwargs.get('mp_data_timeframe', None)
-        self.mp_data_tab_rows = kwargs.get('mp_data_tab_rows', 10)
-        self.mp_data_tab_width = kwargs.get('mp_data_tab_width', 30)
-        self.mp_data_rownumber = kwargs.get('mp_data_rownumber', False)
-        self.mp_data_show_dtype = kwargs.get('mp_data_show_dtype', False)
-        self.mp_data_show_head = kwargs.get('mp_data_show_head', False)
-
-    def _get_global_param(self, param_name, default=None):
-        """Safely fetch global environment parameters."""
-        if hasattr(self.all_params, 'get_params') and callable(self.all_params.get_params):
-            return self.all_params.get_params().get(param_name, default)
-        logger.warning(f"Global parameter '{param_name}' is not available.")
-        return default
-    
     def get_params(self):
         """Return all configuration parameters as a dictionary."""
-        return self.__dict__
+        return self.params.copy()
+
+    def set_param(self, key, value):
+        """Allows overriding parameters dynamically."""
+        if key in self.params:
+            self.params[key] = value
+        else:
+            logger.warning(f"Parameter '{key}' is not recognized.")

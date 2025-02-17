@@ -48,18 +48,24 @@ from sklearn.model_selection import train_test_split
 feature_scaler = MinMaxScaler()
 label_scaler = MinMaxScaler()
 
-# Equinox packages
+# platform checker
+from tsMqlSetup import CMqlSetup
+from tsMqlPlatform import platform_checker
+from tsMqlReference import CMqlRefConfig
+
+# Equiniox environment
+from tsMqlDataParams import CMqlEnvData
+from tsMqlMLParams import CMqlEnvML
+from tsMqlTuneParams import global_setter
+
+# Equinox sub packages
 from tsMqlConnect import CMqlBrokerConfig, CMqlinit
 from tsMqlDataLoader import CDataLoader
-from tsMqlDataParams import CMqlEnvData
 from tsMqlDataProcess import CDataProcess
-from tsMqlGlobals import global_setter
-from tsMqlML import CMqlmlsetup ,CMqlEnvML
+
+# Equinox ML packages
 from tsMqlMLTune import CMdtuner
-from tsMqlMLTuneParams import CMdtunerHyperModel, CMqlEnvTuneML
-from tsMqlPlatform import run_platform
-from tsMqlReference import CMqlRefConfig
-from tsMqlSetup import CMqlSetup
+
 
 # Setup the logging and tensor platform dependencies
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
@@ -169,17 +175,16 @@ def main(logger):
 
          
          try:
-            mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_data_from_mql()
+            mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_data()
          except Exception as e:
             logger.error(f"An error occurred: {e}")
 
+         """
          print("mv_tdata1apiticks:", mv_tdata1apiticks.head(3))
          print("mv_tdata1apirates:", mv_tdata1apirates.head(3))
          print("mv_tdata1loadticks:", mv_tdata1loadticks.head(3))
          print("mv_tdata1loadrates:", mv_tdata1loadrates.head(3))
-         
-      
-"""       
+ 
 
          # Display the data
          

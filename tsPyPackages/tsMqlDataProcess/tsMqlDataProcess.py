@@ -16,6 +16,8 @@ os_platform = platform_checker.get_platform()
 loadmql=pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
+from tsMqlGlobals import global_setter
+
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -34,7 +36,7 @@ import textwrap
 # /param  double svar;              -  value
 #-------------------------------------------------------------------- 
 class CDataProcess:
-    def __init__(self, all_params, **kwargs):
+    def __init__(self, **kwargs):
         
         self.all_params = all_params
         
