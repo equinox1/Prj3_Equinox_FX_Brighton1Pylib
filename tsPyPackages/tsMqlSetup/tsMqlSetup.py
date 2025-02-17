@@ -13,8 +13,6 @@ os_platform = platform_checker.get_platform()
 loadmql=pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
-
-
 class CMqlSetup:
     def __init__(self, tflog='2', warn='ignore', precision='mixed_float16', tfdebug=False, **kwargs):
         self.tflog = tflog
