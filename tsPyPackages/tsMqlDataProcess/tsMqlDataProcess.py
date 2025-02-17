@@ -1,7 +1,7 @@
 #+------------------------------------------------------------------+
-#|                                                    tsmqlmod1.pyw
+#|                                              tsmqlDataProcess.py
 #|                                                    tony shepherd |
-#|                                                  https://www.xercescloud.co.uk |
+#|                                     https://www.xercescloud.co.uk |
 #+------------------------------------------------------------------+
 #property copyright "tony shepherd"
 #property link      "https://www.xercescloud.co.uk"
@@ -15,8 +15,6 @@ pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql=pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
-
-
 
 import numpy as np
 import pandas as pd
@@ -36,29 +34,20 @@ import textwrap
 # /param  double svar;              -  value
 #-------------------------------------------------------------------- 
 class CDataProcess:
-    def __init__(self,globalenv,dataenv,mlenv, **kwargs):
+    def __init__(self, all_params, **kwargs):
         
-        self.globalenv = kwargs.get('globalenv', None)
-        self.dataenv = kwargs.get('dataenv', None)
-        self.mlenv = kwargs.get('mlenv', None)
-         
-        self.lp_features = kwargs.get('lp_features', 'Features')
-        self.lp_label = kwargs.get('lp_label', 'Label')
-        self.lp_unit = kwargs.get('lp_unit', 's')
-        self.lp_seconds = kwargs.get('lp_seconds', 60)
-        self.lp_timezone = kwargs.get('lp_timezone', 'etc/UTC')
-        self.lp_filesrc = kwargs.get('lp_filesrc', 'ticks1')
-        self.lp_dropna = kwargs.get('lp_dropna', False)
-        self.lp_merge = kwargs.get('lp_merge', False)
-        self.lp_convert = kwargs.get('lp_convert', False)
-        self.lp_drop = kwargs.get('lp_drop', False)
-        self.lp_filter_int = kwargs.get('lp_filter_int', False)
-        self.lp_filter_flt = kwargs.get('lp_filter_flt', False)
-        self.lp_filter_obj = kwargs.get('lp_filter_obj', False)
-        self.lp_filter_dtmi = kwargs.get('lp_filter_dtmi', False)
-        self.lp_filter_dtmf = kwargs.get('lp_filter_dtmf', False)
-        self.lp_os = kwargs.get('lp_os', 'windows') # windows or linux or macos
+        self.all_params = all_params
         
+        # file and path parameters
+        globalenv_params = self.all_params['genparams']['globalenv']  # Access the global env params
+        data_params = self.all_params['dataparams']['dataenv']  # Access the data params
+        ml_params = self.all_params['mlearnparams']['mlenv']  # Access the ml params
+        tuner_params = self.all_params['tunerparams']['tuneenv']  # Access the tuner params
+        model_params = self.all_params['modelparams']['modelenv']  # Access the model params
+
+        # Override function: if key is in kwargs, use that; otherwise, use the default from params
+        def override(param_key, param_dict, default=None):
+            return kwargs.get(param_key, param_dict.get(param_key, default))
 
     def wrangle_time(self, df: pd.DataFrame, lp_unit: str, mp_filesrc: str, filter_int: bool, filter_flt: bool, filter_obj: bool, filter_dtmi: bool, filter_dtmf: bool, mp_dropna: bool, mp_merge: bool, mp_convert: bool, mp_drop: bool) -> pd.DataFrame:
         """

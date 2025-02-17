@@ -2,10 +2,10 @@
 
 
 # General Settings
-mv_data_dfname1: 'df_rates1'
-mv_data_dfname2: 'df_rates2'
-mp_data_filename1: 'tickdata1.csv'
-mp_data_filename2: 'ratesdata1.csv'
+#mv_data_dfname1: 'df_rates1'
+#mv_data_dfname2: 'df_rates2'
+#mp_data_filename1: 'tickdata1.csv'
+#mp_data_filename2: 'ratesdata1.csv'
 
 # User and Project Information
 drive: 'C:\\'
