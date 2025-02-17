@@ -1,12 +1,15 @@
 #+------------------------------------------------------------------+
-#|                                                    tsmqlmod1.pyw
+#|                                              tsmqlDataLoader.py
 #|                                                    tony shepherd |
-#|                                                  https://www.xercescloud.co.uk |
+#|                                     https://www.xercescloud.co.uk |
 #+------------------------------------------------------------------+
 #property copyright "tony shepherd"
 #property link      "https://www.xercescloud.co.uk"
 #property version   "1.01"
 #+-------------------------------------------------------------------
+import logging
+# packages dependencies for this module
+#
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger, config
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
@@ -15,164 +18,79 @@ logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
 import numpy as np
 import pandas as pd
-import logging
+from datetime import datetime, timedelta
+import arrow
 import pytz
-from datetime import datetime
-from tabulate import tabulate
+from sklearn.preprocessing import MinMaxScaler
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+import tabulate
+from tabulate import tabulate
+import textwrap
+
+
 
 class CDataLoader:
-    """Class to store and manage market data parameters."""
+    """Class to store and manage market data parameters with override capability."""
 
-    def __init__(self, all_params ,**kwargs):
-        #input of all environment settings
+    def __init__(self, all_params, **kwargs):
+        # Store environment parameters
         self.all_params = all_params
 
-        # file and path parameters
-        globalenv_params = self.all_params['genparams']['globalenv']  # Access the global env params
-        data_params = self.all_params['dataparams']['dataenv']  # Access the data params
-        ml_params = self.all_params['mlearnparams']['mlenv']  # Access the ml params
-        tuner_params = self.all_params['tunerparams']['tuneenv']  # Access the tuner params
-        model_params = self.all_params['modelparams']['modelenv']  # Access the model params
+        # Extracting different parameter sets
+        globalenv_params = self.all_params['genparams']['globalenv']
+        data_params = self.all_params['dataparams']['dataenv']
+        ml_params = self.all_params['mlearnparams']['mlenv']
+        tuner_params = self.all_params['tunerparams']['tuneenv']
+        model_params = self.all_params['modelparams']['modelenv']
 
+        # Override function: if key is in kwargs, use that; otherwise, use the default from params
+        def override(param_key, param_dict, default=None):
+            return kwargs.get(param_key, param_dict.get(param_key, default))
 
-        self.mp_data_path = globalenv_params.get('mp_data_path', None)
-        print(f"mp_data_path2: {self.mp_data_path}")
+        # Overridable parameters
+        self.mp_data_path = override('mp_data_path', globalenv_params)
+        self.mp_data_file_value1 = override('mp_data_filename1', data_params)
+        self.mp_data_file_value2 = override('mp_data_filename2', data_params)
 
-        self.mp_data_file_value1 = data_params.get('mp_data_filename1', None)
-        self.mp_data_file_value2 = data_params.get('mp_data_filename2', None)
+        self.mp_data_loadapiticks = override('mp_data_loadapiticks', data_params, True)
+        self.mp_data_loadapirates = override('mp_data_loadapirates', data_params, True)
+        self.mp_data_loadfileticks = override('mp_data_loadfileticks', data_params, True)
+        self.mp_data_loadfilerates = override('mp_data_loadfilerates', data_params, True)
+        self.mp_data_cfg_usedata = override('mp_data_cfg_usedata', data_params, 'loadfilerates')
 
+        self.mp_data_rows = override('mp_data_rows', data_params, 1000)
+        self.mp_data_rowcount = override('mp_data_rowcount', data_params, 10000)
+
+        self.mp_data_symbol = override('mp_data_symbol', data_params, 'EURUSD')
+        #self.mp_data_utc_from = override('mp_data_utc_from', data_params, self.set_mql_timezone(2021, 1, 1, 'UTC'))
+        self.mp_data_utc_to = override('mp_data_utc_to', data_params, None)
+
+        self.mp_data_custom_input_keyfeat = override('mp_data_custom_input_keyfeat', data_params, {'Close'})
+        self.mp_data_custom_output_label = override('mp_data_custom_output_label', data_params, self.mp_data_custom_input_keyfeat)
+
+        self.mp_data_timeframe = override('mp_data_timeframe', data_params, None)
+
+        # Logging the overridden values
         logger.info(f"mp_data_path: {self.mp_data_path}")
         logger.info(f"Data file value1: {self.mp_data_file_value1}")
         logger.info(f"Data file value2: {self.mp_data_file_value2}")
 
-        # load data params
-        self.mp_data_loadapiticks = data_params.get('mp_data_loadapiticks', True)
-        self.mp_data_loadapirates = data_params.get('mp_data_loadapirates', True)
-        self.mp_data_loadfileticks = data_params.get('mp_data_loadfileticks', True)
-        self.mp_data_loadfilerates = data_params.get('mp_data_loadfilerates', True)
-        self.mp_data_cfg_usedata = data_params.get('mp_data_cfg_usedata', 'loadfilerates')
-        self.mp_data_show_dtype = data_params.get('mp_data_show_dtype', False)
-        self.mp_data_show_head = data_params.get('mp_data_show_head', False)
-
-        # datafile parameters
-        self.mv_data_dfname1 = data_params.get('mv_data_dfname1', "df_rates1")
-        self.mv_data_dfname2 = data_params.get('mv_data_dfname2', "df_rates2")
-        self.mp_data_rows = data_params.get('mp_data_rows', 1000)
-        self.mp_data_rowcount = data_params.get('mp_data_rowcount', 10000)
-        self.mp_data_rownumber = data_params.get('mp_data_rownumber', False)
-        self.mp_data_history_size = data_params.get('mp_data_history_size', 5)
-        self.mp_data_timeframe = data_params.get('mp_data_timeframe', None)
-        self.mp_data_tab_rows = data_params.get('mp_data_tab_rows', 10)
-        self.mp_data_tab_width = data_params.get('mp_data_tab_width', 30)
-        self.mp_data_symbol = data_params.get('mp_data_symbol', 'EURUSD')
-        self.mp_data_utc_from = data_params.get('mp_data_utc_from', self.set_mql_timezone(2021, 1, 1, 'UTC'))
-
-        # feature and label parameters
-        self.mp_data_custom_input_keyfeat = data_params.get('mp_data_custom_input_keyfeat', {'Close'})
-        self.mp_data_custom_output_label = data_params.get('mp_data_custom_output_label', self.mp_data_custom_input_keyfeat)
-        self.mp_data_custom_input_keyfeat_scaled = {feat + '_Scaled' for feat in self.mp_data_custom_input_keyfeat}  # the feature to predict
-        self.mp_data_custom_output_label_scaled = {targ + '_Scaled' for targ in self.mp_data_custom_output_label}  # the label shifted to predict
-        self.mp_data_custom_output_label_count = len(self.mp_data_custom_output_label)
-
-        # data averaging parameters
-        self.mp_hl_avg_col = ml_params.get('mp_hl_avg_col', 'HLAvg')
-        self.mp_ma_col = ml_params.get('mp_ma_col', 'SMA')
-        self.mp_returns_col = ml_params.get('mp_returns_col', 'LogReturns')
-        self.mp_returns_col_scaled = ml_params.get('mp_returns_col_scaled', 'LogReturns_scaled')
-        self.mp_create_label = ml_params.get('mp_create_label', False)
-        self.mp_create_label_scaled = ml_params.get('mp_create_label_scaled', False)
-        self.mp_data_data_label = ml_params.get('mp_data_data_label', 3)
-
-        # Api Command values
-        self.mp_data_command_ticks = data_params.get('mp_data_command_ticks', None)
-        self.mp_data_command_rates = data_params.get('mp_data_command_rates', None)
-
-        # load of datafile parameters
-        self.load_params = {
-            "loadapiticks": self.mp_data_loadapiticks,
-            "loadapirates": self.mp_data_loadapirates,
-            "loadfileticks": self.mp_data_loadfileticks,
-            "loadfilerates": self.mp_data_loadfilerates,
-            "cfg_usedata": self.mp_data_cfg_usedata,
-            "show_dtype": self.mp_data_show_dtype,
-            "show_head": self.mp_data_show_head,
-        }
-
-        self.datafile_params = {
-            "dfname1": self.mv_data_dfname1,
-            "dfname2": self.mv_data_dfname2,
-            "rows": self.mp_data_rows,
-            "rowcount": self.mp_data_rowcount,
-            "rownumber": self.mp_data_rownumber,
-            "history_size": self.mp_data_history_size,
-            "timeframe": self.mp_data_timeframe,
-            "tab_rows": self.mp_data_tab_rows,
-            "tab_width": self.mp_data_tab_width,
-            "symbol": self.mp_data_symbol,
-            "utc_from": self.mp_data_utc_from,
-        }
-
-        # feature and label parameters
-        self.feature_params = {
-            "input_keyfeat": self.mp_data_custom_input_keyfeat,
-            "output_label": self.mp_data_custom_output_label,
-            "input_keyfeat_scaled": self.mp_data_custom_input_keyfeat_scaled,
-            "output_label_scaled": self.mp_data_custom_output_label_scaled,
-            "output_label_count": self.mp_data_custom_output_label_count,
-        }
-
-        self.avg_params = {
-            "hl_avg_col": self.mp_hl_avg_col,
-            "ma_col": self.mp_ma_col,
-            "returns_col": self.mp_returns_col,
-            "returns_col_scaled": self.mp_returns_col_scaled,
-            "create_label": self.mp_create_label,
-            "create_label_scaled": self.mp_create_label_scaled,
-            "data_label": self.mp_data_data_label,
-        }
-
-        # Store API command parameters
-        self.command_params = {
-            "ticks": self.mp_data_command_ticks,
-            "rates": self.mp_data_command_rates
-        }
-
-        # Initialize the MT5 api commands if supported on platform
-        if loadmql:
-            import MetaTrader5 as mt5
-            self.command_params = {
-                "ticks": mt5.COPY_TICKS_ALL,
-                "rates": None
-            }
-        else:
-            self.command_params = {
-                "ticks": None,
-                "rates": None
-            }
-
+        # Store file parameters
         self.files_params = {
             "datapath": self.mp_data_path,
             "filename1": self.mp_data_file_value1,
             "filename2": self.mp_data_file_value2,
         }
-        
+
     def get_params(self):
         """Returns a dictionary of all set parameters."""
         return {
-            "load_params": self.load_params,
-            "datafile_params": self.datafile_params,
-            "feature_params": self.feature_params,
-            "avg_params": self.avg_params,
-            "command_params": self.command_params,
-            "files_params": self.files_params,
+            "mp_data_path": self.mp_data_path,
+            "mp_data_file_value1": self.mp_data_file_value1,
+            "mp_data_file_value2": self.mp_data_file_value2,
+            "mp_data_symbol": self.mp_data_symbol,
+            "mp_data_utc_from": self.mp_data_utc_from,
         }
-
-    def load_market_data(self, obj, params_obj):
-        """Loads market data using the provided parameters."""
-        return self.load_data_from_mql(**params_obj.get_params())
 
     def load_data_from_mql(self, **kwargs):
         """Loads market data from API or files."""

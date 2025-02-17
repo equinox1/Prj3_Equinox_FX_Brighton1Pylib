@@ -22,10 +22,10 @@ class CMqlEnvGlobal:
         self.config = config  # Store config for later use
 
         # Retrieve configurations with possibility to override via kwargs
-        self.mv_data_dfname1 = kwargs.get('mv_data_dfname1', 'df_rates1')
-        self.mv_data_dfname2 = kwargs.get('mv_data_dfname2', 'df_rates2')
-        self.mp_data_filename1 = kwargs.get('mp_data_filename1', 'tickdata1.csv')
-        self.mp_data_filename2 = kwargs.get('mp_data_filename2', 'ratesdata1.csv')
+        self.mv_data_dfname1 = kwargs.get('mv_data_dfname1', None)
+        self.mv_data_dfname2 = kwargs.get('mv_data_dfname2', None)
+        self.mp_data_filename1 = kwargs.get('mp_data_filename1', None)
+        self.mp_data_filename2 = kwargs.get('mp_data_filename2', None)
 
         # Determine the platform and set the base directory accordingly
         self.config_platform = config.get("default_platform", None)
@@ -88,11 +88,7 @@ class CMqlEnvGlobal:
         # Initialize data environment
         self.data_environments = {
             "dataenv": CMqlEnvData(
-                globalenv=self.gen_environments["globalenv"],
-                mv_data_dfname1=self.mv_data_dfname1,
-                mv_data_dfname2=self.mv_data_dfname2,
-                mp_data_filename1=self.mp_data_filename1,
-                mp_data_filename2=self.mp_data_filename2,
+                globalenv=self.gen_environments["globalenv"]
             )
         }
 

@@ -82,7 +82,9 @@ def main(logger):
          broker = "METAQUOTES"  # "ICM" or "METAQUOTES"
          mp_symbol_primary = 'EURUSD'
          MPDATAFILE1 = "tickdata1.csv"
-         MPDATAFILE2 = "ratesdata1.csv"
+         MPDATAFILE2 = "ratesdata1.csv" # 
+         MPDATAFILE1 = mp_symbol_primary + "_" + MPDATAFILE1
+         MPDATAFILE2 = mp_symbol_primary + "_" + MPDATAFILE2
          DFNAME1="df_rates1"
          DFNAME2="df_rates2"
          mp_data_cfg_usedata = 'loadfilerates' # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
@@ -135,21 +137,23 @@ def main(logger):
          tuneenv = all_params['tunerparams']['tuneenv']  # Access the tuner params
          modelenv = all_params['modelparams']['modelenv']  # Access the model params
          
+         print("PARAM HEADER: MPDATAFILE1:", MPDATAFILE1, "MPDATAFILE2:", MPDATAFILE2, "DFNAME1:", DFNAME1, "DFNAME2:", DFNAME2)
+    
          obj1_CDataLoader = CDataLoader(
-               all_params,
-               mv_data_dfname1= DFNAME1,
-               mv_data_dfname2= DFNAME2
-         )
-      
-         obj1_CDataProcess= CDataProcess(
-               all_params,
+             all_params=all_params,
+               mp_data_filename1= MPDATAFILE1,
+               mp_data_filename2= MPDATAFILE2,
                mv_data_dfname1= DFNAME1,
                mv_data_dfname2= DFNAME2,
+         )
+      
+   
+         obj1_CDataProcess= CDataProcess(
+               all_params,
             )
             
      
-      
-         
+       
          # +-------------------------------------------------------------------
          # STEP: Data Preparation and Loading
          # +-------------------------------------------------------------------
@@ -163,47 +167,19 @@ def main(logger):
          logger.info(f"UTC From: {mv_data_utc_from}")
          logger.info(f"UTC To: {mv_data_utc_to}")
 
-         """
-         try:
-               # Load tick data from MQL and FILE
-               obj1_params = CDataLoader(
-                  all_params=all_params,
-                  api_ticks=dataenv.mp_data_loadapiticks,
-                  api_rates=dataenv.mp_data_loadapirates,
-                  file_ticks=dataenv.mp_data_loadfileticks,
-                  file_rates=dataenv.mp_data_loadfilerates,
-                  dfname1=dataenv.mv_data_dfname1,
-                  dfname2=dataenv.mv_data_dfname2,
-                  utc_from=mv_data_utc_from,
-                  symbol_primary=mp_symbol_primary,
-                  rows=dataenv.mp_data_rows,
-                  rowcount=dataenv.mp_data_rowcount,
-                  command_ticks=dataenv.mp_data_command_ticks,
-                  command_rates=dataenv.mp_data_command_rates,
-                  data_path=MPDATAPATH,
-                  file_value1=broker_config['MPFILEVALUE1'],
-                  file_value2=broker_config['MPFILEVALUE2'],
-                  timeframe=TIMEFRAME
-               )
-               """
-               try:
-                  mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_params.load_market_data(obj1_CDataProcess, obj1_params)
-               except Exception as e:
-                  logger.error(f"An error occurred: {e}")
-
-         except Exception as e:
-            logger.error(f"An error occurred in the outer try block: {e}")
-
-            # Display the data
-            logger.info("###############LookatDB##################")
-            logger.info("mv_tdata1apiticks:", mv_tdata1apiticks.head(3))
-            logger.info("mv_tdata1apirates:", mv_tdata1apirates.head(3))
-            logger.info("mv_tdata1loadticks:", mv_tdata1loadticks.head(3))
-            logger.info("mv_tdata1loadrates:", mv_tdata1loadrates.head(3))
-            logger.info("###############LookatDB##################")
-            
          
-"""         
+         try:
+            mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_data_from_mql()
+         except Exception as e:
+            logger.error(f"An error occurred: {e}")
+
+         print("mv_tdata1apiticks:", mv_tdata1apiticks.head(3))
+         print("mv_tdata1apirates:", mv_tdata1apirates.head(3))
+         print("mv_tdata1loadticks:", mv_tdata1loadticks.head(3))
+         print("mv_tdata1loadrates:", mv_tdata1loadrates.head(3))
+         
+      
+"""       
 
          # Display the data
          
