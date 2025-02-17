@@ -94,21 +94,22 @@ class CDataLoader:
 
     def load_data_from_mql(self, **kwargs):
         """Loads market data from API or files."""
-        loadapiticks = kwargs.get("loadapiticks")
-        loadapirates = kwargs.get("loadapirates")
-        loadfileticks = kwargs.get("loadfileticks")
-        loadfilerates = kwargs.get("loadfilerates")
-        symbol = kwargs.get("symbol")
-        utc_from = kwargs.get("utc_from")
-        rows = kwargs.get("rows")
-        rowcount = kwargs.get("rowcount")
-        command_ticks = kwargs.get("command_ticks")
-        command_rates = kwargs.get("command_rates")
-        path = kwargs.get("path")
-        filename1 = kwargs.get("filename1")
-        filename2 = kwargs.get("filename2")
-        timeframe = kwargs.get("timeframe")
-
+        self.mp_data_loadapiticks = kwargs.get("mp_data_loadapiticks")
+        self.mp_data_loadapirates = kwargs.get("mp_data_loadapirates")
+        self.mp_data_loadfileticks = kwargs.get("mp_data_loadfileticks")
+        self.mp_data_loadfilerates = kwargs.get("mp_data_loadfilerates")
+        self.mp_data_symbol = kwargs.get("mp_data_symbol")
+        self.mp_data_utc_from = kwargs.get("mp_data_utc_from")
+        self.mp_data_rows = kwargs.get("mp_data_rows")
+        self.mp_data_rowcount = kwargs.get("mp_data_rowcount")
+        self.mp_data_timeframe = kwargs.get("mp_data_timeframe")
+        self.command_ticks = kwargs.get("command_ticks")
+        self.command_rates = kwargs.get("command_rates")
+        self.mp_data_path = kwargs.get("mp_data_path")
+        self.mp_data_file_value1 = kwargs.get("mp_data_file_value1")
+        self.mp_data_file_value2 = kwargs.get("mp_data_file_value2")
+        self.mp_data_timeframe = kwargs.get("mp_data_timeframe")
+       
         # Reset DataFrames
         rates1, rates2, rates3, rates4 = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         # Ensure MetaTrader5 is available if using Windows
@@ -117,7 +118,8 @@ class CDataLoader:
             if loadapiticks:
                 try:
                     logging.info("Fetching tick data from MetaTrader5 API")
-                    rates1 = mt5.copy_ticks_from(symbol, utc_from, rows, command_ticks)
+                    rates1 = mt5.copy_ticks_from(self.mp_data_symbol, self.mp_data_utc_from, self.mp_data_rows, self.mp_command_ticks)
+                   
                     rates1 = pd.DataFrame(rates1)
                     logging.info(f"API tick data received: {len(rates1)} rows" if not rates1.empty else "No tick data found")
                 except Exception as e:
@@ -126,10 +128,10 @@ class CDataLoader:
             if loadapirates:
                 try:
                     logging.info("Fetching rate data from MetaTrader5 API")
-                    valid_timeframe = self.validate_timeframe(timeframe)
+                    self.command_ticksvalid_timeframe = self.validate_timeframe(self.mp_data_timeframe)
                     if valid_timeframe is None:
-                        raise ValueError(f"Invalid timeframe: {timeframe}")
-                    rates2 = mt5.copy_rates_from(symbol, valid_timeframe, utc_from, rows)
+                        raise ValueError(f"Invalid timeframe: {self.mp_data_timeframe}")
+                    rates2 = mt5.copy_rates_from(self.mp_data_symbol, self.valid_timeframe, self.mp_data_utc_from, self.mp_data_rows)
                     rates2 = pd.DataFrame(rates2)
                     logging.info(f"API rate data received: {len(rates2)} rows" if not rates2.empty else "No rate data found")
                 except Exception as e:
@@ -137,15 +139,15 @@ class CDataLoader:
 
         if loadfileticks and path and filename1:
             try:
-                lpmergepath = f"{path}/{filename1}"
-                rates3 = pd.read_csv(lpmergepath, sep=",", nrows=rowcount, low_memory=False)
+                lpmergepath = f"{self.mp_data_path}/{self.mp_data_file_value1}"
+                rates3 = pd.read_csv(lpmergepath, sep=",", nrows=self.mp_data_rowcount, low_memory=False)
                 logging.info(f"File tick data received: {len(rates3)} rows" if not rates3.empty else "No tick data found")
             except Exception as e:
                 logging.error(f"File load Tick exception: {e}")
 
         if loadfilerates and path and filename2:
             try:
-                lpmergepath = f"{path}/{filename2}"
+                lpmergepath = f"{self.mp_data_path}/{self.mp_data_file_value2}"
                 rates4 = pd.read_csv(lpmergepath, sep=",", nrows=rowcount, low_memory=False)
                 if "vol3" in rates4.columns:
                     rates4.drop("vol3", axis=1, inplace=True)
