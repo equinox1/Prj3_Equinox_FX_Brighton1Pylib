@@ -47,15 +47,12 @@ from sklearn.model_selection import train_test_split
 # set package options
 feature_scaler = MinMaxScaler()
 label_scaler = MinMaxScaler()
-
 # platform checker
 from tsMqlSetup import CMqlSetup
-from tsMqlPlatform import platform_checker
-
 # Equiniox environment
 from tsMqlDataParams import CMqlEnvData
-from tsMqlTuneMLParams import CMqlEnvTuneML, CBaseTuneModel, CMdtunerHyperModel
 from tsMqlMLParams import CMqlEnvML
+from tsMqlMLTuneParams import CMqlEnvTuneML
 from tsMqlGlobalParams import global_setter
 from tsMqlReference import CMqlRefConfig
 
@@ -65,7 +62,8 @@ from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
 
 # Equinox ML packages
-from tsMqlMLTune import CMdtuner
+from tsMqlMLTune import CMdtuner, CMdtunerHyperModel
+from tsMqlMLSetup import CMqlmlsetup
 
 # Setup the logging and tensor platform dependencies
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
