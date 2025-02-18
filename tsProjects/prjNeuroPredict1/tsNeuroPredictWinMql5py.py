@@ -49,10 +49,11 @@ feature_scaler = MinMaxScaler()
 label_scaler = MinMaxScaler()
 # platform checker
 from tsMqlSetup import CMqlSetup
-# Equiniox environment
+# Equinox environment
 from tsMqlDataParams import CMqlEnvData
 from tsMqlMLParams import CMqlEnvML
 from tsMqlMLTuneParams import CMqlEnvTuneML
+
 from tsMqlGlobalParams import global_setter
 from tsMqlReference import CMqlRefConfig
 
