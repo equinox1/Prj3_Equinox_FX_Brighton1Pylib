@@ -53,8 +53,6 @@ from tsMqlSetup import CMqlSetup
 from tsMqlDataParams import CMqlEnvData
 from tsMqlMLParams import CMqlEnvML
 from tsMqlMLTuneParams import CMqlEnvTuneML
-
-from tsMqlGlobalParams import global_setter
 from tsMqlReference import CMqlRefConfig
 
 # Equinox sub packages
@@ -65,7 +63,7 @@ from tsMqlDataProcess import CDataProcess
 # Equinox ML packages
 from tsMqlMLTune import CMdtuner, CMdtunerHyperModel
 from tsMqlMLSetup import CMqlmlsetup
-
+from tsMqlGlobalParams import global_setter
 # Setup the logging and tensor platform dependencies
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
 strategy = obj1_CMqlSetup.get_computation_strategy()
