@@ -1,3 +1,15 @@
+"""
+#!/usr/bin/env python3 - uncomment for linux run
+# -*- coding: utf-8 -*-  - uncomment for linux run
+Filename: tsMqlConnect.py
+File: tsPyPackages/tsMqlConnect/tsMqlConnect.py
+Description: Login to Metatrader.
+Author: Tony Shepherd - Xercescloud
+Date: 2025-01-24
+Version: 1.0
+License: (Optional) e.g., MIT License
+"""
+
 from tsMqlPlatform import run_platform, platform_checker, logger
 from tsMqlGlobalParams import global_setter
 import keyring as kr

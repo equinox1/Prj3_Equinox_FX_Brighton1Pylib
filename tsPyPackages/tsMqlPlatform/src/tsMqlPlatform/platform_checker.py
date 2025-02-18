@@ -1,3 +1,15 @@
+"""
+#!/usr/bin/env python3 - uncomment for linux run
+# -*- coding: utf-8 -*-  - uncomment for linux run
+Filename: platform_checker.py
+File: tsPyPackages/tsMqlPlatform/src/tsMqlPlatform/platform_checker.py
+Description: Platform Checker
+Author: Tony Shepherd - Xercescloud
+Date: 2025-01-24
+Version: 1.0
+License: (Optional) e.g., MIT License
+"""
+
 import sys
 import platform
 

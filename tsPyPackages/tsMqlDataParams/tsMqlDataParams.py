@@ -1,3 +1,15 @@
+"""
+#!/usr/bin/env python3 - uncomment for linux run
+# -*- coding: utf-8 -*-  - uncomment for linux run
+Filename: tsMqlDataParams.py
+File: tsPyPackages/tsMqlDataParams/tsMqlDataParams.py
+Description: Load adat files and data parameters.
+Author: Tony Shepherd - Xercescloud
+Date: 2025-01-24
+Version: 1.0
+License: (Optional) e.g., MIT License
+"""
+
 import logging
 import os
 import warnings

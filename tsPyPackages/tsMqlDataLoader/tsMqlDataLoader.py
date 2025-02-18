@@ -1,3 +1,15 @@
+"""
+#!/usr/bin/env python3 - uncomment for linux run
+# -*- coding: utf-8 -*-  - uncomment for linux run
+Filename: tsMqlDataLoader.py
+File: tsPyPackages/tsMqlDataLoader/tsMqlDataLoader.py
+Description: Login to Metatrader.
+Author: Tony Shepherd - Xercescloud
+Date: 2025-01-24
+Version: 1.0
+License: (Optional) e.g., MIT License
+"""
+
 import logging
 import pandas as pd
 import numpy as np

@@ -1,3 +1,15 @@
+"""
+#!/usr/bin/env python3 - uncomment for linux run
+# -*- coding: utf-8 -*-  - uncomment for linux run
+Filename: run_platform.py
+File: tsPyPackages/tsMqlPlatform/src/tsMqlPlatform/run_platform.py
+Description: Run platform checker.
+Author: Tony Shepherd - Xercescloud
+Date: 2025-01-24
+Version: 1.0
+License: (Optional) e.g., MIT License
+"""
+
 from tsMqlPlatform import platform_checker, PLATFORM_DEPENDENCIES, logger, config
 
 logger.info("Starting application...")
