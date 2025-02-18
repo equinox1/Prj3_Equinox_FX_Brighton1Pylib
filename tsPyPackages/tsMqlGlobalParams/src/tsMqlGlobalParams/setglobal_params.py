@@ -12,9 +12,7 @@ logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
 from tsMqlDataParams import CMqlEnvData
 from tsMqlMLParams import CMqlEnvML
-from tsMqlTuneMLParams import CMqlEnvTuneML
-from tsMqlModelParams import CMdtunerHyperModel
-
+from tsMqlTuneMLParams import CMqlEnvTuneML , CBaseTuneModel,CMdtunerHyperModel
 
 class CMqlEnvGlobal:
     def __init__(self, **kwargs):

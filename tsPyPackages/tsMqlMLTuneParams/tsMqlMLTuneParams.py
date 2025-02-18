@@ -17,7 +17,7 @@ loadmql = pchk.check_mql_state()
 logger.info(f"Running on: {os_platform}, MQL state: {loadmql}")
 
 @dataclass
-class BaseTuneModel:
+class CBaseTuneModel:
     """Base class for tuner models with shared parameters."""
     tunemode: str = "Hyperband"
     tunemodeepochs: int = 100
@@ -42,7 +42,7 @@ class BaseTuneModel:
         return {key: getattr(self, key) for key in self.__dict__}
 
 @dataclass
-class CMdtunerHyperModel(BaseTuneModel):
+class CMdtunerHyperModel(CBaseTuneModel):
     """Hyperparameter tuning model class."""
     tuner_id: int = None
     train_dataset: object = None
@@ -62,7 +62,7 @@ class CMdtunerHyperModel(BaseTuneModel):
     chk_patience: int = 3
 
 @dataclass
-class CMqlEnvTuneML(BaseTuneModel):
+class CMqlEnvTuneML(CBaseTuneModel):
     """ML environment class for tuning."""
     globalenv: object = None
     tuner_id: int = 1

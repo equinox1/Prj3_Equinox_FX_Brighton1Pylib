@@ -1,6 +1,6 @@
 import logging
 from tsMqlPlatform import run_platform, platform_checker, logger as ts_logger, config
-from tsMqlGlobals import global_setter
+
 
 # Initialize logger
 logger = logging.getLogger("tsMqlDataParams")

@@ -56,7 +56,8 @@ from tsMqlReference import CMqlRefConfig
 # Equiniox environment
 from tsMqlDataParams import CMqlEnvData
 from tsMqlMLParams import CMqlEnvML
-from tsMqlTuneParams import global_setter
+from tsMqlTuneMLParams import CMqlEnvTuneML , CBaseTuneModel,CMdtunerHyperModel
+from tsMqlGlobalParams import global_setter
 
 # Equinox sub packages
 from tsMqlConnect import CMqlBrokerConfig, CMqlinit
