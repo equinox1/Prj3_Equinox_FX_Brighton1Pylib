@@ -1,8 +1,9 @@
 [project]
-name = "tsMqlMLTune"
-version = "2.3.36"
+name = "tsMqlMLTunerRunValues"
+version = "2.3.57"
+
 authors = [
-  { name="Tony Shepherd", email="shep.antony@gmail.com" },
+  { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
 description = "MQL API Data setup for ML"
 readme = "README.md"
@@ -14,4 +15,4 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlMLTune"
+homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlMLTunerRunValues"

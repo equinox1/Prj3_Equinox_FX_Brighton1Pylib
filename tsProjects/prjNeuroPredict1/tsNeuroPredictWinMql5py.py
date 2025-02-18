@@ -49,11 +49,15 @@ feature_scaler = MinMaxScaler()
 label_scaler = MinMaxScaler()
 # platform checker
 from tsMqlSetup import CMqlSetup
-# Equinox environment
+# Equinox environment params
+from tsMqlReference import CMqlRefConfig
 from tsMqlDataParams import CMqlEnvData
 from tsMqlMLParams import CMqlEnvML
-from tsMqlMLTuneParams import CMqlEnvTuneML
-from tsMqlReference import CMqlRefConfig
+
+from tsMqlMLTuneParams import hypermodel_params
+
+# Equinox global parameters
+from tsMqlGlobalParams import global_setter
 
 # Equinox sub packages
 from tsMqlConnect import CMqlBrokerConfig, CMqlinit
@@ -63,7 +67,7 @@ from tsMqlDataProcess import CDataProcess
 # Equinox ML packages
 from tsMqlMLTune import CMdtuner, CMdtunerHyperModel
 from tsMqlMLSetup import CMqlmlsetup
-from tsMqlGlobalParams import global_setter
+
 # Setup the logging and tensor platform dependencies
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
 strategy = obj1_CMqlSetup.get_computation_strategy()

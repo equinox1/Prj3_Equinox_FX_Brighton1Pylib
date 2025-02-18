@@ -68,9 +68,6 @@ class CMqlEnvData:
         if 'mp_data_command_ticks' not in kwargs:
             self.params['mp_data_command_ticks'] = mt5.COPY_TICKS_ALL if loadmql else None
         
-        # Fetch global parameter
-        self.params['mp_data_path'] = get_global_param(self.all_params, 'mp_data_path')
-
     def get_params(self):
         """Return all configuration parameters as a dictionary."""
         return self.params.copy()

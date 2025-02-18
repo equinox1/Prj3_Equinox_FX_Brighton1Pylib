@@ -99,26 +99,31 @@ class CMqlBrokerConfig:
 
     def initialize_mt5(self, broker, tm, **kwargs):
         """Initializes MT5 broker settings with overrides."""
-        broker_config = CMqlBrokerConfig(broker, tm.TIME_CONSTANTS['SYMBOLS'][0], **kwargs).set_mql_broker()
+        if loadmql:
+            broker_config = CMqlBrokerConfig(broker, tm.TIME_CONSTANTS['SYMBOLS'][0], **kwargs).set_mql_broker()
+        else:
+            broker_config = None
         return broker_config
 
     def login_mt5(self, broker_config, **kwargs):
         """Logs into MT5 using stored credentials with override options."""
-        cred = kr.get_credential(broker_config["BROKER"], "")
-        if not cred:
-            raise ValueError("Credentials not found in keyring")
-        
-        obj = CMqlinit(
-            MPPATH=broker_config.get("MPPATH", kwargs.get("MPPATH")),
-            MPLOGIN=int(kwargs.get("MPLOGIN", cred.username)),
-            MPPASS=str(kwargs.get("MPPASS", cred.password)),
-            MPSERVER=broker_config.get("MPSERVER", kwargs.get("MPSERVER")),
-            MPTIMEOUT=broker_config.get("MPTIMEOUT", kwargs.get("MPTIMEOUT", 60000)),
-            MPPORTABLE=broker_config.get("MPPORTABLE", kwargs.get("MPPORTABLE", True)),
-            MPENV=broker_config.get("MPENV", kwargs.get("MPENV", 'demo')),
-        )
-        
-        if not obj.run_mql_login():
-            raise ConnectionError("Failed to login to MT5 terminal")
+        if loadmql:
+            cred = kr.get_credential(broker_config["BROKER"], "")
+        else:
+            cred = None # Placeholder for non-MT5 platforms
+        if loadmql:
+            obj = CMqlinit(
+                  MPPATH=broker_config.get("MPPATH", kwargs.get("MPPATH")),
+                  MPLOGIN=int(kwargs.get("MPLOGIN", cred.username)),
+                  MPPASS=str(kwargs.get("MPPASS", cred.password)),
+                  MPSERVER=broker_config.get("MPSERVER", kwargs.get("MPSERVER")),
+                  MPTIMEOUT=broker_config.get("MPTIMEOUT", kwargs.get("MPTIMEOUT", 60000)),
+                  MPPORTABLE=broker_config.get("MPPORTABLE", kwargs.get("MPPORTABLE", True)),
+                  MPENV=broker_config.get("MPENV", kwargs.get("MPENV", 'demo')),
+            )
+            if not obj.run_mql_login():
+                  raise ConnectionError("Failed to login to MT5 terminal")
+        else:
+            obj = None  # Placeholder for non-MT5 platforms
         
         return obj
