@@ -35,7 +35,7 @@ def get_global_param(all_params, param_name, default=None):
     logger.warning(f"Global parameter '{param_name}' is not available.")
     return default
 
-class CMqlEnvData:
+class CMqlEnvDataParams:
     DEFAULTS = {
         'mp_data_data_label': 3,
         'mp_data_history_size': 5,

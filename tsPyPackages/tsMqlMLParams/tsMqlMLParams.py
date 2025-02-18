@@ -18,7 +18,7 @@ def get_global_param(all_params, param_name, default=None):
     logger.warning(f"Global parameter '{param_name}' is not available.")
     return default
 
-class CMqlEnvML:
+class CMqlEnvMLParams:
     DEFAULT_PARAMS = {
         "mp_ml_cfg_period": 24,
         "mp_ml_cfg_period1": 24,  # Hours
@@ -36,10 +36,10 @@ class CMqlEnvML:
     }
     
     def __init__(self, **overrides):
-        self.all_params = global_setter.run_service()  # Call run_service only ONCE
+        self.params = None
         
         # Override default parameters with provided values
-        self.params = {key: overrides.get(key, get_global_param(self.all_params, key, default))
+        self.params = {key: overrides.get(key, get_global_param(self.params, key, default))
                        for key, default in self.DEFAULT_PARAMS.items()}
         
         # Derived parameters

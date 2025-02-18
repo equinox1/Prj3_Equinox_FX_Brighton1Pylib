@@ -51,10 +51,9 @@ label_scaler = MinMaxScaler()
 from tsMqlSetup import CMqlSetup
 # Equinox environment params
 from tsMqlReference import CMqlRefConfig
-from tsMqlDataParams import CMqlEnvData
-from tsMqlMLParams import CMqlEnvML
-
-from tsMqlMLTuneParams import hypermodel_params
+from tsMqlDataParams import CMqlEnvDataParams
+from tsMqlMLParams import CMqlEnvMLParams
+from tsMqlMLTunerParams import CMqlEnvMLTunerParams 
 
 # Equinox global parameters
 from tsMqlGlobalParams import global_setter

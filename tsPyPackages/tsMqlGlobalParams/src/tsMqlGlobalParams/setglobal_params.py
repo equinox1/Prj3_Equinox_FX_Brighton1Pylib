@@ -3,13 +3,11 @@ import platform
 from pathlib import Path
 import os
 import yaml  # For loading configurations
-
-from tsMqlDataParams import CMqlEnvData
-from tsMqlMLParams import CMqlEnvML
-from tsMqlMLTuneParams import CMqlMLTuneParams  # Fixed import name
-from tsMqlMLTuneParams import CMdtunerHyperModel
-
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger, config
+
+from tsMqlDataParams import CMqlEnvDataParams
+from tsMqlMLParams import CMqlEnvMLParams
+from tsMqlMLTunerParams import CMqlEnvMLTunerParams
 
 # Initialize platform check
 pchk = run_platform.RunPlatform()
@@ -21,9 +19,10 @@ logger.info(f"Running on: {os_platform}, loadmql state: {loadmql}")
 class CMqlEnvGlobal:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+
+        # platform settings and mql checks
         self.config = config  # Store config for later use
         self.config_platform = config.get("default_platform", None)  # equinrun for Windows, equinrunlin for Linux, equinrunmac for MacOS
-
         logger.info(f"Setting up global environment for platform: {self.config_platform}")
 
         # Set platform base
@@ -31,18 +30,17 @@ class CMqlEnvGlobal:
         logger.info(f"Platform base: {self.mp_glob_pl_platform_base}")
 
         # Use pathlib for cross-platform path handling
-        self.home_dir = Path.home()
+        self.mp_glob_home_dir = Path.home()
 
         # General environment paths (Using provided kwargs or config defaults)
-        self.mp_glob_drive = kwargs.get('mp_glob_drive', config.get('mp_glob_drive', self.home_dir.anchor))
-        self.mp_glob_user = kwargs.get('mp_glob_user', config.get('mp_glob_user', self.home_dir.name))
+        self.mp_glob_home_dir = kwargs.get('mp_glob_home_dir', self.mp_glob_home_dir)
         self.mp_glob_dir1 = kwargs.get('mp_glob_dir1', config.get('mp_glob_dir1', '8.0 Projects'))
         self.mp_glob_dir2 = kwargs.get('mp_glob_dir2', config.get('mp_glob_dir2', '8.3 ProjectModelsEquinox'))
         self.mp_glob_platform_dir = kwargs.get('mp_glob_platform_dir', config.get('mp_glob_platform_dir', self.mp_glob_pl_platform_base))
         self.mp_glob_data_dir = kwargs.get('mp_glob_data_dir', config.get('data_dir', 'Data'))
 
         # Construct the data path
-        self.mp_glob_data_path = Path(self.mp_glob_drive) / self.mp_glob_user / self.mp_glob_dir1 / self.mp_glob_dir2 / self.mp_glob_platform_dir / self.mp_glob_data_dir
+        self.mp_glob_data_path = Path(self.mp_glob_home_dir / self.mp_glob_dir1 / self.mp_glob_dir2 / self.mp_glob_platform_dir / self.mp_glob_data_dir)
         logger.info(f"Data path: {self.mp_glob_data_path}")
 
         self.modeldatapath = self.mp_glob_data_path  # Alias for compatibility
@@ -55,7 +53,7 @@ class CMqlEnvGlobal:
         self.mp_glob_ml_baseuniq = config.get('mp_glob_ml_baseuniq', '1')
 
         # ML base path
-        self.mp_glob_ml_src_base = Path(self.mp_glob_drive) / self.mp_glob_user / self.mp_glob_dir1 / self.mp_glob_dir2
+        self.mp_glob_ml_src_base = Path(self.mp_glob_home_dir/ self.mp_glob_dir1 / self.mp_glob_dir2)
         self.mp_glob_ml_def_base_path = self.mp_glob_ml_src_base / self.mp_glob_pl_platform_base / self.mp_glob_ml_src_lib / self.mp_glob_ml_src_modeldata / self.mp_glob_ml_directory
         self.mp_glob_ml_num_base_path = self.mp_glob_ml_def_base_path / self.mp_glob_ml_baseuniq
         self.mp_glob_ml_checkpoint_filepath = self.mp_glob_ml_def_base_path
@@ -66,7 +64,7 @@ class CMqlEnvGlobal:
 
         # MQL base path
         self.mp_glob_mql_dir1 = config.get('mp_glob_mql_dir1', 'Mql5')
-        self.mp_glob_mql_basepath = Path(self.mp_glob_drive) / self.mp_glob_user / self.mp_glob_dir1 / self.mp_glob_dir2 / self.mp_glob_platform_dir / self.mp_glob_mql_dir1
+        self.mp_glob_mql_basepath = Path(self.mp_glob_home_dir/ self.mp_glob_dir1 / self.mp_glob_dir2 / self.mp_glob_platform_dir / self.mp_glob_mql_dir1)
         self.mp_glob_mql_data_path = self.mp_glob_data_path
 
         logger.info(f"MQL base path: {self.mp_glob_mql_basepath}")
@@ -81,10 +79,10 @@ class CMqlEnvGlobal:
 
         # Correctly assign global environment
         self.gen_environments = {"globalenv": self}
-        self.data_environments = {"dataenv": CMqlEnvData()}
-        self.mlearn_environments = {"mlenv": CMqlEnvML()}
-        self.tuner_environments = {"tuneenv": CMqlMLTuneParams()}  # Fixed class name
-        self.model_environments = {"modelenv": CMdtunerHyperModel()}
+        self.data_environments = {"dataenv": CMqlEnvDataParams()}
+        self.mlearn_environments = {"mlenv": CMqlEnvMLParams()}
+        self.tuner_environments = {"tuneenv": CMqlEnvMLTunerParams()}  
+   
 
         # Retrieve parameters safely
         genparams = {name: env.get_params() for name, env in self.gen_environments.items()}
