@@ -1,0 +1,31 @@
+[project]
+name = "tsMqlGlobalParams"
+version = "2.3.67"
+authors = [
+  { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
+]
+description = "MQL API Data setup for ML"
+readme = "README.md"
+requires-python = ">=3.8"
+
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+homepage = "https://github.com/equinoxtsM1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlGlobals"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+tsMqlGlobals = ["config.json"]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
