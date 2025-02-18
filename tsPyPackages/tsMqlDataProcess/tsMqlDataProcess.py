@@ -1,12 +1,15 @@
-#+------------------------------------------------------------------+
-#|                                              tsmqlDataProcess.py
-#|                                                    tony shepherd |
-#|                                     https://www.xercescloud.co.uk |
-#+------------------------------------------------------------------+
-#property copyright "tony shepherd"
-#property link      "https://www.xercescloud.co.uk"
-#property version   "1.01"
-#+-------------------------------------------------------------------
+"""
+#!/usr/bin/env python3 - uncomment for linux run
+# -*- coding: utf-8 -*-  - uncomment for linux run
+Filename: tsMqlDataProcess.py
+File: tsPyPackages/tsMqlDataProcess/tsMqlDataProcess.py
+Description: Load and add files and data parameters.
+Description: Login to Metatrader.
+Author: Tony Shepherd - Xercescloud
+Date: 2025-01-24
+Version: 1.0
+License: (Optional) e.g., MIT License
+"""
 
 # packages dependencies for this module
 #

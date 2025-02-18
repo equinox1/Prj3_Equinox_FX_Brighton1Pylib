@@ -1,11 +1,14 @@
-#+------------------------------------------------------------------+
-#|                                                    tsMqlTuner.py
-#|                                                    Tony Shepherd |
-#|                                    https://www.xercescloud.co.uk |
-#+------------------------------------------------------------------+
-#property copyright "Tony Shepherd"
-#property link      "https://www.xercescloud.co.uk"
-#property version   "1.01"
+"""
+#!/usr/bin/env python3 - uncomment for linux run
+# -*- coding: utf-8 -*-  - uncomment for linux run
+Filename: tsMqlMLTuner.py
+File: tsPyPackages/tsMqlMLTuner/tsMqlMLTuner.py
+Description:The Tuner method for the machine learning model.
+Author: Tony Shepherd - Xercescloud
+Date: 2025-01-24
+Version: 1.0
+License: (Optional) e.g., MIT License
+"""
 
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger, config
 pchk = run_platform.RunPlatform()

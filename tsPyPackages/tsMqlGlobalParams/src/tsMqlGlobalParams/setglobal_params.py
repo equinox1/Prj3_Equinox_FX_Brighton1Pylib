@@ -1,3 +1,15 @@
+"""
+#!/usr/bin/env python3 - uncomment for linux run
+# -*- coding: utf-8 -*-  - uncomment for linux run
+Filename: setglobal_params.py
+File: tsPyPackages/tsMqlGlobalParams/src/tsMqlGlobalParams/setglobal_params.py
+Description: Set global environment parameters.
+Author: Tony Shepherd - Xercescloud
+Date: 2025-01-24
+Version: 1.0
+License: (Optional) e.g., MIT License
+"""
+
 import sys
 import platform
 from pathlib import Path

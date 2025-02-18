@@ -1,13 +1,14 @@
-
-
-#+------------------------------------------------------------------+
-#|                                                    tsMqlRunValues
-#|                                                   Tony Shepherd  |
-#|                                    https://www.xercescloud.co.uk |
-#+------------------------------------------------------------------+
-#property copyright "Tony Shepherd"
-#property link      "https://www.xercescloud.co.uk"
-#property version   "1.01"
+"""
+#!/usr/bin/env python3 - uncomment for linux run
+# -*- coding: utf-8 -*-  - uncomment for linux run
+Filename: tsmqlMLTunerRunValues.py
+File: tsPyPackages/tsMqlMLTunerRunValues/tsMqlMLTunerRunValues.py
+Description: Load machine learning parameters.
+Author: Tony Shepherd - Xercescloud
+Date: 2025-01-24
+Version: 1.0
+License: (Optional) e.g., MIT License
+"""
 
 import os
 import tensorflow as tf

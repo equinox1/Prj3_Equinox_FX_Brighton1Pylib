@@ -1,3 +1,17 @@
+"""
+#!/usr/bin/env python3 - uncomment for linux run
+# -*- coding: utf-8 -*-  - uncomment for linux run
+Filename : tsMqlMLParams.py
+File : tsPyPackages/tsMqlMLParams/tsMqlMLParams.py
+Description : Load machine learning parameters.
+Author: Tony Shepherd - Xercescloud
+Date: 2025-01-24
+Version: 1.0
+License: (Optional) e.g., MIT License
+"""
+
+
+
 import logging
 from tsMqlPlatform import run_platform, platform_checker, logger as ts_logger, config
 

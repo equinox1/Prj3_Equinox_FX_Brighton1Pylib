@@ -1,3 +1,16 @@
+"""
+#!/usr/bin/env python3 - uncomment for linux run
+# -*- coding: utf-8 -*-  - uncomment for linux run
+Filename: tsMqlMLTunerParams.py
+File: tsPyPackages/tsMqlMLTunerParams/tsMqlMLTunerParams.py
+Description: Load and set machine learning tuner parameters.
+Author: Tony Shepherd - Xercescloud
+Date: 2025-01-24
+Version: 1.0
+License: (Optional) e.g., MIT License
+"""
+
+
 import logging
 from datetime import date
 from tsMqlPlatform import run_platform, platform_checker
@@ -24,6 +37,13 @@ def get_global_param(all_params, param_name, default=None):
 class CMqlEnvMLTunerParams:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+
+        # get global environment parameters
+        all_params = global_setter.run_service()
+        globalenv = all_params['genparams']['globalenv']  # Access the global env params
+        dataenv = all_params['dataparams']['dataenv']  # Access the data params
+        mlenv = all_params['mlearnparams']['mlenv']  # Access the ml params
+        tuneenv = all_params['tunerparams']['tuneenv']  # Access the tuner params
 
         # General Settings
         self.tunemode = kwargs.get('mp_ml_tunemode', True)
