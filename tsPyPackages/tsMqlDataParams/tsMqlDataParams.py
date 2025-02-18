@@ -9,46 +9,17 @@ Date: 2025-01-24
 Version: 1.0
 License: (Optional) e.g., MIT License
 """
+# Each parameter Class now extends the BaseParamManager class and has a 
+# DEFAULT_PARAMS dictionary that contains the default values for the parameters.
+# The BaseParamManager class has a get_params method that returns the parameters
+# dictionary and a set_param method that allows you to set a parameter dynamically.
+# The CMqlEnvDataParams and CMqlEnvMLParams classes have the DEFAULT_PARAMS dictionary 
+# that contains the default values for the parameters. The CMqlEnvDataParams class has
+# parameters related to data loading, while the CMqlEnvMLParams class has parameters 
+# related to machine learning.
 
-import logging
-import os
-import warnings
-import posixpath  # For path handling
-import pandas as pd
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras.layers import Input
-
-# Initialize logger
-logger = logging.getLogger("tsMqlDataParams")
-logging.basicConfig(level=logging.INFO)
-
-from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger as ts_logger, config
-
-
-# Run platform checker
-pchk = run_platform.RunPlatform()
-os_platform = platform_checker.get_platform()
-loadmql = pchk.check_mql_state()
-logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
-
-# Conditionally import MetaTrader5
-if loadmql:
-    import MetaTrader5 as mt5
-
-import logging
-
-logger = logging.getLogger(__name__)
-
-def get_global_param(all_params, param_name, default=None):
-    """Safely fetch global environment parameters."""
-    if hasattr(all_params, 'get_params') and callable(all_params.get_params):
-        return all_params.get_params().get(param_name, default)
-    logger.warning(f"Global parameter '{param_name}' is not available.")
-    return default
-
-class CMqlEnvDataParams:
-    DEFAULTS = {
+class CMqlEnvDataParams(BaseParamManager):
+    DEFAULT_PARAMS = {
         'mp_data_data_label': 3,
         'mp_data_history_size': 5,
         'mp_data_timeframe': None,
@@ -72,21 +43,3 @@ class CMqlEnvDataParams:
         'mp_data_filename2': None,
     }
 
-    def __init__(self, **kwargs):
-        self.params = self.DEFAULTS.copy()
-        self.params.update(kwargs)
-        
-        # Handle dynamic values
-        if 'mp_data_command_ticks' not in kwargs:
-            self.params['mp_data_command_ticks'] = mt5.COPY_TICKS_ALL if loadmql else None
-        
-    def get_params(self):
-        """Return all configuration parameters as a dictionary."""
-        return self.params.copy()
-
-    def set_param(self, key, value):
-        """Allows overriding parameters dynamically."""
-        if key in self.params:
-            self.params[key] = value
-        else:
-            logger.warning(f"Parameter '{key}' is not recognized.")
