@@ -11,7 +11,8 @@
 # +-------------------------------------------------------------------
 import logging
 # Initialize logger
-logger = logging.getLogger(__name__)
+# Initialize logger
+logger = logging.getLogger("Main")
 logging.basicConfig(level=logging.INFO)
 
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
@@ -47,16 +48,15 @@ from sklearn.model_selection import train_test_split
 # set package options
 feature_scaler = MinMaxScaler()
 label_scaler = MinMaxScaler()
+
 # platform checker
 from tsMqlSetup import CMqlSetup
-# Equinox environment params
 from tsMqlReference import CMqlRefConfig
-from tsMqlDataParams import CMqlEnvDataParams
-from tsMqlMLParams import CMqlEnvMLParams
-from tsMqlMLTunerParams import CMqlEnvMLTunerParams 
+
+# Equinox environment params
 
 # Equinox global parameters
-from tsMqlGlobalParams import global_setter
+from tsMqlGlobalParams.setglobal_params import CMqlEnvGlobal
 
 # Equinox sub packages
 from tsMqlConnect import CMqlBrokerConfig, CMqlinit
@@ -80,6 +80,17 @@ mp_data_tab_width = 30
 
 def main(logger):
     with strategy.scope():
+         # Initialize the global parameter manager
+         global_env = CMqlEnvGlobal()
+         # Retrieve all parameter sets
+         params = global_env.get_params()
+
+         # Access specific parameter groups
+         general_params = params['genparams']
+         data_params = params['dataparams']
+         ml_params = params['mlearnparams']
+         tuner_params = params['tunerparams']
+
 
         # +-------------------------------------------------------------------
         # STEP: switch values for the application
