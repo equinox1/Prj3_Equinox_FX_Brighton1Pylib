@@ -1,7 +1,6 @@
 [project]
-name = "tsMqlMLTuneParams"
-version = "2.3.51"
-
+name = "tsMqlMLTuner"
+version = "2.3.38"
 authors = [
   { name="Tony Shepherd", email="shep.antony@gmail.com" },
 ]
@@ -15,4 +14,4 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlMLTuneParams"
+homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlMLTuner"

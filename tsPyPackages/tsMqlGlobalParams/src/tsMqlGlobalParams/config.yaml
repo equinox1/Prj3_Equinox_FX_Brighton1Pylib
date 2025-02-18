@@ -1,23 +1,23 @@
 # config.yaml
 # Configuration file for tsMqlGlobals
 # User and Project Information
-drive: 'C//'
-user: 'shepa'
-dir1: '8.0 Projects'
-dir2: '8.3 ProjectModelsEquinox'
+mp_glob_drive: 'C//'
+mp_glob_user: 'shepa'
+mp_glob_dir1: '8.0 Projects'
+mp_glob_dir2: '8.3 ProjectModelsEquinox'
 # platformdir derived from platform check equinrun or equinrunlin or equinrunmac
 # platformdir: 'equinrun'
 
 datadir: 'Mql5Data' # Override if needed
 
 # Machine Learning Paths
-mp_ml_src_lib: 'PythonLib'
-mp_ml_src_modeldata: 'tsModelData'
-mp_ml_directory: 'tshybrid_ensemble_tuning_prod'
-mp_ml_model_name: 'prjEquinox1_prod.keras'
-mp_ml_baseuniq: '1'
+mp_glob_ml_src_lib: 'PythonLib'
+mp_glob_ml_src_modeldata: 'tsModelData'
+mp_glob_ml_directory: 'tshybrid_ensemble_tuning_prod'
+mp_glob_ml_model_name: 'prjEquinox1_prod.keras'
+mp_glob_ml_baseuniq: '1'
 
 
 # MQL5 Paths
-mp_mql_dir1 : 'Mql5'
-mp_mql_dir2 : 'Files'
+mp_glob_mql_dir1 : 'Mql5'
+mp_glob_mql_dir2 : 'Files'
