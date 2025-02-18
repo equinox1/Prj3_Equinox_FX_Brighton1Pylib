@@ -18,7 +18,7 @@ from datetime import datetime
 class CMqlRefConfig:
     def __init__(self, basedatatime='SECONDS', loadeddatatime='MINUTES',timesample='H4', **kwargs):
         """
-        Initialize the CMqlTimeConfig instance.
+        Initialize the CMqlRefConfig instance.
 
         :param basedatatime: The base data time unit (default is 'SECONDS').
         :param loadeddatatime: The loaded data time unit (default is 'MINUTES').
