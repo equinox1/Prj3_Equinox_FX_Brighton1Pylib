@@ -27,15 +27,11 @@ import numpy as np
 from datetime import date
 import random
 # all parameters are set in the global_setter class , data , ml and tune
-from tsMqlGlobalParams import global_setter
 # This class when instantiated takes the hypermodel parameters and the datasets as input and returns the hyperparam set # to apply to the Tuner. the inputs are taken from CMqlEnvTuneML and also overrides.
 
 class CMdtunerRunValues:
     def __init__(self, **kwargs):
         
-         all_params = global_setter.run_service()
-        
-
          # Tunemode
          self.tunemode = kwargs.get('tunemode', 'Hyperband')
          self.tunemodeepochs = kwargs.get('tunemodeepochs', 100)

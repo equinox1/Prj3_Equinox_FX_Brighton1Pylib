@@ -19,7 +19,6 @@ os_platform = platform_checker.get_platform()
 loadmql=pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
-from tsMqlGlobals import global_setter
 
 import numpy as np
 import pandas as pd
@@ -41,15 +40,6 @@ import textwrap
 class CDataProcess:
     def __init__(self, **kwargs):
         
-        self.all_params = all_params
-        
-        # file and path parameters
-        globalenv_params = self.all_params['genparams']['globalenv']  # Access the global env params
-        data_params = self.all_params['dataparams']['dataenv']  # Access the data params
-        ml_params = self.all_params['mlearnparams']['mlenv']  # Access the ml params
-        tuner_params = self.all_params['tunerparams']['tuneenv']  # Access the tuner params
-        model_params = self.all_params['modelparams']['modelenv']  # Access the model params
-
         # Override function: if key is in kwargs, use that; otherwise, use the default from params
         def override(param_key, param_dict, default=None):
             return kwargs.get(param_key, param_dict.get(param_key, default))

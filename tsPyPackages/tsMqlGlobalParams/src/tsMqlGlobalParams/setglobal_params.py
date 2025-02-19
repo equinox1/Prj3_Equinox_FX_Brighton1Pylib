@@ -9,17 +9,18 @@ Date: 2025-01-24
 Version: 1.0
 License: (Optional) e.g., MIT License
 """
-from tsMqlBaseParams import CMqlEnvBaseParams
+from tsMqlBaseParams import base_global_setter
 from tsMqlDataParams import CMqlEnvDataParams
-from tsMqlMLParams import CMqlEnvMLParams 
+from tsMqlMLParams import CMqlEnvMLParams
 from tsMqlMLTunerParams import CMqlEnvMLTunerParams
 
-class CMqlEnvGlobal:
+class CMqlGlobalParams:
     """Manage global environment parameters."""
 
     def __init__(self, **kwargs):
+       
         self.params = kwargs
-        self.base_params = CMqlEnvBaseParams()
+        self.base_params = base_global_setter
         self.data_params = CMqlEnvDataParams()
         self.ml_params = CMqlEnvMLParams()
         self.tuner_params = CMqlEnvMLTunerParams()

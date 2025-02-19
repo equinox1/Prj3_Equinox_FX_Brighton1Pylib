@@ -9,6 +9,9 @@
 # +------------------------------------------------------------------+
 # STEP: Platform settings
 # +-------------------------------------------------------------------
+# gpu and tensor platform
+from tsMqlSetup import CMqlSetup
+
 import logging
 # Initialize logger
 # Initialize logger
@@ -51,12 +54,11 @@ label_scaler = MinMaxScaler()
 
 # platform checker
 from tsMqlSetup import CMqlSetup
-from tsMqlReference import CMqlRefConfig
-
-# Equinox environment params
 
 # Equinox global parameters
-from tsMqlGlobalParams.setglobal_params import CMqlEnvGlobal
+from tsMqlGlobalParams.setglobal_params import CMqlGlobalParams
+#Reference class
+from tsMqlReference import CMqlRefConfig
 
 # Equinox sub packages
 from tsMqlConnect import CMqlBrokerConfig, CMqlinit
@@ -64,8 +66,8 @@ from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
 
 # Equinox ML packages
-from tsMqlMLTune import CMdtuner, CMdtunerHyperModel
-from tsMqlMLSetup import CMqlmlsetup
+from tsMqlMLTune import CMdtuner
+
 
 # Setup the logging and tensor platform dependencies
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
@@ -80,50 +82,38 @@ mp_data_tab_width = 30
 
 def main(logger):
     with strategy.scope():
-         # Initialize the global parameter manager
-         global_env = CMqlEnvGlobal()
-         # Retrieve all parameter sets
-         params = global_env.get_params()
+        # +----------------------------------------------------------
+        # STEP: setup environment
+        # +----------------------------------------------------------
 
-         # Access specific parameter groups
-         general_params = params['genparams']
-         data_params = params['dataparams']
-         ml_params = params['mlearnparams']
-         tuner_params = params['tunerparams']
+        # Initialize the global parameter manager
+        global_env = CMqlGlobalParams()
+        # Retrieve all parameter sets
+        params = global_env.get_params()
 
+        # Access specific parameter groups
+        general_params = params['genparams']
+        data_params = params['dataparams']
+        ml_params = params['mlearnparams']
+        tuner_params = params['tunerparams']
 
-        # +-------------------------------------------------------------------
+        """
+        Example: Retrieve a specific parameter
+        batch_size = tuner_params.get("batch_size")
+        logger.info(f"Batch size: {batch_size}")
+
+        # Example: Override a parameter dynamically
+        global_env.tuner_params.set_param("batch_size", 16)
+        batch_size = tuner_params.get("batch_size")
+        logger.info(f"Batch size: {batch_size}")
+        """
+
+        #-----------------------------------------------------------------
         # STEP: switch values for the application
-        # +-------------------------------------------------------------------
-        # Data Parameters
-        broker = "METAQUOTES"  # "ICM" or "METAQUOTES"
-        mp_symbol_primary = 'EURUSD'
-        MPDATAFILE1 = "tickdata1.csv"
-        MPDATAFILE2 = "ratesdata1.csv"
-        MPDATAFILE1 = mp_symbol_primary + "_" + MPDATAFILE1
-        MPDATAFILE2 = mp_symbol_primary + "_" + MPDATAFILE2
-        DFNAME1 = "df_rates1"
-        DFNAME2 = "df_rates2"
-        mp_data_cfg_usedata = 'loadfilerates'  # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
-        mp_data_rows = 2000  # number of mp_data_tab_rows to fetch
-        mp_data_rowcount = 10000  # number of mp_data_tab_rows to fetch
-        # Model Tuning
-        ONNX_save = False
-        mp_ml_show_plot = False
-        mp_ml_hard_run = True
-        mp_ml_tunemode = True
-        mp_ml_tunemodeepochs = True
-        mp_ml_Keras_tuner = 'hyperband'  # 'hyperband' or 'randomsearch' or 'bayesian' or 'skopt' or 'optuna'
-        batch_size = 4
-        # scaling
-        all_modelscale = 2  # divide the model by this number
-        cnn_modelscale = 2  # divide the model by this number
-        lstm_modelscale = 2  # divide the model by this number
-        gru_modelscale = 2  # divide the model by this number
-        trans_modelscale = 2  # divide the model by this number
-        transh_modelscale = 1  # divide the model by this number
-        transff_modelscale = 4  # divide the model by this number
-        dense_modelscale = 2  # divide the model by this number
+        # +---------------------------------------------------------------
+        switchparams = get_switch_variables()
+        print("Switch Parameters:", switchparams)
+"""        
         # +-------------------------------------------------------------------
         # STEP: Load Reference class and time variables
         # +-------------------------------------------------------------------
@@ -134,26 +124,13 @@ def main(logger):
         # STEP: CBroker Login
         # +-------------------------------------------------------------------
         # Initialize MT5 connection
-        print("Broker:", broker, "Primary Symbol:", mp_symbol_primary, "Datafile1:", MPDATAFILE1, "Datafile2:", MPDATAFILE2)
-        obj1_CMqlBrokerConfig = CMqlBrokerConfig(broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
-        broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit = obj1_CMqlBrokerConfig.initialize_mt5(broker, obj1_CMqlRefConfig)
+        print("Broker:", switchparams.broker, "Primary Symbol:", switchparams.mp_symbol_primary, "Datafile1:", switchparams.MPDATAFILE1, "Datafile2:", switchparams.MPDATAFILE2)
+        obj1_CMqlBrokerConfig = CMqlBrokerConfig(switchparams.broker, switchparams.mp_symbol_primary, switchparams.MPDATAFILE1, switchparams.MPDATAFILE2)
+        broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit = obj1_CMqlBrokerConfig.initialize_mt5(switchparams.broker, obj1_CMqlRefConfig)
         # Retrieve broker file paths
         file_path, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2 = (broker_config := obj1_CMqlBrokerConfig.set_mql_broker())['MKFILES'], broker_config['MPDATAPATH'], broker_config['MPFILEVALUE1'], broker_config['MPFILEVALUE2']
         logger.info(f"{__name__} ,:Broker File Path: {file_path}, MP Data Path: {MPDATAPATH} , MPFILEVALUE1: {MPFILEVALUE1}, MPFILEVALUE2: {MPFILEVALUE2}")
-        # +-------------------------------------------------------------------
-        # STEP: setup environment
-        # +-----------------------------
-
-        # If you need to work with the parameters
-        all_params = global_setter.run_service()
-        logger.info(all_params)
-        # file and path parameters
-        globalenv = all_params['genparams']['globalenv']  # Access the global env params
-        dataenv = all_params['dataparams']['dataenv']  # Access the data params
-        mlenv = all_params['mlearnparams']['mlenv']  # Access the ml params
-        tuneenv = all_params['tunerparams']['tuneenv']  # Access the tuner params
-        modelenv = all_params['modelparams']['modelenv']  # Access the model params
-
+        
         print("PARAM HEADER: MPDATAFILE1:", MPDATAFILE1, "MPDATAFILE2:", MPDATAFILE2, "DFNAME1:", DFNAME1, "DFNAME2:", DFNAME2)
 
         obj1_CDataLoader = CDataLoader(
@@ -167,7 +144,6 @@ def main(logger):
         obj1_CDataProcess = CDataProcess(
             all_params,
         )
-
         # +-------------------------------------------------------------------
         # STEP: Data Preparation and Loading
         # +-------------------------------------------------------------------
@@ -774,7 +750,42 @@ def main(logger):
             print("No data loaded")
         mt5.shutdown()
         print("Finished")
+"""
+def get_switch_variables():
+       return {
+          "broker": "METAQUOTES",  # "ICM" or "METAQUOTES"
+          "mp_symbol_primary": 'EURUSD',
+          "mp_symbol_secondary": 'EURUSD',
+          "MPDATAFILE1": "tickdata1.csv",
+          "MPDATAFILE2": "ratesdata1.csv",
+          "MPDATAFILE1":"mp_symbol_primary" + "_" + "MPDATAFILE1",
+          "MPDATAFILE2":"mp_symbol_primary" + "_" + "MPDATAFILE2",
+          "DFNAME1": "df_rates1",
+          "DFNAME2": "df_rates2",
+          "mp_data_cfg_usedata": 'loadfilerates',  # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
+          "mp_data_rows": 2000,  # number of mp_data_tab_rows to fetch
+          "mp_data_rowcount": 10000,  # number of mp_data_tab_rows to fetch
+          # Model Tuning
+          "ONNX_save": False,
+          "mp_ml_show_plot": False,
+          "mp_ml_hard_run": True,
+          "mp_ml_tunemode": True,
+          "mp_ml_tunemodeepochs": True,
+          "mp_ml_Keras_tuner": 'hyperband',  # 'hyperband' or 'randomsearch' or 'bayesian' or 'skopt' or 'optuna'
+          "batch_size": 4,
+          # scaling
+          "all_modelscale": 2,  # divide the model by this number
+          "cnn_modelscale": 2,  # divide the model by this number
+          "lstm_modelscale": 2,  # divide the model by this number
+          "gru_modelscale": 2,  # divide the model by this number
+          "trans_modelscale": 2,  # divide the model by this number
+          "transh_modelscale": 1,  # divide the model by this number
+          "transff_modelscale": 4,  # divide the model by this number
+          "dense_modelscale": 2  # divide the model by this number
+       }
 
 
 if __name__ == "__main__":
     main(logger)
+
+
