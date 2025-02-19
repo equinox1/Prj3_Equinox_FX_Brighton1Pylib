@@ -11,7 +11,6 @@ License: (Optional) e.g., MIT License
 """
 
 from tsMqlPlatform import run_platform, platform_checker, logger
-from tsMqlGlobalParams import global_setter
 import keyring as kr
 
 # Initialize platform
@@ -26,7 +25,7 @@ class CMqlinit:
     """
     Initializes and manages the connection to the MT5 terminal.
     """
-    all_params = global_setter.run_service()  # Call run_service only ONCE.
+   
 
     def __init__(self, **kwargs):
         self.MPPATH = kwargs.get('MPPATH', '')

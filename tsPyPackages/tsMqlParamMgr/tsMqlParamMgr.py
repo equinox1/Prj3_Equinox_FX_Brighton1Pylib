@@ -1,8 +1,8 @@
 """
 #!/usr/bin/env python3 - uncomment for linux run
 # -*- coding: utf-8 -*-  - uncomment for linux run
-Filename : tsMqlBaseParamMgmt.py
-File : tsPyPackages/tsMqlBaseParamMgmt/tsMqlBaseParamMgmt.py
+Filename : tBaseParamManager.py
+File : tsPyPackages/tsMqlBaseParamMgmt/BaseParamManager.py
 Description :Base manager for all params
 Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
@@ -13,10 +13,10 @@ License: (Optional) e.g., MIT License
 import logging
 from datetime import date
 
-logger = logging.getLogger("tsMqlParams")
+logger = logging.getLogger("tsMqlParamMgr")
 logging.basicConfig(level=logging.INFO)
 
-class ParamMgr:
+class BaseParamManager:
     """Base class for parameter management."""
     
     DEFAULT_PARAMS = {}

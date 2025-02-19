@@ -28,13 +28,11 @@ logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 if loadmql:
       import MetaTrader5 as mt5
 
-from tsMqlGlobalParams import global_setter
 
 class CDataLoader:
     """Class to manage and load market data parameters with override capability."""
 
     def __init__(self,  **kwargs):
-        self.all_params = kwargs.get('all_params', global_setter.run_service())
         self._initialize_params(kwargs)
         self._file_params()
 

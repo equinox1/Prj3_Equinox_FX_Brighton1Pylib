@@ -19,6 +19,7 @@ License: (Optional) e.g., MIT License
 # parameters related to data loading, while the CMqlEnvMLParams class has parameters 
 # related to machine learning.
 
+from tsMqlParamMgr import BaseParamManager
 
 class CMqlEnvMLParams(BaseParamManager):
     DEFAULT_PARAMS = {
