@@ -14,7 +14,7 @@ from tsMqlSetup import CMqlSetup
 
 import logging
 # Initialize logger
-# Initialize logger
+
 logger = logging.getLogger("Main")
 logging.basicConfig(level=logging.INFO)
 
@@ -57,6 +57,9 @@ from tsMqlSetup import CMqlSetup
 
 # Equinox global parameters
 from tsMqlGlobalParams.setglobal_params import CMqlGlobalParams
+
+# Initialize the global parameter manager
+global_env = CMqlGlobalParams()
 #Reference class
 from tsMqlReference import CMqlRefConfig
 
@@ -85,83 +88,104 @@ def main(logger):
         # +----------------------------------------------------------
         # STEP: setup environment
         # +----------------------------------------------------------
-
-        # Initialize the global parameter manager
-        global_env = CMqlGlobalParams()
-        # Retrieve all parameter sets
-        params = global_env.get_params()
-
-        # Access specific parameter groups
-        general_params = params['genparams']
-        data_params = params['dataparams']
-        ml_params = params['mlearnparams']
-        tuner_params = params['tunerparams']
-
         """
-        Example: Retrieve a specific parameter
-        batch_size = tuner_params.get("batch_size")
-        logger.info(f"Batch size: {batch_size}")
-
-        # Example: Override a parameter dynamically
-        global_env.tuner_params.set_param("batch_size", 16)
-        batch_size = tuner_params.get("batch_size")
-        logger.info(f"Batch size: {batch_size}")
+        Example: Retrieve a specific parameter: batch_size = tuner_params.get("batch_size")
+        Example: Override a parameter dynamically: global_env.tuner_params.set_param("batch_size", 16)
         """
+        # Initialize global parameters with some example values
+        global_params = CMqlGlobalParams()
+
+        # Retrieve all parameters
+        params = global_params.get_params()
+
+        # Split parameters into different categories
+        base_params = params.get('genparams', {})  # General parameters
+        data_params = params.get('dataparams', {})  # Data-related parameters
+        ml_params = params.get('mlearnparams', {})  # Machine learning parameters
+        tuner_params = params.get('tunerparams', {})  # Tuner parameters
+
+        # Print results
+        print("Main Base Parameters:", base_params)
+        print("Main Data Parameters:", data_params)
+        print("Main ML Parameters:", ml_params)
+        print("Main Tuner Parameters:", tuner_params)
+
 
         #-----------------------------------------------------------------
         # STEP: switch values for the application
         # +---------------------------------------------------------------
         switchparams = get_switch_variables()
         print("Switch Parameters:", switchparams)
-"""        
+       
         # +-------------------------------------------------------------------
         # STEP: Load Reference class and time variables
         # +-------------------------------------------------------------------
         obj1_CMqlRefConfig = CMqlRefConfig(basedatatime='SECONDS', loadeddatatime='MINUTES', timesample='H4')
         timevalue, MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH, PRIMARY_SYMBOL = obj1_CMqlRefConfig.run_service()
-        logger.info(f"MINUTES: {MINUTES}, HOURS: {HOURS}, DAYS: {DAYS}, TIMEZONE: {TIMEZONE} , TIMEFRAME: {TIMEFRAME}, CURRENTYEAR: {CURRENTYEAR}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, PRIMARY_SYMBOL: {PRIMARY_SYMBOL}")
+        logger.info(f" timevalue: {timevalue} , MINUTES: {MINUTES}, HOURS: {HOURS}, DAYS: {DAYS}, TIMEZONE: {TIMEZONE} , TIMEFRAME: {TIMEFRAME}, CURRENTYEAR: {CURRENTYEAR}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, PRIMARY_SYMBOL: {PRIMARY_SYMBOL}")
         # +-------------------------------------------------------------------
         # STEP: CBroker Login
         # +-------------------------------------------------------------------
         # Initialize MT5 connection
-        print("Broker:", switchparams.broker, "Primary Symbol:", switchparams.mp_symbol_primary, "Datafile1:", switchparams.MPDATAFILE1, "Datafile2:", switchparams.MPDATAFILE2)
-        obj1_CMqlBrokerConfig = CMqlBrokerConfig(switchparams.broker, switchparams.mp_symbol_primary, switchparams.MPDATAFILE1, switchparams.MPDATAFILE2)
-        broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit = obj1_CMqlBrokerConfig.initialize_mt5(switchparams.broker, obj1_CMqlRefConfig)
+        switchparams = get_switch_variables()  
+        print("Broker:", switchparams["broker"],"Primary Symbol:", switchparams["mp_symbol_primary"], "Datafile1:", switchparams["MPDATAFILE1"], "Datafile2:", switchparams["MPDATAFILE2"])
+        broker=switchparams["broker"]
+        mp_symbol_primary=switchparams["mp_symbol_primary"] 
+        MPDATAFILE1=switchparams["MPDATAFILE1"]
+        MPDATAFILE2=switchparams["MPDATAFILE2"]
+        DFNAME1=switchparams["DFNAME1"]
+        DFNAME2=switchparams["DFNAME2"]
+
+      
+        obj1_CMqlBrokerConfig = CMqlBrokerConfig(params,broker, mp_symbol_primary, MPDATAFILE1, MPDATAFILE2)
+        broker_config = obj1_CMqlBrokerConfig.initialize_mt5( broker, obj1_CMqlRefConfig)
         # Retrieve broker file paths
         file_path, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2 = (broker_config := obj1_CMqlBrokerConfig.set_mql_broker())['MKFILES'], broker_config['MPDATAPATH'], broker_config['MPFILEVALUE1'], broker_config['MPFILEVALUE2']
         logger.info(f"{__name__} ,:Broker File Path: {file_path}, MP Data Path: {MPDATAPATH} , MPFILEVALUE1: {MPFILEVALUE1}, MPFILEVALUE2: {MPFILEVALUE2}")
+        print("PARAM HEADER: MPDATAPATH:", MPDATAPATH, "MPFILEVALUE1:", MPFILEVALUE1, "MPFILEVALUE2:", MPFILEVALUE2)
+
+            # Set the data history size
+        mp_data_history_size = data_params.get("mp_data_history_size")
+        logger.info(f"CURRENTYEAR: {CURRENTYEAR}, CURRENTYEAR-mp_data_history_size: {CURRENTYEAR - mp_data_history_size}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, TIMEZONE: {TIMEZONE}")
         
-        print("PARAM HEADER: MPDATAFILE1:", MPDATAFILE1, "MPDATAFILE2:", MPDATAFILE2, "DFNAME1:", DFNAME1, "DFNAME2:", DFNAME2)
-
-        obj1_CDataLoader = CDataLoader(
-            all_params=all_params,
-            mp_data_filename1=MPDATAFILE1,
-            mp_data_filename2=MPDATAFILE2,
-            mv_data_dfname1=DFNAME1,
-            mv_data_dfname2=DFNAME2,
-        )
-
-        obj1_CDataProcess = CDataProcess(
-            all_params,
-        )
         # +-------------------------------------------------------------------
         # STEP: Data Preparation and Loading
         # +-------------------------------------------------------------------
-        # Set the data history size
-        mp_data_history_size = dataenv.mp_data_history_size if hasattr(dataenv, 'mp_data_history_size') else 0
-        logger.info(f"CURRENTYEAR: {CURRENTYEAR}, CURRENTYEAR-mp_data_history_size: {CURRENTYEAR - mp_data_history_size}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, TIMEZONE: {TIMEZONE}")
-
         # Set the UTC time for the data
+        obj1_CDataLoader = CDataLoader(
+            params=params,
+        )
+
         mv_data_utc_from = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
         mv_data_utc_to = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
         logger.info(f"UTC From: {mv_data_utc_from}")
         logger.info(f"UTC To: {mv_data_utc_to}")
+       
+        obj1_CDataProcess = CDataProcess(
+            params,
+        )
 
+        # +-------------------------------------------------------------------
+        # STEP: Data Preparation and Loading
+        # +-------------------------------------------------------------------
+        obj2_CDataLoader = CDataLoader(
+            params=params,
+            mp_glob_data_path=MPDATAPATH,
+            mp_data_symbol=mp_symbol_primary,
+            mp_data_history_size=mp_data_history_size,
+            mp_data_timeframe=TIMEFRAME,
+            mp_data_dfname1=DFNAME1,
+            mp_data_dfname2=DFNAME2,
+            mp_data_filename1=MPDATAFILE1,
+            mp_data_filename2=MPDATAFILE2,
+            mp_data_utc_from=mv_data_utc_from,
+            mp_data_utc_to=mv_data_utc_to,
+        )
         try:
-            mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_data()
+            mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj2_CDataLoader.load_data()
         except Exception as e:
             logger.error(f"An error occurred: {e}")
-
+"""
         # Wrangle the data merging and transforming time to numeric
         if len(mv_tdata1apiticks) > 0 and loadmql:
             mv_tdata1apiticks = obj1_CDataProcess.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
@@ -751,38 +775,53 @@ def main(logger):
         mt5.shutdown()
         print("Finished")
 """
-def get_switch_variables():
-       return {
-          "broker": "METAQUOTES",  # "ICM" or "METAQUOTES"
-          "mp_symbol_primary": 'EURUSD',
-          "mp_symbol_secondary": 'EURUSD',
-          "MPDATAFILE1": "tickdata1.csv",
-          "MPDATAFILE2": "ratesdata1.csv",
-          "MPDATAFILE1":"mp_symbol_primary" + "_" + "MPDATAFILE1",
-          "MPDATAFILE2":"mp_symbol_primary" + "_" + "MPDATAFILE2",
-          "DFNAME1": "df_rates1",
-          "DFNAME2": "df_rates2",
-          "mp_data_cfg_usedata": 'loadfilerates',  # 'loadapiticks' or 'loadapirates'or loadfileticks or loadfilerates
-          "mp_data_rows": 2000,  # number of mp_data_tab_rows to fetch
-          "mp_data_rowcount": 10000,  # number of mp_data_tab_rows to fetch
-          # Model Tuning
-          "ONNX_save": False,
-          "mp_ml_show_plot": False,
-          "mp_ml_hard_run": True,
-          "mp_ml_tunemode": True,
-          "mp_ml_tunemodeepochs": True,
-          "mp_ml_Keras_tuner": 'hyperband',  # 'hyperband' or 'randomsearch' or 'bayesian' or 'skopt' or 'optuna'
-          "batch_size": 4,
-          # scaling
-          "all_modelscale": 2,  # divide the model by this number
-          "cnn_modelscale": 2,  # divide the model by this number
-          "lstm_modelscale": 2,  # divide the model by this number
-          "gru_modelscale": 2,  # divide the model by this number
-          "trans_modelscale": 2,  # divide the model by this number
-          "transh_modelscale": 1,  # divide the model by this number
-          "transff_modelscale": 4,  # divide the model by this number
-          "dense_modelscale": 2  # divide the model by this number
-       }
+import os
+
+def get_switch_variables(mp_symbol_primary='EURUSD'):  # Make mp_symbol_primary a parameter
+    """
+    Returns a dictionary of configuration parameters for data loading and model training.
+
+    Args:
+        mp_symbol_primary (str): The primary trading symbol (e.g., 'EURUSD'). Defaults to 'EURUSD'.
+
+    Returns:
+        dict: A dictionary containing the configuration parameters.
+    """
+
+    MPDATAFILENAME1 = "tickdata1.csv"
+    MPDATAFILENAME2 = "ratesdata1.csv"
+    MPDATAFILE1 = mp_symbol_primary + "_" + MPDATAFILENAME1
+    MPDATAFILE2 = mp_symbol_primary + "_" + MPDATAFILENAME2
+
+    return {
+        "broker": "METAQUOTES",  # "ICM" or "METAQUOTES"
+        "mp_symbol_primary": mp_symbol_primary, # Use the passed parameter
+        "mp_symbol_secondary": mp_symbol_primary, # Consistent with primary
+        "MPDATAFILE1": MPDATAFILE1,
+        "MPDATAFILE2": MPDATAFILE2,
+        "DFNAME1": "df_rates1",
+        "DFNAME2": "df_rates2",
+        "mp_data_cfg_usedata": 'loadfilerates',  # 'loadapiticks' or 'loadapirates' or 'loadfileticks' or 'loadfilerates'
+        "mp_data_rows": 2000,  # Number of rows to fetch for display
+        "mp_data_rowcount": 10000,  # Number of rows to fetch for processing
+        # Model Tuning
+        "ONNX_save": False,  # Save the model in ONNX format
+        "mp_ml_show_plot": False,  # Show plots during training
+        "mp_ml_hard_run": True,  # Perform a full/rigorous training run
+        "mp_ml_tunemode": True,  # Enable hyperparameter tuning
+        "mp_ml_tunemodeepochs": True,  # Tune the number of epochs
+        "mp_ml_Keras_tuner": 'hyperband',  # Hyperparameter optimization algorithm ('hyperband', 'randomsearch', 'bayesian', 'skopt', 'optuna')
+        "batch_size": 4,  # Batch size for training
+        # Model Scaling
+        "all_modelscale": 2,  # Scaling factor for all model components
+        "cnn_modelscale": 2,  # Scaling factor for CNN models
+        "lstm_modelscale": 2,  # Scaling factor for LSTM models
+        "gru_modelscale": 2,  # Scaling factor for GRU models
+        "trans_modelscale": 2,  # Scaling factor for Transformer models
+        "transh_modelscale": 1,  # Scaling factor for Transformer (head) models
+        "transff_modelscale": 4,  # Scaling factor for Transformer (feed-forward) models
+        "dense_modelscale": 2  # Scaling factor for dense layers
+    }
 
 
 if __name__ == "__main__":

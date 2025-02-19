@@ -38,11 +38,18 @@ import textwrap
 # /param  double svar;              -  value
 #-------------------------------------------------------------------- 
 class CDataProcess:
-    def __init__(self, **kwargs):
-        
-        # Override function: if key is in kwargs, use that; otherwise, use the default from params
-        def override(param_key, param_dict, default=None):
-            return kwargs.get(param_key, param_dict.get(param_key, default))
+    def __init__(self,params, **kwargs):
+        if loadmql:
+               import MetaTrader5 as mt5
+               self.mt5 = mt5
+        else:
+            self.mt5 = None
+            
+        # global parameters
+        self.params = params
+        self.general_params = self.params['genparams']
+        self.data_params = self.params['dataparams']
+
 
     def wrangle_time(self, df: pd.DataFrame, lp_unit: str, mp_filesrc: str, filter_int: bool, filter_flt: bool, filter_obj: bool, filter_dtmi: bool, filter_dtmf: bool, mp_dropna: bool, mp_merge: bool, mp_convert: bool, mp_drop: bool) -> pd.DataFrame:
         """

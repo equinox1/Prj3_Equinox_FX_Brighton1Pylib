@@ -76,4 +76,4 @@ class CMqlEnvBaseParams(BaseParamManager):
         return mql_basepath, mql_data_path
 
 # Instantiate the class
-base_global_setter = CMqlEnvBaseParams()
+base_global_setter = CMqlEnvBaseParams(BaseParamManager)
