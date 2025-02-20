@@ -1,6 +1,6 @@
 [project]
-name = "tsMqlGlobalParams"
-version = "2.4.33"
+name = "tsMqlEnvMgr"
+version = "2.5.5"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
@@ -18,7 +18,7 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://github.com/equinoxtsM1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlGlobalParams"
+homepage = "https://github.com/equinoxtsM1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlEnvMgr"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
