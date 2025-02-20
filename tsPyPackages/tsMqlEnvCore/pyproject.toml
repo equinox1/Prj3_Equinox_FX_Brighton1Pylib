@@ -1,6 +1,6 @@
 [project]
-name = "tsMqlParamBase"
-version = "2.3.10"
+name = "tsMqlEnvCore"
+version = "2.5.8"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
@@ -14,4 +14,4 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlParamBase"
+homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlEnvCore"

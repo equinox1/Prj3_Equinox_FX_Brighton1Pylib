@@ -55,9 +55,8 @@ label_scaler = MinMaxScaler()
 # platform checker
 from tsMqlSetup import CMqlSetup
 
-# Equinox global parameters
-from tsMqlGlobalParams.setglobal_params import CMqlGlobalParams
-
+# Equinox environment manager
+from tsMqlEnvMgr import CMqlEnvMgr
 
 #Reference class
 from tsMqlReference import CMqlRefConfig
@@ -84,37 +83,42 @@ mp_data_tab_width = 30
 
 def main(logger):
     with strategy.scope():
+
+      #-----------------------------------------------------------------
+        
         # +----------------------------------------------------------
         # STEP: setup environment
         # +----------------------------------------------------------
+        # Usage
+        # env = EnvManager(custom_params={"ml": {"epochs": 20}})
+        # print("All Parameters:", env.all_params())
+        # print("ML Epochs:", env.get_param("ml", "epochs"))
+        # print("Base Learning Rate:", env.get_param("base", "learning_rate"))
+        # Override parameters
+        # env.override_params({"base": {"learning_rate": 0.005}})
+        # print("Updated Learning Rate:", env.get_param("base", "learning_rate"))
+        env = CMqlEnvMgr()
+        print("All Parameters:", env.all_params())
+        # get environment parameters
+        params= env.all_params()
 
-        # Initialize the global parameter manager
-        global_env = CMqlGlobalParams()
-        # Retrieve all parameter sets
-        params = global_env.get_params()
+        baseparams = env.all_params()["base"]
+        dataparams = env.all_params()["data"]
+        mlparams = env.all_params()["ml"]
+        mltuneparams = env.all_params()["mltune"]
+        appparams = env.all_params()["app"]
 
-        # Access specific parameter groups
-        general_params = params['genparams']
-        data_params = params['dataparams']
-        ml_params = params['mlearnparams']
-        tuner_params = params['tunerparams']
+        print("baseparams:", baseparams)
+        print("dataparams:", dataparams)
+        print("mlparams:", mlparams)
+        print("mltuneparams:", mltuneparams)
+        print("appparams:", appparams)
 
-        """
-        Example: Retrieve a specific parameter
-        batch_size = tuner_params.get("batch_size")
-        logger.info(f"Batch size: {batch_size}")
 
-        # Example: Override a parameter dynamically
-        global_env.tuner_params.set_param("batch_size", 16)
-        batch_size = tuner_params.get("batch_size")
-        logger.info(f"Batch size: {batch_size}")
-        """
-
-        #-----------------------------------------------------------------
-        # STEP: switch values for the application
-        # +---------------------------------------------------------------
-        switchparams = get_switch_variables()
-        print("Switch Parameters:", switchparams)
+"""
+         
+      
+        
        
         # +-------------------------------------------------------------------
         # STEP: Load Reference class and time variables
@@ -146,7 +150,7 @@ def main(logger):
         obj1_CDataProcess = CDataProcess(s(
             params,
         )
-""" 
+
         # +-------------------------------------------------------------------
         # STEP: Data Preparation and Loading
         # +-------------------------------------------------------------------
@@ -753,57 +757,11 @@ def main(logger):
             print("No data loaded")            print("No data loaded")
         mt5.shutdown()
         print("Finished")
+
 """
-import osimport os
-
-def get_switch_variables(mp_symbol_primary='EURUSD'):  # Make mp_symbol_primary a parameterke mp_symbol_primary a parameter
-    """
-    Returns a dictionary of configuration parameters for data loading and model training.    Returns a dictionary of configuration parameters for data loading and model training.
-
-    Args:
-        mp_symbol_primary (str): The primary trading symbol (e.g., 'EURUSD'). Defaults to 'EURUSD'.trading symbol (e.g., 'EURUSD'). Defaults to 'EURUSD'.
-
-    Returns:
-        dict: A dictionary containing the configuration parameters.ers.
-    """    """
-
-    MPDATAFILENAME1 = "tickdata1.csv"a1.csv"
-    MPDATAFILENAME2 = "ratesdata1.csv".csv"
-    MPDATAFILE1 = mp_symbol_primary + "_" + MPDATAFILENAME1E1 = mp_symbol_primary + "_" + MPDATAFILENAME1
-    MPDATAFILE2 = mp_symbol_primary + "_" + MPDATAFILENAME2 + "_" + MPDATAFILENAME2
-
-    return {
-        "broker": "METAQUOTES",  # "ICM" or "METAQUOTES"     "broker": "METAQUOTES",  # "ICM" or "METAQUOTES"
-        "mp_symbol_primary": mp_symbol_primary, # Use the passed parametermp_symbol_primary": mp_symbol_primary, # Use the passed parameter
-        "mp_symbol_secondary": mp_symbol_primary, # Consistent with primary        "mp_symbol_secondary": mp_symbol_primary, # Consistent with primary
-        "MPDATAFILE1": MPDATAFILE1,
-        "MPDATAFILE2": MPDATAFILE2, "MPDATAFILE2": MPDATAFILE2,
-        "DFNAME1": "df_rates1",
-        "DFNAME2": "df_rates2",        "DFNAME2": "df_rates2",
-        "mp_data_cfg_usedata": 'loadfilerates',  # 'loadapiticks' or 'loadapirates' or 'loadfileticks' or 'loadfilerates'mp_data_cfg_usedata": 'loadfilerates',  # 'loadapiticks' or 'loadapirates' or 'loadfileticks' or 'loadfilerates'
-        "mp_data_rows": 2000,  # Number of rows to fetch for display
-        "mp_data_rowcount": 10000,  # Number of rows to fetch for processing        "mp_data_rowcount": 10000,  # Number of rows to fetch for processing
-        # Model Tuningdel Tuning
-        "ONNX_save": False,  # Save the model in ONNX format
-        "mp_ml_show_plot": False,  # Show plots during training "mp_ml_show_plot": False,  # Show plots during training
-        "mp_ml_hard_run": True,  # Perform a full/rigorous training run        "mp_ml_hard_run": True,  # Perform a full/rigorous training run
-        "mp_ml_tunemode": True,  # Enable hyperparameter tuningable hyperparameter tuning
-        "mp_ml_tunemodeepochs": True,  # Tune the number of epochs # Tune the number of epochs
-        "mp_ml_Keras_tuner": 'hyperband',  # Hyperparameter optimization algorithm ('hyperband', 'randomsearch', 'bayesian', 'skopt', 'optuna') optimization algorithm ('hyperband', 'randomsearch', 'bayesian', 'skopt', 'optuna')
-        "batch_size": 4,  # Batch size for training
-        # Model Scaling        # Model Scaling
-        "all_modelscale": 2,  # Scaling factor for all model components_modelscale": 2,  # Scaling factor for all model components
-        "cnn_modelscale": 2,  # Scaling factor for CNN modelsodels
-        "lstm_modelscale": 2,  # Scaling factor for LSTM models
-        "gru_modelscale": 2,  # Scaling factor for GRU models
-        "trans_modelscale": 2,  # Scaling factor for Transformer modelscaling factor for Transformer models
-        "transh_modelscale": 1,  # Scaling factor for Transformer (head) modelsScaling factor for Transformer (head) models
-        "transff_modelscale": 4,  # Scaling factor for Transformer (feed-forward) models,  # Scaling factor for Transformer (feed-forward) models
-        "dense_modelscale": 2  # Scaling factor for dense layers# Scaling factor for dense layers
-    }
 
 
-if __name__ == "__main__":__":
+if __name__ == "__main__":
     main(logger)
 
 
