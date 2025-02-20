@@ -9,27 +9,31 @@ Date: 2025-01-24
 Version: 1.0
 License: (Optional) e.g., MIT License
 """
-from tsMqlBaseParams import base_global_setter
+import logging
+logger = logging.getLogger("setglobal_params")
+logging.basicConfig(level=logging.INFO)
+
+from tsMqlBaseParams.setbase_params import CMqlEnvBaseParams
 from tsMqlDataParams import CMqlEnvDataParams
 from tsMqlMLParams import CMqlEnvMLParams
 from tsMqlMLTunerParams import CMqlEnvMLTunerParams
 
 class CMqlGlobalParams:
     """Manage global environment parameters."""
-
     def __init__(self, **kwargs):
-       
         self.params = kwargs
-        self.base_params = base_global_setter
-        self.data_params = CMqlEnvDataParams()
-        self.ml_params = CMqlEnvMLParams()
-        self.tuner_params = CMqlEnvMLTunerParams()
+        self.base_params = CMqlEnvBaseParams(**kwargs)
+        self.data_params =  CMqlEnvDataParams()
+        self.ml_params =  CMqlEnvMLParams()
+        self.tuner_params =  CMqlEnvMLTunerParams()
     
     def get_params(self):
         """Returns all parameters in a structured dictionary."""
+        base = self.base_params.get_params()
+        logger.info(f"Base Params Retrieved: {base}")
         return {
-            'genparams': self.params,
-            'dataparams': self.data_params.get_params(),
-            'mlearnparams': self.ml_params.get_params(),
-            'tunerparams': self.tuner_params.get_params(),
+            'baseparams': base,
+            'dataparams': self.data_params,
+            'mlearnparams': self.ml_params,
+            'tunerparams': self.tuner_params,
         }
