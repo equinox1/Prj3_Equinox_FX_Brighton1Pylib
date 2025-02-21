@@ -28,41 +28,32 @@ logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 if loadmql:
       import MetaTrader5 as mt5
 
+# Equinox environment manager
+from tsMqlEnvMgr import CMqlEnvMgr
 
 class CDataLoader:
     """Class to manage and load market data parameters with override capability."""
 
-    def __init__(self,params, **kwargs):
+    def __init__(self, **kwargs):
         if loadmql:
                import MetaTrader5 as mt5
                self.mt5 = mt5
         else:
             self.mt5 = None
             
-        # global parameters
-        self.params = params
-        self.general_params = self.params['genparams']
-        self.data_params = self.params['dataparams']
-       
-        self._initialise_general_params(kwargs)
-        self._initialise_data_params(kwargs)
-        self._file_params()
+         # global parameters
+        self.env = CMqlEnvMgr()
+        self.params= self.env.all_params()
 
-    def _initialise_general_params(self, kwargs):
-        """initialises parameters with overrides if provided."""
-        self.general_params = self.params['genparams']
-
-        #global parameters
-        self.mp_glob_data_path = kwargs.get('mp_glob_data_path', self.general_params.get('mp_glob_data_path'))
-        logger.info(f"Data path: {self.mp_glob_data_path}")
+        self.base_params = self.env.all_params()["base"]
+        self.data_params = self.env.all_params()["data"]
+        self.ml_params = self.env.all_params()["ml"]
+        self.mltune_params = self.env.all_params()["mltune"]
+        self.app_params = self.env.all_params()["app"]
         
 
-    def _initialise_data_params(self, kwargs):
-        """initialises data parameters with overrides if provided."""
-        self.data_params = self.params['dataparams']
-
-         # data parameters
-
+        # data parameters
+        self.mp_glob_data_path = kwargs.get('mp_glob_data_path', self.base_params.get('mp_glob_data_path'))
         self.mp_data_data_label = kwargs.get('mp_data_data_label', self.data_params.get('mp_data_data_label'))
         self.mp_data_history_size = kwargs.get('mp_data_history_size', self.data_params.get('mp_data_history_size'))
         self.mp_data_timeframe = kwargs.get('mp_data_timeframe', self.data_params.get('mp_data_timeframe'))
@@ -91,11 +82,6 @@ class CDataLoader:
         self.mp_data_custom_output_label = kwargs.get('mp_data_custom_output_label', self.data_params.get('mp_data_custom_output_label'))
 
 
-    def _file_params(self):
-        """Logs initialised parameters."""
-        logger.info(f"mp_data_path: {self.mp_glob_data_path}")
-        logger.info(f"Data file value1: {self.mp_data_filename1}")
-        logger.info(f"Data file value2: {self.mp_data_filename2}")
 
     def load_data(self, **kwargs):
         """Loads market data from API or files."""

@@ -30,6 +30,10 @@ import logging
 import tabulate
 from tabulate import tabulate
 import textwrap
+
+# Equinox environment manager
+from tsMqlEnvMgr import CMqlEnvMgr
+
 #--------------------------------------------------------------------
 # create class  "CDataProcess"
 # usage: mql data services
@@ -38,7 +42,7 @@ import textwrap
 # /param  double svar;              -  value
 #-------------------------------------------------------------------- 
 class CDataProcess:
-    def __init__(self,params, **kwargs):
+    def __init__(self, **kwargs):
         if loadmql:
                import MetaTrader5 as mt5
                self.mt5 = mt5
@@ -46,9 +50,14 @@ class CDataProcess:
             self.mt5 = None
             
         # global parameters
-        self.params = params
-        self.general_params = self.params['genparams']
-        self.data_params = self.params['dataparams']
+        self.env = CMqlEnvMgr()
+        self.params= self.env.all_params()
+
+        self.base_params = self.env.all_params()["base"]
+        self.data_params = self.env.all_params()["data"]
+        self.ml_params = self.env.all_params()["ml"]
+        self.mltune_params = self.env.all_params()["mltune"]
+        self.app_params = self.env.all_params()["app"]
 
 
     def wrangle_time(self, df: pd.DataFrame, lp_unit: str, mp_filesrc: str, filter_int: bool, filter_flt: bool, filter_obj: bool, filter_dtmi: bool, filter_dtmf: bool, mp_dropna: bool, mp_merge: bool, mp_convert: bool, mp_drop: bool) -> pd.DataFrame:

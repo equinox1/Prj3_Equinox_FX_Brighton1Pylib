@@ -368,7 +368,7 @@ def main():
             timeframe=TIMEFRAME
         )
 
-        mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_market_data(obj1_CDataLoader, params_obj)
+        mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_market_data()
        
        
 
