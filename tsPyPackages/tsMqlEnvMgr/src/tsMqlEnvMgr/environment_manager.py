@@ -22,6 +22,7 @@ from tsMqlAppParams import CMqlEnvAppParams
 class CMqlEnvMgr:
     """Central manager for environment parameters."""
     def __init__(self, custom_params=None):
+
         self.base = CMqlEnvBaseParams()
         self.data = CMqlEnvDataParams()
         self.ml = CMqlEnvMLParams()

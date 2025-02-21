@@ -60,7 +60,7 @@ from tsMqlEnvMgr import CMqlEnvMgr
 from tsMqlReference import CMqlRefConfig
 
 # Equinox sub packages
-from tsMqlConnect import CMqlBrokerConfig, CMqlinit
+from tsMqlConnect import CMqlBrokerConfig
 from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
 
@@ -116,24 +116,22 @@ def main(logger):
         obj1_CMqlRefConfig = CMqlRefConfig(basedatatime='SECONDS', loadeddatatime='MINUTES', timesample='M1')
         timevalue, MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH, PRIMARY_SYMBOL = obj1_CMqlRefConfig.run_service()
         logger.info(f"MINUTES: {MINUTES}, HOURS: {HOURS}, DAYS: {DAYS}, TIMEZONE: {TIMEZONE} , TIMEFRAME: {TIMEFRAME}, CURRENTYEAR: {CURRENTYEAR}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, PRIMARY_SYMBOL: {PRIMARY_SYMBOL}")
-        
-        mp_symbol_primary = tm.TIME_CONSTANTS['SYMBOLS'][0]
-        mp_symbol_secondary = tm.TIME_CONSTANTS['SYMBOLS'][1]
-        mp_shiftvalue = tm.TIME_CONSTANTS['DATATYPE']['MINUTES']
-        mp_unit = tm.TIME_CONSTANTS['UNIT'][1] 
+      
         
         # +-------------------------------------------------------------------
         # STEP: CBroker Login
         # +-------------------------------------------------------------------
-        broker_configurator = CMqlBrokerConfig(lpbroker=app_params['broker'])
-        # Get broker-specific settings
-        broker_config = broker_configurator.set_mql_broker()
-        mt5_instance = broker_configurator.login_mt5(broker_config)
+        print("PARAM HEADER: MP_APP_BROKER:", app_params.get('mp_app_broker'))
+        broker_config = CMqlBrokerConfig(app_params.get('mp_app_broker'))
+        mqqlobj = broker_config.run_mql_login()
+        if mqqlobj is True:
+            print("Successfully logged in to MetaTrader 5.")
+        else:
+            print(f"Failed to login. Error code: {mqqlobj}")
 
+      
+    
 
-
-
-       
 """
       
         # Retrieve broker file paths
