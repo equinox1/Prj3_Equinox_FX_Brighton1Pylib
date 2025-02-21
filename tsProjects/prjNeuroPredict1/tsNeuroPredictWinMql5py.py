@@ -52,8 +52,6 @@ from sklearn.model_selection import train_test_split
 feature_scaler = MinMaxScaler()
 label_scaler = MinMaxScaler()
 
-# platform checker
-from tsMqlSetup import CMqlSetup
 
 # Equinox environment manager
 from tsMqlEnvMgr import CMqlEnvMgr
@@ -102,62 +100,56 @@ def main(logger):
         # get environment parameters
         params= env.all_params()
 
-        baseparams = env.all_params()["base"]
-        dataparams = env.all_params()["data"]
-        mlparams = env.all_params()["ml"]
-        mltuneparams = env.all_params()["mltune"]
-        appparams = env.all_params()["app"]
+        base_params = env.all_params()["base"]
+        data_params = env.all_params()["data"]
+        ml_params = env.all_params()["ml"]
+        mltune_params = env.all_params()["mltune"]
+        app_params = env.all_params()["app"]
 
-        print("baseparams:", baseparams)
-        print("dataparams:", dataparams)
-        print("mlparams:", mlparams)
-        print("mltuneparams:", mltuneparams)
-        print("appparams:", appparams)
-
-
-"""
-         
-      
-        
-       
-        # +-------------------------------------------------------------------
+        print("base_params:", base_params)
+        print("data_params:", data_params)
+        print("ml_params:", ml_params)
+        print("ml_tune_params:", mltune_params)
+        print("app_params:", app_params)
         # STEP: Load Reference class and time variables
         # +-------------------------------------------------------------------
-        obj1_CMqlRefConfig = CMqlRefConfig(basedatatime='SECONDS', loadeddatatime='MINUTES', timesample='H4')
+        obj1_CMqlRefConfig = CMqlRefConfig(basedatatime='SECONDS', loadeddatatime='MINUTES', timesample='M1')
         timevalue, MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH, PRIMARY_SYMBOL = obj1_CMqlRefConfig.run_service()
         logger.info(f"MINUTES: {MINUTES}, HOURS: {HOURS}, DAYS: {DAYS}, TIMEZONE: {TIMEZONE} , TIMEFRAME: {TIMEFRAME}, CURRENTYEAR: {CURRENTYEAR}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, PRIMARY_SYMBOL: {PRIMARY_SYMBOL}")
+        
+        mp_symbol_primary = tm.TIME_CONSTANTS['SYMBOLS'][0]
+        mp_symbol_secondary = tm.TIME_CONSTANTS['SYMBOLS'][1]
+        mp_shiftvalue = tm.TIME_CONSTANTS['DATATYPE']['MINUTES']
+        mp_unit = tm.TIME_CONSTANTS['UNIT'][1] 
+        
         # +-------------------------------------------------------------------
         # STEP: CBroker Login
         # +-------------------------------------------------------------------
-        # Initialize MT5 connection
-        print("Broker:", switchparams['broker'], "Primary Symbol:", switchparams['mp_symbol_primary'], "Datafile1:", switchparams['MPDATAFILE1'], "Datafile2:", switchparams['MPDATAFILE2'])
-        obj1_CMqlBrokerConfig = CMqlBrokerConfig(switchparams['broker'], switchparams['mp_symbol_primary'], switchparams['MPDATAFILE1'], switchparams['MPDATAFILE2'])
-        broker_config, mp_symbol_primary, mp_symbol_secondary, mp_shiftvalue, mp_unit = obj1_CMqlBrokerConfig.initialize_mt5(switchparams['broker'], obj1_CMqlRefConfig)ary, mp_symbol_secondary, mp_shiftvalue, mp_unit = obj1_CMqlBrokerConfig.initialize_mt5(switchparams['broker'], obj1_CMqlRefConfig)
+        broker_configurator = CMqlBrokerConfig(lpbroker=app_params['broker'])
+        # Get broker-specific settings
+        broker_config = broker_configurator.set_mql_broker()
+        mt5_instance = broker_configurator.login_mt5(broker_config)
+
+
+
+
+       
+"""
+      
         # Retrieve broker file paths
-        file_path, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2 = (broker_config := obj1_CMqlBrokerConfig.set_mql_broker())['MKFILES'], broker_config['MPDATAPATH'], broker_config['MPFILEVALUE1'], broker_config['MPFILEVALUE2']FILEVALUE2 = (broker_config := obj1_CMqlBrokerConfig.set_mql_broker())['MKFILES'], broker_config['MPDATAPATH'], broker_config['MPFILEVALUE1'], broker_config['MPFILEVALUE2']
-        logger.info(f"{__name__} ,:Broker File Path: {file_path}, MP Data Path: {MPDATAPATH} , MPFILEVALUE1: {MPFILEVALUE1}, MPFILEVALUE2: {MPFILEVALUE2}")Path: {file_path}, MP Data Path: {MPDATAPATH} , MPFILEVALUE1: {MPFILEVALUE1}, MPFILEVALUE2: {MPFILEVALUE2}")
+        file_path, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2 = (broker_config := obj1_CMqlBrokerConfig.set_mql_broker())['MKFILES'], broker_config['MPDATAPATH'], broker_config['MPFILEVALUE1'], broker_config['MPFILEVALUE2']
+        logger.info(f"{__name__} ,:Broker File Path: {file_path}, MP Data Path: {MPDATAPATH} , MPFILEVALUE1: {MPFILEVALUE1}, MPFILEVALUE2: {MPFILEVALUE2}")
         
-        print("PARAM HEADER: MPDATAFILE1:", switchparams['MPDATAFILE1'], "MPDATAFILE2:", switchparams['MPDATAFILE2'], "DFNAME1:", switchparams['DFNAME1'], "DFNAME2:", switchparams['DFNAME2'])1:", switchparams['MPDATAFILE1'], "MPDATAFILE2:", switchparams['MPDATAFILE2'], "DFNAME1:", switchparams['DFNAME1'], "DFNAME2:", switchparams['DFNAME2'])
-
-        obj1_CDataLoader = CDataLoader(  obj1_CDataLoader = CDataLoader(
-            all_params=params,
-            mp_data_filename1=switchparams['MPDATAFILE1'],
-            mp_data_filename2=switchparams['MPDATAFILE2'],params['MPDATAFILE2'],
-            mv_data_dfname1=switchparams['DFNAME1'],
-            mv_data_dfname2=switchparams['DFNAME2'],
-        )
-
-        obj1_CDataProcess = CDataProcess(s(
-            params,
-        )
+        print("PARAM HEADER: MPDATAFILE1:", app_params['MPDATAFILE1'], app_params['MPDATAFILE2'], app_params['DFNAME1'], app_params['DFNAME2'])
+        
+        obj1_CDataLoader = CDataLoader()
+        obj1_CDataProcess = CDataProcess()
 
         # +-------------------------------------------------------------------
         # STEP: Data Preparation and Loading
         # +-------------------------------------------------------------------
         # Set the data history size
-        mp_data_history_size = dataenv.mp_data_history_size if hasattr(dataenv, 'mp_data_history_size') else 0mp_data_history_size if hasattr(dataenv, 'mp_data_history_size') else 0
-        logger.info(f"CURRENTYEAR: {CURRENTYEAR}, CURRENTYEAR-mp_data_history_size: {CURRENTYEAR - mp_data_history_size}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, TIMEZONE: {TIMEZONE}")ENTYEAR: {CURRENTYEAR}, CURRENTYEAR-mp_data_history_size: {CURRENTYEAR - mp_data_history_size}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, TIMEZONE: {TIMEZONE}")
-
+        mp_data_history_size = data_params.get('mp_data_history_size')
         # Set the UTC time for the data        # Set the UTC time for the data
         mv_data_utc_from = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
         mv_data_utc_to = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
@@ -165,9 +157,12 @@ def main(logger):
         logger.info(f"UTC To: {mv_data_utc_to}")
 
         try:
-            mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_data()a1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_data()
-        except Exception as e:xcept Exception as e:
-            logger.error(f"An error occurred: {e}")            logger.error(f"An error occurred: {e}")
+             mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_market_data(obj1_CDataLoader, params_obj)
+        except Exception as e:
+            logger.error(f"An error occurred: {e}")
+
+       
+
 
         # Wrangle the data merging and transforming time to numericforming time to numeric
         if len(mv_tdata1apiticks) > 0 and loadmql:
