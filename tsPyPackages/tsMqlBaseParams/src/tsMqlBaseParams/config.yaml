@@ -6,12 +6,13 @@ mp_glob_wsl_drive: '/mnt/c/'
 mp_glob_lin_drive: '/home'
 mp_glob_mac_drive: '/Users/'
 mp_glob_user: 'shepa'
+mp_glob_netdrive: 'OneDrive'
 
 mp_glob_dir1: '8.0 Projects'
 mp_glob_dir2: '8.3 ProjectModelsEquinox'
+mp_glob_data_subdir: 'Mql5Data'
 
-
-datadir: 'Mql5Data' # Override if needed
+# Project Information
 
 # Machine Learning Paths
 mp_glob_ml_src_lib: 'PythonLib'
