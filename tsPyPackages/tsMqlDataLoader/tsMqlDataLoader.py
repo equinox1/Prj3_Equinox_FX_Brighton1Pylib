@@ -1,189 +1,167 @@
-"""
-#!/usr/bin/env python3 - uncomment for linux run
-# -*- coding: utf-8 -*-  - uncomment for linux run
-Filename: tsMqlDataLoader.py
-File: tsPyPackages/tsMqlDataLoader/tsMqlDataLoader.py
-Description: Login to Metatrader.
-Author: Tony Shepherd - Xercescloud
-Date: 2025-01-24
-Version: 1.0
-License: (Optional) e.g., MIT License
-"""
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# Filename: tsMqlDataLoader.py
+# Description: Login to Metatrader and manage market data loading.
+# Author: Tony Shepherd - Xercescloud
+# Date: 2025-01-24
+# Version: 1.1
+# License: MIT License (Optional)
 
 import logging
 import pandas as pd
 import numpy as np
 import pytz
+import os
 from datetime import datetime
-
-from tsMqlPlatform import (
-    run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger, config
-)
-
-# initialise platform
-pchk = run_platform.RunPlatform()
-os_platform = platform_checker.get_platform()
-loadmql = pchk.check_mql_state()
-logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
-if loadmql:
-      import MetaTrader5 as mt5
-
-# Equinox environment manager
+from tsMqlPlatform import run_platform, platform_checker, logger, config
 from tsMqlEnvMgr import CMqlEnvMgr
 
 class CDataLoader:
-    """Class to manage and load market data parameters with override capability."""
-
+    """Class to manage and load market data with override capability."""
+    
     def __init__(self, **kwargs):
-        if loadmql:
-               import MetaTrader5 as mt5
-               self.mt5 = mt5
-        else:
-            self.mt5 = None
-            
-         # global parameters
+        self.data_params = {}
+        self._initialize_mql()
         self.env = CMqlEnvMgr()
-        self.params= self.env.all_params()
+        self.params = self.env.all_params()
+        self._set_global_parameters(kwargs)
+        # ✅ Fetch values safely from kwargs or default to self.data_params
+        self.lp_utc_from = kwargs.get('lp_utc_from', self.data_params.get('lp_utc_from'))
+        self.lp_utc_to = kwargs.get('lp_utc_to', self.data_params.get('lp_utc_to'))
 
-        self.lp_utc_from=lp_utc_from
-        self.lp_utc_to=lp_utc_to
+    
+    def _initialize_mql(self):
+        """Initialize MetaTrader5 module and check platform."""
+        pchk = run_platform.RunPlatform()
+        self.os_platform = platform_checker.get_platform()
+        self.loadmql = pchk.check_mql_state()
+        logger.info(f"Running on: {self.os_platform}, loadmql state: {self.loadmql}")
+        if self.loadmql:
+            try:
+                global mt5
+                import MetaTrader5 as mt5
+            except ImportError as e:
+                logger.error(f"Failed to import MetaTrader5 module: {e}")
 
-        self.base_params = self.env.all_params()["base"]
-        self.data_params = self.env.all_params()["data"]
-        self.ml_params = self.env.all_params()["ml"]
-        self.mltune_params = self.env.all_params()["mltune"]   
-        self.app_params = self.env.all_params()["app"]
+    def _set_global_parameters(self, kwargs):
+        """Set configuration parameters from environment or user input."""
+        param_sections = ["base", "data", "ml", "mltune", "app"]
+        for section in param_sections:
+            setattr(self, f"{section}_params", self.params.get(section, {}))
         
-
-        # data parameters
-        self.mp_app_primary_symbol = kwargs.get(' mp_app_primary_symbol', self.app_params.get(' mp_app_primary_symbol'))
+        # Application parameters
+        self.mp_app_primary_symbol = kwargs.get('mp_app_primary_symbol', self.app_params.get('mp_app_primary_symbol'))
         self.mp_app_rows = kwargs.get('mp_app_rows', self.app_params.get('mp_app_rows'))
-        self.mp_app_rowcount = kwargs.get('mp_app_rowcount', self.app_params.get('mp_app_rowcount'))
-
         self.mp_glob_data_path = kwargs.get('mp_glob_data_path', self.base_params.get('mp_glob_data_path'))
-        self.mp_data_data_label = kwargs.get('mp_data_data_label', self.data_params.get('mp_data_data_label'))
-        self.mp_data_history_size = kwargs.get('mp_data_history_size', self.data_params.get('mp_data_history_size'))
-        self.mp_data_timeframe = kwargs.get('mp_data_timeframe', self.data_params.get('mp_data_timeframe'))
-        self.mp_data_tab_rows = kwargs.get('mp_data_tab_rows', self.data_params.get('mp_data_tab_rows'))
-        self.mp_data_tab_width = kwargs.get('mp_data_tab_width', self.data_params.get('mp_data_tab_width'))
-        self.mp_data_rownumber = kwargs.get('mp_data_rownumber', self.data_params.get('mp_data_rownumber'))
-        self.mp_data_show_dtype = kwargs.get('mp_data_show_dtype', self.data_params.get('mp_data_show_dtype'))
-        self.mp_data_show_head = kwargs.get('mp_data_show_head', self.data_params.get('mp_data_show_head'))
-        self.mp_data_command_ticks = kwargs.get('mp_data_command_ticks', self.data_params.get('mp_data_command_ticks'))
-        self.mp_data_command_rates = kwargs.get('mp_data_command_rates', self.data_params.get('mp_data_command_rates'))
-        self.mp_data_cfg_usedata = kwargs.get('mp_data_cfg_usedata', self.data_params.get('mp_data_cfg_usedata'))
-        self.mp_data_loadapiticks = kwargs.get('mp_data_loadapiticks', self.data_params.get('mp_data_loadapiticks'))
-        self.mp_data_loadapirates = kwargs.get('mp_data_loadapirates', self.data_params.get('mp_data_loadapirates'))
-        self.mp_data_loadfileticks = kwargs.get('mp_data_loadfileticks', self.data_params.get('mp_data_loadfileticks'))
-        self.mp_data_loadfilerates = kwargs.get('mp_data_loadfilerates', self.data_params.get('mp_data_loadfilerates'))
-        self.mp_data_dfname1 = kwargs.get('mp_data_dfname1', self.data_params.get('mp_data_dfname1'))
-        self.mp_data_dfname2 = kwargs.get('mp_data_dfname2', self.data_params.get('mp_data_dfname2'))
-        self.mp_app_rows = kwargs.get('mp_app_rows', self.data_params.get('mp_app_rows'))
-        self.mp_data_rowcount = kwargs.get('mp_data_rowcount', self.data_params.get('mp_data_rowcount'))
-        self.mp_data_filename1 = kwargs.get('mp_data_filename1', self.data_params.get('mp_data_filename1'))
-        self.mp_data_filename2 = kwargs.get('mp_data_filename2', self.data_params.get('mp_data_filename2'))
-        self.mp_app_primary_symbol = kwargs.get(' mp_app_primary_symbol', self.data_params.get(' mp_app_primary_symbol'))
-        self.mp_data_utc_from = kwargs.get('mp_data_utc_from', self.data_params.get('mp_data_utc_from'))
-        self.mp_data_utc_to = kwargs.get('mp_data_utc_to', self.data_params.get('mp_data_utc_to'))
-        self.mp_data_custom_input_keyfeat = kwargs.get('mp_data_custom_input_keyfeat', self.data_params.get('mp_data_custom_input_keyfeat'))
-        self.mp_data_custom_output_label = kwargs.get('mp_data_custom_output_label', self.data_params.get('mp_data_custom_output_label'))
+        self.mp_data_filename1_merge =  self.mp_app_primary_symbol + "_" + self.data_params.get('mp_data_filename1') + ".csv"
+        self.mp_data_filename2_merge = self.mp_app_primary_symbol + "_" + self.data_params.get('mp_data_filename2') + ".csv"
 
+        logger.info(f"Data path: {self.mp_glob_data_path}")
+        logger.info(f"Primary symbol: {self.mp_app_primary_symbol}")
+        logger.info(f"Rows to fetch: {self.mp_app_rows}")
+        logger.info(f"Filename1: {self.mp_data_filename1_merge}")
+        logger.info(f"Filename2: {self.mp_data_filename2_merge}")
+
+       
+        
+        # Data parameters
+        for key, default in self.data_params.items():
+            setattr(self, key, kwargs.get(key, default))
+    
     def load_data(self, **kwargs):
-        """Loads market data from API or files."""
-        rates = {'api_ticks': pd.DataFrame(), 'api_rates': pd.DataFrame(), 'file_ticks': pd.DataFrame(), 'file_rates': pd.DataFrame()}
-        self.lp_utc_from=lp_utc_from
-        self.lp_utc_to=lp_utc_to
-
-        if loadmql:
-            if self.mp_data_loadapiticks:
-                rates['api_ticks'] = self._fetch_api_ticks()
-            if self.mp_data_loadapirates:
-                rates['api_rates'] = self._fetch_api_rates()
+        """Load market data from API or files."""
+        loadfile = {'api_ticks': pd.DataFrame(), 'api_rates': pd.DataFrame(),
+                    'file_ticks': pd.DataFrame(), 'file_rates': pd.DataFrame()}
         
-        if self.mp_data_loadfileticks:
-            rates['file_ticks'] = self._load_from_file(self.mp_data_filename1)
-        if self.mp_data_loadfilerates:
-            rates['file_rates'] = self._load_from_file(self.mp_data_filename2)
+        if self.loadmql:
+            if getattr(self, "mp_data_loadapiticks", False):
+                loadfile['api_ticks'] = self._fetch_api_ticks()
+            if getattr(self, "mp_data_loadapirates", False):
+                loadfile['api_rates'] = self._fetch_api_rates()
         
-        return rates
+        if getattr(self, "mp_data_loadfileticks", False):
+            logger.info(f"Loading filename: {self.mp_data_filename1_merge}")
+            self.datasrc= self.mp_data_filename1_merge
+            logger.info(f"Loading data from file: {self.datasrc}")
+            loadfile['file_ticks'] = self._load_from_file(self.datasrc)
+        if getattr(self, "mp_data_loadfilerates", False):
+            self.datasrc=self.mp_data_filename2_merge
+            logger.info(f"Loading data from file: {self.datasrc}")
+            loadfile['file_rates'] = self._load_from_file(self.datasrc)
+        
+        return loadfile
     
     def _fetch_api_ticks(self):
-        """Fetches tick data from MetaTrader5 API."""
-        try:
-            
-            logger.info(f"Fetching rate data from MetaTrader5 API")
-            logger.info(f"Symbol: {self.mp_app_primary_symbol}")
-            logger.info(f"Timeframe: {valid_timeframe}")
-            logger.info(f"UTC to: {self.mp_data_utc_to}")   
-            logger.info(f"Rows: {self.mp_app_rows}")
-            logger.info(f"Command: {self.mp_data_command_ticks}")
-
-
-            data = mt5.copy_ticks_from(self. mp_app_primary_symbol, self.mp_data_utc_to, self.mp_app_rows, mt5.COPY_TICKS_ALL)
-            df = pd.DataFrame(data)
-            logger.info(f"API tick data received: {len(df)} rows" if not df.empty else "No tick data found")
-            return df
-        except Exception as e:
-            logger.error(f"MT5 API tick data exception: {e}")
-            return pd.DataFrame()
+        return self._fetch_api_data(apitype='ticks')
     
     def _fetch_api_rates(self):
-        """Fetches rate data from MetaTrader5 API."""
+        return self._fetch_api_data(apitype='rates')
+    
+    def _fetch_api_data(self, apitype='rates'):
+        """Fetch data from MetaTrader5 API."""
         try:
+            if 'mt5' not in globals():
+                logger.error("MetaTrader5 module not loaded.")
+                return pd.DataFrame()
+            
             valid_timeframe = self._validate_timeframe(self.mp_data_timeframe)
             if valid_timeframe is None:
                 raise ValueError(f"Invalid timeframe: {self.mp_data_timeframe}")
-         
-            logger.info(f"Fetching rate data from MetaTrader5 API")
-            logger.info(f"Symbol: {self.mp_app_primary_symbol}")
-            logger.info(f"Timeframe: {valid_timeframe}")
-            logger.info(f"UTC to: {self.mp_data_utc_to}")   
-            logger.info(f"Rows: {self.mp_app_rows}")
-
-            data = mt5.copy_rates_from(self.mp_app_primary_symbol, valid_timeframe, self.mp_data_utc_to, self.mp_app_rows)
+            
+            logger.info(f"Fetching {apitype} data from MetaTrader5 API")
+            if apitype == 'ticks':
+                data = mt5.copy_ticks_from(self.mp_app_primary_symbol, self.lp_utc_from, self.mp_app_rows, mt5.COPY_TICKS_ALL)
+            else:
+                data = mt5.copy_rates_from(self.mp_app_primary_symbol, valid_timeframe, self.lp_utc_from, self.mp_app_rows)
+               
+            
             df = pd.DataFrame(data)
-            logger.info(f"API rate data received: {len(df)} rows" if not df.empty else "No rate data found")
+            if df.empty:
+                logger.warning(f"No {apitype} data found for {self.mp_app_primary_symbol}.")
+            else:
+                logger.info(f"Fetched {len(df)} {apitype} rows from API.")
             return df
         except Exception as e:
-            logger.error(f"MT5 API rates exception: {e}")
+            logger.error(f"MT5 API {apitype} exception: {e}")
             return pd.DataFrame()
-
+    
     def _load_from_file(self, filename):
-        """Loads data from a CSV file."""
+        """Load data from a CSV file."""
+        if not filename:
+            logger.warning("No filename provided for file loading.")
+            return pd.DataFrame()
+        
+        filepath = os.path.join(self.mp_glob_data_path, filename)
         try:
-            if not filename:
-                return pd.DataFrame()
-            filepath = f"{self.mp_data_path}/{filename}"
-            df = pd.read_csv(filepath, sep=",", nrows=self.mp_data_rowcount, low_memory=False)
+            df = pd.read_csv(filepath, sep=",", nrows=getattr(self, "mp_data_rowcount", None), low_memory=False)
             if "vol3" in df.columns:
                 df.drop("vol3", axis=1, inplace=True)
-            logger.info(f"File data received: {len(df)} rows" if not df.empty else "No data found")
+            if df.empty:
+                logger.warning(f"No data found in file: {filename}")
+            else:
+                logger.info(f"File data received: {len(df)} rows from {filename}")
             return df
         except Exception as e:
             logger.error(f"File load exception: {e}")
             return pd.DataFrame()
     
     def _validate_timeframe(self, timeframe):
-        """Validates the timeframe string."""
-        logger.info(f"Validating timeframe: {timeframe}")
+        """Validate and return a valid MetaTrader5 timeframe."""
+        if 'mt5' not in globals():
+            logger.error("MetaTrader5 module not loaded.")
+            return None
+        
         timeframes = {
-            "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5, "M15": mt5.TIMEFRAME_M15,
-            "M30": mt5.TIMEFRAME_M30, "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
-            "D1": mt5.TIMEFRAME_D1, "W1": mt5.TIMEFRAME_W1, "MN1": mt5.TIMEFRAME_MN1,
-        }
-        return timeframes.get(timeframe)
-
-    def _validate_reverse_timeframe(self, timeframe):
-        """Validates the timeframe string."""
-        timeframes = {
-            "mt5.TIMEFRAME_M1": "M1", "mt5.TIMEFRAME_M5": "M5", "mt5.TIMEFRAME_M15": "M15",
-            "mt5.TIMEFRAME_M30": "M30", "mt5.TIMEFRAME_H1": "H1", "mt5.TIMEFRAME_H4": "H4",
-            "mt5.TIMEFRAME_D1": "D1", "mt5.TIMEFRAME_W1": "W1", "mt5.TIMEFRAME_MN1": "MN1",
+            "M1": mt5.TIMEFRAME_M1, "M5": mt5.TIMEFRAME_M5,
+            "M15": mt5.TIMEFRAME_M15, "M30": mt5.TIMEFRAME_M30,
+            "H1": mt5.TIMEFRAME_H1, "H4": mt5.TIMEFRAME_H4,
+            "D1": mt5.TIMEFRAME_D1, "W1": mt5.TIMEFRAME_W1,
+            "MN1": mt5.TIMEFRAME_MN1,
         }
         return timeframes.get(timeframe)
     
     def set_mql_timezone(self, year, month, day, timezone):
-        """Converts a date into a timezone-aware datetime object."""
+        """Convert a date into a timezone-aware datetime object."""
         try:
             return pytz.timezone(timezone).localize(datetime(year, month, day))
         except Exception as e:

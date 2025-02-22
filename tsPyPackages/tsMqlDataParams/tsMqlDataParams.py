@@ -34,7 +34,7 @@ class CMqlEnvDataParams(CEnvCore):
             'mp_data_show_dtype': False,
             'mp_data_show_head': False,
             'mp_data_command_ticks': None,
-            'mp_data_command_rates': None,
+            'mp_data_command_rates':None,
             'mp_data_cfg_usedata': 'loadfilerates',
             'mp_data_loadapiticks': True,
             'mp_data_loadapirates': True,
@@ -44,7 +44,7 @@ class CMqlEnvDataParams(CEnvCore):
             'mv_data_dfname2': 'df_rates2',
             'mp_data_rows': 1000,
             'mp_data_rowcount': 10000,
-            'mp_data_filename1': None,
-            'mp_data_filename2': None,
+            'mp_data_filename1':  'tickdata1',
+            'mp_data_filename2': 'ratesdata1',
          }
 
