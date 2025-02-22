@@ -56,6 +56,7 @@ label_scaler = MinMaxScaler()
 # Equinox environment manager
 from tsMqlEnvMgr import CMqlEnvMgr
 
+
 #Reference class
 from tsMqlReference import CMqlRefConfig
 
@@ -98,6 +99,8 @@ def main(logger):
         env = CMqlEnvMgr()
         print("All Parameters:", env.all_params())
         # get environment parameters
+
+        
         params= env.all_params()
 
         base_params = env.all_params()["base"]
@@ -111,13 +114,16 @@ def main(logger):
         print("ml_params:", ml_params)
         print("ml_tune_params:", mltune_params)
         print("app_params:", app_params)
+
+        env.override_params({"data": {"mp_data_timeframe": 'H4'}})
+        logger.info(f"Override update: {env.get_param('data', 'mp_data_timeframe')}")
+        
         # STEP: Load Reference class and time variables
         # +-------------------------------------------------------------------
         obj1_CMqlRefConfig = CMqlRefConfig(basedatatime='SECONDS', loadeddatatime='MINUTES', timesample='M1')
         timevalue, MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH, PRIMARY_SYMBOL = obj1_CMqlRefConfig.run_service()
         logger.info(f"MINUTES: {MINUTES}, HOURS: {HOURS}, DAYS: {DAYS}, TIMEZONE: {TIMEZONE} , TIMEFRAME: {TIMEFRAME}, CURRENTYEAR: {CURRENTYEAR}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, PRIMARY_SYMBOL: {PRIMARY_SYMBOL}")
       
-        
         # +-------------------------------------------------------------------
         # STEP: CBroker Login
         # +-------------------------------------------------------------------
@@ -129,17 +135,11 @@ def main(logger):
         else:
             print(f"Failed to login. Error code: {mqqlobj}")
 
-      
-    
-
-"""
-      
+        # +-------------------------------------------------------------------
+        # STEP: Data Preparation and Loading
+        # +-------------------------------------------------------------------
         # Retrieve broker file paths
-        file_path, MPDATAPATH, MPFILEVALUE1, MPFILEVALUE2 = (broker_config := obj1_CMqlBrokerConfig.set_mql_broker())['MKFILES'], broker_config['MPDATAPATH'], broker_config['MPFILEVALUE1'], broker_config['MPFILEVALUE2']
-        logger.info(f"{__name__} ,:Broker File Path: {file_path}, MP Data Path: {MPDATAPATH} , MPFILEVALUE1: {MPFILEVALUE1}, MPFILEVALUE2: {MPFILEVALUE2}")
-        
-        print("PARAM HEADER: MPDATAFILE1:", app_params['MPDATAFILE1'], app_params['MPDATAFILE2'], app_params['DFNAME1'], app_params['DFNAME2'])
-        
+       
         obj1_CDataLoader = CDataLoader()
         obj1_CDataProcess = CDataProcess()
 
@@ -153,15 +153,16 @@ def main(logger):
         mv_data_utc_to = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
         logger.info(f"UTC From: {mv_data_utc_from}")
         logger.info(f"UTC To: {mv_data_utc_to}")
+        env.override_params({"data": {"mp_data_timeframe": 'H4'}})
 
         try:
-             mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_market_data(obj1_CDataLoader, params_obj)
+             mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_data(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to)
         except Exception as e:
             logger.error(f"An error occurred: {e}")
 
        
 
-
+"""
         # Wrangle the data merging and transforming time to numericforming time to numeric
         if len(mv_tdata1apiticks) > 0 and loadmql:
             mv_tdata1apiticks = obj1_CDataProcess.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)ataProcess.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
@@ -390,7 +391,7 @@ def main(logger):
             }
         else:
             data_sources = [mv_tdata1loadticks, mv_tdata1loadrates]
-            data_copies = [data.copy() for data in data_sources]pies = [data.copy() for data in data_sources]
+            data_copies = [data.copy() for data in data_sources]pies = [data.copy() for data in data sources]
             mv_tdata1c, mv_tdata1d = data_copies
             data_mapping = {
                 'loadfileticks': mv_tdata2c,
