@@ -51,23 +51,16 @@ from sklearn.model_selection import train_test_split
 # set package options
 feature_scaler = MinMaxScaler()
 label_scaler = MinMaxScaler()
-
-
 # Equinox environment manager
 from tsMqlEnvMgr import CMqlEnvMgr
-
-
 #Reference class
 from tsMqlReference import CMqlRefConfig
-
 # Equinox sub packages
 from tsMqlConnect import CMqlBrokerConfig
 from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
-
 # Equinox ML packages
 from tsMqlMLTune import CMdtuner
-
 
 # Setup the logging and tensor platform dependencies
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
@@ -99,8 +92,6 @@ def main(logger):
         env = CMqlEnvMgr()
         print("All Parameters:", env.all_params())
         # get environment parameters
-
-        
         params= env.all_params()
 
         base_params = env.all_params()["base"]
@@ -115,15 +106,15 @@ def main(logger):
         print("ml_tune_params:", mltune_params)
         print("app_params:", app_params)
 
-        env.override_params({"data": {"mp_data_timeframe": 'H4'}})
-        logger.info(f"Override update: {env.get_param('data', 'mp_data_timeframe')}")
-        
         # STEP: Load Reference class and time variables
         # +-------------------------------------------------------------------
         obj1_CMqlRefConfig = CMqlRefConfig(basedatatime='SECONDS', loadeddatatime='MINUTES', timesample='M1')
         timevalue, MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH, PRIMARY_SYMBOL = obj1_CMqlRefConfig.run_service()
         logger.info(f"MINUTES: {MINUTES}, HOURS: {HOURS}, DAYS: {DAYS}, TIMEZONE: {TIMEZONE} , TIMEFRAME: {TIMEFRAME}, CURRENTYEAR: {CURRENTYEAR}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, PRIMARY_SYMBOL: {PRIMARY_SYMBOL}")
-      
+        
+        env.override_params({"data": {"mp_data_timeframe": 'H4'}})
+        logger.info(f"Override update: {env.get_param('data', 'mp_data_timeframe')}")
+        TIMEFRAME = env.get_param('data', 'mp_data_timeframe')
         # +-------------------------------------------------------------------
         # STEP: CBroker Login
         # +-------------------------------------------------------------------
@@ -151,16 +142,22 @@ def main(logger):
         # Set the UTC time for the data        # Set the UTC time for the data
         mv_data_utc_from = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
         mv_data_utc_to = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
-        logger.info(f"UTC From: {mv_data_utc_from}")
-        logger.info(f"UTC To: {mv_data_utc_to}")
-        env.override_params({"data": {"mp_data_timeframe": 'H4'}})
+        logger.info(f"Main:UTC From: {mv_data_utc_from}")
+        logger.info(f"Main:UTC To: {mv_data_utc_to}")
+        
 
         try:
-             mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_data(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to)
+             mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_data(
+             lp_utc_from=mv_data_utc_from, 
+             lp_utc_to=mv_data_utc_to,
+             lp_timeframe=TIMEFRAME,
+             lp_app_primary_symbol='EURUSD',
+             lp_app_rows=100
+             )
         except Exception as e:
             logger.error(f"An error occurred: {e}")
 
-       
+        
 
 """
         # Wrangle the data merging and transforming time to numericforming time to numeric
