@@ -98,7 +98,7 @@ if tfdebug:
 from tensorflow.keras.mixed_precision import set_global_policy
 set_global_policy('mixed_float16')
 
-def main():
+_command_ticksdef main():
     with strategy.scope():
       
         mp_ml_show_plot=False
