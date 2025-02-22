@@ -27,7 +27,7 @@ class CMqlEnvDataParams(CEnvCore):
    DEFAULT_PARAMS = {
             'mp_data_data_label': 3,
             'mp_data_history_size': 5,
-            'mp_data_timeframe': None,
+            'mp_data_timeframe': 'H4',
             'mp_data_tab_rows': 10,
             'mp_data_tab_width': 30,
             'mp_data_rownumber': False,
