@@ -21,36 +21,38 @@ class CDataLoader:
 
     def __init__(self, **kwargs):
         self.env = CMqlEnvMgr()
-        self.data_params = {}  
+        self.local_data_params = {}  
         self._initialize_mql()
 
         self.params = self.env.all_params()
 
         # Ensure default values before calling _set_global_parameters
-        self.mp_data_filename1 =  self.params.get('data', {}).get('mp_data_filename1', 'default_filename1.csv')
-        self.mp_data_filename2 =  self.params.get('data', {}).get('mp_data_filename2', 'default_filename2.csv')
-        
-        self._set_global_parameters(kwargs)  # Now call this method after initializing needed attributes
+        self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default_filename1.csv')
+        self.mp_data_filename2 = self.params.get('data', {}).get('mp_data_filename2', 'default_filename2.csv')
+
+        default_utc_from = datetime.utcnow()
+        default_utc_to = datetime.utcnow()
+
+        self.lp_utc_from = kwargs.get('lp_utc_from', default_utc_from)
+        self.lp_utc_to = kwargs.get('lp_utc_to', default_utc_to)
+             
+        self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
+        self.lp_app_rows = kwargs.get('lp_app_rows', self.params.get('app', {}).get('mp_app_rows', 1000))
+        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('app', {}).get('mp_app_timeframe', 'H4'))
+
+        self._set_global_parameters(kwargs)  # Now safe to call
 
         # Debugging logs
         logger.debug(f"kwargs: {kwargs}")
-        logger.debug(f"self.data_params: {self.data_params}")
-
-        self.lp_utc_from = kwargs.get('lp_utc_from', self.data_params.get('mp_data_utc_from', None))
-        self.lp_utc_to = kwargs.get('lp_utc_to', self.data_params.get('mp_data_utc_to', None))
-            
-        self.lp_timeframe = kwargs.get('lp_timeframe', self.data_params.get('mp_data_timeframe', None))
-        self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'Unknown'))
-        self.lp_app_rows = kwargs.get('lp_app_rows', self.params.get('app', {}).get('mp_app_rows', 1000))
+        logger.debug(f"self.local_data_params: {self.local_data_params}")
 
         logger.info(f"UTC from: {self.lp_utc_from}")
         logger.info(f"UTC to: {self.lp_utc_to}")
         logger.info(f"Timeframe: {self.lp_timeframe}")
         logger.info(f"Primary symbol: {self.lp_app_primary_symbol}")
         logger.info(f"Rows to fetch: {self.lp_app_rows}")
-        logger.info(f"Data filename1: {self.mp_data_filename1}")
-        logger.info(f"Data filename2: {self.mp_data_filename2}")
 
+    
     def _initialize_mql(self):
         """Initialize MetaTrader5 module and check platform."""
         pchk = run_platform.RunPlatform()
@@ -63,7 +65,7 @@ class CDataLoader:
                 global mt5
                 import MetaTrader5 as mt5
                 if not mt5.initialize():
-                    logger.error("Failed to initialize MetaTrader5 module.")
+                    logger.error(f"Failed to initialize MetaTrader5 module. Error: {mt5.last_error()}")
             except ImportError as e:
                 logger.error(f"Failed to import MetaTrader5 module: {e}")
 
@@ -73,85 +75,61 @@ class CDataLoader:
         for section in param_sections:
             setattr(self, f"{section}_params", self.params.get(section, {}))
 
-        # Application parameters
-        self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'Unknown'))
         self.mp_glob_data_path = kwargs.get('mp_glob_data_path', self.params.get('base', {}).get('mp_glob_data_path', 'Mql5Data'))
 
         self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
         self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
+        self.mp_data_loadapiticks = kwargs.get('mp_data_loadapiticks', self.params.get('data', {}).get('mp_data_loadapiticks', True))
+        self.mp_data_loadapirates = kwargs.get('mp_data_loadapirates', self.params.get('data', {}).get('mp_data_loadapirates', True))
+        self.mp_data_loadfileticks = kwargs.get('mp_data_loadfileticks', self.params.get('data', {}).get('mp_data_loadfileticks', True))
+        self.mp_data_loadfilerates = kwargs.get('mp_data_loadfilerates', self.params.get('data', {}).get('mp_data_loadfilerates', True))
 
-       
-        # Data parameters
-        for key, default in self.data_params.items():
-            setattr(self, key, kwargs.get(key, default))
+        logger.info(f"Data path: {self.mp_glob_data_path}")
+        logger.info(f"Data filename1: {self.mp_data_filename1_merge}")
+        logger.info(f"Data filename2: {self.mp_data_filename2_merge}")
+        logger.info(f"Load API ticks: {self.mp_data_loadapiticks}")
+        logger.info(f"Load API rates: {self.mp_data_loadapirates}")
+        logger.info(f"Load file ticks: {self.mp_data_loadfileticks}")
+        logger.info(f"Load file rates: {self.mp_data_loadfilerates}")
 
     def load_data(self, **kwargs):
         """Load market data from API or files."""
-        loadfile = {'api_ticks': pd.DataFrame(), 'api_rates': pd.DataFrame(),
-                    'file_ticks': pd.DataFrame(), 'file_rates': pd.DataFrame()}
-        
-        if self.loadmql:
-            if getattr(self, "mp_data_loadapiticks", False):
-                loadfile['api_ticks'] = self._fetch_api_ticks()
-            if getattr(self, "mp_data_loadapirates", False):
-                loadfile['api_rates'] = self._fetch_api_rates()
-        
-        if getattr(self, "mp_data_loadfileticks", False):
-            logger.info(f"Loading filename: {self.mp_data_filename1_merge}")
-            self.datasrc = self.mp_data_filename1_merge
-            loadfile['file_ticks'] = self._load_from_file(self.datasrc)
+        loadfile = {
+            'api_ticks': self._fetch_api_data('ticks') if self.mp_data_loadapiticks else pd.DataFrame(),
+            'api_rates': self._fetch_api_data('rates') if self.mp_data_loadapirates else pd.DataFrame(),
+            'file_ticks': self._load_from_file(self.mp_data_filename1_merge) if self.mp_data_loadfileticks else pd.DataFrame(),
+            'file_rates': self._load_from_file(self.mp_data_filename2_merge) if self.mp_data_loadfilerates else pd.DataFrame(),
+        }
 
-        if getattr(self, "mp_data_loadfilerates", False):
-            self.datasrc = self.mp_data_filename2_merge
-            loadfile['file_rates'] = self._load_from_file(self.datasrc)
-        
+        if all(df.empty for df in loadfile.values()):
+            logger.error("No data loaded from API or files.")
+
         return loadfile
-    
-    def _fetch_api_ticks(self):
-        return self._fetch_api_data(apitype='ticks')
-    
-    def _fetch_api_rates(self):
-        return self._fetch_api_data(apitype='rates')
-    
-    def _fetch_api_data(self, apitype='rates'):
+
+    def _fetch_api_data(self, apitype=''):
         """Fetch data from MetaTrader5 API."""
         try:
-            if 'mt5' not in globals():
-                logger.error("MetaTrader5 module not loaded.")
-                return pd.DataFrame()
-            
-            if not mt5.initialize():
-                logger.error("Failed to initialize MetaTrader5 connection.")
+            if 'mt5' not in globals() or not mt5.initialize():
+                logger.error("MetaTrader5 module not initialized.")
                 return pd.DataFrame()
 
-            valid_timeframe = self.lp_timeframe if self.lp_timeframe else mt5.TIMEFRAME_M1
+            valid_timeframe = getattr(mt5, f"TIMEFRAME_{self.lp_timeframe}", mt5.TIMEFRAME_M1)
 
             logger.info(f"Fetching {apitype} data from MetaTrader5 API")
             if apitype == 'ticks':
-               logger.info(f"Ticks: Fetching {apitype} data from MetaTrader5 API")
-               logger.info(f"Ticks:Primary symbol: {self.lp_app_primary_symbol}")
-               logger.info(f"Ticks:UTC from: {self.lp_utc_from}")
-               logger.info(f"Ticks:Rows to fetch: {self.lp_app_rows}")
-               logger.info(f"Ticks:Copy ticks all: {mt5.COPY_TICKS_ALL}")
-               data = mt5.copy_ticks_from(self.lp_app_primary_symbol, self.lp_utc_from, self.lp_app_rows, mt5.COPY_TICKS_ALL)
+                data = mt5.copy_ticks_from(self.lp_app_primary_symbol, self.lp_utc_from, self.lp_app_rows, mt5.COPY_TICKS_ALL)
+            elif apitype == 'rates':
+                data = mt5.copy_rates_from(self.lp_app_primary_symbol, valid_timeframe, self.lp_utc_from, self.lp_app_rows)
             else:
-               logger.info(f"Rates: Fetching {apitype} data from MetaTrader5 API")
-               logger.info(f"Rates:Primary symbol: {self.lp_app_primary_symbol}")
-               logger.info(f"Rates:Timeframe: {valid_timeframe}")
-               logger.info(f"Rates:UTC from: {self.lp_utc_from}")
-               logger.info(f"Rates:Rows to fetch: {self.lp_app_rows}")
-               data = mt5.copy_rates_from(self.lp_app_primary_symbol, valid_timeframe, self.lp_utc_from, self.lp_app_rows)
+                return pd.DataFrame()
 
             df = pd.DataFrame(data)
-            if df.empty:
-                logger.warning(f"No {apitype} data found for {self.lp_app_primary_symbol}.")
-            else:
-                logger.info(f"Fetched {len(df)} {apitype} rows from API.")
+            logger.info(f"Fetched {len(df)} {apitype} rows from API.") if not df.empty else logger.warning(f"No {apitype} data found.")
             return df
         except Exception as e:
             logger.error(f"MT5 API {apitype} exception: {e}")
             return pd.DataFrame()
-    
+
     def _load_from_file(self, filename):
         """Load data from a CSV file."""
         if not filename:
@@ -171,10 +149,11 @@ class CDataLoader:
             logger.error(f"Error reading file {filename}: {e}")
             return pd.DataFrame()
 
+
     def set_mql_timezone(self, year, month, day, timezone):
-         """Convert a date into a timezone-aware datetime object."""
-         try:
-               return pytz.timezone(timezone).localize(datetime(year, month, day))
-         except Exception as e:
-               logger.error(f"Timezone conversion error: {e}")
-               return None
+            """Convert a date into a timezone-aware datetime object."""
+            try:
+                  return pytz.timezone(timezone).localize(datetime(year, month, day))
+            except Exception as e:
+                  logger.error(f"Timezone conversion error: {e}")
+                  return None

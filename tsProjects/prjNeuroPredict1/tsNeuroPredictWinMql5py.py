@@ -157,7 +157,15 @@ def main(logger):
         except Exception as e:
             logger.error(f"An error occurred: {e}")
 
-        
+       # print("mv_tdata1apiticks", mv_tdata1apiticks.Head(3))
+       # print("mv_tdata1apirates", mv_tdata1apirates.Head(3))
+       # print("mv_tdata1loadticks", mv_tdata1loadticks.Head(3))
+       # print("mv_tdata1loadrates", mv_tdata1loadrates.Head(3))
+
+
+
+
+
 
 """
         # Wrangle the data merging and transforming time to numericforming time to numeric
