@@ -144,28 +144,32 @@ def main(logger):
         mv_data_utc_to = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
         logger.info(f"Main:UTC From: {mv_data_utc_from}")
         logger.info(f"Main:UTC To: {mv_data_utc_to}")
-        
-
+      
         try:
-             mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates = obj1_CDataLoader.load_data(
-             lp_utc_from=mv_data_utc_from, 
-             lp_utc_to=mv_data_utc_to,
-             lp_timeframe=TIMEFRAME,
-             lp_app_primary_symbol='EURUSD',
-             lp_app_rows=100
-             )
+            data_loader = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=TIMEFRAME, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=10000)
+            df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader.load_data()
         except Exception as e:
             logger.error(f"An error occurred: {e}")
 
-       # print("mv_tdata1apiticks", mv_tdata1apiticks.Head(3))
-       # print("mv_tdata1apirates", mv_tdata1apirates.Head(3))
-       # print("mv_tdata1loadticks", mv_tdata1loadticks.Head(3))
-       # print("mv_tdata1loadrates", mv_tdata1loadrates.Head(3))
+        # Ensure DataFrames are returned and check their contents
+
+        if df_api_ticks.empty:
+            logger.warning("API Ticks data is empty!")
+        if df_api_rates.empty:
+            logger.warning("API Rates data is empty!")
+        if df_file_ticks.empty:
+            logger.warning("File Ticks data is empty!")
+        if df_file_rates.empty:
+            logger.warning("File Rates data is empty!")
+
+        # Display the data
+        obj1_CDataProcess.run_mql_print(df_api_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+        obj1_CDataProcess.run_mql_print(df_api_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+        obj1_CDataProcess.run_mql_print(df_file_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+        obj1_CDataProcess.run_mql_print(df_file_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
 
 
-
-
-
+  
 
 """
         # Wrangle the data merging and transforming time to numericforming time to numeric

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 # Filename: tsMqlDataLoader.py
-# Description: Login to Metatrader and manage market data loading.
+# Description: Login to MetaTrader and manage market data loading.
 # Author: Tony Shepherd - Xercescloud
 # Date: 2025-01-24
 # Version: 1.1
@@ -35,7 +35,6 @@ class CDataLoader:
 
         self.lp_utc_from = kwargs.get('lp_utc_from', default_utc_from)
         self.lp_utc_to = kwargs.get('lp_utc_to', default_utc_to)
-             
         self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
         self.lp_app_rows = kwargs.get('lp_app_rows', self.params.get('app', {}).get('mp_app_rows', 1000))
         self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('app', {}).get('mp_app_timeframe', 'H4'))
@@ -52,7 +51,6 @@ class CDataLoader:
         logger.info(f"Primary symbol: {self.lp_app_primary_symbol}")
         logger.info(f"Rows to fetch: {self.lp_app_rows}")
 
-    
     def _initialize_mql(self):
         """Initialize MetaTrader5 module and check platform."""
         pchk = run_platform.RunPlatform()
@@ -93,18 +91,17 @@ class CDataLoader:
         logger.info(f"Load file rates: {self.mp_data_loadfilerates}")
 
     def load_data(self, **kwargs):
-        """Load market data from API or files."""
-        loadfile = {
-            'api_ticks': self._fetch_api_data('ticks') if self.mp_data_loadapiticks else pd.DataFrame(),
-            'api_rates': self._fetch_api_data('rates') if self.mp_data_loadapirates else pd.DataFrame(),
-            'file_ticks': self._load_from_file(self.mp_data_filename1_merge) if self.mp_data_loadfileticks else pd.DataFrame(),
-            'file_rates': self._load_from_file(self.mp_data_filename2_merge) if self.mp_data_loadfilerates else pd.DataFrame(),
-        }
+        """Load market data from API or files and return all DataFrames."""
+        
+        df_api_ticks = self._fetch_api_data('ticks') if self.mp_data_loadapiticks else pd.DataFrame()
+        df_api_rates = self._fetch_api_data('rates') if self.mp_data_loadapirates else pd.DataFrame()
+        df_file_ticks = self._load_from_file(self.mp_data_filename1_merge) if self.mp_data_loadfileticks else pd.DataFrame()
+        df_file_rates = self._load_from_file(self.mp_data_filename2_merge) if self.mp_data_loadfilerates else pd.DataFrame()
 
-        if all(df.empty for df in loadfile.values()):
+        if all(df.empty for df in [df_api_ticks, df_api_rates, df_file_ticks, df_file_rates]):
             logger.error("No data loaded from API or files.")
 
-        return loadfile
+        return df_api_ticks, df_api_rates, df_file_ticks, df_file_rates
 
     def _fetch_api_data(self, apitype=''):
         """Fetch data from MetaTrader5 API."""
@@ -120,11 +117,7 @@ class CDataLoader:
                 data = mt5.copy_ticks_from(self.lp_app_primary_symbol, self.lp_utc_from, self.lp_app_rows, mt5.COPY_TICKS_ALL)
             elif apitype == 'rates':
                 data = mt5.copy_rates_from(self.lp_app_primary_symbol, valid_timeframe, self.lp_utc_from, self.lp_app_rows)
-            else:
-                return pd.DataFrame()
-
             df = pd.DataFrame(data)
-            logger.info(f"Fetched {len(df)} {apitype} rows from API.") if not df.empty else logger.warning(f"No {apitype} data found.")
             return df
         except Exception as e:
             logger.error(f"MT5 API {apitype} exception: {e}")
@@ -132,19 +125,12 @@ class CDataLoader:
 
     def _load_from_file(self, filename):
         """Load data from a CSV file."""
-        if not filename:
-            logger.warning("No filename provided for file loading.")
-            return pd.DataFrame()
-        
         filepath = os.path.join(self.mp_glob_data_path, filename)
         if not os.path.exists(filepath):
             logger.error(f"File not found: {filepath}")
             return pd.DataFrame()
-
         try:
-            df = pd.read_csv(filepath)
-            logger.info(f"Loaded {len(df)} rows from {filename}")
-            return df
+            return pd.read_csv(filepath)
         except Exception as e:
             logger.error(f"Error reading file {filename}: {e}")
             return pd.DataFrame()
