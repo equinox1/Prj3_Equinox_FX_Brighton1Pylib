@@ -174,11 +174,12 @@ def main(logger):
         # STEP: DataWrangling and datetime to numeric conversion
         # +-------------------------------------------------------------------
         
-        data_process = CDataProcess().run_wrangle_service(df_api_ticks=df_api_ticks,df_api_rates=df_api_rates,df_file_ticks=df_file_ticks,df_file_rates=df_file_rates,mp_unit=UNIT)
+        df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = CDataProcess().run_wrangle_service(df_api_ticks=df_api_ticks,df_api_rates=df_api_rates,df_file_ticks=df_file_ticks,df_file_rates=df_file_rates,mp_unit=UNIT)
+        df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = CDataProcess().process_labels(df_api_ticks, df_api_rates, df_file_ticks, df_file_rates)
+      
 
-
-"""
-            # Create labels
+       """ 
+                    # Create labels
          df_api_ticks = obj1_CDataProcess.create_label_wrapper(
                df=df_api_ticks,
                bid_column="T1_Bid_Price",
