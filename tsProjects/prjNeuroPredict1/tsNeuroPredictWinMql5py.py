@@ -174,16 +174,16 @@ def main(logger):
 """
         # Wrangle the data merging and transforming time to numericforming time to numeric
         if len(mv_tdata1apiticks) > 0 and loadmql:
-            mv_tdata1apiticks = obj1_CDataProcess.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)ataProcess.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
+           df_api_ticks = obj1_CDataProcess.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)ataProcess.wrangle_time(mv_tdata1apiticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
         if len(mv_tdata1apirates) > 0 and loadmql:irates) > 0 and loadmql:
-            mv_tdata1apirates = obj1_CDataProcess.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)aProcess.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
-        if len(mv_tdata1loadticks) > 0 and (loadmql == True or loadmql == False):oadmql == True or loadmql == False):
-            mv_tdata1loadticks = obj1_CDataProcess.wrangle_time(mv_tdata1loadticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)ngle_time(mv_tdata1loadticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
-        if len(mv_tdata1loadrates) > 0 and (loadmql == True or loadmql == False):nd (loadmql == True or loadmql == False):
-            mv_tdata1loadrates = obj1_CDataProcess.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)1_CDataProcess.wrangle_time(mv_tdata1loadrates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
+           df_api_rates = obj1_CDataProcess.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)aProcess.wrangle_time(mv_tdata1apirates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
+        if len(df_file_ticks) > 0 and (loadmql == True or loadmql == False):oadmql == True or loadmql == False):
+            df_file_ticks = obj1_CDataProcess.wrangle_time(df_file_ticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)ngle_time(df_file_ticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
+        if len(df_file_rates) > 0 and (loadmql == True or loadmql == False):nd (loadmql == True or loadmql == False):
+            df_file_rates = obj1_CDataProcess.wrangle_time(df_file_rates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)1_CDataProcess.wrangle_time(df_file_rates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
 
         # Create labels
-        mv_tdata1apiticks = obj1_CDataProcess.create_label_wrapper(ess.create_label_wrapper(
+       df_api_ticks = obj1_CDataProcess.create_label_wrapper(ess.create_label_wrapper(
             df=mv_tdata1apiticks,
             bid_column="T1_Bid_Price",
             ask_column="T1_Ask_Price",   ask_column="T1_Ask_Price",
@@ -205,7 +205,7 @@ def main(logger):
             create_label=Truel=True
         )
 
-        mv_tdata1apirates = obj1_CDataProcess.create_label_wrapper(Process.create_label_wrapper(
+       df_api_rates = obj1_CDataProcess.create_label_wrapper(Process.create_label_wrapper(
             df=mv_tdata1apirates,
             bid_column="R1_Bid_Price",,
             ask_column="R1_Ask_Price",
@@ -227,8 +227,8 @@ def main(logger):
             create_label=True            create_label=True
         )
 
-        mv_tdata1loadticks = obj1_CDataProcess.create_label_wrapper(aProcess.create_label_wrapper(
-            df=mv_tdata1loadticks,
+        df_file_ticks = obj1_CDataProcess.create_label_wrapper(aProcess.create_label_wrapper(
+            df=df_file_ticks,
             bid_column="T2_Bid_Price",ice",
             ask_column="T2_Ask_Price",
             column_in="T2_Bid_Price",
@@ -249,8 +249,8 @@ def main(logger):
             create_label=True            create_label=True
         )
 
-        mv_tdata1loadrates = obj1_CDataProcess.create_label_wrapper(aProcess.create_label_wrapper(
-            df=mv_tdata1loadrates,
+        df_file_rates = obj1_CDataProcess.create_label_wrapper(aProcess.create_label_wrapper(
+            df=df_file_rates,
             bid_column="R2_Bid_Price",,
             ask_column="R2_Ask_Price",
             column_in="R2_Close",
@@ -286,7 +286,7 @@ def main(logger):
 
         # Create labels
         if loadmql:
-            mv_tdata1apiticks = obj1_CDataProcess.create_label_wrapper(ess.create_label_wrapper(
+           df_api_ticks = obj1_CDataProcess.create_label_wrapper(ess.create_label_wrapper(
                 df=mv_tdata1apiticks,
                 bid_column="T1_Bid_Price",1_Bid_Price",
                 ask_column="T1_Ask_Price",       ask_column="T1_Ask_Price",
@@ -309,7 +309,7 @@ def main(logger):
             )
 
         if loadmql:
-            mv_tdata1apirates = obj1_CDataProcess.create_label_wrapper(Process.create_label_wrapper(
+           df_api_rates = obj1_CDataProcess.create_label_wrapper(Process.create_label_wrapper(
                 df=mv_tdata1apirates,
                 bid_column="R1_Bid_Price",rice",
                 ask_column="R1_Ask_Price",
@@ -332,8 +332,8 @@ def main(logger):
             )
 
         if loadmql == True or loadmql == False:alse:
-            mv_tdata1loadticks = obj1_CDataProcess.create_label_wrapper(aProcess.create_label_wrapper(
-                df=mv_tdata1loadticks,,
+            df_file_ticks = obj1_CDataProcess.create_label_wrapper(aProcess.create_label_wrapper(
+                df=df_file_ticks,,
                 bid_column="T2_Bid_Price",rice",
                 ask_column="T2_Ask_Price",
                 column_in="T2_Bid_Price",e",
@@ -355,8 +355,8 @@ def main(logger):
             )
 
         if loadmql == True or loadmql == False:alse:
-            mv_tdata1loadrates = obj1_CDataProcess.create_label_wrapper(aProcess.create_label_wrapper(
-                df=mv_tdata1loadrates,
+            df_file_rates = obj1_CDataProcess.create_label_wrapper(aProcess.create_label_wrapper(
+                df=df_file_rates,
                 bid_column="R2_Bid_Price",rice",
                 ask_column="R2_Ask_Price",
                 column_in="R2_Close",
@@ -383,13 +383,13 @@ def main(logger):
         if loadmql:
             obj1_CDataProcess.run_mql_print(mv_tdata1apirates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")(mv_tdata1apirates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
         if loadmql == True or loadmql == False:== False:
-            obj1_CDataProcess.run_mql_print(mv_tdata1loadticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")print(mv_tdata1loadticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+            obj1_CDataProcess.run_mql_print(df_file_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")print(df_file_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
         if loadmql == True or loadmql == False:l == False:
-            obj1_CDataProcess.run_mql_print(mv_tdata1loadrates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")int(mv_tdata1loadrates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+            obj1_CDataProcess.run_mql_print(df_file_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")int(df_file_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
 
         # copy the data for config selection
         if loadmql == True:
-            data_sources = [mv_tdata1apiticks, mv_tdata1apirates, mv_tdata1loadticks, mv_tdata1loadrates]ata1apirates, mv_tdata1loadticks, mv_tdata1loadrates]
+            data_sources = [mv_tdata1apiticks,df_api_rates, df_file_ticks, df_file_rates]ata1apirates, df_file_ticks, df_file_rates]
             data_copies = [data.copy() for data in data_sources]ata in data_sources]
             mv_tdata2a, mv_tdata2b, mv_tdata2c, mv_tdata2d = data_copiesta2d = data_copies
             data_mapping = {
@@ -399,7 +399,7 @@ def main(logger):
                 'loadfilerates': mv_tdata2d                'loadfilerates': mv_tdata2d
             }
         else:
-            data_sources = [mv_tdata1loadticks, mv_tdata1loadrates]
+            data_sources = [df_file_ticks, df_file_rates]
             data_copies = [data.copy() for data in data_sources]pies = [data.copy() for data in data sources]
             mv_tdata1c, mv_tdata1d = data_copies
             data_mapping = {
