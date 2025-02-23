@@ -49,15 +49,77 @@ class CDataProcess:
         else:
             self.mt5 = None
             
-        # global parameters
         self.env = CMqlEnvMgr()
-        self.params= self.env.all_params()
+        self.local_data_params = {}  
+        self._initialize_mql()
 
-        self.base_params = self.env.all_params()["base"]
-        self.data_params = self.env.all_params()["data"]
-        self.ml_params = self.env.all_params()["ml"]
-        self.mltune_params = self.env.all_params()["mltune"]
-        self.app_params = self.env.all_params()["app"]
+        self.params = self.env.all_params()
+
+        # Ensure default values before calling _set_global_parameters
+        self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default_filename1.csv')
+        self.mp_data_filename2 = self.params.get('data', {}).get('mp_data_filename2', 'default_filename2.csv')
+
+        default_utc_from = datetime.utcnow()
+        default_utc_to = datetime.utcnow()
+
+        self.lp_utc_from = kwargs.get('lp_utc_from', default_utc_from)
+        self.lp_utc_to = kwargs.get('lp_utc_to', default_utc_to)
+        self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
+        self.lp_app_rows = kwargs.get('lp_app_rows', self.params.get('app', {}).get('mp_app_rows', 1000))
+        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('app', {}).get('mp_app_timeframe', 'H4'))
+
+        self._set_global_parameters(kwargs)  # Now safe to call
+
+        # Debugging logs
+        logger.debug(f"kwargs: {kwargs}")
+        logger.debug(f"self.local_data_params: {self.local_data_params}")
+
+        logger.info(f"UTC from: {self.lp_utc_from}")
+        logger.info(f"UTC to: {self.lp_utc_to}")
+        logger.info(f"Timeframe: {self.lp_timeframe}")
+        logger.info(f"Primary symbol: {self.lp_app_primary_symbol}")
+        logger.info(f"Rows to fetch: {self.lp_app_rows}")
+
+
+    def _initialize_mql(self):
+        """Initialize MetaTrader5 module and check platform."""
+        pchk = run_platform.RunPlatform()
+        self.os_platform = platform_checker.get_platform()
+        self.loadmql = pchk.check_mql_state()
+        logger.info(f"Running on: {self.os_platform}, loadmql state: {self.loadmql}")
+
+        if self.loadmql:
+            try:
+                global mt5
+                import MetaTrader5 as mt5
+                if not mt5.initialize():
+                    logger.error(f"Failed to initialize MetaTrader5 module. Error: {mt5.last_error()}")
+            except ImportError as e:
+                logger.error(f"Failed to import MetaTrader5 module: {e}")
+
+
+    def _set_global_parameters(self, kwargs):
+        """Set configuration parameters from environment or user input."""
+        param_sections = ["base", "data", "ml", "mltune", "app"]
+        for section in param_sections:
+            setattr(self, f"{section}_params", self.params.get(section, {}))
+
+        self.mp_glob_data_path = kwargs.get('mp_glob_data_path', self.params.get('base', {}).get('mp_glob_data_path', 'Mql5Data'))
+
+        self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
+        self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
+        self.mp_data_loadapiticks = kwargs.get('mp_data_loadapiticks', self.params.get('data', {}).get('mp_data_loadapiticks', True))
+        self.mp_data_loadapirates = kwargs.get('mp_data_loadapirates', self.params.get('data', {}).get('mp_data_loadapirates', True))
+        self.mp_data_loadfileticks = kwargs.get('mp_data_loadfileticks', self.params.get('data', {}).get('mp_data_loadfileticks', True))
+        self.mp_data_loadfilerates = kwargs.get('mp_data_loadfilerates', self.params.get('data', {}).get('mp_data_loadfilerates', True))
+
+        logger.info(f"Data path: {self.mp_glob_data_path}")
+        logger.info(f"Data filename1: {self.mp_data_filename1_merge}")
+        logger.info(f"Data filename2: {self.mp_data_filename2_merge}")
+        logger.info(f"Load API ticks: {self.mp_data_loadapiticks}")
+        logger.info(f"Load API rates: {self.mp_data_loadapirates}")
+        logger.info(f"Load file ticks: {self.mp_data_loadfileticks}")
+        logger.info(f"Load file rates: {self.mp_data_loadfilerates}")    
 
 
     def wrangle_time(self, df: pd.DataFrame, lp_unit: str, mp_filesrc: str, filter_int: bool, filter_flt: bool, filter_obj: bool, filter_dtmi: bool, filter_dtmf: bool, mp_dropna: bool, mp_merge: bool, mp_convert: bool, mp_drop: bool) -> pd.DataFrame:
@@ -86,62 +148,62 @@ class CDataProcess:
         def merge_datetime(df, col1, col2, mcol, mfmt1, mfmt2, mp_filesrc): 
             if col1 in df.columns and col2 in df.columns:
                 try:
-                    print(f"Merging {mp_filesrc} {col1} and {col2} to {mcol}")
+                    logger.info(f"Merging {mp_filesrc} {col1} and {col2} to {mcol}")
                     df[mcol] = pd.to_datetime(df[col1].dt.strftime('%Y-%m-%d') + ' ' + df[col2].dt.strftime('%H:%M:%S.%f'), format='%Y-%m-%d %H:%M:%S.%f', errors='coerce', utc=True)
                     df.drop([col1, col2], axis=1, inplace=True)
                     # Reorder columns
-                    print("MDatetimeColumns: mcol",mcol,"col1",col1,"col2",col2,"filesrc",mp_filesrc)
+                    logger.info("MDatetimeColumns: mcol",mcol,"col1",col1,"col2",col2,"filesrc",mp_filesrc)
                     datetime_col = mcol if mcol in df.columns else df.columns[0]
-                    print("Reordering columns with datetime first mcol:", mcol)
+                    logger.info("Reordering columns with datetime first mcol:", mcol)
                     df = df[[datetime_col] + [col for col in df.columns if col != datetime_col]]
-                    print("Reordered columns with datetime first")
-                    print("Columns:", df.columns)
+                    logger.info("Reordered columns with datetime first")
+                    logger.info("Columns:", df.columns)
                 except Exception as e:
-                    print(f"Error merging {mp_filesrc} {col1} and {col2} to {mcol}: {e}")
+                    logger.info(f"Error merging {mp_filesrc} {col1} and {col2} to {mcol}: {e}")
             return df
 
         def resort_columns(df, col1, col2, mcol, mfmt1, mfmt2, mp_filesrc) -> pd.DataFrame:
             if mcol in df.columns:
                 datetime_col = mcol if mcol in df.columns else df.columns[0]
                 df = df[[datetime_col] + [col for col in df.columns if col != datetime_col]]
-                print("Reordered columns with datetime first")
-                print("Columns:", df.columns)
+                logger.info("Reordered columns with datetime first")
+                logger.info("Columns:", df.columns)
             return df
 
         def convert_datetime(df: pd.DataFrame, column: str, fmt: str = None, unit: str = None, type: str = None,dcol1 = None, dcol2 = None, dcol3 = None, dcol4= None,dcol5 = None) -> None:
             try:
                 if type == 'a':
-                    print(f"Converting:a {mp_filesrc} {column} to datetime with stfttime hours string: type {type} and format {fmt}")
+                    logger.info(f"Converting:a {mp_filesrc} {column} to datetime with stfttime hours string: type {type} and format {fmt}")
                     df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
                     df[column] = pd.to_datetime(df[column].dt.strftime('%H:%M:%S.%f'), format='%H:%M:%S.%f', errors='coerce', utc=True)
                 elif type == 'b':
-                    print(f"Converting:b {mp_filesrc} {column} to datetime with tf date model: type {type} and format {fmt}")
+                    logger.info(f"Converting:b {mp_filesrc} {column} to datetime with tf date model: type {type} and format {fmt}")
                     df[column] = pd.to_datetime(df.pop(column), format=fmt, errors='coerce')
                 elif type == 'c':
-                    print(f"Converting:c {mp_filesrc} {column} to datetime with stfttime years string: type {type} and format {fmt}")
+                    logger.info(f"Converting:c {mp_filesrc} {column} to datetime with stfttime years string: type {type} and format {fmt}")
                     df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
                     df[column] = pd.to_datetime(df[column].dt.strftime('%d/%m/%y %H:%M:%S.%f'), format='%d/%m/%y %H:%M:%S.%f', errors='coerce', utc=True)
                 elif type == 'd':
-                    print(f"Converting:d {mp_filesrc} {column} to datetime with tf time: type {type} and format {fmt}")
+                    logger.info(f"Converting:d {mp_filesrc} {column} to datetime with tf time: type {type} and format {fmt}")
                     df[column] = df[column].map(pd.Timestamp.timestamp)
                 elif type == 'e':
-                    print(f"Converting:e {mp_filesrc} {column} to datetime with format {fmt}: type {type} and format {fmt}")
+                    logger.info(f"Converting:e {mp_filesrc} {column} to datetime with format {fmt}: type {type} and format {fmt}")
                     df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
                 elif type == 'f':
-                    print(f"Converting:f {mp_filesrc} {column} to datetime with unit {unit}: type {type} and format {fmt}")
+                    logger.info(f"Converting:f {mp_filesrc} {column} to datetime with unit {unit}: type {type} and format {fmt}")
                     df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce', utc=True)
                 elif type == 'g':
-                    print(f"Dropping:g {mp_filesrc} {column} with type {type}")
-                    print("Columns to drop:", dcol1, dcol2, dcol3, dcol4,dcol5)
-                    print("Columns:", df.columns)
+                    logger.info(f"Dropping:g {mp_filesrc} {column} with type {type}")
+                    logger.info("Columns to drop:", dcol1, dcol2, dcol3, dcol4,dcol5)
+                    logger.info("Columns:", df.columns)
                     if column in df.columns:
-                        print(f"Dropping column: {column} found in ", df.columns)
+                        logger.info(f"Dropping column: {column} found in ", df.columns)
                         columns_to_drop = [col for col in [dcol1, dcol2, dcol3, dcol4,dcol5] if col in df.columns]
                         if columns_to_drop:
-                            print(f"Dropping columns: {columns_to_drop} from", df.columns)
+                            logger.info(f"Dropping columns: {columns_to_drop} from", df.columns)
                             df.drop(columns_to_drop, axis=1, inplace=True)
             except Exception as e:
-                print(f"Error converting {mp_filesrc} {column} {type}: {e}")
+                logger.info(f"Error converting {mp_filesrc} {column} {type}: {e}")
 
         mappings = {
             'ticks1': {
@@ -228,7 +290,7 @@ class CDataProcess:
         }
 
         if mp_filesrc in mappings:
-            print(f"Processing {mp_filesrc} data")
+            logger.info(f"Processing {mp_filesrc} data")
             
             if mp_filesrc in date_columns:
                 column, fmt, unit, type = date_columns[mp_filesrc]
@@ -236,7 +298,8 @@ class CDataProcess:
 
             if mp_filesrc in time_columns:
                 column, fmt, unit, type = time_columns[mp_filesrc]
-                print("Columns Time:", column, "Format:", fmt, "Unit:", unit, "Type:", type, "Filesrc:", mp_filesrc)
+                logger.info(f"Columns Time: {column}, Format: {fmt}, Unit: {unit}, Type: {type}, Filesrc: {mp_filesrc}")
+
                 convert_datetime(df, column, fmt=fmt, unit=unit, type=type)
 
             # Rename columns
@@ -256,32 +319,32 @@ class CDataProcess:
             # drop columns 
             if mp_filesrc in drop_columns and mp_drop:
                 column, fmt, unit, type,col1,col2,col3,col4,col5 = drop_columns[mp_filesrc]
-                print("Columns Drop:", column, "Format:", fmt, "Unit:", unit, "Type:", type, "Filesrc:", mp_filesrc, "Columns:", col1, col2, col3, col4, col5)
+                logger.info("Columns Drop:", column, "Format:", fmt, "Unit:", unit, "Type:", type, "Filesrc:", mp_filesrc, "Columns:", col1, col2, col3, col4, col5)
                 convert_datetime(df, column, fmt=fmt, unit=unit, type=type,dcol1=col1,dcol2=col2,dcol3=col3,dcol4=col4,dcol5=col5)
                 
             if filter_int:
                 for col in df.select_dtypes(include=['int64']).columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
-                    print("Columns Numeric:", col)
+                    logger.info("Columns Numeric:", col)
             if filter_flt:
                 for col in df.select_dtypes(include=['float64']).columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
-                    print("Columns Numeric:", col)
+                    logger.info("Columns Numeric:", col)
             if filter_obj:
                 for col in df.select_dtypes(include=['object']).columns:
                     df[col] = pd.to_datetime(df[col], errors='coerce')
-                    print("Columns Object:", col)
+                    logger.info("Columns Object:", col)
             if filter_dtmi:
                 for col in df.select_dtypes(include=['datetime64[ns]', 'datetime64[ns, UTC]', 'datetime64']).columns:
                     df[col] = pd.to_numeric(df[col].view('int64'))
-                    print("Columns DateTime:", col)
+                    logger.info("Columns DateTime:", col)
             if filter_dtmf:
                 for col in df.select_dtypes(include=['datetime64[ns]', 'datetime64[ns, UTC]', 'datetime64']).columns:
                     df[col] = pd.to_numeric(df[col].view('float64'))
-                    print("Columns DateTime:", col)
+                    logger.info("Columns DateTime:", col)
             if mp_dropna:
                 df.fillna(0, inplace=True)
-                print("Dropped NaN values")
+                logger.info("Dropped NaN values")
             
              # final sort
             if mp_filesrc in merge_columns and mp_merge:
@@ -290,7 +353,7 @@ class CDataProcess:
         return df
 
     def calculate_moving_average(self,df, column, window,min_periods=1):
-        print("Calculating moving average for column:", column, " with window:", window)
+        logger.info("Calculating moving average for column:", column, " with window:", window)
         # Calculate Moving Averages
         df['SMA'] = df[column].rolling(window=min_periods).mean()  # 14-day Simple Moving Average
         df["SMA"] = df["SMA"].fillna(method="bfill")  # or "ffill"
@@ -298,10 +361,10 @@ class CDataProcess:
         return df['SMA']
 
     def calculate_log_returns(self, df, column, shift):
-        print("Calculating log returns for column:", column, "with shift:", shift)
+        logger.info("Calculating log returns for column:", column, "with shift:", shift)
         # Check for valid values
         if df[column].isna().sum() > 0:
-            print("Warning: Column contains NaN values. Filling missing values.")
+            logger.info("Warning: Column contains NaN values. Filling missing values.")
             df[column] = df[column].fillna(method='ffill')
 
         if (df[column] <= 0).sum() > 0:
@@ -326,7 +389,7 @@ class CDataProcess:
         df['label'] = df['close'].shift(-lv_seconds)
         df = df.dropna()
         df.style.set_properties(**{'text-align': 'left'})
-        print("lpDf", df.tail(10))
+        logger.info("lpDf", df.tail(10))
         return df
 
     # create method  "create_dataset()".
@@ -363,13 +426,13 @@ class CDataProcess:
     # usage: mql data
     # /param  var    
     def run_mql_print(self, df, hrows, colwidth, tablefmt="pretty", floatfmt=".5f", numalign="left", stralign="left"):
-        print("Type of df before run_mql_print:", type(df))
+        logger.info("Type of df before run_mql_print:", type(df))
 
         if not isinstance(df, pd.DataFrame):
             raise TypeError(f"Expected a DataFrame, but got {type(df)}")
 
         if df.empty:
-            print("Warning: The DataFrame is empty. Nothing to display.")
+            logger.info("Warning: The DataFrame is empty. Nothing to display.")
             return
 
         # Ensure `hrows` is valid
@@ -382,7 +445,7 @@ class CDataProcess:
         df = df.apply(lambda col: wrap_column_data(col, colwidth))
 
         # Display the table
-        print(tabulate(
+        logger.info(tabulate(
             df.head(hrows),
             showindex=False,
             headers=df.columns,
@@ -602,3 +665,35 @@ class CDataProcess:
         X_train, X_temp, y_train, y_temp = train_test_split(mv_tdata2_X, mv_tdata2_y, test_size=(mp_ml_validation_split + mp_ml_test_split), shuffle=False)
         X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=(mp_ml_test_split / (mp_ml_validation_split + mp_ml_test_split)), shuffle=False)
         return X_train, X_val, X_test, y_train, y_val, y_test
+
+
+    def run_wrangle_service(self, **kwargs):
+         """Run the data loader service."""
+         self.df_api_ticks = kwargs.get('df_api_ticks', pd.DataFrame())
+         self.df_api_rates = kwargs.get('df_api_rates', pd.DataFrame())
+         self.df_file_ticks = kwargs.get('df_file_ticks', pd.DataFrame())
+         self.df_file_rates = kwargs.get('df_file_rates', pd.DataFrame())
+
+         self.mp_unit = kwargs.get('UNIT', {})
+         self.loadmql = kwargs.get('loadmql', True)
+         self.mp_filesrc = kwargs.get('mp_filesrc', 'ticks1')
+         self.filter_int = kwargs.get('filter_int', False)
+         self.filter_flt=self.filter_flt = kwargs.get('filter_flt=self.filter_flt', False)
+         self.filter_obj=self.filter_obj = kwargs.get('filter_obj=self.filter_obj', False)
+         self.filter_dtmi = kwargs.get('filter_dtmi', False)
+         self.filter_dtmf = kwargs.get('filter_dtmf', False)
+         self.mp_dropna = kwargs.get('mp_dropna', False)
+         self.mp_merge = kwargs.get('mp_merge', False)
+         self.mp_convert = kwargs.get('mp_convert', False)
+         self.mp_drop = kwargs.get('mp_drop', False)
+
+         if len(self.df_api_ticks) > 0 and self.loadmql:
+               self.df_api_ticks = self.wrangle_time(self.df_api_ticks, self.mp_unit, mp_filesrc="ticks1", filter_int=self.filter_int, filter_flt=self.filter_flt, filter_obj=self.filter_obj, filter_dtmi=self.filter_dtmi, filter_dtmf=self.filter_dtmf, mp_dropna=self.mp_dropna, mp_merge=self.mp_merge, mp_convert=self.mp_convert, mp_drop=self.mp_drop)
+         if len(self.df_api_rates) > 0 and self.loadmql:
+               self.df_api_rates = self.wrangle_time(self.df_api_rates,   self.mp_unit, mp_filesrc="rates1",  filter_int=self.filter_int, filter_flt=self.filter_flt, filter_obj=self.filter_obj, filter_dtmi=self.filter_dtmi, filter_dtmf=self.filter_dtmf, mp_dropna=self.mp_dropna, mp_merge=self.mp_merge, mp_convert=self.mp_convert, mp_drop=self.mp_drop)
+         if len(self.df_file_ticks) > 0 and (self.loadmql == True or self.loadmql == False):
+               self.df_file_ticks = self.wrangle_time(self.df_file_ticks,   self.mp_unit, mp_filesrc="ticks2",  filter_int=self.filter_int, filter_flt=self.filter_flt, filter_obj=self.filter_obj, filter_dtmi=self.filter_dtmi, filter_dtmf=self.filter_dtmf, mp_dropna=self.mp_dropna, mp_merge=self.mp_merge, mp_convert=self.mp_convert, mp_drop=self.mp_drop)
+         if len(self.df_file_rates) > 0 and (self.loadmql == True or self.loadmql == False):
+               self.df_file_rates = self.wrangle_time(self.df_file_rates,  self.mp_unit, mp_filesrc="rates2",  filter_int=self.filter_int, filter_flt=self.filter_flt, filter_obj=self.filter_obj, filter_dtmi=self.filter_dtmi, filter_dtmf=self.filter_dtmf, mp_dropna=self.mp_dropna, mp_merge=self.mp_merge, mp_convert=self.mp_convert, mp_drop=self.mp_drop)
+         
+         return self.df_api_ticks, self.df_api_rates, self.df_file_ticks, self.df_file_rates
