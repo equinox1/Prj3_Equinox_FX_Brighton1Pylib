@@ -1,94 +1,59 @@
-"""
-#!/usr/bin/env python3 - uncomment for linux run
-# -*- coding: utf-8 -*-  - uncomment for linux run
-Filename: tsMqlReference.py
-File: tsPyPackages/tsMqlReference/tsMqlReference.py
-Description: Reference constants
-Author: Tony Shepherd - Xercescloud
-Date: 2025-01-24
-Version: 1.0
-License: (Optional) e.g., MIT License
-"""
-from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger, config
-pchk = run_platform.RunPlatform()
-os_platform = platform_checker.get_platform()
-loadmql=pchk.check_mql_state()
-logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
-
+import logging
 from datetime import datetime
+import tzlocal
+import zoneinfo  # Import zoneinfo
+
+try:
+    import MetaTrader5 as mt5
+except ImportError:
+    mt5 = None  # Handle gracefully if MetaTrader5 is not available
 
 class CMqlRefConfig:
-    def __init__(self, basedatatime='SECONDS', loadeddatatime='MINUTES',timesample='H4', **kwargs):
+    def __init__(self, loaded_data_type='MINUTE', required_data_type='H4', **kwargs):
         """
         Initialize the CMqlRefConfig instance.
 
-        :param basedatatime: The base data time unit (default is 'SECONDS').
-        :param loadeddatatime: The loaded data time unit (default is 'MINUTES').
+        :param loaded_data_type: The loaded data time unit (default is 'MINUTE').
+        :param required_data_type: The timeframe for market data (default is 'H4').
         :param kwargs: Additional keyword arguments.
         """
-        self.basedatatime = basedatatime
-        self.loadeddatatime = loadeddatatime
-        self.timesample = timesample
-        self.kwargs = kwargs
-        # Initialize the MT5 api
-        self.os = kwargs.get('os', 'windows')  # windows or linux or macos
-        if self.os == 'windows':
-            import MetaTrader5 as mt5
+        self.basedatatime = kwargs.get('basedatatime', 'SECOND')
+        self.loaded_data_type = loaded_data_type
+        self.required_data_type = required_data_type
+        local_zone = tzlocal.get_localzone()
+        if isinstance(local_zone, zoneinfo.ZoneInfo):
+            self.local_timezone = local_zone.key  # Access the timezone key
+        else:
+            self.local_timezone = local_zone  # Old behavior, if applicable
 
     TIME_CONSTANTS = {
         "TIMEVALUE": {
-            'SECONDS': 1,
-            'MINUTES': 60,
-            'HOURS': 60 * 60,
-            'DAYS': 24 * 60 * 60,
-            'WEEKS': 7 * 24 * 60 * 60,
-            'YEARS': 365.25 * 24 * 60 * 60  # Average year length
+            'SECOND': 1,
+            'MINUTE': 60,
+            'HOUR': 3600,
+            'DAY': 86400,
+            'WEEK': 604800,
+            'YEAR': 31557600  # Approximate average year length
         },
         "TIMEFRAME": {
-            'M1': "mt5.TIMEFRAME_M1",
-            'M5': "mt5.TIMEFRAME_M5",
-            'M15': "mt5.TIMEFRAME_M15",
-            'M30': "mt5.TIMEFRAME_M30",
-            'H1': "mt5.TIMEFRAME_H1",
-            'H4': "mt5.TIMEFRAME_H4",
-            'D1': "mt5.TIMEFRAME_D1",
-            'W1': "mt5.TIMEFRAME_W1",
-            'MN1': "mt5.TIMEFRAME_MN1"
+            'M1': "mt5.TIMEFRAME_M1" if mt5 else "TIMEFRAME_M1",
+            'M5': "mt5.TIMEFRAME_M5" if mt5 else "TIMEFRAME_M5",
+            'M15': "mt5.TIMEFRAME_M15" if mt5 else "TIMEFRAME_M15",
+            'M30': "mt5.TIMEFRAME_M30" if mt5 else "TIMEFRAME_M30",
+            'H1': "mt5.TIMEFRAME_H1" if mt5 else "TIMEFRAME_H1",
+            'H4': "mt5.TIMEFRAME_H4" if mt5 else "TIMEFRAME_H4",
+            'D1': "mt5.TIMEFRAME_D1" if mt5 else "TIMEFRAME_D1",
+            'W1': "mt5.TIMEFRAME_W1" if mt5 else "TIMEFRAME_W1",
+            'MN1': "mt5.TIMEFRAME_MN1" if mt5 else "TIMEFRAME_MN1"
         },
-        "UNIT": [
-            ('Milliseconds', 'ms'), ('Seconds', 's'), ('Minutes', 'm'), 
-            ('Hours', 'h'), ('Days', 'd'), ('Weeks', 'w'), ('Months', 'm')
-        ],
-        "DATATYPE": {
-            'TICKS': 'TICKS', 'MINUTES': 'MINUTES', 'HOURS': 'HOURS',
-            'DAYS': 'DAYS', 'WEEKS': 'WEEKS', 'MONTHS': 'MONTHS', 'YEARS': 'YEARS'
-        },
-        "SYMBOLS": [
-            "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD",
-            "EURJPY", "EURGBP", "EURCHF", "EURCAD", "EURAUD", "EURNZD",
-            "GBPJPY", "GBPAUD", "GBPNZD", "GBPCAD", "GBPCHF",
-            "AUDJPY", "AUDNZD", "AUDCAD", "AUDCHF",
-            "NZDJPY", "NZDCAD", "NZDCHF",
-            "CADJPY", "CADCHF", "CHFJPY"
-        ],
-        "TIMEZONES": [
-            "etc/UTC", "Europe/London", "America/New_York", "America/Chicago",
-            "America/Denver", "America/Los_Angeles", "Asia/Tokyo",
-            "Asia/Hong_Kong", "Asia/Shanghai", "Asia/Singapore",
-            "Asia/Dubai", "Asia/Mumbai", "Australia/Sydney",
-            "Australia/Melbourne", "Africa/Johannesburg",
-            "Europe/Berlin", "Europe/Paris", "Europe/Madrid",
-            "Europe/Rome", "Europe/Amsterdam", "Europe/Brussels",
-            "Europe/Stockholm", "Europe/Oslo", "Europe/Copenhagen",
-            "Europe/Zurich", "Europe/Vienna", "Europe/Warsaw",
-            "Europe/Prague", "Europe/Budapest", "Europe/Bucharest",
-            "Europe/Sofia", "Europe/Athens", "Europe/Helsinki",
-            "Europe/Tallinn", "Europe/Vilnius", "Europe/Riga",
-            "Europe/Lisbon", "Europe/Dublin", "Europe/Edinburgh",
-            "Europe/Ljubljana", "Europe/Bratislava", "Europe/Luxembourg",
-            "Europe/Monaco", "Europe/Valletta", "Europe/Andorra",
-            "Europe/San_Marino", "Europe/Vatican", "Europe/Gibraltar"
-        ]
+        "UNIT": {
+            'SECOND': 's',
+            'MINUTE': 'm',
+            'HOUR': 'h',
+            'DAY': 'd',
+            'WEEK': 'w',
+            'YEAR': 'y'
+        }
     }
 
     def get_timevalue(self, unit):
@@ -96,94 +61,50 @@ class CMqlRefConfig:
         Get the time value for a given unit.
 
         :param unit: The unit of time.
-        :return: The adjusted time value based on `basedatatime` and `loadeddatatime`.
+        :return: The adjusted time value based on `basedatatime` and `loaded_data_type`.
         """
         constants = self.TIME_CONSTANTS["TIMEVALUE"]
 
-        if self.basedatatime not in constants or self.loadeddatatime not in constants:
-            raise ValueError("Invalid time unit for basedatatime or loadeddatatime.")
+        if self.basedatatime not in constants:
+            raise ValueError(f"Invalid time unit for basedatatime: {self.basedatatime}")
+        if self.loaded_data_type not in constants:
+            raise ValueError(f"Invalid time unit for loaded_data_type: {self.loaded_data_type}")
 
         base_value = constants[self.basedatatime]
-        loaded_value = constants[self.loadeddatatime]
+        loaded_value = constants[self.loaded_data_type]
 
         if unit not in constants:
-            raise ValueError("Invalid time unit requested.")
+            raise ValueError(f"Invalid time unit requested: {unit}")
 
-        shift = loaded_value / base_value
-        timevalue = constants[unit] / shift
-        
-        return timevalue
+        return constants[unit] / (loaded_value / base_value)
 
-    def get_current_time(self, tm):
-        MINUTES = int(tm.get_timevalue('MINUTES'))
-        HOURS = int(tm.get_timevalue('HOURS'))
-        DAYS = int(tm.get_timevalue('DAYS'))
-        TIMEZONE = tm.TIME_CONSTANTS['TIMEZONES'][0]
-        TIMEFRAME = tm.TIME_CONSTANTS['TIMEFRAME']['H4']
-        CURRENTYEAR = datetime.now().year
-        CURRENTDAYS = datetime.now().day
-        CURRENTMONTH = datetime.now().month
-        return MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH
+    def get_current_time(self):
+        """
+        Retrieve the current time-related constants.
+        """
+        return {
+            "MINUTE": int(self.get_timevalue('MINUTE')),
+            "HOUR": int(self.get_timevalue('HOUR')),
+            "DAY": int(self.get_timevalue('DAY')),
+            "TIMEZONE": self.local_timezone,
+            "TIMEFRAME": self.TIME_CONSTANTS['TIMEFRAME'].get(self.required_data_type, "TIMEFRAME_H4"),
+            "CURRENTYEAR": datetime.now().year,
+            "CURRENTDAY": datetime.now().day,
+            "CURRENTMONTH": datetime.now().month
+        }
 
     def run_service(self):
         """
-        Run the reference script.
+        Run the reference script and log the results.
         """
-        MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH = self.get_current_time(self)
-        logger.info(f"MINUTES: {MINUTES}, HOURS: {HOURS}, DAYS: {DAYS}, TIMEZONE: {TIMEZONE}, TIMEFRAME: {TIMEFRAME}, CURRENTYEAR: {CURRENTYEAR}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}")
+        time_data = self.get_current_time()
 
-        # Get the time value for a given unit
-        timevalue = self.get_timevalue('MINUTES')
-        logger.info(f"Time value for 'MINUTES': {timevalue}")
+        for key, value in time_data.items():
+            logging.info(f"{key}: {value}")
 
-        # Get the time value for a given unit
-        timevalue = self.get_timevalue('HOURS')
-        logger.info(f"Time value for 'HOURS': {timevalue}")
+        # Get time values for all defined units
+        for unit in self.TIME_CONSTANTS["TIMEVALUE"].keys():
+            time_value = self.get_timevalue(unit)
+            logging.info(f"Time value for '{unit}': {time_value}")
 
-        # Get the time value for a given unit
-        timevalue = self.get_timevalue('DAYS')
-        logger.info(f"Time value for 'DAYS': {timevalue}")
-
-        # Get the time value for a given unit
-        timevalue = self.get_timevalue('WEEKS')
-        logger.info(f"Time value for 'WEEKS': {timevalue}")
-
-        # Get the time value for a given unit
-        timevalue = self.get_timevalue('YEARS')
-        logger.info(f"Time value for 'YEARS': {timevalue}")
-
-        # Get the time value for a given unit
-        timevalue = self.get_timevalue('SECONDS')
-        logger.info(f"Time value for 'SECONDS': {timevalue}")
-
-        # Get the time value for a given unit
-        timevalue = self.get_timevalue('HOURS')
-        logger.info(f"Time value for 'HOURS': {timevalue}")
-
-        # Get the time value for a given unit
-        timevalue = self.get_timevalue('DAYS')
-        logger.info(f"Time value for 'DAYS': {timevalue}")
-
-        # Get the time value for a given unit
-        timevalue = self.get_timevalue('WEEKS')
-        logger.info(f"Time value for 'WEEKS': {timevalue}")
-
-        # Get the time value for a given unit
-        timevalue = self.get_timevalue('YEARS')
-        logger.info(f"Time value for 'YEARS': {timevalue}") 
-
-        # set the symbols
-        if 'SYMBOLS' in self.TIME_CONSTANTS and self.TIME_CONSTANTS['SYMBOLS']:
-            PRIMARY_SYMBOL = str(self.TIME_CONSTANTS['SYMBOLS'][0])
-            logger.info(f"PRIMARY_SYMBOL: {PRIMARY_SYMBOL}")
-        else:
-            raise ValueError("TIME_CONSTANTS['SYMBOLS'] is missing or empty")
-        
-        # Timeframe value    
-        self.TIMESAMPLE = self.timesample  # Define TIMESAMPLE variable
-        if 'TIMEFRAME' in self.TIME_CONSTANTS and self.TIMESAMPLE in self.TIME_CONSTANTS['TIMEFRAME']:
-            TIMEFRAME = self.TIME_CONSTANTS['TIMEFRAME'][self.TIMESAMPLE]
-        else:
-            raise ValueError("TIME_CONSTANTS['TIMEFRAME'][TIMESAMPLE] is missing")
-
-        return timevalue, MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH, PRIMARY_SYMBOL
+        return time_data

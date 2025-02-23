@@ -66,7 +66,7 @@ from tsMqlMLTune import CMdtuner
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
 strategy = obj1_CMqlSetup.get_computation_strategy()
 # format values
-mp_data_tab_rows = 2
+mp_data_tab_rows = 5
 mp_data_tab_width = 30
 
 # +-------------------------------------------------------------------
@@ -90,31 +90,47 @@ def main(logger):
         # env.override_params({"base": {"learning_rate": 0.005}})
         # print("Updated Learning Rate:", env.get_param("base", "learning_rate"))
         env = CMqlEnvMgr()
-        print("All Parameters:", env.all_params())
+        
+        params = env.all_params()
+        print("All Parameters:", params)
         # get environment parameters
-        params= env.all_params()
+        params_sections = params.keys()
+        print("PARAMS SECTIONS:", params_sections)
 
-        base_params = env.all_params()["base"]
-        data_params = env.all_params()["data"]
-        ml_params = env.all_params()["ml"]
-        mltune_params = env.all_params()["mltune"]
-        app_params = env.all_params()["app"]
-
-        print("base_params:", base_params)
-        print("data_params:", data_params)
-        print("ml_params:", ml_params)
-        print("ml_tune_params:", mltune_params)
-        print("app_params:", app_params)
+        base_params = params["base"]
+        data_params = params["data"]
+        ml_params = params["ml"]
+        mltune_params = params["mltune"]
+        app_params = params["app"]
 
         # STEP: Load Reference class and time variables
         # +-------------------------------------------------------------------
-        obj1_CMqlRefConfig = CMqlRefConfig(basedatatime='SECONDS', loadeddatatime='MINUTES', timesample='M1')
-        timevalue, MINUTES, HOURS, DAYS, TIMEZONE, TIMEFRAME, CURRENTYEAR, CURRENTDAYS, CURRENTMONTH, PRIMARY_SYMBOL = obj1_CMqlRefConfig.run_service()
-        logger.info(f"MINUTES: {MINUTES}, HOURS: {HOURS}, DAYS: {DAYS}, TIMEZONE: {TIMEZONE} , TIMEFRAME: {TIMEFRAME}, CURRENTYEAR: {CURRENTYEAR}, CURRENTDAYS: {CURRENTDAYS}, CURRENTMONTH: {CURRENTMONTH}, PRIMARY_SYMBOL: {PRIMARY_SYMBOL}")
-        
+        # Time Overrides
         env.override_params({"data": {"mp_data_timeframe": 'H4'}})
-        logger.info(f"Override update: {env.get_param('data', 'mp_data_timeframe')}")
-        TIMEFRAME = env.get_param('data', 'mp_data_timeframe')
+        lp_timeframe_name = env.get_param('data', 'mp_data_timeframe')
+        logger.info(f"Timeframe: {lp_timeframe_name}")
+       
+       # Reference class
+        obj1_CMqlRefConfig = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
+        #Symbol Constants
+        PRIMARY_SYMBOL = app_params.get('lp_app_primary_symbol', app_params.get('mp_app_primary_symbol', 'EURUSD'))
+        SECONDARY_SYMBOL = app_params.get('lp_app_secondary_symbol', app_params.get('mp_app_primary_symbol','EURCHF'))
+        # Time Constants
+        UNIT=obj1_CMqlRefConfig.TIME_CONSTANTS["UNIT"]["SECOND"]
+        MINUTE = obj1_CMqlRefConfig.get_timevalue('MINUTE')
+        HOUR = obj1_CMqlRefConfig.get_timevalue('HOUR')
+        DAY = obj1_CMqlRefConfig.get_timevalue('DAY')
+        # Current Time Constants
+        CURRENTDAY = obj1_CMqlRefConfig.get_current_time()["CURRENTDAY"]
+        CURRENTMONTH = obj1_CMqlRefConfig.get_current_time()["CURRENTMONTH"]
+        CURRENTYEAR = obj1_CMqlRefConfig.get_current_time()["CURRENTYEAR"]
+   
+        # Mql Time Constants
+        TIMEZONE = obj1_CMqlRefConfig.get_current_time()["TIMEZONE"]
+        TIMEFRAME = obj1_CMqlRefConfig.get_current_time()["TIMEFRAME"]
+        logger.info(f"Timezone: {TIMEZONE}")
+        logger.info(f"Timeframe: {TIMEFRAME}") 
+       
         # +-------------------------------------------------------------------
         # STEP: CBroker Login
         # +-------------------------------------------------------------------
@@ -125,66 +141,41 @@ def main(logger):
             print("Successfully logged in to MetaTrader 5.")
         else:
             print(f"Failed to login. Error code: {mqqlobj}")
-
         # +-------------------------------------------------------------------
         # STEP: Data Preparation and Loading
         # +-------------------------------------------------------------------
         # Retrieve broker file paths
-       
         obj1_CDataLoader = CDataLoader()
         obj1_CDataProcess = CDataProcess()
-
         # +-------------------------------------------------------------------
         # STEP: Data Preparation and Loading
         # +-------------------------------------------------------------------
         # Set the data history size
         mp_data_history_size = data_params.get('mp_data_history_size')
-        # Set the UTC time for the data        # Set the UTC time for the data
-        mv_data_utc_from = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
-        mv_data_utc_to = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAYS, TIMEZONE)
+        # Set the UTC time for the data
+       
+        mv_data_utc_from = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAY, TIMEZONE)
+        mv_data_utc_to = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAY, TIMEZONE)
         logger.info(f"Main:UTC From: {mv_data_utc_from}")
         logger.info(f"Main:UTC To: {mv_data_utc_to}")
+
+        mp_app_rows = app_params.get('mp_app_rows') ; logger.info(f"Main:Rows: {mp_app_rows}")
+        mp_app_rowcount = app_params.get('mp_app_rowcount')
+       
       
         try:
-            data_loader = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=TIMEFRAME, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=10000)
+            data_loader = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=mp_app_rows , lp_app_rowcount=mp_app_rowcount)
             df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader.load_data()
         except Exception as e:
             logger.error(f"An error occurred: {e}")
 
-        # Ensure DataFrames are returned and check their contents
-
-        if df_api_ticks.empty:
-            logger.warning("API Ticks data is empty!")
-        if df_api_rates.empty:
-            logger.warning("API Rates data is empty!")
-        if df_file_ticks.empty:
-            logger.warning("File Ticks data is empty!")
-        if df_file_rates.empty:
-            logger.warning("File Rates data is empty!")
-
-        # Display the data
-        obj1_CDataProcess.run_mql_print(df_api_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-        obj1_CDataProcess.run_mql_print(df_api_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-        obj1_CDataProcess.run_mql_print(df_file_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-        obj1_CDataProcess.run_mql_print(df_file_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-
-
-
-
-        # Display the data
-         
+        
         # +-------------------------------------------------------------------
         # STEP: DataWrangling and datetime to numeric conversion
         # +-------------------------------------------------------------------
-        # Wrangle the data merging and transforming time to numeric
-        if len(df_api_ticks) > 0 and loadmql:
-               df_api_ticks = obj1_CDataProcess.wrangle_time(df_api_ticks, mp_unit, mp_filesrc="ticks1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
-        if len(df_api_rates) > 0 and loadmql:
-               df_api_rates = obj1_CDataProcess.wrangle_time(df_api_rates, mp_unit, mp_filesrc="rates1", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=False, mp_convert=False, mp_drop=True)
-        if len(df_file_ticks) > 0 and (loadmql == True or loadmql == False):
-               df_file_ticks = obj1_CDataProcess.wrangle_time(df_file_ticks, mp_unit, mp_filesrc="ticks2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
-        if len(df_file_rates) > 0 and (loadmql == True or loadmql == False):
-               df_file_rates = obj1_CDataProcess.wrangle_time(df_file_rates, mp_unit, mp_filesrc="rates2", filter_int=False, filter_flt=False, filter_obj=False, filter_dtmi=False, filter_dtmf=False, mp_dropna=False, mp_merge=True, mp_convert=True, mp_drop=True)
+        
+        data_process = CDataProcess().run_wrangle_service(df_api_ticks=df_api_ticks,df_api_rates=df_api_rates,df_file_ticks=df_file_ticks,df_file_rates=df_file_rates,mp_unit=UNIT)
+
 
 """
             # Create labels
