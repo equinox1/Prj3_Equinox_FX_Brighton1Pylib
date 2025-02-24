@@ -52,11 +52,11 @@ class CDataProcess:
         self.env = CMqlEnvMgr()
         self.params = self.env.all_params()
 
-        self.base_params = params.get("base", {})
-        self.data_params = params.get("data", {})
-        self.ml_params = params.get("ml", {})
-        self.mltune_params = params.get("mltune", {})
-        self.app_params = params.get("app", {})
+        self.base_params = self.params.get("base", {})
+        self.data_params = self.params.get("data", {})
+        self.ml_params = self.params.get("ml", {})
+        self.mltune_params = self.params.get("mltune", {})
+        self.app_params = self.params.get("app", {})
 
         self._initialize_mql()
         
@@ -78,7 +78,7 @@ class CDataProcess:
 
         # Debugging logs
         logger.debug(f"kwargs: {kwargs}")
-        logger.debug(f"self.local_data_params: {self.local_data_params}")
+        logger.debug(f"self.data_params: {self.data_params}")
 
         logger.info(f"UTC from: {self.lp_utc_from}")
         logger.info(f"UTC to: {self.lp_utc_to}")
@@ -705,12 +705,12 @@ class CDataProcess:
          return self.df_api_ticks, self.df_api_rates, self.df_file_ticks, self.df_file_rates
 
 
-    def create_labels(self, df_ticks, df_rates, df_file_ticks, df_file_rates, params):
+    def create_labels(self, df_ticks, df_rates, df_file_ticks, df_file_rates):
          """
          Function to create labels for different datasets.
          
          Parameters:
-         obj_CDataProcess : Object with the create_label_wrapper method
+         self : Object with the create_label_wrapper method
          df_ticks : DataFrame containing tick data from API
          df_rates : DataFrame containing rate data from API
          df_file_ticks : DataFrame containing tick data from files
@@ -724,7 +724,7 @@ class CDataProcess:
          """
               
          # Create labels for API tick data
-         df_ticks = obj_CDataProcess.create_label_wrapper(
+         df_ticks = self.create_label_wrapper(
             df=df_ticks,
             bid_column="T1_Bid_Price",
             ask_column="T1_Ask_Price",
@@ -736,7 +736,7 @@ class CDataProcess:
             low_column="R1_Low",
             close_column="R1_Close",
             run_mode=1,
-            lookahead_periods=self.ml_params.mp_ml_cfg_period,
+            lookahead_periods=self.params.     env.get_params("ml", "mp_ml_cfg_period"),
             ma_window=self.ml_params.mp_ml_tf_ma_windowin,
             hl_avg_col=self.ml_params.mp_ml_hl_avg_col,
             ma_col=self.ml_params.mp_ml_ma_col,
@@ -747,7 +747,7 @@ class CDataProcess:
          )
          
          # Create labels for API rate data
-         df_rates = obj_CDataProcess.create_label_wrapper(
+         df_rates = self.create_label_wrapper(
             df=df_rates,
             bid_column="R1_Bid_Price",
             ask_column="R1_Ask_Price",
@@ -770,7 +770,7 @@ class CDataProcess:
          )
          
          # Create labels for file tick data
-         df_file_ticks = obj_CDataProcess.create_label_wrapper(
+         df_file_ticks = self.create_label_wrapper(
             df=df_file_ticks,
             bid_column="T2_Bid_Price",
             ask_column="T2_Ask_Price",
@@ -793,7 +793,7 @@ class CDataProcess:
          )
          
          # Create labels for file rate data
-         df_file_rates = obj_CDataProcess.create_label_wrapper(
+         df_file_rates = self.create_label_wrapper(
             df=df_file_rates,
             bid_column="R2_Bid_Price",
             ask_column="R2_Ask_Price",
