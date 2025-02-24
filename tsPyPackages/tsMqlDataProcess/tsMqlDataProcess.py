@@ -706,113 +706,45 @@ class CDataProcess:
 
 
     def create_labels(self, df_ticks, df_rates, df_file_ticks, df_file_rates):
-         """
-         Function to create labels for different datasets.
-         
-         Parameters:
-         self : Object with the create_label_wrapper method
-         df_ticks : DataFrame containing tick data from API
-         df_rates : DataFrame containing rate data from API
-         df_file_ticks : DataFrame containing tick data from files
-         df_file_rates : DataFrame containing rate data from files
-         tuner_env : Dictionary containing ML environment configurations
-         data_env : Dictionary containing data environment configurations
-         loadmql : Boolean flag for conditionally creating labels
-         
-         Returns:
-         Tuple of updated DataFrames: (df_ticks, df_rates, df_file_ticks, df_file_rates)
-         """
-              
-         # Create labels for API tick data
-         df_ticks = self.create_label_wrapper(
-            df=df_ticks,
-            bid_column="T1_Bid_Price",
-            ask_column="T1_Ask_Price",
-            column_in="T1_Bid_Price",
-            column_out1='Close',
-            column_out2='Close_Scaled',
-            open_column="R1_Open",
-            high_column="R1_High",
-            low_column="R1_Low",
-            close_column="R1_Close",
-            run_mode=1,
-            lookahead_periods=self.params.     env.get_params("ml", "mp_ml_cfg_period"),
-            ma_window=self.ml_params.mp_ml_tf_ma_windowin,
-            hl_avg_col=self.ml_params.mp_ml_hl_avg_col,
-            ma_col=self.ml_params.mp_ml_ma_col,
-            returns_col=self.ml_params.mp_ml_returns_col,
-            shift_in=self.ml_params.mp_ml_tf_shiftin,
-            rownumber=self.data_params.mp_data_rownumber,
-            create_label=True
-         )
-         
-         # Create labels for API rate data
-         df_rates = self.create_label_wrapper(
-            df=df_rates,
-            bid_column="R1_Bid_Price",
-            ask_column="R1_Ask_Price",
-            column_in="R1_Close",
-            column_out1='Close',
-            column_out2='Close_Scaled',
-            open_column="R1_Open",
-            high_column="R1_High",
-            low_column="R1_Low",
-            close_column="R1_Close",
-            run_mode=2,
-            lookahead_periods=self.ml_params.mp_ml_cfg_period,
-            ma_window=self.ml_params.mp_ml_tf_ma_windowin,
-            hl_avg_col=self.ml_params.mp_ml_hl_avg_col,
-            ma_col=self.ml_params.mp_ml_ma_col,
-            returns_col=self.ml_params.mp_ml_returns_col,
-            shift_in=self.ml_params.mp_ml_tf_shiftin,
-            rownumber=self.data_params.mp_data_rownumber,
-            create_label=True
-         )
-         
-         # Create labels for file tick data
-         df_file_ticks = self.create_label_wrapper(
-            df=df_file_ticks,
-            bid_column="T2_Bid_Price",
-            ask_column="T2_Ask_Price",
-            column_in="T2_Bid_Price",
-            column_out1='Close',
-            column_out2='Close_Scaled',
-            open_column="R2_Open",
-            high_column="R2_High",
-            low_column="R2_Low",
-            close_column="R2_Close",
-            run_mode=3,
-            lookahead_periods=self.ml_params.mp_ml_cfg_period,
-            ma_window=self.ml_params.mp_ml_tf_ma_windowin,
-            hl_avg_col=self.ml_params.mp_ml_hl_avg_col,
-            ma_col=self.ml_params.mp_ml_ma_col,
-            returns_col=self.ml_params.mp_ml_returns_col,
-            shift_in=self.ml_params.mp_ml_tf_shiftin,
-            rownumber=self.data_params.mp_data_rownumber,
-            create_label=True
-         )
-         
-         # Create labels for file rate data
-         df_file_rates = self.create_label_wrapper(
-            df=df_file_rates,
-            bid_column="R2_Bid_Price",
-            ask_column="R2_Ask_Price",
-            column_in="R2_Close",
-            column_out1='Close',
-            column_out2='Close_Scaled',
-            open_column="R2_Open",
-            high_column="R2_High",
-            low_column="R2_Low",
-            close_column="R2_Close",
-            run_mode=4,
-            lookahead_periods=self.ml_params.mp_ml_cfg_period,
-            ma_window=self.ml_params.mp_ml_tf_ma_windowin,
-            hl_avg_col=self.ml_params.mp_ml_hl_avg_col,
-            ma_col=self.ml_params.mp_ml_ma_col,
-            returns_col=self.ml_params.mp_ml_returns_col,
-            shift_in=self.ml_params.mp_ml_tf_shiftin,
-            rownumber=self.data_params.mp_data_rownumber,
-            create_label=True
-         )
-         
-         return df_ticks, df_rates, df_file_ticks, df_file_rates
+        """
+        Function to create labels for different datasets.
+        
+        Returns:
+        Tuple of updated DataFrames: (df_ticks, df_rates, df_file_ticks, df_file_rates)
+        """
+        lookahead_periods = self.params.get("mp_ml_cfg_period")
+        ma_window = self.params.get("mp_ml_tf_ma_windowing")
+        hl_avg_col = self.params.get("mp_ml_hl_avg_col")
+        ma_col = self.params.get("mp_ml_ma_col")
+        returns_col = self.params.get("mp_ml_returns_col")
+        shift_in = self.params.get("mp_ml_tf_shiftin")
+
+        def process_labels(df, bid_col, ask_col, col_in, run_mode):
+            return self.create_label_wrapper(
+                df=df,
+                bid_column=bid_col,
+                ask_column=ask_col,
+                column_in=col_in,
+                column_out1='Close',
+                column_out2='Close_Scaled',
+                open_column=f"R{run_mode}_Open",
+                high_column=f"R{run_mode}_High",
+                low_column=f"R{run_mode}_Low",
+                close_column=f"R{run_mode}_Close",
+                run_mode=run_mode,
+                lookahead_periods=lookahead_periods,
+                ma_window=ma_window,
+                hl_avg_col=hl_avg_col,
+                ma_col=ma_col,
+                returns_col=returns_col,
+                shift_in=shift_in,
+                rownumber=self.params.get("mp_data_rownumber"),
+                create_label=True
+            )
+
+        df_ticks = process_labels(df_ticks, "T1_Bid_Price", "T1_Ask_Price", "T1_Bid_Price", 1)
+        df_rates = process_labels(df_rates, "R1_Bid_Price", "R1_Ask_Price", "R1_Close", 2)
+        df_file_ticks = process_labels(df_file_ticks, "T2_Bid_Price", "T2_Ask_Price", "T2_Bid_Price", 3)
+        df_file_rates = process_labels(df_file_rates, "R2_Bid_Price", "R2_Ask_Price", "R2_Close", 4)
+        
+        return df_ticks, df_rates, df_file_ticks, df_file_rates
