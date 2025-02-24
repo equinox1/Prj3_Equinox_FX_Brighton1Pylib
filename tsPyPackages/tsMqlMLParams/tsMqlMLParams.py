@@ -31,7 +31,7 @@ class CMqlEnvMLParams(CEnvCore):
          "mp_ml_cfg_period1": 24,  # Hours
          "mp_ml_cfg_period2": 6,   # Hours
          "mp_ml_cfg_period3": 1,   # Hours
-         "mp_ml_tf_ma_windowing": 24,
+         "mp_ml_tf_ma_windowin": 24,
          "mp_ml_tf_shiftin": 1,
          "mp_ml_hl_avg_col": 'HLAvg',
          "mp_ml_ma_col": 'SMA',
@@ -39,5 +39,5 @@ class CMqlEnvMLParams(CEnvCore):
          "mp_ml_returns_col_scaled": 'LogReturns_scaled',
          "mp_ml_create_label": False,
          "mp_ml_create_label_scaled": False,
-         "mp_ml_input_keyfeat": {'Close'},
+         "mp_ml_input_keyfeat": 'Close',
       }

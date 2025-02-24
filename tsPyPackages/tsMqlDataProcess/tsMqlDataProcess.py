@@ -73,8 +73,20 @@ class CDataProcess:
         self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
         self.lp_app_rows = kwargs.get('lp_app_rows', self.params.get('app', {}).get('mp_app_rows', 1000))
         self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('app', {}).get('mp_app_timeframe', 'H4'))
-
+       
         self._set_global_parameters(kwargs)  # Now safe to call
+        
+        # data maipulation params
+        self.lookahead_periods = self.params.get("mp_ml_cfg_period")
+        self.self.ma_window = self.params.get("mp_ml_tf_ma_windowin")
+        self.shift_in = self.params.get("mp_ml_tf_shiftin")
+        self.self.hl_avg_col = self.params.get("mp_ml_hl_avg_col")
+        self.self.ma_col = self.params.get("mp_ml_ma_col")
+        self.self.returns_col = self.params.get("mp_ml_returns_col")
+        self.self.ml_returns_col_scaled = self.params.get("mp_ml_returns_col_scaled")
+        self.self.create_label = self.params.get("mp_ml_create_label")
+        self.self.create_label_scaled = self.params.get("mp_ml_create_label_scaled")
+        self.self.input_keyfeat = self.params.get("mp_ml_input_keyfeat")
 
         # Debugging logs
         logger.debug(f"kwargs: {kwargs}")
@@ -471,182 +483,6 @@ class CDataProcess:
         cols = [col for col in df.columns if col != last_col] + [last_col]
         return df[cols]
 
-
-    # create method  "create_label_wrapper()".
-    # class: cmqldatasetup      
-    # usage: mql data
-    # /param  var           
-    def create_label_wrapper(
-        self,
-        df,
-        lookahead_periods,
-        ma_window,
-        bid_column,
-        ask_column,
-        column_in,
-        column_out1,
-        column_out2,
-        open_column,
-        high_column,
-        low_column,
-        close_column,
-        run_mode,
-        hl_avg_col,
-        ma_col,
-        returns_col,
-        shift_in,
-        rownumber,
-        run_avg=True,
-        run_ma=True,
-        run_returns=True,
-        run_future_returns=True,
-        log_stationary=False,
-        remove_zeros=True,
-        create_label=False,
-    ):
-        """
-        Wrapper function for `create_label` to handle the creation of label variables.
-
-        Args:
-            See `create_label` method for parameter details.
-
-        Returns:
-            The output of the `create_label` function.
-        """
-        params = {
-            "df": df,
-            "lookahead_periods": lookahead_periods,
-            "ma_window": ma_window,
-            "bid_column": bid_column,
-            "ask_column": ask_column,
-            "column_in": column_in,
-            "column_out1": column_out1,
-            "column_out2": column_out2,
-            "open_column": open_column,
-            "high_column": high_column,
-            "low_column": low_column,
-            "close_column": close_column,
-            "run_mode": run_mode,
-            "hl_avg_col": hl_avg_col,
-            "ma_col": ma_col,
-            "returns_col": returns_col,
-            "shift_in": shift_in,
-            "rownumber": rownumber,
-            "run_avg": run_avg,
-            "run_ma": run_ma,
-            "run_returns": run_returns,
-            "run_future_returns": run_future_returns,
-            "log_stationary": log_stationary,
-            "remove_zeros": remove_zeros,
-        }
-
-        return self.create_label(**params)
-
-    def create_label(
-        self,
-        df,
-        lookahead_periods,
-        ma_window,
-        bid_column,
-        ask_column,
-        column_in=None,
-        column_out1=None,
-        column_out2=None,
-        open_column=None,
-        high_column=None,
-        low_column=None,
-        close_column=None,
-        hl_avg_col='HLAvg',
-        ma_col='SMA',
-        returns_col='Returns',
-        shift_in=1,
-        run_mode=1,
-        run_avg=False,
-        run_ma=False,
-        log_stationary=False,
-        run_returns=False,
-        run_future_returns=False,
-        remove_zeros=False,
-        rownumber=False,
-        createlabel=False,
-    ):
-        """
-        Creates a label column in the DataFrame by calculating mid prices or shifting a specified column.
-
-        Parameters:
-            See docstring of `create_label_wrapper`.
-
-        Returns:
-            pd.DataFrame: DataFrame with the label column added.
-        """
-        if column_out1 is None:
-            column_out1 = self.lp_features
-        if column_out2 is None:
-            column_out2 = self.lp_label
-
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError("The input `df` must be a pandas DataFrame.")
-        if not isinstance(lookahead_periods, int) or lookahead_periods <= 0:
-            raise ValueError("`lookahead_periods` must be a positive integer.")
-        if run_mode not in {1, 2, 3, 4}:
-            raise ValueError("`run_mode` must be one of {1, 2, 3, 4}.")
-        if run_mode in {1, 3} and column_in is None:
-            raise ValueError("`column_in` must be provided for run modes 1 or 3.")
-        if run_mode in {2, 4} and column_in is None:
-            raise ValueError("`column_in` must be provided for run modes 2 or 4.")
-
-        # Calculate base column based on run mode
-        if run_mode in {1, 3}:  # Bid-ask average
-            df[column_out1] = (df[bid_column] + df[ask_column]) / 2
-            if run_avg:
-                df[hl_avg_col] = df[column_out1]
-                logging.info("Bid-ask average calculated.")
-
-        elif run_mode in {2, 4}:  # High-low average
-            if close_column is None:
-                raise ValueError("`close_column` must be provided for run modes 2 or 4.")
-            df[column_out1] = df[close_column]
-            if run_avg:
-                df[hl_avg_col] = (df[high_column] + df[low_column]) / 2
-                logging.info("High-low average calculated.")
-
-        # Apply moving average if required
-        if run_ma:
-            df[ma_col] = df[hl_avg_col].rolling(window=ma_window, min_periods=1).mean()
-            logging.info("Moving averages calculated.")
-
-        # Apply log stationary transformation if required
-        if log_stationary:
-            df[ma_col] = np.log(df[ma_col]).diff().fillna(0)
-            logging.info("Log stationary transformation applied.")
-
-        # Calculate returns if required
-        if run_returns:
-            df[returns_col] = df[column_out1].pct_change(periods=shift_in).fillna(0)
-            logging.info("Returns calculated.")
-
-        # Calculate future returns if required
-        if run_future_returns:
-            df[returns_col] = (df[column_out1].shift(-lookahead_periods) / df[column_out1]) - 1
-            logging.info("Future Returns calculated.")
-
-        # Set label column
-        if createlabel:
-            df[column_out2] = df[column_in].shift(-lookahead_periods)
-            df.dropna(inplace=True)
-            logging.info("Label column created.")
-        
-        # Remove rows with zeros in the returns column if required
-        if remove_zeros and returns_col in df.columns:
-            df = df[df[returns_col] != 0]
-
-        # Add row numbers if required
-        if rownumber:
-            df['RowNumber'] = range(1, len(df) + 1)
-
-        return df
-
-
     def prepare_data(self,tm, mp_symbol_primary, mp_unit, broker_config, mp_data_rows, mp_data_rowcount, TIMEFRAME):
         obj = CMqldatasetup(lp_features={'Close'}, lp_label={'Label'}, lp_label_count=1)
         CURRENTYEAR = datetime.now().year
@@ -712,12 +548,12 @@ class CDataProcess:
         Returns:
         Tuple of updated DataFrames: (df_ticks, df_rates, df_file_ticks, df_file_rates)
         """
-        lookahead_periods = self.params.get("mp_ml_cfg_period")
-        ma_window = self.params.get("mp_ml_tf_ma_windowing")
-        hl_avg_col = self.params.get("mp_ml_hl_avg_col")
-        ma_col = self.params.get("mp_ml_ma_col")
-        returns_col = self.params.get("mp_ml_returns_col")
-        shift_in = self.params.get("mp_ml_tf_shiftin")
+        self.lookahead_periods = self.params.get("mp_ml_cfg_period")
+        self.ma_window = self.params.get("mp_ml_tf_ma_windowing")
+        self.hl_avg_col = self.params.get("mp_ml_hl_avg_col")
+        self.ma_col = self.params.get("mp_ml_ma_col")
+        self.returns_col = self.params.get("mp_ml_returns_col")
+        self.shift_in = self.params.get("mp_ml_tf_shiftin")
 
         def process_labels(df, bid_col, ask_col, col_in, run_mode):
             return self.create_label_wrapper(
@@ -732,12 +568,12 @@ class CDataProcess:
                 low_column=f"R{run_mode}_Low",
                 close_column=f"R{run_mode}_Close",
                 run_mode=run_mode,
-                lookahead_periods=lookahead_periods,
-                ma_window=ma_window,
-                hl_avg_col=hl_avg_col,
-                ma_col=ma_col,
-                returns_col=returns_col,
-                shift_in=shift_in,
+                lookahead_periods=self.lookahead_periods,
+                ma_window=self.ma_window,
+                hl_avg_col=self.hl_avg_col,
+                ma_col=self.ma_col,
+                returns_col=self.returns_col,
+                shift_in=self.shift_in,
                 rownumber=self.params.get("mp_data_rownumber"),
                 create_label=True
             )
@@ -748,3 +584,178 @@ class CDataProcess:
         df_file_rates = process_labels(df_file_rates, "R2_Bid_Price", "R2_Ask_Price", "R2_Close", 4)
         
         return df_ticks, df_rates, df_file_ticks, df_file_rates
+
+
+  # create method  "create_label_wrapper()".
+    # class: cmqldatasetup      
+    # usage: mql data
+    # /param  var           
+    def create_label_wrapper(
+        self,
+        df,
+        lookahead_periods,
+        ma_window,
+        bid_column,
+        ask_column,
+        column_in,
+        column_out1,
+        column_out2,
+        open_column,
+        high_column,
+        low_column,
+        close_column,
+        run_mode,
+        hl_avg_col,
+        ma_col,
+        returns_col,
+        shift_in,
+        rownumber,
+        run_avg=True,
+        run_ma=True,
+        run_returns=True,
+        run_future_returns=True,
+        log_stationary=False,
+        remove_zeros=True,
+        create_label=False,
+    ):
+        """
+        Wrapper function for `self.create_label` to handle the creation of label variables.
+
+        Args:
+            See `self.create_label` method for parameter details.
+
+        Returns:
+            The output of the `self.create_label` function.
+        """
+        params = {
+            "df": df,
+            "self.lookahead_periods": self.lookahead_periods,
+            "self.ma_window": self.ma_window,
+            "bid_column": self.bid_column,
+            "ask_column": self.ask_column,
+            "column_in": self.column_in,
+            "column_out1": self.column_out1,
+            "column_out2": self.column_out2,
+            "open_column": self.open_column,
+            "high_column": self.high_column,
+            "low_column": self.low_column,
+            "close_column": self.close_column,
+            "run_mode": self.run_mode,
+            "self.hl_avg_col": self.hl_avg_col,
+            "self.ma_col": self.ma_col,
+            "self.returns_col": self.returns_col,
+            "self.shift_in": self.shift_in,
+            "rownumber": self.rownumber,
+            "run_avg": self.run_avg,
+            "run_ma": self.run_ma,
+            "run_returns": self.run_returns,
+            "run_future_returns": self.run_future_returns,
+            "log_stationary": self.log_stationary,
+            "remove_zeros": self.remove_zeros,
+        }
+
+        return self.self.create_label(**params)
+
+    def create_label(
+        self,
+        df,
+        lookahead_periods,
+        ma_window,
+        bid_column,
+        ask_column,
+        column_in=None,
+        column_out1=None,
+        column_out2=None,
+        open_column=None,
+        high_column=None,
+        low_column=None,
+        close_column=None,
+        hl_avg_col='HLAvg',
+        ma_col='SMA',
+        returns_col='Returns',
+        shift_in=1,
+        run_mode=1,
+        run_avg=False,
+        run_ma=False,
+        log_stationary=False,
+        run_returns=False,
+        run_future_returns=False,
+        remove_zeros=False,
+        rownumber=False,
+        createlabel=False,
+    ):
+        """
+        Creates a label column in the DataFrame by calculating mid prices or shifting a specified column.
+
+        Parameters:
+            See docstring of `create_label_wrapper`.
+
+        Returns:
+            pd.DataFrame: DataFrame with the label column added.
+        """
+        if column_out1 is None:
+            column_out1 = self.lp_features
+        if column_out2 is None:
+            column_out2 = self.lp_label
+
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("The input `df` must be a pandas DataFrame.")
+        if not isinstance(self.lookahead_periods, int) or self.lookahead_periods <= 0:
+            raise ValueError("`self.lookahead_periods` must be a positive integer.")
+        if run_mode not in {1, 2, 3, 4}:
+            raise ValueError("`run_mode` must be one of {1, 2, 3, 4}.")
+        if run_mode in {1, 3} and column_in is None:
+            raise ValueError("`column_in` must be provided for run modes 1 or 3.")
+        if run_mode in {2, 4} and column_in is None:
+            raise ValueError("`column_in` must be provided for run modes 2 or 4.")
+
+        # Calculate base column based on run mode
+        if run_mode in {1, 3}:  # Bid-ask average
+            df[column_out1] = (df[bid_column] + df[ask_column]) / 2
+            if run_avg:
+                df[self.hl_avg_col] = df[column_out1]
+                logging.info("Bid-ask average calculated.")
+
+        elif run_mode in {2, 4}:  # High-low average
+            if close_column is None:
+                raise ValueError("`close_column` must be provided for run modes 2 or 4.")
+            df[column_out1] = df[close_column]
+            if run_avg:
+                df[self.hl_avg_col] = (df[high_column] + df[low_column]) / 2
+                logging.info("High-low average calculated.")
+
+        # Apply moving average if required
+        if run_ma:
+            df[self.ma_col] = df[self.hl_avg_col].rolling(window=self.ma_window, min_periods=1).mean()
+            logging.info("Moving averages calculated.")
+
+        # Apply log stationary transformation if required
+        if log_stationary:
+            df[self.ma_col] = np.log(df[self.ma_col]).diff().fillna(0)
+            logging.info("Log stationary transformation applied.")
+
+        # Calculate returns if required
+        if run_returns:
+            df[self.returns_col] = df[column_out1].pct_change(periods=self.shift_in).fillna(0)
+            logging.info("Returns calculated.")
+
+        # Calculate future returns if required
+        if run_future_returns:
+            df[self.returns_col] = (df[column_out1].shift(-self.lookahead_periods) / df[column_out1]) - 1
+            logging.info("Future Returns calculated.")
+
+        # Set label column
+        if createlabel:
+            df[column_out2] = df[column_in].shift(-self.lookahead_periods)
+            df.dropna(inplace=True)
+            logging.info("Label column created.")
+        
+        # Remove rows with zeros in the returns column if required
+        if remove_zeros and self.returns_col in df.columns:
+            df = df[df[self.returns_col] != 0]
+
+        # Add row numbers if required
+        if rownumber:
+            df['RowNumber'] = range(1, len(df) + 1)
+
+        return df
