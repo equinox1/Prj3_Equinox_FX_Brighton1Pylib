@@ -164,8 +164,8 @@ def main(logger):
        
       
         try:
-            data_loader = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=mp_app_rows , lp_app_rowcount=mp_app_rowcount)
-            df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader.load_data()
+            loader_config = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=mp_app_rows , lp_app_rowcount=mp_app_rowcount)
+            df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = loader_config.load_data()
         except Exception as e:
             logger.error(f"An error occurred: {e}")
 
@@ -173,22 +173,23 @@ def main(logger):
         # +-------------------------------------------------------------------
         # STEP: DataWrangling and datetime to numeric conversion
         # +-------------------------------------------------------------------
-        
-        df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = CDataProcess().run_wrangle_service(df_api_ticks=df_api_ticks,df_api_rates=df_api_rates,df_file_ticks=df_file_ticks,df_file_rates=df_file_rates,mp_unit=UNIT)
+      
+        df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = process_config.run_wrangle_service(df_api_ticks=df_api_ticks,df_api_rates=df_api_rates,df_file_ticks=df_file_ticks,df_file_rates=df_file_rates,mp_unit=UNIT)
         logger.info(f"Processed Wrangled DataFrames: df_api_ticks.shape {df_api_ticks.shape},df_api_rates.shape {df_api_rates.shape},df_file_ticks.shape {df_file_ticks.shape},df_file_rates.shape {df_file_rates.shape}")
         
-        logger.info(f"API Ticks columns : {df_api_ticks.columns}")
-        logger.info(f"API Rates columns : {df_api_rates.columns}")
-        logger.info(f"File Ticks columns : {df_file_ticks.columns}")
-        logger.info(f"File Rates columns : {df_file_rates.columns}")
-
-    
-
+        for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
+            process_config.establish_common_feat_col(df,df_name)
+         
+        for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
+            process_config.run_average_columns(df,df_name)
+      
+      
+       
         #df_api_ticks = process_config.run_average_columns(df=df_api_ticks,df_name='df_api_ticks')
         #df_api_rates = process_config.run_average_columns(df=df_api_rates,df_name='df_api_rates')
-        #df_file_ticks = process_config.run_average_columns(df=df_file_ticks, df_name='df_file_ticks')
+       # df_file_ticks = process_config.run_average_columns(df=df_file_ticks, df_name='df_file_ticks')
         #df_file_rates = process_config.run_average_columns(df=df_file_rates, df_name='df_file_rates')
-        #logger.info(f"Processed Averaging DataFrames: df_api_ticks.shape {df_api_ticks.shape},df_api_rates.shape {df_api_rates.shape},df_file_ticks.shape {df_file_ticks.shape},df_file_rates.shape {df_file_rates.shape}")
+       # logger.info(f"Processed Averaging DataFrames: df_api_ticks.shape {df_api_ticks.shape},df_api_rates.shape {df_api_rates.shape},df_file_ticks.shape {df_file_ticks.shape},df_file_rates.shape {df_file_rates.shape}")
         
         # Display the data
        # if loadmql:
