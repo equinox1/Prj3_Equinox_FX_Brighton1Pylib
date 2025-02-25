@@ -48,10 +48,12 @@ class CDataProcess:
         self._initialize_mql()
         self._set_global_parameters(kwargs)
 
-        # Store column parameters after initialization
+       # Store column parameters after initialization
         self.COLUMN_PARAMS = {
-            "df_api_tick": {
-                'column_in': 'T1_Bid_Price',
+            "df_api_ticks": {
+                'bid_column': 'T1_Bid_Price',
+                'ask_column':'T1_Ask_Price',
+                'column_in':'T1_Bid_Price',
                 'column_out1': self.mp_ml_input_keyfeat,
                 'column_out2': self.mp_ml_input_keyfeat_scaled,
                 'lookahead_periods': self.lookahead_periods,
@@ -62,8 +64,46 @@ class CDataProcess:
                 'shift_in': self.shift_in,
                 'create_label': self.create_label
             },
-            "df_api_rate": {
-                'column_in': 'R1_Close',
+            "df_api_rates": {
+                'bid_column': 'R1_Open',
+                'ask_column':'R1_Close',
+                'column_in':'R1_Open',
+                'open_column': 'R1_Open',
+                'high_column': 'R1_High',
+                'low_column': 'R1_Low',
+                'close_column': 'R1_Close',
+                'column_out1': self.mp_ml_input_keyfeat,
+                'column_out2': self.mp_ml_input_keyfeat_scaled,
+                'lookahead_periods': self.lookahead_periods,
+                'ma_window': self.ma_window,
+                'hl_avg_col': self.hl_avg_col,
+                'ma_col': self.ma_col,
+                'returns_col': self.returns_col,
+                'shift_in': self.shift_in,
+                'create_label': self.create_label
+            }, 
+            "df_file_ticks": {
+                'bid_column': 'T2_Bid_Price',
+                'ask_column':'T2_Ask_Price',
+                'column_in':'T2_Bid_Price',
+                'column_out1': self.mp_ml_input_keyfeat,
+                'column_out2': self.mp_ml_input_keyfeat_scaled,
+                'lookahead_periods': self.lookahead_periods,
+                'ma_window': self.ma_window,
+                'hl_avg_col': self.hl_avg_col,
+                'ma_col': self.ma_col,
+                'returns_col': self.returns_col,
+                'shift_in': self.shift_in,
+                'create_label': self.create_label
+            },
+            "df_file_rates": {
+                'bid_column': 'R2_Open',
+                'ask_column':'R2_Close',
+                'column_in':'R2_Open',
+                'open_column': 'R2_Open',
+                'high_column': 'R2_High',
+                'low_column': 'R2_Low',
+                'close_column': 'R2_Close',
                 'column_out1': self.mp_ml_input_keyfeat,
                 'column_out2': self.mp_ml_input_keyfeat_scaled,
                 'lookahead_periods': self.lookahead_periods,
@@ -74,6 +114,7 @@ class CDataProcess:
                 'shift_in': self.shift_in,
                 'create_label': self.create_label
             }
+
         }
 
     def _initialize_mql(self):
@@ -418,9 +459,14 @@ class CDataProcess:
         cols = [col for col in df.columns if col != last_col] + [last_col]
         return df[cols]
 
-    def run_average_columns(self, df_name):
+  
+
+    def run_average_columns(self,df,df_name):
         """Compute high-low averages, moving averages, and log returns."""
+        
         df_params = self.COLUMN_PARAMS.get(df_name, {})
+        logger.info(f"Processing DataFrame: {df_name} with parameters: {df_params}")
+
         column_in = df_params.get("column_in")
         column_out1 = df_params.get("column_out1")
         column_out2 = df_params.get("column_out2")

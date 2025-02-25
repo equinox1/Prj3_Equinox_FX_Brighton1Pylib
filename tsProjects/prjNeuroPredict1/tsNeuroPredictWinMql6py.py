@@ -176,23 +176,22 @@ def main(logger):
         
         df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = CDataProcess().run_wrangle_service(df_api_ticks=df_api_ticks,df_api_rates=df_api_rates,df_file_ticks=df_file_ticks,df_file_rates=df_file_rates,mp_unit=UNIT)
         logger.info(f"Processed Wrangled DataFrames: df_api_ticks.shape {df_api_ticks.shape},df_api_rates.shape {df_api_rates.shape},df_file_ticks.shape {df_file_ticks.shape},df_file_rates.shape {df_file_rates.shape}")
-     
-       
-        df_api_ticks = process_config.run_average_columns(df_name=df_api_ticks)
-        df_api_rates = process_config.run_average_columns(df_name=df_api_rates)
-        df_file_ticks = process_config.run_average_columns(df_name=df_file_ticks)
-        df_file_rates = process_config.run_average_columns(df_name=df_file_rates)
+          
+        df_api_ticks = process_config.run_average_columns(df=df_api_ticks,df_name='df_api_ticks')
+        df_api_rates = process_config.run_average_columns(df=df_api_rates,df_name='df_api_rates')
+        df_file_ticks = process_config.run_average_columns(df=df_file_ticks, df_name='df_file_ticks')
+        df_file_rates = process_config.run_average_columns(df=df_file_rates, df_name='df_file_rates')
         logger.info(f"Processed Averaging DataFrames: df_api_ticks.shape {df_api_ticks.shape},df_api_rates.shape {df_api_rates.shape},df_file_ticks.shape {df_file_ticks.shape},df_file_rates.shape {df_file_rates.shape}")
-
+        
         # Display the data
-        if loadmql:
-               process_config.run_mql_print(df_api_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-        if loadmql:   
-               data_processors.run_mql_print(df_api_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-        if loadmql ==True or loadmql == False:
-               process_config.run_mql_print(df_file_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-        if loadmql ==True or loadmql == False:
-            process_config.run_mql_print(df_file_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+       # if loadmql:
+       #        process_config.run_mql_print(df_api_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+       # if loadmql:   
+       #        data_processors.run_mql_print(df_api_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+       # if loadmql ==True or loadmql == False:
+       #        process_config.run_mql_print(df_file_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+       # if loadmql ==True or loadmql == False:
+       #     process_config.run_mql_print(df_file_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
 
 
 
