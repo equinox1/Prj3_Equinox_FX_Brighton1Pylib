@@ -455,9 +455,12 @@ class CDataProcess:
         return np.log(df[column] / df[column].shift(shift)).dropna()
 
     def move_col_to_end(self, df, last_col):
-        """Move specified column to the end."""
-        cols = [col for col in df.columns if col != last_col] + [last_col]
-        return df[cols]
+      """Move specified column to the end if it exists."""
+      if last_col not in df.columns:
+         logger.warning(f"Column {last_col} not found in DataFrame. Skipping move_col_to_end.")
+         return df
+      cols = [col for col in df.columns if col != last_col] + [last_col]
+      return df[cols]
 
   
 
@@ -466,7 +469,7 @@ class CDataProcess:
         
         df_params = self.COLUMN_PARAMS.get(df_name, {})
         logger.info(f"Processing DataFrame: {df_name} with parameters: {df_params}")
-
+     
         column_in = df_params.get("column_in")
         column_out1 = df_params.get("column_out1")
         column_out2 = df_params.get("column_out2")
@@ -477,6 +480,18 @@ class CDataProcess:
         returns_col = df_params.get("returns_col")
         shift_in = df_params.get("shift_in")
         create_label = df_params.get("create_label")
+
+        logger.info(f"Columns: column_in",column_in)
+        logger.info(f"Columns: column_out1",column_out1)
+        logger.info(f"Columns: column_out2",column_out2)
+        logger.info(f"Columns: lookahead_periods",lookahead_periods)
+        logger.info(f"Columns: ma_window",ma_window)
+        logger.info(f"Columns: hl_avg_col",hl_avg_col)
+        logger.info(f"Columns: ma_col",ma_col)
+        logger.info(f"Columns: returns_col",returns_col)
+        logger.info(f"Columns: shift_in",shift_in)
+        logger.info(f"Columns: create_label",create_label)
+
 
         if column_in not in df.columns:
             logger.error(f"Column {column_in} not found in DataFrame.")
@@ -492,9 +507,12 @@ class CDataProcess:
                 logger.warning(f"Skipping log return calculation due to: {e}")
 
         if create_label:
+            logger.info(f"Creating labels for {column_in} with lookahead periods: {lookahead_periods} for df[column_out1] {df[column_out1]}")  
+            logger.info(f"Creating labels for {column_in} with lookahead periods: {lookahead_periods} for df[column_out2]  {df[column_out2]}")  
             df[column_out1] = (df[column_in].shift(-lookahead_periods) > df[column_in]).astype(int)
             df[column_out2] = (df[column_in].shift(-lookahead_periods) < df[column_in]).astype(int)
-
+        
+        # Move Close feature columns to the end
         df = self.move_col_to_end(df, column_out1)
         df = self.move_col_to_end(df, column_out2)
 

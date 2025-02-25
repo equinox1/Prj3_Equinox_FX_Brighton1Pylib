@@ -176,12 +176,19 @@ def main(logger):
         
         df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = CDataProcess().run_wrangle_service(df_api_ticks=df_api_ticks,df_api_rates=df_api_rates,df_file_ticks=df_file_ticks,df_file_rates=df_file_rates,mp_unit=UNIT)
         logger.info(f"Processed Wrangled DataFrames: df_api_ticks.shape {df_api_ticks.shape},df_api_rates.shape {df_api_rates.shape},df_file_ticks.shape {df_file_ticks.shape},df_file_rates.shape {df_file_rates.shape}")
-          
-        df_api_ticks = process_config.run_average_columns(df=df_api_ticks,df_name='df_api_ticks')
-        df_api_rates = process_config.run_average_columns(df=df_api_rates,df_name='df_api_rates')
-        df_file_ticks = process_config.run_average_columns(df=df_file_ticks, df_name='df_file_ticks')
-        df_file_rates = process_config.run_average_columns(df=df_file_rates, df_name='df_file_rates')
-        logger.info(f"Processed Averaging DataFrames: df_api_ticks.shape {df_api_ticks.shape},df_api_rates.shape {df_api_rates.shape},df_file_ticks.shape {df_file_ticks.shape},df_file_rates.shape {df_file_rates.shape}")
+        
+        logger.info(f"API Ticks columns : {df_api_ticks.columns}")
+        logger.info(f"API Rates columns : {df_api_rates.columns}")
+        logger.info(f"File Ticks columns : {df_file_ticks.columns}")
+        logger.info(f"File Rates columns : {df_file_rates.columns}")
+
+    
+
+        #df_api_ticks = process_config.run_average_columns(df=df_api_ticks,df_name='df_api_ticks')
+        #df_api_rates = process_config.run_average_columns(df=df_api_rates,df_name='df_api_rates')
+        #df_file_ticks = process_config.run_average_columns(df=df_file_ticks, df_name='df_file_ticks')
+        #df_file_rates = process_config.run_average_columns(df=df_file_rates, df_name='df_file_rates')
+        #logger.info(f"Processed Averaging DataFrames: df_api_ticks.shape {df_api_ticks.shape},df_api_rates.shape {df_api_rates.shape},df_file_ticks.shape {df_file_ticks.shape},df_file_rates.shape {df_file_rates.shape}")
         
         # Display the data
        # if loadmql:
