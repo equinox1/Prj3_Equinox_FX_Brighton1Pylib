@@ -157,6 +157,9 @@ class CDataProcess:
         self.run_avg_scaled = self.params.get('ml', {}).get('mp_run_avg_scaled', False)
         self.log_stationary = self.params.get('ml', {}).get('mp_log_stationary', False)
         self.rownumber = self.params.get('ml', {}).get('mp_rownumber', False)
+        self.remove_zeros = self.params.get('ml', {}).get('mp_remove_zeros', False)
+        self.last_col = self.params.get('ml', {}).get('mp_last_col', False)
+        self.create_label_scaled = self.params.get('ml', {}).get('mp_create_label_scaled', False)
        
 
         self.lp_utc_from = kwargs.get('lp_utc_from', datetime.utcnow())
@@ -560,117 +563,86 @@ class CDataProcess:
             logger.error(f"Column {column_in} not found in DataFrame.")
             return df
 
-        # +-------------------------------------------------------------------
-        # Calculate moving average
-        # +-------------------------------------------------------------------    
-            """1: Calculate moving average."""
+        # 1: Calculate moving average
         if ma_window and ma_col:
-            logger.info(f"1:Calculating moving average for column: {column_in} with window: {ma_window}")
+            logger.info(f"Calculating moving average for column: {column_in} with window: {ma_window}")
             df[ma_col] = self.calculate_moving_average(df, column_in, ma_window)
             logger.info(f"Created moving average column: {ma_col}")
 
-        def calculate_moving_average(self, df, column, window, min_periods=1):
-         """1: Calculate moving average."""
-         df['SMA'] = df[column].rolling(window=min_periods).mean().fillna(method="bfill")
-         return df['SMA'].dropna()
-
-        # +-------------------------------------------------------------------
-        # Calculate log returns
-        # +-------------------------------------------------------------------    
-        """2: Calculate log returns."""
+        # 2: Calculate log returns
         if shift_in and returns_col:
-           logger.info(f"2:Calculating log returns for column: {column_in} with shift: {shift_in}")
-           df[returns_col] =calculate_log_returns(df, column_in, shift_in)
-           logger.info(f"Created log returns column: {returns_col}")
+            logger.info(f"Calculating log returns for column: {column_in} with shift: {shift_in}")
+            df[returns_col] = self.calculate_log_returns(df, column_in, shift_in)
+            logger.info(f"Created log returns column: {returns_col}")
 
-        def calculate_log_returns(self, df, column, shift):
-         """2: Calculate log returns."""
-         if df[column].isna().sum() > 0:
-               df[column] = df[column].fillna(method='ffill')
-         if (df[column] <= 0).sum() > 0:
-               raise ValueError(f"Column '{column}' contains non-positive values, which are invalid for log returns.")
-         return np.log(df[column] / df[column].shift(shift)).dropna()
-
-               
-        """3: Calculate log stationary."""
-        if self.log_stationary:
-            logger.info(f"3:Calculating log stationary for column: {ma_col} with shift: {shift_in}")
-            df[ma_col]=calculate_log_stationary(df, column, shift_in)
+        # 3: Calculate log stationary
+        if self.log_stationary and ma_col in df.columns:
+            logger.info(f"Calculating log stationary for column: {ma_col}")
+            df[ma_col] = self.calculate_log_stationary(df, ma_col)
             logger.info(f"Created log stationary column: {ma_col}")
-     
-        def calculate_log_stationary(self, df, column, shift):
-            """3: Calculate log stationary."""
-            if self.log_stationary:
-                  df[ma_col] = np.log(df[ma_col]).diff().fillna(0)
-                  logging.info("Log stationary transformation applied.")
-                  return df[ma_col]
-   
-
-        """4: Calculate future returns."""
-        if self.lookahead_periods and returns_col:
-            logger.info(f"4:Calculating future returns for column: {column_in} with lookahead: {lookahead_periods}")
+        
+        # 4: Calculate future returns
+        if lookahead_periods and returns_col:
+            logger.info(f"Calculating future returns for column: {column_in} with lookahead: {lookahead_periods}")
             df[returns_col] = self.calculate_future_returns(df, column_in, lookahead_periods)
             logger.info(f"Created future returns column: {returns_col}")
 
-        def calculate_future_returns(self, df, column, shift):
-        """4: Calculate future returns."""
-        # Calculate returns if required
-        if run_returns:
-            df[returns_col] = df[column_out1].pct_change(periods=shift_in).fillna(0)
-            logging.info("Returns calculated.")
-
-        """5: Remove rows with zeros in the returns column if required."""
+        # 5: Remove rows with zeros in the returns column if required
         if self.remove_zeros and returns_col in df.columns:
-            df = self.run_remove_zeros(df, df_name, remove_zeros)
+            df[returns_col] = self.run_remove_zeros(df, returns_col)
             logger.info(f"Removed rows with zeros in the returns column: {returns_col}")
-
-          def run_remove_zeros(self, df, df_name, remove_zeros=True):
-        """5: Remove rows with zeros in the returns column if required."""
-        # Remove rows with zeros in the returns column if required
-        if remove_zeros and returns_col in df.columns:
-            df = df[df[returns_col] != 0]
-
-        """6: Add row numbers to the DataFrame if required."""
+        
+        # 6: Add row numbers to the DataFrame if required
         if self.rownumber:
-            self.set_row_numbers(df, self.rownumber)
+            self.set_row_numbers(df)
             logger.info("Added row numbers to the DataFrame.")
 
-           # Add row numbers if required
-        def set_row_numbers(self, df):
-            """6: Add row numbers to the DataFrame if required."""
-            if self.rownumber:
-                  df['rownumber'] = range(1, len(df) + 1)
-
-        """7: Move specified column to the end if it exists."""
-        if last_col:
+        # 7: Move specified column to the end if it exists
+        if self.last_col:
             df = self.move_col_to_end(df, last_col)
             logger.info(f"Moved column {last_col} to the end.")
-
-       def move_col_to_end(self, df, last_col):
-      """7: Move specified column to the end if it exists."""
-         if last_col not in df.columns:
-            logger.warning(f"Column {last_col} not found in DataFrame. Skipping move_col_to_end.")
-            return df
-         cols = [col for col in df.columns if col != last_col] + [last_col]
-         return df[cols]
-
-      # Close and close scaled feature columns
-      if create_label_scaled:
+        
+        # 8: Create label scaled column
+        if self.create_label_scaled and column_out2:
             df[column_out2] = df[column_in].shift(-lookahead_periods)
             df.dropna(inplace=True)
             logger.info(f"Created label column: {column_out2}")
+        
+        # 9: Print final DataFrame
+        self.run_mql_print(df, self.hrows, self.colwidth)
+        return df
 
-       def move_col_to_end(self, df, last_col):
-            """8: Move specified column to the end if it exists."""
-            if last_col not in df.columns:
-               logger.warning(f"Column {last_col} not found in DataFrame. Skipping move_col_to_end.")
-               return df
-            cols = [col for col in df.columns if col != last_col] + [last_col]
-            return df[cols]
-
-    """8: print final df."""
-      self.run_mql_print(df, hrows.self.hrows, colwidth=self.colwidth, floatfmt='.5f', numalign='left', stralign='left')
-
-   
-
-      
+    def calculate_moving_average(self, df, column, window):
+        """Calculate moving average."""
+        return df[column].rolling(window=window, min_periods=1).mean().fillna(method="bfill")
+    
+    def calculate_log_returns(self, df, column, shift):
+        """Calculate log returns."""
+        df[column] = df[column].fillna(method='ffill')
+        if (df[column] <= 0).sum() > 0:
+            raise ValueError(f"Column '{column}' contains non-positive values, which are invalid for log returns.")
+        return np.log(df[column] / df[column].shift(shift)).dropna()
+    
+    def calculate_log_stationary(self, df, column):
+        """Calculate log stationary."""
+        return np.log(df[column]).diff().fillna(0)
+    
+    def calculate_future_returns(self, df, column, shift):
+        """Calculate future returns."""
+        return df[column].pct_change(periods=shift).fillna(0)
+    
+    def run_remove_zeros(self, df, returns_col):
+        """Remove rows with zeros in the returns column."""
+        return df[df[returns_col] != 0]
+    
+    def set_row_numbers(self, df):
+        """Add row numbers to the DataFrame."""
+        df['rownumber'] = range(1, len(df) + 1)
+    
+    def move_col_to_end(self, df, last_col):
+        """Move specified column to the end if it exists."""
+        if last_col not in df.columns:
+            logger.warning(f"Column {last_col} not found in DataFrame. Skipping move_col_to_end.")
+            return df
+        cols = [col for col in df.columns if col != last_col] + [last_col]
+        return df[cols]
