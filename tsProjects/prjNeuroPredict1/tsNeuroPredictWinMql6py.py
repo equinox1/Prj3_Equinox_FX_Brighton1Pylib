@@ -148,267 +148,35 @@ def main(logger):
         loader_config = CDataLoader()
         process_config = CDataProcess()
         # +-------------------------------------------------------------------
-        # STEP: Data Preparation and Loading
+        # STEP: Data loading and processing
         # +-------------------------------------------------------------------
         # Set the data history size
         mp_data_history_size = data_params.get('mp_data_history_size')
         # Set the UTC time for the data
-       
         mv_data_utc_from = loader_config.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAY, TIMEZONE)
         mv_data_utc_to = loader_config.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAY, TIMEZONE)
         logger.info(f"Main:UTC From: {mv_data_utc_from}")
         logger.info(f"Main:UTC To: {mv_data_utc_to}")
-
+         # Set the data rows
         mp_app_rows = app_params.get('mp_app_rows') ; logger.info(f"Main:Rows: {mp_app_rows}")
         mp_app_rowcount = app_params.get('mp_app_rowcount')
-       
-      
-        try:
-            loader_config = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=mp_app_rows , lp_app_rowcount=mp_app_rowcount)
-            df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = loader_config.load_data()
-        except Exception as e:
-            logger.error(f"An error occurred: {e}")
-
-        
+         # Load the data
+        loader_config = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=mp_app_rows , lp_app_rowcount=mp_app_rowcount)
+        df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = loader_config.load_data()
         # +-------------------------------------------------------------------
-        # STEP: DataWrangling and datetime to numeric conversion
+        # STEP: Run data process manipulation
         # +-------------------------------------------------------------------
-      
+         # Process the data
         df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = process_config.run_wrangle_service(df_api_ticks=df_api_ticks,df_api_rates=df_api_rates,df_file_ticks=df_file_ticks,df_file_rates=df_file_rates,mp_unit=UNIT)
         logger.info(f"Processed Wrangled DataFrames: df_api_ticks.shape {df_api_ticks.shape},df_api_rates.shape {df_api_rates.shape},df_file_ticks.shape {df_file_ticks.shape},df_file_rates.shape {df_file_rates.shape}")
-        
+        #set Common Close column
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
             process_config.establish_common_feat_col(df,df_name)
-         
+        # Average the columns
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
             process_config.run_average_columns(df,df_name)
       
-      
-       
-        #df_api_ticks = process_config.run_average_columns(df=df_api_ticks,df_name='df_api_ticks')
-        #df_api_rates = process_config.run_average_columns(df=df_api_rates,df_name='df_api_rates')
-       # df_file_ticks = process_config.run_average_columns(df=df_file_ticks, df_name='df_file_ticks')
-        #df_file_rates = process_config.run_average_columns(df=df_file_rates, df_name='df_file_rates')
-       # logger.info(f"Processed Averaging DataFrames: df_api_ticks.shape {df_api_ticks.shape},df_api_rates.shape {df_api_rates.shape},df_file_ticks.shape {df_file_ticks.shape},df_file_rates.shape {df_file_rates.shape}")
-        
-        # Display the data
-       # if loadmql:
-       #        process_config.run_mql_print(df_api_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-       # if loadmql:   
-       #        data_processors.run_mql_print(df_api_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-       # if loadmql ==True or loadmql == False:
-       #        process_config.run_mql_print(df_file_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-       # if loadmql ==True or loadmql == False:
-       #     process_config.run_mql_print(df_file_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-
-
-
-""" 
-                    # Create labels
-         df_api_ticks = process_config.create_label_wrapper(
-               df=df_api_ticks,
-               bid_column="T1_Bid_Price",
-               ask_column="T1_Ask_Price",
-               column_in="T1_Bid_Price",
-               column_out1=list(mlenv.mp_ml_input_keyfeat)[0],
-               column_out2=list(mlenv.mp_ml_output_label_scaled)[0],
-               open_column="R1_Open",
-               high_column="R1_High",
-               low_column="R1_Low",
-               close_column="R1_Close",
-               run_mode=1,
-               lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
-               ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
-               hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
-               ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
-               returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
-               shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
-               rownumber=data_environments["dataenv"].mp_data_rownumber,
-               create_label=True
-         )
-
-         df_api_rates = process_config.create_label_wrapper(
-               df=df_api_rates,
-               bid_column="R1_Bid_Price",
-               ask_column="R1_Ask_Price",
-               column_in="R1_Close",
-               column_out1=list(mlenv.mp_ml_input_keyfeat)[0],
-               column_out2=list(mlenv.mp_ml_output_label_scaled)[0],
-               open_column="R1_Open",
-               high_column="R1_High",
-               low_column="R1_Low",
-               close_column="R1_Close",
-               run_mode=2,
-               lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
-               ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
-               hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
-               ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
-               returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
-               shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
-               rownumber=data_environments["dataenv"].mp_data_rownumber,
-               create_label=True
-            )
-
-         df_file_ticks = process_config.create_label_wrapper(
-               df=df_file_ticks,
-               bid_column="T2_Bid_Price",
-               ask_column="T2_Ask_Price",
-               column_in="T2_Bid_Price",
-               column_out1=list(mlenv.mp_ml_input_keyfeat)[0],
-               column_out2=list(mlenv.mp_ml_output_label_scaled)[0],
-               open_column="R2_Open",
-               high_column="R2_High",
-               low_column="R2_Low",
-               close_column="R2_Close",
-               run_mode=3,
-               lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
-               ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
-               hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
-               ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
-               returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
-               shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
-               rownumber=data_environments["dataenv"].mp_data_rownumber,
-               create_label=True
-         )
-
-         df_file_rates = process_config.create_label_wrapper(
-               df=df_file_rates,
-               bid_column="R2_Bid_Price",
-               ask_column="R2_Ask_Price",
-               column_in="R2_Close",
-               column_out1=list(mlenv.mp_ml_input_keyfeat)[0],
-               column_out2=list(mlenv.mp_ml_output_label_scaled)[0],
-               open_column="R2_Open",
-               high_column="R2_High",
-               low_column="R2_Low",
-               close_column="R2_Close",
-               run_mode=4,
-               lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
-               ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
-               hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
-               ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
-               returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
-               shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
-               rownumber=data_environments["dataenv"].mp_data_rownumber,
-               create_label=True
-         )
-
-         scolumn_out1 = mlenv.mp_ml_input_keyfeat
-         scolumn_out2 = mlenv.mp_ml_output_label_scaled
-
-         # Extract single elements from sets
-         column_out1 = list(scolumn_out1)[0] if isinstance(scolumn_out1, set) else scolumn_out1
-         column_out2 = list(scolumn_out2)[0] if isinstance(scolumn_out2, set) else scolumn_out2
-
-         column_out1 = str(column_out1)
-         column_out2 = str(column_out2)
-
-         logger.info("column_out1: %s", column_out1)
-         logger.info("column_out2: %s", column_out2)
-
-         # Create labels
-         if loadmql:
-               df_api_ticks = obj0_CDataProcess.create_label_wrapper(
-                  df=df_api_ticks,
-                  bid_column="T1_Bid_Price",
-                  ask_column="T1_Ask_Price",
-                  column_in="T1_Bid_Price",
-                  column_out1='Close',
-                  column_out2='Close_Scaled',
-                  open_column="R1_Open",
-                  high_column="R1_High",
-                  low_column="R1_Low",
-                  close_column="R1_Close",
-                  run_mode=1,
-                  lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
-                  ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
-                  hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
-                  ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
-                  returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
-                  shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
-                  rownumber=data_environments["dataenv"].mp_data_rownumber,
-                  create_label=True 
-                  )
-
-         if loadmql:
-               df_api_rates = obj0_CDataProcess.create_label_wrapper(
-                  df=df_api_rates,
-                  bid_column="R1_Bid_Price",
-                  ask_column="R1_Ask_Price",
-                  column_in="R1_Close",
-                  column_out1='Close',
-                  column_out2='Close_Scaled',
-                  open_column="R1_Open",
-                  high_column="R1_High",
-                  low_column="R1_Low",
-                  close_column="R1_Close",
-                  run_mode=2,
-                  lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
-                  ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
-                  hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
-                  ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
-                  returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
-                  shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
-                  rownumber=data_environments["dataenv"].mp_data_rownumber,
-                  create_label=True 
-                  )
-
-         if loadmql == True or loadmql == False:
-               df_file_ticks = obj0_CDataProcess.create_label_wrapper(
-                     df=df_file_ticks,
-                     bid_column="T2_Bid_Price",
-                     ask_column="T2_Ask_Price",
-                     column_in="T2_Bid_Price",
-                     column_out1='Close',
-                     column_out2='Close_Scaled',
-                     open_column="R2_Open",
-                     high_column="R2_High",
-                     low_column="R2_Low",
-                     close_column="R2_Close",
-                     run_mode=3,
-                     lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
-                     ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
-                     hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
-                     ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
-                     returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
-                     shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
-                     rownumber=data_environments["dataenv"].mp_data_rownumber,
-                     create_label=True 
-                     )
-
-         if loadmql == True or loadmql == False: 
-               df_file_rates = obj0_CDataProcess.create_label_wrapper(
-                     df=df_file_rates,
-                     bid_column="R2_Bid_Price",
-                     ask_column="R2_Ask_Price",
-                     column_in="R2_Close",
-                     column_out1='Close',
-                     column_out2='Close_Scaled',
-                     open_column="R2_Open",
-                     high_column="R2_High",
-                     low_column="R2_Low",
-                     close_column="R2_Close",
-                     run_mode=4,
-                     lookahead_periods=tuner_environments["mlenv"].mp_ml_cfg_period,
-                     ma_window=tuner_environments["mlenv"].mp_ml_tf_ma_windowin,
-                     hl_avg_col=tuner_environments["mlenv"].mp_ml_hl_avg_col,
-                     ma_col=tuner_environments["mlenv"].mp_ml_ma_col,
-                     returns_col=tuner_environments["mlenv"].mp_ml_returns_col ,
-                     shift_in=tuner_environments["mlenv"].mp_ml_tf_shiftin,
-                     rownumber=data_environments["dataenv"].mp_data_rownumber,
-                     create_label=True 
-                     )
-
-            # Display the data
-         if loadmql:
-               obj0_CDataProcess.run_mql_print(df_api_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-         if loadmql:   
-               obj0_CDataProcess.run_mql_print(df_api_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-         if loadmql ==True or loadmql == False:
-               obj0_CDataProcess.run_mql_print(df_file_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-         if loadmql ==True or loadmql == False:
-            obj0_CDataProcess.run_mql_print(df_file_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-
+      #######################################
          # copy the data for config selection
          if loadmql == True:
             data_sources = [df_api_ticks, df_api_rates, df_file_ticks, df_file_rates]
