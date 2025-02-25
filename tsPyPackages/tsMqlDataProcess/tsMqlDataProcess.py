@@ -15,7 +15,8 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 import textwrap
-
+from tabulate import tabulate
+import textwrap
 # Import platform dependencies
 from tsMqlPlatform import run_platform, platform_checker, logger
 from tsMqlEnvMgr import CMqlEnvMgr
@@ -44,6 +45,9 @@ class CDataProcess:
         self.ml_params = self.params.get("ml", {})
         self.mltune_params = self.params.get("mltune", {})
         self.app_params = self.params.get("app", {})
+
+        self.colwidth = kwargs.get('colwidth', 20)
+        self.hrows = kwargs.get('hrows', 5)
 
         self._initialize_mql()
         self._set_global_parameters(kwargs)
@@ -136,7 +140,7 @@ class CDataProcess:
         """Set configuration parameters from environment or user input."""
         self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default1.csv')
         self.mp_data_filename2 = self.params.get('data', {}).get('mp_data_filename2', 'default2.csv')
-        self.rownumber = self.params.get("mp_data_rownumber")
+        self.rownumber = self.params.get("mp_data_self.rownumber")
 
         # Machine learning parameters
         self.mp_ml_input_keyfeat = self.params.get('ml', {}).get('mp_ml_input_keyfeat', 'KeyFeature')
@@ -148,7 +152,12 @@ class CDataProcess:
         self.returns_col = self.params.get('ml', {}).get('mp_returns_col', 'Returns')
         self.shift_in = self.params.get('ml', {}).get('mp_shift_in', 1)
         self.create_label = self.params.get('ml', {}).get('mp_create_label', False)
-
+        #  Run states
+        self. run_avg = self.params.get('ml', {}).get('mp_run_avg', False)
+        self.run_avg_scaled = self.params.get('ml', {}).get('mp_run_avg_scaled', False)
+        self.log_stationary = self.params.get('ml', {}).get('mp_log_stationary', False)
+        self.rownumber = self.params.get('ml', {}).get('mp_rownumber', False)
+       
 
         self.lp_utc_from = kwargs.get('lp_utc_from', datetime.utcnow())
         self.lp_utc_to = kwargs.get('lp_utc_to', datetime.utcnow())
@@ -161,20 +170,45 @@ class CDataProcess:
         self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
         self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
 
-    def run_mql_print(self, df, hrows, colwidth, tablefmt="pretty", floatfmt=".5f"):
-        """Display formatted DataFrame."""
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError(f"Expected DataFrame, but got {type(df)}")
+    def run_mql_print(self, df, hrows, colwidth, tablefmt="pretty", floatfmt=".5f", numalign="left", stralign="left"):
+        """
+        Prints a formatted table of the first few rows of a DataFrame.
 
-        if df.empty:
-            logger.info("Warning: DataFrame is empty.")
-            return
+        Args:
+            df (pd.DataFrame): The DataFrame to print.
+            hrows (int): The number of rows to display.
+            colwidth (int): The maximum width of each column.
+            tablefmt (str, optional): The table format for tabulate. Defaults to "pretty".
+            floatfmt (str, optional): The format for floating-point numbers. Defaults to ".5f".
+            numalign (str, optional): Alignment for numeric columns. Defaults to "left".
+            stralign (str, optional): Alignment for string columns. Defaults to "left".
+        """
+        print(f"Print Table:  first {min(hrows, len(df))} rows of the table with total data: Count {len(df)}")
 
-        hrows = min(hrows, len(df))
-        df = df.apply(lambda col: col.apply(lambda x: '\n'.join(textwrap.wrap(str(x), colwidth)) if pd.notnull(x) else ""))
+        def wrap_column_data(column, width):
+            return column.apply(lambda x: '\n'.join(textwrap.wrap(str(x), width)))
 
-        logger.info(df.head(hrows).to_string())
+        # Apply wrapping only to the head of the dataframe to improve performance.
+        df_head = df.head(hrows).copy() # Ensure a copy is made to avoid SettingWithCopyWarning
+        df_head = df_head.apply(lambda col: wrap_column_data(col, colwidth))
 
+        print(tabulate(
+            df_head,
+            showindex=False,
+            headers=df_head.columns,
+            tablefmt=tablefmt,
+            numalign=numalign,
+            stralign=stralign,
+            maxcolwidths=[colwidth] * len(df_head.columns),
+            floatfmt=floatfmt
+        ))
+
+    #---------------------------------------
+    # create method  "run_wrangle_service".
+    # class: CDataProcess      
+    # usage: mql data
+    # /param  var   
+    # ------------------------------------ 
 
     def run_wrangle_service(self, **kwargs):
          """Run the data loader service."""
@@ -436,40 +470,81 @@ class CDataProcess:
             if mp_filesrc in merge_columns and mp_merge:
                 col1, col2, mcol, mfmt1, mfmt2 = merge_columns[mp_filesrc]
                 df = resort_columns(df, col1, col2, mcol, mfmt1, mfmt2, mp_filesrc) 
+
+            self.run_mql_print(df,self.hrows, colwidth=self.colwidth, floatfmt='.5f', numalign='left', stralign='left')
+            logger.info("Dataframe headers after wrangle printed successfully.")
         return df
 
+    def establish_common_feat_col(self, df, df_name):
+       # create common Close colum across data types tick and ohlc
+        df_params = self.COLUMN_PARAMS.get(df_name, {})
+        logger.info(f"Processing DataFrame: {df_name} with parameters: {df_params}")
+        
+        bid_column = df_params.get("bid_column")
+        ask_column = df_params.get("ask_column")
 
-    def calculate_moving_average(self, df, column, window, min_periods=1):
-        """Calculate moving average."""
-        df['SMA'] = df[column].rolling(window=min_periods).mean().fillna(method="bfill")
-        return df['SMA']
+        column_in = df_params.get("column_in")
+        column_out1 = df_params.get("column_out1")
+        column_out2 = df_params.get("column_out2")
+        lookahead_periods = df_params.get("lookahead_periods")
+        ma_window = df_params.get("ma_window")
+        hl_avg_col = df_params.get("hl_avg_col")
+        ma_col = df_params.get("ma_col")
+        returns_col = df_params.get("returns_col")
+        shift_in = df_params.get("shift_in")
+        create_label = df_params.get("create_label")
+       
 
-    def calculate_log_returns(self, df, column, shift):
-        """Calculate log returns."""
-        if df[column].isna().sum() > 0:
-            df[column] = df[column].fillna(method='ffill')
+        # Tick data
+        if df_name == "df_api_ticks" or df_name == "df_file_ticks":
+            df[column_out1] = (df[bid_column] + df[ask_column]) / 2
+            if self.run_avg:
+                df[hl_avg_col] = df[column_out1]
+                logging.info("Bid-ask average calculated.")
 
-        if (df[column] <= 0).sum() > 0:
-            raise ValueError(f"Column '{column}' contains non-positive values, which are invalid for log returns.")
+        # OHLC data
+        elif df_name == "df_api_rates" or df_name == "df_file_rates":
+            open_column = df_params.get("open_column")
+            high_column = df_params.get("high_column")
+            low_column = df_params.get("low_column")
+            close_column = df_params.get("close_column")
 
-        return np.log(df[column] / df[column].shift(shift)).dropna()
+            if close_column is None:
+                raise ValueError("`close_column` must be provided for run modes 2 or 4.")
+            df[column_out1] = df[close_column]
+            self.run_mql_print(df, self.hrows, colwidth=self.colwidth, floatfmt='.5f', numalign='left', stralign='left')
+            logger.info("Dataframe headers after establish_common_feat_col printed successfully.")
+           
+    def establish_common_feat_col_scaled(self, df, df_name):
+         """Create a scaled column for the common feature column."""
+         df_params = self.COLUMN_PARAMS.get(df_name, {})
+         logger.info(f"Processing DataFrame: {df_name} with parameters: {df_params}")
+         
+         column_out1 = df_params.get("column_out1")
+         column_out2 = df_params.get("column_out2")
+         lookahead_periods = df_params.get("lookahead_periods")
+         ma_window = df_params.get("ma_window")
+         hl_avg_col = df_params.get("hl_avg_col")
+         ma_col = df_params.get("ma_col")
+         returns_col = df_params.get("returns_col")
+         shift_in = df_params.get("shift_in")
+         create_label = df_params.get("create_label")
+   
+         # Create scaled column for the common feature column
+         if column_out1 in df.columns:
+               df[column_out2] = df[column_out1].pct_change().fillna(0)
+               logger.info(f"Created scaled column: {column_out2}")
 
-    def move_col_to_end(self, df, last_col):
-      """Move specified column to the end if it exists."""
-      if last_col not in df.columns:
-         logger.warning(f"Column {last_col} not found in DataFrame. Skipping move_col_to_end.")
-         return df
-      cols = [col for col in df.columns if col != last_col] + [last_col]
-      return df[cols]
-
-  
-
+    # +-------------------------------------------------------------------
+    # Run average methods
+    # +-------------------------------------------------------------------
     def run_average_columns(self,df,df_name):
         """Compute high-low averages, moving averages, and log returns."""
         
         df_params = self.COLUMN_PARAMS.get(df_name, {})
         logger.info(f"Processing DataFrame: {df_name} with parameters: {df_params}")
-     
+        
+        # read relevant columns from the parameters store
         column_in = df_params.get("column_in")
         column_out1 = df_params.get("column_out1")
         column_out2 = df_params.get("column_out2")
@@ -481,39 +556,121 @@ class CDataProcess:
         shift_in = df_params.get("shift_in")
         create_label = df_params.get("create_label")
 
-        logger.info(f"Columns: column_in",column_in)
-        logger.info(f"Columns: column_out1",column_out1)
-        logger.info(f"Columns: column_out2",column_out2)
-        logger.info(f"Columns: lookahead_periods",lookahead_periods)
-        logger.info(f"Columns: ma_window",ma_window)
-        logger.info(f"Columns: hl_avg_col",hl_avg_col)
-        logger.info(f"Columns: ma_col",ma_col)
-        logger.info(f"Columns: returns_col",returns_col)
-        logger.info(f"Columns: shift_in",shift_in)
-        logger.info(f"Columns: create_label",create_label)
-
-
         if column_in not in df.columns:
             logger.error(f"Column {column_in} not found in DataFrame.")
             return df
 
+        # +-------------------------------------------------------------------
+        # Calculate moving average
+        # +-------------------------------------------------------------------    
+            """1: Calculate moving average."""
         if ma_window and ma_col:
+            logger.info(f"1:Calculating moving average for column: {column_in} with window: {ma_window}")
             df[ma_col] = self.calculate_moving_average(df, column_in, ma_window)
+            logger.info(f"Created moving average column: {ma_col}")
 
+        def calculate_moving_average(self, df, column, window, min_periods=1):
+         """1: Calculate moving average."""
+         df['SMA'] = df[column].rolling(window=min_periods).mean().fillna(method="bfill")
+         return df['SMA'].dropna()
+
+        # +-------------------------------------------------------------------
+        # Calculate log returns
+        # +-------------------------------------------------------------------    
+        """2: Calculate log returns."""
         if shift_in and returns_col:
-            try:
-                df[returns_col] = self.calculate_log_returns(df, column_in, shift_in)
-            except ValueError as e:
-                logger.warning(f"Skipping log return calculation due to: {e}")
+           logger.info(f"2:Calculating log returns for column: {column_in} with shift: {shift_in}")
+           df[returns_col] =calculate_log_returns(df, column_in, shift_in)
+           logger.info(f"Created log returns column: {returns_col}")
 
-        if create_label:
-            logger.info(f"Creating labels for {column_in} with lookahead periods: {lookahead_periods} for df[column_out1] {df[column_out1]}")  
-            logger.info(f"Creating labels for {column_in} with lookahead periods: {lookahead_periods} for df[column_out2]  {df[column_out2]}")  
-            df[column_out1] = (df[column_in].shift(-lookahead_periods) > df[column_in]).astype(int)
-            df[column_out2] = (df[column_in].shift(-lookahead_periods) < df[column_in]).astype(int)
-        
-        # Move Close feature columns to the end
-        df = self.move_col_to_end(df, column_out1)
-        df = self.move_col_to_end(df, column_out2)
+        def calculate_log_returns(self, df, column, shift):
+         """2: Calculate log returns."""
+         if df[column].isna().sum() > 0:
+               df[column] = df[column].fillna(method='ffill')
+         if (df[column] <= 0).sum() > 0:
+               raise ValueError(f"Column '{column}' contains non-positive values, which are invalid for log returns.")
+         return np.log(df[column] / df[column].shift(shift)).dropna()
 
-        return df
+               
+        """3: Calculate log stationary."""
+        if self.log_stationary:
+            logger.info(f"3:Calculating log stationary for column: {ma_col} with shift: {shift_in}")
+            df[ma_col]=calculate_log_stationary(df, column, shift_in)
+            logger.info(f"Created log stationary column: {ma_col}")
+     
+        def calculate_log_stationary(self, df, column, shift):
+            """3: Calculate log stationary."""
+            if self.log_stationary:
+                  df[ma_col] = np.log(df[ma_col]).diff().fillna(0)
+                  logging.info("Log stationary transformation applied.")
+                  return df[ma_col]
+   
+
+        """4: Calculate future returns."""
+        if self.lookahead_periods and returns_col:
+            logger.info(f"4:Calculating future returns for column: {column_in} with lookahead: {lookahead_periods}")
+            df[returns_col] = self.calculate_future_returns(df, column_in, lookahead_periods)
+            logger.info(f"Created future returns column: {returns_col}")
+
+        def calculate_future_returns(self, df, column, shift):
+        """4: Calculate future returns."""
+        # Calculate returns if required
+        if run_returns:
+            df[returns_col] = df[column_out1].pct_change(periods=shift_in).fillna(0)
+            logging.info("Returns calculated.")
+
+        """5: Remove rows with zeros in the returns column if required."""
+        if self.remove_zeros and returns_col in df.columns:
+            df = self.run_remove_zeros(df, df_name, remove_zeros)
+            logger.info(f"Removed rows with zeros in the returns column: {returns_col}")
+
+          def run_remove_zeros(self, df, df_name, remove_zeros=True):
+        """5: Remove rows with zeros in the returns column if required."""
+        # Remove rows with zeros in the returns column if required
+        if remove_zeros and returns_col in df.columns:
+            df = df[df[returns_col] != 0]
+
+        """6: Add row numbers to the DataFrame if required."""
+        if self.rownumber:
+            self.set_row_numbers(df, self.rownumber)
+            logger.info("Added row numbers to the DataFrame.")
+
+           # Add row numbers if required
+        def set_row_numbers(self, df):
+            """6: Add row numbers to the DataFrame if required."""
+            if self.rownumber:
+                  df['rownumber'] = range(1, len(df) + 1)
+
+        """7: Move specified column to the end if it exists."""
+        if last_col:
+            df = self.move_col_to_end(df, last_col)
+            logger.info(f"Moved column {last_col} to the end.")
+
+       def move_col_to_end(self, df, last_col):
+      """7: Move specified column to the end if it exists."""
+         if last_col not in df.columns:
+            logger.warning(f"Column {last_col} not found in DataFrame. Skipping move_col_to_end.")
+            return df
+         cols = [col for col in df.columns if col != last_col] + [last_col]
+         return df[cols]
+
+      # Close and close scaled feature columns
+      if create_label_scaled:
+            df[column_out2] = df[column_in].shift(-lookahead_periods)
+            df.dropna(inplace=True)
+            logger.info(f"Created label column: {column_out2}")
+
+       def move_col_to_end(self, df, last_col):
+            """8: Move specified column to the end if it exists."""
+            if last_col not in df.columns:
+               logger.warning(f"Column {last_col} not found in DataFrame. Skipping move_col_to_end.")
+               return df
+            cols = [col for col in df.columns if col != last_col] + [last_col]
+            return df[cols]
+
+    """8: print final df."""
+      self.run_mql_print(df, hrows.self.hrows, colwidth=self.colwidth, floatfmt='.5f', numalign='left', stralign='left')
+
+   
+
+      
