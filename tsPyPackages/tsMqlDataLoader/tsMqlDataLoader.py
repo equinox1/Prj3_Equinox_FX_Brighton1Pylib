@@ -97,6 +97,12 @@ class CDataLoader:
         df_api_rates = self._fetch_api_data('rates') if self.mp_data_loadapirates else pd.DataFrame()
         df_file_ticks = self._load_from_file(self.mp_data_filename1_merge) if self.mp_data_loadfileticks else pd.DataFrame()
         df_file_rates = self._load_from_file(self.mp_data_filename2_merge) if self.mp_data_loadfilerates else pd.DataFrame()
+        
+        logger.info("Api Tick Rows loaded ",self.row_count(df_api_ticks))
+        logger.info("Api Rates Rows loaded ",self.row_count(df_api_rates))
+        logger.info("File Tick Rows loaded ",self.row_count(df_file_ticks))
+        logger.info("File Rates Rows loaded ",self.row_count(df_file_rates))
+
 
         if all(df.empty for df in [df_api_ticks, df_api_rates, df_file_ticks, df_file_rates]):
             logger.error("No data loaded from API or files.")
@@ -144,5 +150,7 @@ class CDataLoader:
                   logger.error(f"Timezone conversion error: {e}")
                   return None
 
-
+    def row_count(self, df):
+        """Return the number of rows in a DataFrame."""
+        return len(df.index)
     

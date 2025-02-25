@@ -111,23 +111,23 @@ def main(logger):
         logger.info(f"Timeframe: {lp_timeframe_name}")
        
        # Reference class
-        obj1_CMqlRefConfig = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
+        reference_config = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
         #Symbol Constants
         PRIMARY_SYMBOL = app_params.get('lp_app_primary_symbol', app_params.get('mp_app_primary_symbol', 'EURUSD'))
         SECONDARY_SYMBOL = app_params.get('lp_app_secondary_symbol', app_params.get('mp_app_primary_symbol','EURCHF'))
         # Time Constants
-        UNIT=obj1_CMqlRefConfig.TIME_CONSTANTS["UNIT"]["SECOND"]
-        MINUTE = obj1_CMqlRefConfig.get_timevalue('MINUTE')
-        HOUR = obj1_CMqlRefConfig.get_timevalue('HOUR')
-        DAY = obj1_CMqlRefConfig.get_timevalue('DAY')
+        UNIT=reference_config.TIME_CONSTANTS["UNIT"]["SECOND"]
+        MINUTE = reference_config.get_timevalue('MINUTE')
+        HOUR = reference_config.get_timevalue('HOUR')
+        DAY = reference_config.get_timevalue('DAY')
         # Current Time Constants
-        CURRENTDAY = obj1_CMqlRefConfig.get_current_time()["CURRENTDAY"]
-        CURRENTMONTH = obj1_CMqlRefConfig.get_current_time()["CURRENTMONTH"]
-        CURRENTYEAR = obj1_CMqlRefConfig.get_current_time()["CURRENTYEAR"]
+        CURRENTDAY = reference_config.get_current_time()["CURRENTDAY"]
+        CURRENTMONTH = reference_config.get_current_time()["CURRENTMONTH"]
+        CURRENTYEAR = reference_config.get_current_time()["CURRENTYEAR"]
    
         # Mql Time Constants
-        TIMEZONE = obj1_CMqlRefConfig.get_current_time()["TIMEZONE"]
-        TIMEFRAME = obj1_CMqlRefConfig.get_current_time()["TIMEFRAME"]
+        TIMEZONE = reference_config.get_current_time()["TIMEZONE"]
+        TIMEFRAME = reference_config.get_current_time()["TIMEFRAME"]
         logger.info(f"Timezone: {TIMEZONE}")
         logger.info(f"Timeframe: {TIMEFRAME}") 
        
@@ -145,8 +145,8 @@ def main(logger):
         # STEP: Data Preparation and Loading
         # +-------------------------------------------------------------------
         # Retrieve broker file paths
-        obj1_CDataLoader = CDataLoader()
-        obj1_CDataProcess = CDataProcess()
+        loader_config = CDataLoader()
+        process_config = CDataProcess()
         # +-------------------------------------------------------------------
         # STEP: Data Preparation and Loading
         # +-------------------------------------------------------------------
@@ -154,8 +154,8 @@ def main(logger):
         mp_data_history_size = data_params.get('mp_data_history_size')
         # Set the UTC time for the data
        
-        mv_data_utc_from = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAY, TIMEZONE)
-        mv_data_utc_to = obj1_CDataLoader.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAY, TIMEZONE)
+        mv_data_utc_from = loader_config.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAY, TIMEZONE)
+        mv_data_utc_to = loader_config.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAY, TIMEZONE)
         logger.info(f"Main:UTC From: {mv_data_utc_from}")
         logger.info(f"Main:UTC To: {mv_data_utc_to}")
 
@@ -175,12 +175,30 @@ def main(logger):
         # +-------------------------------------------------------------------
         
         df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = CDataProcess().run_wrangle_service(df_api_ticks=df_api_ticks,df_api_rates=df_api_rates,df_file_ticks=df_file_ticks,df_file_rates=df_file_rates,mp_unit=UNIT)
-        df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = CDataProcess().create_labels(df_api_ticks, df_api_rates, df_file_ticks, df_file_rates)
-      
+        logger.info(f"Processed Wrangled DataFrames: df_api_ticks.shape {df_api_ticks.shape},df_api_rates.shape {df_api_rates.shape},df_file_ticks.shape {df_file_ticks.shape},df_file_rates.shape {df_file_rates.shape}")
+     
+       
+        df_api_ticks = process_config.run_average_columns(df=df_api_ticks)
+        df_api_rates = process_config.run_average_columns(df=df_api_rates)
+        df_file_ticks = process_config.run_average_columns(df=df_file_ticks)
+        df_file_rates = process_config.run_average_columns(df=df_file_rates)
+        logger.info(f"Processed Averaging DataFrames: df_api_ticks.shape {df_api_ticks.shape},df_api_rates.shape {df_api_rates.shape},df_file_ticks.shape {df_file_ticks.shape},df_file_rates.shape {df_file_rates.shape}")
+
+        # Display the data
+        if loadmql:
+               process_config.run_mql_print(df_api_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+        if loadmql:   
+               data_processors.run_mql_print(df_api_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+        if loadmql ==True or loadmql == False:
+               process_config.run_mql_print(df_file_ticks, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+        if loadmql ==True or loadmql == False:
+            process_config.run_mql_print(df_file_rates, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
+
+
 
 """ 
                     # Create labels
-         df_api_ticks = obj1_CDataProcess.create_label_wrapper(
+         df_api_ticks = process_config.create_label_wrapper(
                df=df_api_ticks,
                bid_column="T1_Bid_Price",
                ask_column="T1_Ask_Price",
@@ -202,7 +220,7 @@ def main(logger):
                create_label=True
          )
 
-         df_api_rates = obj1_CDataProcess.create_label_wrapper(
+         df_api_rates = process_config.create_label_wrapper(
                df=df_api_rates,
                bid_column="R1_Bid_Price",
                ask_column="R1_Ask_Price",
@@ -224,7 +242,7 @@ def main(logger):
                create_label=True
             )
 
-         df_file_ticks = obj1_CDataProcess.create_label_wrapper(
+         df_file_ticks = process_config.create_label_wrapper(
                df=df_file_ticks,
                bid_column="T2_Bid_Price",
                ask_column="T2_Ask_Price",
@@ -246,7 +264,7 @@ def main(logger):
                create_label=True
          )
 
-         df_file_rates = obj1_CDataProcess.create_label_wrapper(
+         df_file_rates = process_config.create_label_wrapper(
                df=df_file_rates,
                bid_column="R2_Bid_Price",
                ask_column="R2_Ask_Price",

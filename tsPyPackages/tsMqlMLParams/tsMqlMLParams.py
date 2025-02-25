@@ -40,4 +40,5 @@ class CMqlEnvMLParams(CEnvCore):
          "mp_ml_create_label": False,
          "mp_ml_create_label_scaled": False,
          "mp_ml_input_keyfeat": 'Close',
+         "mp_ml_input_keyfeat_scaled": 'Close_scaled',
       }
