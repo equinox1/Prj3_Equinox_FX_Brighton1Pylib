@@ -589,6 +589,7 @@ class CDataProcess:
 
         # 5: Remove rows with zeros in the returns column if required
         if self.remove_zeros and returns_col in df.columns:
+            logger.info(f"Removing rows with zeros in the returns column: {returns_col}")
             df[returns_col] = self.run_remove_zeros(df, returns_col)
             logger.info(f"Removed rows with zeros in the returns column: {returns_col}")
         
