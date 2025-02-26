@@ -62,3 +62,12 @@ class CMqlEnvMLTunerParams(CEnvCore):
         "metrics": ["mean_squared_error"],
         "dropout": 0.2
     }
+
+    def get_tuner_params(self):
+        """Return the tuner parameters."""
+        return self.params.get("tuner", {})
+
+    def get_default_params(self): # Fixed indentation
+        """Return the default parameters."""
+        return self.DEFAULT_PARAMS
+

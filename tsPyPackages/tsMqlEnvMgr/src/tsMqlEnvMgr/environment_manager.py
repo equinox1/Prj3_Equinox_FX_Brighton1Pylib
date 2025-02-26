@@ -43,6 +43,9 @@ class CMqlEnvMgr:
     def get_param(self, category, key, default=None):
         return self.env_params.get(category, {}).get(key, default)
 
+    def get_params(self, category, key, default=None):
+        return self.env_params.get(category, {}).get(key, default)
+
     def override_params(self, new_params):
         """Override parameters with a new dictionary."""
         for category, params in new_params.items():

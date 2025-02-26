@@ -16,7 +16,7 @@ class CEnvCore:
     def get(self, key, default=None):
         return self.params.get(key, default)
 
-    def get_param(self, key, default=None):
+    def get_params(self, key, default=None):
         return self.params.get(key, default)
 
 
