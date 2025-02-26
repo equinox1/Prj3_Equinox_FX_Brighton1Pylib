@@ -61,6 +61,7 @@ from tsMqlDataProcess import CDataProcess
 # Equinox ML packages
 from tsMqlMLTune import CMdtuner
 from tsMqlMLParams import CMqlEnvMLParams
+from tsMqlMLProcess import CDMLProcess
 
 # Setup the logging and tensor platform dependencies
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
@@ -81,14 +82,8 @@ def main(logger):
         # +----------------------------------------------------------
         # STEP: setup environment
         # +----------------------------------------------------------
-        # Usage
-        # env = EnvManager(custom_params={"ml": {"epochs": 20}})
-        # print("All Parameters:", env.all_params())
-        # print("ML Epochs:", env.get_param("ml", "epochs"))
-        # print("Base Learning Rate:", env.get_param("base", "learning_rate"))
-        # Override parameters
-        # env.override_params({"base": {"learning_rate": 0.005}})
-        # print("Updated Learning Rate:", env.get_param("base", "learning_rate"))
+        # Usage:env = EnvManager(custom_params={"ml": {"epochs": 20}}) ,print("ML Epochs:", env.get_param("ml", "epochs"))
+        # env.override_params({"base": {"learning_rate": 0.005}}) ,print("Updated Learning Rate:", env.get_param("base", "learning_rate"))
         env = CMqlEnvMgr()
         
         params = env.all_params()
@@ -128,6 +123,7 @@ def main(logger):
         # Mql Time Constants
         TIMEZONE = reference_config.get_current_time()["TIMEZONE"]
         TIMEFRAME = reference_config.get_current_time()["TIMEFRAME"]
+        timeval = HOUR # hours # used in the window creation
         logger.info(f"Timezone: {TIMEZONE}")
         logger.info(f"Timeframe: {TIMEFRAME}") 
        
@@ -160,7 +156,7 @@ def main(logger):
          # Set the data rows
         mp_app_rows = app_params.get('mp_app_rows') ; logger.info(f"Main:Rows: {mp_app_rows}")
         mp_app_rowcount = app_params.get('mp_app_rowcount')
-         # Load the data
+        # Load the data
         loader_config = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=mp_app_rows , lp_app_rowcount=mp_app_rowcount)
         df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = loader_config.load_data()
         # +-------------------------------------------------------------------
@@ -177,9 +173,6 @@ def main(logger):
             process_config.run_average_columns(df,df_name)
         datafile = df
         logger.info(f"Data File Shape: {datafile.shape}")
-
-        # +-------------------------------------------------------------------
-        # STEP: Normalize the X data
         
         # +-------------------------------------------------------------------
         # STEP: add The time index to the data
@@ -188,32 +181,26 @@ def main(logger):
         # Limit the columns to just the time column and all features
         column_features = datafile.columns[1:]
         logger.info(f"Column Features: {column_features}")
-
         datafile = datafile[[datafile.columns[0]] + list(datafile.columns[1:])]
-            
-"""
-         
-         
-         # +-------------------------------------------------------------------
-         # STEP: Generate X and y from the Time Series
-         # +-------------------------------------------------------------------
-         # At thsi point the normalised data columns are split across the X and Y data
-         obj1_Mqlmlsetup = CMqlmlsetup() # Create an instance of the class
-         # 1: 24 HOURS/24 HOURS prediction window
-         print("1: MINUTES data entries per time frame: MINUTES:", MINUTES, "HOURS:", MINUTES * 60, "DAYS:", MINUTES * 60 * 24)
-         timeval = MINUTES * 60 # hours
-         pasttimeperiods = 24
-         futuretimeperiods = 24
-         predtimeperiods = 1
-         features_count = len(gen_environments["dataenv"].mp_data_custom_input_keyfeat)  # Number of features in input
-         labels_count = len(gen_environments["dataenv"].mp_data_custom_output_label)  # Number of labels in output
-         batch_size = gen_environments["tuneenv"].batch_size
 
-         print("timeval:",timeval, "pasttimeperiods:",pasttimeperiods, "futuretimeperiods:",futuretimeperiods, "predtimeperiods:",predtimeperiods)
-         past_width = pasttimeperiods * timeval
-         future_width = futuretimeperiods * timeval
-         pred_width = predtimeperiods * timeval
-         print("past_width:", past_width, "future_width:", future_width, "pred_width:", pred_width)
+        # +-------------------------------------------------------------------
+        # STEP: Normalise the data
+        # +-------------------------------------------------------------------
+
+        # check if the data is stationary    
+
+        # +-------------------------------------------------------------------
+        # STEP: Generate X and y from the Time Series
+        # +-------------------------------------------------------------------
+        # At this point the normalised data columns are split across the X and Y data
+               
+        # 1: 24 HOURS/24 HOURS prediction window
+        logger.info("Creating the 24 hour prediction timeval{timeval},hour {HOUR}")
+        mlprocess_config = CDMLProcess()
+        past_width, future_width, pred_width, features_count, labels_count, batch_size = mlprocess_config.create_ml_window(timeval=HOUR)
+        logger.info(f"Past Width: {past_width}, Future Width: {future_width}, Prediction Width: {pred_width}, Features Count: {features_count}, Labels Count: {labels_count}, Batch Size: {batch_size}")
+         
+"""
 
          # Create the input features (X) and label values (y)
          print("list(mp_data_custom_input_keyfeat_scaled)", list(mp_data_custom_input_keyfeat_scaled))

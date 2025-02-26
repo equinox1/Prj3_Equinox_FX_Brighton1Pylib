@@ -37,7 +37,9 @@ class CDataProcess:
             self.mt5 = None
 
         self.env = CMqlEnvMgr()
+        self.local_data_params = {}  
         self.params = self.env.all_params()
+
 
         # Extract parameter sections
         self.base_params = self.params.get("base", {})
