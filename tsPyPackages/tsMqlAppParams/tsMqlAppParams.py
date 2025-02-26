@@ -21,7 +21,7 @@ class CMqlEnvAppParams(CEnvCore):
         "mp_app_env": "demo",
         "mp_app_dfname1": "df_rates1",
         "mp_app_dfname2": "df_rates2",
-        "mp_app_cfg_usedata": 'loadfilerates',
+        "mp_app_cfg_usedata": 'df_file_rates', #  df_api_ticks, df_api_rates, df_file_ticks, df_file_rates
         "mp_app_rows": 2000,
         "mp_app_rowcount": 10000,
         "mp_app_ONNX_save": False,

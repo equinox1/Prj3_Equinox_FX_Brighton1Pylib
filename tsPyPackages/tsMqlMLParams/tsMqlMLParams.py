@@ -26,6 +26,12 @@ class CMqlEnvMLParams(CEnvCore):
    def __init__(self, **kwargs):
         super().__init__(custom_params=kwargs)  # Ensure proper initialization
 
+   FEATURES_PARAMS = {
+         "mp_ml_input_keyfeat": {'Close'}, # Features
+         "mp_ml_input_keyfeat_scaled": {'Close_scaled'}, # Scaled features
+         
+   }
+
    DEFAULT_PARAMS = {
          "mp_ml_cfg_period": 24,
          "mp_ml_cfg_period1": 24,  # Hours
@@ -39,8 +45,6 @@ class CMqlEnvMLParams(CEnvCore):
          "mp_ml_returns_col_scaled": 'LogReturns_scaled',
          "mp_ml_create_label": False,
          "mp_ml_create_label_scaled": False,
-         "mp_ml_input_keyfeat": 'Close',
-         "mp_ml_input_keyfeat_scaled": 'Close_scaled',
          "mp_ml_run_avg": True,
          "mp_ml_run_avg_scaled":True,
          "mp_ml_run_ma": True,

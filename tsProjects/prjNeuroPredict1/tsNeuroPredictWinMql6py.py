@@ -11,10 +11,9 @@
 # +-------------------------------------------------------------------
 # gpu and tensor platform
 from tsMqlSetup import CMqlSetup
-
 import logging
-# Initialize logger
 
+# Initialize logger
 logger = logging.getLogger("Main")
 logging.basicConfig(level=logging.INFO)
 
@@ -61,6 +60,7 @@ from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
 # Equinox ML packages
 from tsMqlMLTune import CMdtuner
+from tsMqlMLParams import CMqlEnvMLParams
 
 # Setup the logging and tensor platform dependencies
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
@@ -175,103 +175,25 @@ def main(logger):
         # Average the columns
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
             process_config.run_average_columns(df,df_name)
-      
-      #######################################
-         # copy the data for config selection
-         if loadmql == True:
-            data_sources = [df_api_ticks, df_api_rates, df_file_ticks, df_file_rates]
-            data_copies = [data.copy() for data in data_sources]
-            mv_tdata2a, mv_tdata2b, mv_tdata2c, mv_tdata2d = data_copies
-            data_mapping = {
-               'loadapiticks': mv_tdata2a,
-               'loadapirates': mv_tdata2b,
-               'loadfileticks': mv_tdata2c,
-               'loadfilerates': mv_tdata2d
-         }
-         else:
-               data_sources = [df_file_ticks, df_file_rates]
-               data_copies = [data.copy() for data in data_sources]
-               mv_tdata1c, mv_tdata1d = data_copies
-               data_mapping = {
-                  'loadfileticks': mv_tdata2c,
-                  'loadfilerates': mv_tdata2d 
-               }
+        datafile = df
+        logger.info(f"Data File Shape: {datafile.shape}")
 
-         # Check the switch of which file to use
-         if mp_data_cfg_usedata in data_mapping:
-               print(f"Using {mp_data_cfg_usedata.replace('load', '').replace('api', 'API ').replace('file', 'File ').replace('ticks', 'Tick data').replace('rates', 'Rates data')}")
-               mv_tdata2 = data_mapping[mp_data_cfg_usedata]
-         else:
-               print("Invalid data configuration")
-               mv_tdata2 = None
+        # +-------------------------------------------------------------------
+        # STEP: Normalize the X data
+        
+        # +-------------------------------------------------------------------
+        # STEP: add The time index to the data
+        # +-------------------------------------------------------------------
+        datafile = process_config.create_index_column(datafile)
+        # Limit the columns to just the time column and all features
+        column_features = datafile.columns[1:]
+        logger.info(f"Column Features: {column_features}")
 
-
-         # print shapes of the data
-         print("SHAPE: mv_tdata2 shape:", mv_tdata2.shape)
-
-         # +-------------------------------------------------------------------
-         # STEP: Normalize the X data
-         # +-------------------------------------------------------------------
-         # Normalize the 'Close' column
-         scaler = MinMaxScaler()
-
-         mp_data_custom_input_keyfeat = list(gen_environments["dataenv"].mp_data_custom_input_keyfeat)  # Convert to list
-         mp_data_custom_input_keyfeat_scaled = list(gen_environments["dataenv"].mp_data_custom_input_keyfeat_scaled)  # Convert to list
-
-         print("mp_data_custom_input_keyfeat:", mp_data_custom_input_keyfeat)
-         print("mp_data_custom_input_keyfeat_scaled:", mp_data_custom_input_keyfeat_scaled)
-
-         # Ensure these remain as lists when used as column names
-         print("mv_tdata2 columns:", mv_tdata2.columns)
-         print("mv_tdata2 head:", mv_tdata2.head(3))
-
+        datafile = datafile[[datafile.columns[0]] + list(datafile.columns[1:])]
+            
+"""
          
-         mv_tdata2[mp_data_custom_input_keyfeat_scaled] = scaler.fit_transform(mv_tdata2[mp_data_custom_input_keyfeat])
          
-         print("print Normalise")
-         obj0_CDataProcess = CDataProcess(gen_environments["dataenv"], gen_environments["mlenv"], gen_environments["globalenv"])
-         print("Type after wrangle_time:", type(mv_tdata2))
-         obj0_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "plain", floatfmt=".5f", numalign="left", stralign="left")
-         print("End of Normalise print")
-         print("mv_tdata2.shape", mv_tdata2.shape)
-
-         # +-------------------------------------------------------------------
-         # STEP: add The time index to the data
-         # +-------------------------------------------------------------------
-         # Check the first column
-         first_column = mv_tdata2.columns[0]
-         print("PRE INDEX: Count: ",len(mv_tdata2))
-
-         # Ensure no missing values, duplicates, or type issues
-         mv_tdata2[first_column] = mv_tdata2[first_column].fillna('Unknown')  # Handle NaNs
-         mv_tdata2[first_column] = mv_tdata2[first_column].astype(str)  # Uniform type
-         mv_tdata2[first_column] = mv_tdata2[first_column].str.strip()  # Remove whitespaces
-
-         # Set the first column as index which is the datetime column
-         mv_tdata2.set_index(first_column, inplace=True)
-         mv_tdata2=mv_tdata2.dropna()
-         print("POST INDEX: Count: ",len(mv_tdata2))
-
-         # +-------------------------------------------------------------------
-         # STEP: set the dataset to just the features and the label and sort by time
-         # +-------------------------------------------------------------------
-         print("Type before set default:", type(mv_tdata2))
-         
-         if gen_environments["dataenv"].mp_data_data_label == 1:
-               mv_tdata2 = mv_tdata2[[list(mp_data_custom_input_keyfeat_scaled)[0]]]
-               obj0_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
-               
-         elif gen_environments["dataenv"].mp_data_data_label == 2:
-               mv_tdata2 = mv_tdata2[[mv_tdata2.columns[0]] + [list(mp_data_custom_input_keyfeat_scaled)[0]]]
-               # Ensure the data is sorted by time
-               mv_tdata2 = mv_tobj0_CDataProcessobj0_CDataLoader.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
-
-         elif gen_environments["dataenv"].mp_data_data_label == 3:
-               # Ensure the data is sorted by time use full dataset
-               mv_tdata2 = mv_tdata2.sort_index()
-               print("Count of Tdata2:",len(mv_tdata2))
-               obj0_CDataProcess.run_mql_print(mv_tdata2, mp_data_tab_rows, mp_data_tab_width, "fancy_grid", floatfmt=".5f", numalign="left", stralign="left")
-               
          # +-------------------------------------------------------------------
          # STEP: Generate X and y from the Time Series
          # +-------------------------------------------------------------------
@@ -298,14 +220,14 @@ def main(logger):
 
          # STEP: Create input (X) and label (Y) tensors Ensure consistent data shape
          # Create the input (X) and label (Y) tensors Close_scaled is the feature to predict and Close last entry in future the label
-         mv_tdata2_X, mv_tdata2_y = obj1_Mqlmlsetup.create_Xy_time_windows3(mv_tdata2, past_width, future_width, target_column=list(mp_data_custom_input_keyfeat_scaled), feature_column=list(mp_data_custom_input_keyfeat))
-         print("mv_tdata2_X.shape", mv_tdata2_X.shape, "mv_tdata2_y.shape", mv_tdata2_y.shape)
+        datafile_X,datafile_y = obj1_Mqlmlsetup.create_Xy_time_windows3(mv_tdata2, past_width, future_width, target_column=list(mp_data_custom_input_keyfeat_scaled), feature_column=list(mp_data_custom_input_keyfeat))
+         print("mv_tdata2_X.shape",datafile_X.shape, "mv_tdata2_y.shape",datafile_y.shape)
          
          # +-------------------------------------------------------------------
          # STEP: Normalize the Y data
          # +-------------------------------------------------------------------
          # Scale the Y labels
-         mv_tdata2_y = scaler.transform(mv_tdata2_y.reshape(-1, 1))  # Transform Y values
+        datafile_y = scaler.transform(mv_tdata2_y.reshape(-1, 1))  # Transform Y values
                   
          # +-------------------------------------------------------------------
          # STEP: Split the data into training and test sets Fixed Partitioning
@@ -314,12 +236,12 @@ def main(logger):
          batch_size = gen_environments["tuneenv"].batch_size
          precountX = len(mv_tdata2_X)
          precounty = len(mv_tdata2_y)
-         mv_tdata2_X,mv_tdata2_y = obj1_Mqlmlsetup.align_to_batch_size(mv_tdata2_X,mv_tdata2_y, batch_size)
+        datafile_X,mv_tdata2_y = obj1_Mqlmlsetup.align_to_batch_size(mv_tdata2_X,mv_tdata2_y, batch_size)
          print(f"Aligned data: X shape: {mv_tdata2_X.shape}, Y shape: {mv_tdata2_y.shape}")
 
          # Check the number of rows
-         print("Batch size alignment: mv_tdata2_X shape:", mv_tdata2_X.shape,"Precount:",precountX,"Postcount:",len(mv_tdata2_X))
-         print("Batch size alignment: mv_tdata2_y shape:", mv_tdata2_y.shape,"Precount:",precounty,"Postcount:",len(mv_tdata2_y))
+         print("Batch size alignment:datafile_X shape:",datafile_X.shape,"Precount:",precountX,"Postcount:",len(mv_tdata2_X))
+         print("Batch size alignment:datafile_y shape:",datafile_y.shape,"Precount:",precounty,"Postcount:",len(mv_tdata2_y))
 
          # Split the data into training, validation, and test sets
 

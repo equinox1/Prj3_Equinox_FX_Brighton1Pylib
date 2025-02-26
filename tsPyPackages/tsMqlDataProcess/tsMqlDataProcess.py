@@ -647,3 +647,16 @@ class CDataProcess:
             return df
         cols = [col for col in df.columns if col != last_col] + [last_col]
         return df[cols]
+
+
+    def create_index_column(self,df):
+        """Select the data file based on the DataFrame name."""
+        # Ensure no missing values, duplicates, or type issues
+        first_column = df.columns[0]
+        df[first_column] =df[first_column].fillna('Unknown')  # Handle NaNs
+        df[first_column] =df[first_column].astype(str)  # Uniform type
+        df[first_column] =df[first_column].str.strip()  # Remove whitespaces
+        # Set the first column as index which is the datetime column
+        df.set_index(first_column, inplace=True)
+        df=df.dropna()
+        return df
