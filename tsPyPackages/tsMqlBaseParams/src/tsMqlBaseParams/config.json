@@ -1,0 +1,5 @@
+{
+  "precision": "mixed_float16",
+  "tflog_level": 2,
+  "tfdebug": false
+}

@@ -1,8 +1,8 @@
 [project]
-name = "tsMqlReference.py"
-version = "3.0.5"
+name = "tsMqlReference"
+version = "2.3.25"
 authors = [
-  { name="Tony Shepherd", email="shep.antony@gmail.com" },
+  { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
 description = "MQL API Data setup for ML"
 readme = "README.md"
