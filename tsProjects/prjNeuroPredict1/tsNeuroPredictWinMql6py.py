@@ -141,47 +141,51 @@ def main(logger):
         # STEP: Data Preparation and Loading
         # +-------------------------------------------------------------------
         # Retrieve broker file paths
-        loader_config = CDataLoader()
-        process_config = CDataProcess()
+        data_loader_config = CDataLoader()
+        data_process_config = CDataProcess()
+        ml_process_config = CDMLProcess()
         # +-------------------------------------------------------------------
         # STEP: Data loading and processing
         # +-------------------------------------------------------------------
         # Set the data history size
         mp_data_history_size = data_params.get('mp_data_history_size')
         # Set the UTC time for the data
-        mv_data_utc_from = loader_config.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAY, TIMEZONE)
-        mv_data_utc_to = loader_config.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAY, TIMEZONE)
+        mv_data_utc_from = data_loader_config.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAY, TIMEZONE)
+        mv_data_utc_to = data_loader_config.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAY, TIMEZONE)
         logger.info(f"Main:UTC From: {mv_data_utc_from}")
         logger.info(f"Main:UTC To: {mv_data_utc_to}")
          # Set the data rows
         mp_app_rows = app_params.get('mp_app_rows') ; logger.info(f"Main:Rows: {mp_app_rows}")
         mp_app_rowcount = app_params.get('mp_app_rowcount')
         # Load the data
-        loader_config = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=mp_app_rows , lp_app_rowcount=mp_app_rowcount)
-        df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = loader_config.load_data()
+        data_loader_config = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=mp_app_rows , lp_app_rowcount=mp_app_rowcount)
+        df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader_config.load_data()
         # +-------------------------------------------------------------------
         # STEP: Run data process manipulation
         # +-------------------------------------------------------------------
          # Process the data
-        df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = process_config.run_wrangle_service(df_api_ticks=df_api_ticks,df_api_rates=df_api_rates,df_file_ticks=df_file_ticks,df_file_rates=df_file_rates,mp_unit=UNIT)
+        df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_process_config.run_wrangle_service(df_api_ticks=df_api_ticks,df_api_rates=df_api_rates,df_file_ticks=df_file_ticks,df_file_rates=df_file_rates,mp_unit=UNIT)
         logger.info(f"Processed Wrangled DataFrames: df_api_ticks.shape {df_api_ticks.shape},df_api_rates.shape {df_api_rates.shape},df_file_ticks.shape {df_file_ticks.shape},df_file_rates.shape {df_file_rates.shape}")
+        
         #set Common Close column
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
-            process_config.establish_common_feat_col(df,df_name)
+            data_process_config.establish_common_feat_col(df,df_name)
+
         # Average the columns
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
-            process_config.run_average_columns(df,df_name)
+            data_process_config.run_average_columns(df,df_name)
         datafile = df
         logger.info(f"Data File Shape: {datafile.shape}")
-        
+   
         # +-------------------------------------------------------------------
         # STEP: add The time index to the data
         # +-------------------------------------------------------------------
-        datafile = process_config.create_index_column(datafile)
+        datafile = data_process_config.create_index_column(datafile)
         # Limit the columns to just the time column and all features
         column_features = datafile.columns[1:]
         logger.info(f"Column Features: {column_features}")
         datafile = datafile[[datafile.columns[0]] + list(datafile.columns[1:])]
+        logger.info(f"Data File Shape: {datafile.head(hrows)}")
 
         # +-------------------------------------------------------------------
         # STEP: Normalise the data
@@ -196,12 +200,12 @@ def main(logger):
                
         # 1: 24 HOURS/24 HOURS prediction window
         logger.info("Creating the 24 hour prediction timeval{timeval},hour {HOUR}")
-        mlprocess_config = CDMLProcess()
-        past_width, future_width, pred_width, features_count, labels_count, batch_size = mlprocess_config.create_ml_window(timeval=HOUR)
+   
+        past_width, future_width, pred_width, features_count, labels_count, batch_size = ml_process_config.create_ml_window(timeval=HOUR)
         logger.info(f"Past Width: {past_width}, Future Width: {future_width}, Prediction Width: {pred_width}, Features Count: {features_count}, Labels Count: {labels_count}, Batch Size: {batch_size}")
          
-"""
 
+"""
          # Create the input features (X) and label values (y)
          print("list(mp_data_custom_input_keyfeat_scaled)", list(mp_data_custom_input_keyfeat_scaled))
 
