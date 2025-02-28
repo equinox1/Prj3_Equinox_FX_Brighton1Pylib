@@ -28,11 +28,32 @@ class CMqlEnvMLParams(CEnvCore):
         }
 
         self.FEATURES_PARAMS = {
-            "mp_ml_input_keyfeat": {"FEAT1": "Close"},
-            "mp_ml_input_keyfeat_scaled": {"FEAT1_SCALED": "Close_Scaled"},
-            "mp_ml_output_label": {"LABEL1": "Label"},
-            "mp_ml_output_label_scaled": {"LABEL1_SCALED": "Label_Scaled"},
-        }
+            "mp_ml_input_keyfeat": "Close",
+            "Feature1": "Close",
+            "Feature2": "High",
+            "Feature3": "Low",
+            "Feature4": "Open",
+            "Feature5": "Volume",
+            "Feature6": "HLAvg",
+            "Feature7": "SMA",
+            "Feature8": "LogReturns",
+            "mp_ml_input_keyfeat_scaled": "Close_Scaled",
+            "Feature1_scaled": "Close_Scaled",
+            "Feature2_scaled": "High_Scaled",
+            "Feature3_scaled": "Low_Scaled",
+            "Feature4_scaled": "Open_Scaled",
+            "Feature5_scaled": "Volume_Scaled",
+            "Feature6_scaled": "HLAvg_Scaled",
+            "Feature7_scaled": "SMA_Scaled",
+            "Feature8_scaled": "LogReturns_Scaled",
+            "mp_ml_output_label": "Label",
+            "mp_ml_output_label_scaled": "Label_Scaled",
+            "Label1" : "Label",
+            "Label1_Scaled" : "Label_Scaled",
+            "Label2" : "Target",
+            "Label2_Scaled" : "Target_Scaled",
+            }
+
 
         self.DEFAULT_PARAMS = {
             "mp_ml_tf_shiftin": 1,

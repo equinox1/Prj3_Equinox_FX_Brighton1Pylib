@@ -69,7 +69,8 @@ strategy = obj1_CMqlSetup.get_computation_strategy()
 # format values
 mp_data_tab_rows = 5
 mp_data_tab_width = 30
-
+hrows=mp_data_tab_rows
+hwidth=mp_data_tab_width
 # +-------------------------------------------------------------------
 # STEP: End of driving parameters
 # +-------------------------------------------------------------------
