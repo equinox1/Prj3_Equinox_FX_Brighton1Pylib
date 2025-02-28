@@ -38,9 +38,7 @@ class CDataProcess:
         else:
             self.mt5 = None
 
-        self.colwidth = kwargs.get('colwidth', 20)
-        self.hrows = kwargs.get('hrows', 5)
-        self.mlconfig = CMqlEnvMLParams()
+       
         self._initialize_mql()
         self._set_envmgr_params(kwargs)
         self._set_ml_params(kwargs)
@@ -146,10 +144,10 @@ class CDataProcess:
     def _set_ml_params(self,kwargs):
         """Extract environment parameters."""  
         # Load machine learning parameters
-        self.mlconfig = CMqlEnvMLParams()
-        self.FEATURES_PARAMS = self.mlconfig.get_features_params()
-        self.WINDOW_PARAMS = self.mlconfig.get_window_params()
-        self.DEFAULT_PARAMS = self.mlconfig.get_default_params()
+        self.ml_config = CMqlEnvMLParams()
+        self.FEATURES_PARAMS = self.ml_config.get_features_params()
+        self.WINDOW_PARAMS = self.ml_config.get_window_params()
+        self.DEFAULT_PARAMS = self.ml_config.get_default_params()
         logger.info("Features parameters: %s", self.FEATURES_PARAMS)
         logger.info("Window parameters: %s", self.WINDOW_PARAMS)
         logger.info("Default parameters: %s", self.DEFAULT_PARAMS)
@@ -164,67 +162,29 @@ class CDataProcess:
         self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default1.csv')
         self.mp_data_filename2 = self.params.get('data', {}).get('mp_data_filename2', 'default2.csv')
         self.rownumber = self.params.get("mp_data_self.rownumber")
+        self.colwidth = kwargs.get('colwidth', 20)
+        self.hrows = kwargs.get('hrows', 5)
 
          # Set default Feature parameters
-        for feature_key in self.FEATURES_PARAMS["mp_ml_input_keyfeat"]:
-            self.FEATURES_PARAMS["mp_ml_input_keyfeat"][feature_key] = self.ml_params.get('mp_ml_input_keyfeat', "KeyFeature")
-            logger.info("mp_ml_input_keyfeat: %s", self.FEATURES_PARAMS["mp_ml_input_keyfeat"])
-            self.feature1 = self.FEATURES_PARAMS["mp_ml_input_keyfeat"]["FEAT1"]
-            self.feature2 = self.FEATURES_PARAMS["mp_ml_input_keyfeat"]["FEAT2"]
-            self.feature3 = self.FEATURES_PARAMS["mp_ml_input_keyfeat"]["FEAT3"]
-            self.feature4 = self.FEATURES_PARAMS["mp_ml_input_keyfeat"]["FEAT4"] 
-            self.feature5 = self.FEATURES_PARAMS["mp_ml_input_keyfeat"]["FEAT5"]
-            self.feature6 = self.FEATURES_PARAMS["mp_ml_input_keyfeat"]["FEAT6"]
-            self.feature7 = self.FEATURES_PARAMS["mp_ml_input_keyfeat"]["FEAT7"]
-            self.feature8 = self.FEATURES_PARAMS["mp_ml_input_keyfeat"]["FEAT8"]
-            self.feature9 = self.FEATURES_PARAMS["mp_ml_input_keyfeat"]["FEAT9"]
-            self.feature10 = self.FEATURES_PARAMS["mp_ml_input_keyfeat"]["FEAT10"]
-            logger.info("Feature1: %s, Feature2: %s, Feature3: %s, Feature4: %s, Feature5: %s, Feature6: %s, Feature7: %s, Feature8: %s, Feature9: %s, Feature10: %s", self.feature1, self.feature2, self.feature3, self.feature4, self.feature5, self.feature6, self.feature7, self.feature8, self.feature9, self.feature10)
-        for scaled_feature_key in self.FEATURES_PARAMS["mp_ml_input_keyfeat_scaled"]:
-            self.FEATURES_PARAMS["mp_ml_input_keyfeat_scaled"][scaled_feature_key] = self.ml_params.get('mp_ml_input_keyfeat_scaled', "KeyFeature_Scaled")
-            logger.info("mp_ml_input_keyfeat_scaled: %s", self.FEATURES_PARAMS["mp_ml_input_keyfeat_scaled"])
-            self.feature1_scaled = self.FEATURES_PARAMS["mp_ml_input_keyfeat_scaled"]["FEAT1_SCALED"]
-            self.feature2_scaled = self.FEATURES_PARAMS["mp_ml_input_keyfeat_scaled"]["FEAT2_SCALED"]
-            self.feature3_scaled = self.FEATURES_PARAMS["mp_ml_input_keyfeat_scaled"]["FEAT3_SCALED"]
-            self.feature4_scaled = self.FEATURES_PARAMS["mp_ml_input_keyfeat_scaled"]["FEAT4_SCALED"]
-            self.feature5_scaled = self.FEATURES_PARAMS["mp_ml_input_keyfeat_scaled"]["FEAT5_SCALED"]
-            self.feature6_scaled = self.FEATURES_PARAMS["mp_ml_input_keyfeat_scaled"]["FEAT6_SCALED"]
-            self.feature7_scaled = self.FEATURES_PARAMS["mp_ml_input_keyfeat_scaled"]["FEAT7_SCALED"]
-            self.feature8_scaled = self.FEATURES_PARAMS["mp_ml_input_keyfeat_scaled"]["FEAT8_SCALED"]
-            self.feature9_scaled = self.FEATURES_PARAMS["mp_ml_input_keyfeat_scaled"]["FEAT9_SCALED"]
-            self.feature10_scaled = self.FEATURES_PARAMS["mp_ml_input_keyfeat_scaled"]["FEAT10_SCALED"]
-            logger.info("Feature1_Scaled: %s, Feature2_Scaled: %s, Feature3_Scaled: %s, Feature4_Scaled: %s, Feature5_Scaled: %s, Feature6_Scaled: %s, Feature7_Scaled: %s, Feature8_Scaled: %s, Feature9_Scaled: %s, Feature10_Scaled: %s", self.feature1_scaled, self.feature2_scaled, self.feature3_scaled, self.feature4_scaled, self.feature5_scaled, self.feature6_scaled, self.feature7_scaled, self.feature8_scaled, self.feature9_scaled, self.feature10_scaled)
+        for feature_key in self.FEATURES_PARAMS:
+            self.FEATURES_PARAMS[feature_key] = self.ml_params.get(feature_key, "KeyFeature")
+            self.feature1 = self.FEATURES_PARAMS["Feature1"]
+            logger.info("Feature1: %s", self.feature1)
 
-            
-         # Set default Label parameters
-        for label_key in self.FEATURES_PARAMS["mp_ml_output_label"]:
-            self.FEATURES_PARAMS["mp_ml_output_label"][label_key] = self.ml_params.get('mp_ml_output_label', "Label")
-            logger.info("mp_ml_output_label: %s", self.FEATURES_PARAMS["mp_ml_output_label"]) 
-            self.label1 = self.FEATURES_PARAMS["mp_ml_output_label"]["LABEL1"]
-            self.label2 = self.FEATURES_PARAMS["mp_ml_output_label"]["LABEL2"]  
-            logger.info("Label1: %s, Label2: %s", self.label1, self.label2)
+        for scaled_feature_key in self.FEATURES_PARAMS:
+            self.FEATURES_PARAMS[scaled_feature_key] = self.ml_params.get(scaled_feature_key, "KeyFeature_Scaled")
+            self.feature1_scaled = self.FEATURES_PARAMS["Feature1_scaled"]
+            logger.info("Feature1_scaled: %s", self.feature1_scaled)
 
+        for label_key in self.FEATURES_PARAMS:
+            self.FEATURES_PARAMS[label_key] = self.ml_params.get(label_key, "Label")
+            self.label = self.FEATURES_PARAMS["Label1"]
+            logger.info("Label: %s", self.label)
 
-        for scaled_label_key in self.FEATURES_PARAMS["mp_ml_output_label_scaled"]:
-            self.FEATURES_PARAMS["mp_ml_output_label_scaled"][scaled_label_key] = self.ml_params.get('mp_ml_output_label_scaled', "Label_Scaled")
-            logger.info("mp_ml_output_label_scaled: %s", self.FEATURES_PARAMS["mp_ml_output_label_scaled"])
-            self.label1_scaled = self.FEATURES_PARAMS["mp_ml_output_label_scaled"]["LABEL1_SCALED"]
-            self.label2_scaled = self.FEATURES_PARAMS["mp_ml_output_label_scaled"]["LABEL2_SCALED"]
-            logger.info("Label1_Scaled: %s, Label2_Scaled: %s", self.label1_scaled, self.label2_scaled)
-
-        logger.info(
-            "mp_ml_input_keyfeat: %s, mp_ml_input_keyfeat_scaled: %s, mp_ml_output_label: %s, mp_ml_output_label_scaled: %s",
-            self.FEATURES_PARAMS["mp_ml_input_keyfeat"], 
-            self.FEATURES_PARAMS["mp_ml_input_keyfeat_scaled"], 
-            self.FEATURES_PARAMS["mp_ml_output_label"], 
-            self.FEATURES_PARAMS["mp_ml_output_label_scaled"],
-            self.feature1, self.feature2, self.feature3, self.feature4, self.feature5, self.feature6, self.feature7, self.feature8, self.feature9, self.feature10,
-            self.feature1_scaled, self.feature2_scaled, self.feature3_scaled, self.feature4_scaled, self.feature5_scaled, self.feature6_scaled, self.feature7_scaled, self.feature8_scaled, self.feature9_scaled, self.feature10_scaled,
-            self.label1, self.label2, self.label1_scaled, self.label2_scaled
-         )
-
-
-
+            self.mp_ml_input_keyfeat = self.feature1
+            self.mp_ml_input_keyfeat_scaled = self.feature1_scaled
+            self.mp_ml_input_label = self.label
+      
         self.lookahead_periods = self.params.get('ml', {}).get('mp_lookahead_periods', 1)
         self.ma_window = self.params.get('ml', {}).get('mp_ma_window', 10)
         self.hl_avg_col = self.params.get('ml', {}).get('mp_hl_avg_col', 'HL_Avg')

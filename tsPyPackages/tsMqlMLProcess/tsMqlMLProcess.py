@@ -5,16 +5,20 @@ Filename: tsMqlMLProcess.py
 Description: Load and add files and data parameters.
 Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
-Version: 1.0
+Version: 1.1
 """
 
 import os
 import sys
 import logging
 from tsMqlPlatform import run_platform, platform_checker, logger
-from tsMqlEnvMgr import CMqlEnvMgr
-from tsMqlMLParams import CMqlEnvMLParams
+from tsMqlEnvMgr import CMqlEnvMgr  # Ensure this exists
+from tsMqlMLParams import CMqlEnvMLParams  # Ensure this exists
 from tsMqlMLTunerParams import CMqlEnvMLTunerParams  # Ensure this exists
+
+# Set up logger if not already configured
+if not logging.getLogger().hasHandlers():
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Initialize platform checker
 pchk = run_platform.RunPlatform()
@@ -25,9 +29,9 @@ logger.info("Running on: %s, loadmql state: %s", os_platform, loadmql)
 class CDMLProcess:
     def __init__(self, **kwargs):
         """Initialize data processing class."""
-   
+        
         self.env = CMqlEnvMgr()
-        self.mlconfig = CMqlEnvMLParams()  # Initialize ML parameters
+        #self.mlconfig = CMqlEnvMLParams()  # Initialize ML parameters
         self.ml_tune_config = CMqlEnvMLTunerParams()  # Initialize ML tuner parameters
         
         # Initialize MetaTrader5 safely
@@ -39,7 +43,8 @@ class CDMLProcess:
                 if not self.mt5.initialize():
                     logger.error("Failed to initialize MetaTrader5: %s", self.mt5.last_error())
             except ImportError:
-                logger.warning("MetaTrader5 module not found. Continuing without it.")
+                logger.error("MetaTrader5 module not found. Exiting...")
+                sys.exit(1)  # Exit if MT5 is mandatory
 
         # Load all configurations
         self._set_envmgr_params(kwargs)
@@ -51,7 +56,7 @@ class CDMLProcess:
         try:
             self.params = self.env.all_params()
         except Exception as e:
-            logger.error("Failed to initialize CMqlEnvMgr: %s", e)
+            logger.critical("Failed to initialize CMqlEnvMgr: %s", e)
             self.params = {}
 
         self.base_params = self.params.get("base", {})
@@ -63,16 +68,19 @@ class CDMLProcess:
     def _set_ml_params(self, kwargs):
         """Extract machine learning parameters safely."""
         try:
-            self.FEATURES_PARAMS = self.mlconfig.get_features_params()
-            self.WINDOW_PARAMS = self.mlconfig.get_window_params()
-            self.DEFAULT_PARAMS = self.mlconfig.get_default_params()
-            self.TUNER_DEFAULT_PARAMS = self.ml_tune_config.get_default_params()
+            self.FEATURES_PARAMS = self.mlconfig.get_features_params() or {}
+            self.WINDOW_PARAMS = self.mlconfig.get_window_params() or {}
+            self.DEFAULT_PARAMS = self.mlconfig.get_default_params() or {}
+            self.TUNER_DEFAULT_PARAMS = self.ml_tune_config.get_default_params() or {}
 
             logger.info("Features parameters: %s", self.FEATURES_PARAMS)
             logger.info("Window parameters: %s", self.WINDOW_PARAMS)
             logger.info("Default parameters: %s", self.DEFAULT_PARAMS)
             logger.info("Tuner default parameters: %s", self.TUNER_DEFAULT_PARAMS)
 
+            if not self.FEATURES_PARAMS:
+                logger.critical("Failed to load FEATURES_PARAMS. Check CMqlEnvMLParams.")
+        
         except Exception as e:
             logger.error("Error loading ML parameters: %s", e)
             self.FEATURES_PARAMS, self.WINDOW_PARAMS, self.DEFAULT_PARAMS, self.TUNER_DEFAULT_PARAMS = {}, {}, {}, {}
@@ -85,9 +93,9 @@ class CDMLProcess:
 
         logger.info("timeval: %d, colwidth: %d, hrows: %d", self.timeval, self.colwidth, self.hrows)
 
-        # Set default parameters
+        # Set default parameters with overrides
         self.mp_ml_cfg_period = self.WINDOW_PARAMS.get("mp_ml_cfg_period", 24)
-        self.mp_ml_batch_size = self.mltune_params.get('batch_size', 8)
+        self.mp_ml_batch_size = kwargs.get('batch_size', self.mltune_params.get('batch_size', 8))
 
         logger.info("Batch size: %d", self.mp_ml_batch_size)
 
