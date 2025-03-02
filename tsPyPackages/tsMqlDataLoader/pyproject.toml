@@ -1,6 +1,6 @@
 [project]
-name = "tsMqlDataLoader"
-version = "2.5.119"
+name = "tsMqldataLoader"
+version = "2.6.2"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
@@ -15,4 +15,4 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlDataLoader"
+homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqldataLoader"

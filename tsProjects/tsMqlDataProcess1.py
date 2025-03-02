@@ -230,10 +230,9 @@ class CDataProcess:
          self.filter_obj=self.filter_obj = kwargs.get('filter_obj=self.filter_obj', False)
          self.filter_dtmi = kwargs.get('filter_dtmi', False)
          self.filter_dtmf = kwargs.get('filter_dtmf', False)
-         self.mp_dropna = kwargs.get('mp_dropna', False)
-         self.mp_merge = kwargs.get('mp_merge', False)
-         self.mp_convert = kwargs.get('mp_convert', False)
-         self.mp_drop = kwargs.get('mp_drop', False)
+         self.mp_dropna = kwargs.get('mp_dropna',True)
+         self.mp_convert = kwargs.get('mp_convert', True)
+         self.mp_drop = kwargs.get('mp_drop', True)
 
          if len(self.df_api_ticks) > 0 and self.loadmql:
                self.df_api_ticks = self.wrangle_time(self.df_api_ticks, self.mp_unit, mp_filesrc="ticks1", filter_int=self.filter_int, filter_flt=self.filter_flt, filter_obj=self.filter_obj, filter_dtmi=self.filter_dtmi, filter_dtmf=self.filter_dtmf, mp_dropna=self.mp_dropna, mp_merge=self.mp_merge, mp_convert=self.mp_convert, mp_drop=self.mp_drop)

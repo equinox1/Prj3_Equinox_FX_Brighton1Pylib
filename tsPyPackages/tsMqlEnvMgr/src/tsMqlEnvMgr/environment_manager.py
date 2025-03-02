@@ -49,8 +49,11 @@ class CMqlEnvMgr:
     def override_params(self, new_params):
         """Override parameters with a new dictionary."""
         for category, params in new_params.items():
+            logger.info(f"Overriding {category} parameters: {params}")
             if category in self.env_params:
+                logger.info(f"Overriding {category} parameters: {params}")
                 self.env_params[category].update(params)
+                logger.info(f"Overridden {category} parameters: {params}")
 
     def split_params(self, *categories):
         """Retrieve only selected parameter categories."""
