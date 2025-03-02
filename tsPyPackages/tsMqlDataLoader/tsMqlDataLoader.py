@@ -36,7 +36,9 @@ class CDataLoader:
         self.lp_utc_from = kwargs.get('lp_utc_from', default_utc_from)
         self.lp_utc_to = kwargs.get('lp_utc_to', default_utc_to)
         self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
-        self.lp_app_rows = kwargs.get('lp_app_rows', self.params.get('app', {}).get('mp_app_rows', 1000))
+        self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('"mp_data_rows', 1000))
+        self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
+        
         self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('app', {}).get('mp_app_timeframe', 'H4'))
 
         self._set_global_parameters(kwargs)  # Now safe to call
@@ -49,7 +51,7 @@ class CDataLoader:
         logger.info(f"UTC to: {self.lp_utc_to}")
         logger.info(f"Timeframe: {self.lp_timeframe}")
         logger.info(f"Primary symbol: {self.lp_app_primary_symbol}")
-        logger.info(f"Rows to fetch: {self.lp_app_rows}")
+        logger.info(f"Rows to fetch: {self.lp_data_rows}")
 
     def _initialize_mql(self):
         """Initialize MetaTrader5 module and check platform."""
@@ -114,9 +116,9 @@ class CDataLoader:
 
             logger.info(f"Fetching {apitype} data from MetaTrader5 API")
             if apitype == 'ticks':
-                data = mt5.copy_ticks_from(self.lp_app_primary_symbol, self.lp_utc_from, self.lp_app_rows, mt5.COPY_TICKS_ALL)
+                data = mt5.copy_ticks_from(self.lp_app_primary_symbol, self.lp_utc_from, self.lp_data_rows, mt5.COPY_TICKS_ALL)
             elif apitype == 'rates':
-                data = mt5.copy_rates_from(self.lp_app_primary_symbol, valid_timeframe, self.lp_utc_from, self.lp_app_rows)
+                data = mt5.copy_rates_from(self.lp_app_primary_symbol, valid_timeframe, self.lp_utc_from, self.lp_data_rows)
             df = pd.DataFrame(data)
             return df
         except Exception as e:
@@ -130,7 +132,7 @@ class CDataLoader:
             logger.error(f"File not found: {filepath}")
             return pd.DataFrame()
         try:
-            return pd.read_csv(filepath)
+            return pd.read_csv(filepath,nrows=self.lp_data_rowcount)
         except Exception as e:
             logger.error(f"Error reading file {filename}: {e}")
             return pd.DataFrame()
@@ -143,6 +145,10 @@ class CDataLoader:
             except Exception as e:
                   logger.error(f"Timezone conversion error: {e}")
                   return None
+
+    def reduce_data(self, df):
+        """Reduce data to a specific number of rows."""
+        return df.head(self.lp_data_rows)
 
 
     

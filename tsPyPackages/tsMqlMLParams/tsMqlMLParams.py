@@ -76,7 +76,6 @@ class CMqlEnvMLParams(CEnvCore):
             "mp_ml_run_label_shifted": True,
             "mp_ml_run_label_shifted_scaled": True,
             "mp_ml_log_stationary": True,
-            "mp_ml_rownumber": True,
             "mp_ml_remove_zeros": True,
             "mp_ml_last_col": True,
         }

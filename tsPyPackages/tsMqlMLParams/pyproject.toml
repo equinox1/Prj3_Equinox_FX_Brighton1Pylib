@@ -1,6 +1,6 @@
 [project]
-name = "tsMqlMLParams"
-version = "2.4.32"
+name = "tsmqlmlparams"
+version = "2.4.33"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
@@ -14,4 +14,4 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlMLParams"
+homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsmqlmlparams"
