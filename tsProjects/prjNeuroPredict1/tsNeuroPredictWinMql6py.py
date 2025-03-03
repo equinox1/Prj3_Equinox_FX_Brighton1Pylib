@@ -63,6 +63,7 @@ from tsMqlMLTune import CMdtuner
 from tsMqlMLParams import CMqlEnvMLParams
 from tsMqlMLProcess import CDMLProcess
 from tsMqlOverrides import CMqlOverrides
+from tsMqlUtilities import CUtilities
 
 
 # Setup the logging and tensor platform dependencies
@@ -85,7 +86,7 @@ def main(logger):
         # +----------------------------------------------------------
         # Usage:env = EnvManager(custom_params={"ml": {"epochs": 20}}) ,logger.info("ML Epochs:", env.get_param("ml", "epochs"))
         # env.override_params({"base": {"learning_rate": 0.005}}) ,logger.info("Updated Learning Rate:", env.get_param("base", "learning_rate"))
-       
+        utils_config = CUtilities()
         env = CMqlEnvMgr()
         override_config = CMqlOverrides()
         # Fetch all parameters
@@ -179,35 +180,41 @@ def main(logger):
         mv_data_utc_to = data_loader_config.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAY, TIMEZONE)
         logger.info(f"Main:UTC From: {mv_data_utc_from}")
         logger.info(f"Main:UTC To: {mv_data_utc_to}")
-         # Set the data rows
-        mp_app_rows = app_params.get('mp_app_rows') ; logger.info(f"Main:Rows: {mp_app_rows}")
-        mp_app_rowcount = app_params.get('mp_app_rowcount')
+        # Set the data rows
+        
         # Load the data
-        data_loader_config = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=mp_app_rows , lp_app_rowcount=mp_app_rowcount)
+        data_loader_config = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=rows , lp_app_rowcount=rowcount)
         df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader_config.load_data()
+        for df in [df_api_ticks, df_api_rates, df_file_ticks, df_file_rates]:
+            logger.info(f"Data File Shape: {df.shape}")
+            utils_config.run_mql_print(df, hrows, hwidth)
 
         # +-------------------------------------------------------------------
         # STEP: Run data process manipulation
         # +-------------------------------------------------------------------
         # Process the data Wrangle service
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
+            logger.info(f"Data Wrangle start: {df_name} ,Unit {UNIT}")
             data_process_config.run_wrangle_service(df=df, df_name=df_name, mp_unit=UNIT)
-        logger.info(f"Established Common Feature Columns: df_api_ticks.shape {df_api_ticks.shape},df_api_rates.shape {df_api_rates.shape},df_file_ticks.shape {df_file_ticks.shape},df_file_rates.shape {df_file_rates.shape}")
-         
-        #set Common Close column
-        for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
-            data_process_config.establish_common_feat_col(df,df_name)
+            utils_config.run_mql_print(df, hrows, hwidth)
 
         # Average the columns
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
             data_process_config.run_average_columns(df,df_name)
-        datafile = df
+            utils_config.run_mql_print(df, hrows, hwidth)
+                   
+"""        
+        #set Common Close column
+       # for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
+       #     data_process_config.establish_common_feat_col(df,df_name)
+
+                datafile = df
         logger.info(f"Data File Shape: {datafile.shape}")
    
         # +-------------------------------------------------------------------
         # STEP: add The time index to the data
         # +-------------------------------------------------------------------
-        datafile = data_process_config.create_index_column(datafile)
+        # datafile = data_process_config.create_index_column(datafile)
         # Limit the columns to just the time column and all features
         column_features = datafile.columns[1:]
         logger.info(f"Column Features: {column_features}")
@@ -246,7 +253,7 @@ def main(logger):
         tf_batch_size = ml_params.get('tf_batch_size', 32)
         # Preprocess to avoid datetime columns
         logger.info(f"X_train: {X_train.shape}, X_val: {X_val.shape}, X_test: {X_test.shape}")
-"""
+
         # Convert to TensorFlow datasets
         train_dataset, val_dataset, test_dataset = ml_process_config.convert_to_tfds(X_train, y_train, X_val, y_val, X_test, y_test, batch_size=tf_batch_size)
         logger.info(f"Train Dataset: {train_dataset}, Val Dataset: {val_dataset}, Test Dataset: {test_dataset}")
