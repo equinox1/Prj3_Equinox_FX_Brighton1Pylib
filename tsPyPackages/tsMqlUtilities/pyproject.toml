@@ -1,6 +1,6 @@
 [project]
-name = "tsmqldataprocess"
-version = "2.6.40"
+name = "tsmqlutilities"
+version = "2.8.6"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
@@ -15,4 +15,4 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsmqldataprocess"
+homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsmqlutilities"

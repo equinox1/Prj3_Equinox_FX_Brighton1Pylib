@@ -70,7 +70,7 @@ class CMqlOverrides(CEnvCore):
             return
 
         data_overrides = {
-            "mp_data_timeframe": "M1",
+            "mp_data_timeframe": "H4",
             "mp_data_rows": 1000,
             "mp_data_rowcount": 40000,
             # API Ticks Data Filters
