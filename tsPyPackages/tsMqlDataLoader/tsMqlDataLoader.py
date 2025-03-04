@@ -38,8 +38,14 @@ class CDataLoader:
         self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
         self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('"mp_data_rows', 1000))
         self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
-        
         self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('app', {}).get('mp_app_timeframe', 'H4'))
+        logger.info(f"UTC from: {self.lp_utc_from}")
+        logger.info(f"UTC to: {self.lp_utc_to}")
+        logger.info(f"Timeframe: {self.lp_timeframe}")
+        logger.info(f"Primary symbol: {self.lp_app_primary_symbol}")
+        logger.info(f"Rows to fetch: {self.lp_data_rows}")
+        logger.info(f"Row count: {self.lp_data_rowcount}")
+        logger.info(f"Timeframe: {self.lp_timeframe}")
 
         self._set_global_parameters(kwargs)  # Now safe to call
 
@@ -94,16 +100,18 @@ class CDataLoader:
 
     def load_data(self, **kwargs):
         """Load market data from API or files and return all DataFrames."""
-        
-        df_api_ticks = self._fetch_api_data('ticks') if self.mp_data_loadapiticks else pd.DataFrame()
-        df_api_rates = self._fetch_api_data('rates') if self.mp_data_loadapirates else pd.DataFrame()
-        df_file_ticks = self._load_from_file(self.mp_data_filename1_merge) if self.mp_data_loadfileticks else pd.DataFrame()
-        df_file_rates = self._load_from_file(self.mp_data_filename2_merge) if self.mp_data_loadfilerates else pd.DataFrame()
+        self.df = kwargs.get('df', pd.DataFrame())
+        self.df_name = kwargs.get('df_name', 'df_name')
 
-        if all(df.empty for df in [df_api_ticks, df_api_rates, df_file_ticks, df_file_rates]):
-            logger.error("No data loaded from API or files.")
-
-        return df_api_ticks, df_api_rates, df_file_ticks, df_file_rates
+        if self.df_name == 'df_api_ticks':
+            self.df = self._fetch_api_data('ticks') if self.mp_data_loadapiticks else pd.DataFrame()
+        elif self.df_name == 'df_api_rates':
+            self.df = self._fetch_api_data('rates') if self.mp_data_loadapirates else pd.DataFrame()
+        elif self.df_name == 'df_file_ticks':
+            self.df = self._load_from_file(self.mp_data_filename1_merge) if self.mp_data_loadfileticks else pd.DataFrame()
+        elif self.df_name == 'df_file_rates':
+            self.df = self._load_from_file(self.mp_data_filename2_merge) if self.mp_data_loadfilerates else pd.DataFrame()
+        return self.df
 
     def _fetch_api_data(self, apitype=''):
         """Fetch data from MetaTrader5 API."""
@@ -117,7 +125,9 @@ class CDataLoader:
             logger.info(f"Fetching {apitype} data from MetaTrader5 API")
             if apitype == 'ticks':
                 data = mt5.copy_ticks_from(self.lp_app_primary_symbol, self.lp_utc_from, self.lp_data_rows, mt5.COPY_TICKS_ALL)
+                logger.info(f"Api ticks: Fetching Symbol {self.lp_app_primary_symbol} with rows {self.lp_data_rows} of ticks from {self.lp_utc_from} to {self.lp_utc_to}")
             elif apitype == 'rates':
+                logger.info(f"Api rates: Fetching Symbol {self.lp_app_primary_symbol} with rows {self.lp_data_rows} of rates from {self.lp_utc_from} to {self.lp_utc_to}")
                 data = mt5.copy_rates_from(self.lp_app_primary_symbol, valid_timeframe, self.lp_utc_from, self.lp_data_rows)
             df = pd.DataFrame(data)
             return df

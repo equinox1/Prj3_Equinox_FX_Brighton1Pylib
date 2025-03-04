@@ -19,6 +19,9 @@ from tabulate import tabulate
 # Import platform dependencies
 from tsMqlPlatform import run_platform, platform_checker, logger
 from tsMqlEnvMgr import CMqlEnvMgr
+from tsMqlMLParams import CMqlEnvMLParams
+
+# Import utilities
 from tsMqlUtilities import CUtilities
 
 # Initialize platform checker
@@ -31,91 +34,125 @@ logger.info(f"Running on: {os_platform}, loadmql state: {loadmql}")
 class CDataProcess:
     def __init__(self, **kwargs):
         """Initialize data processing class."""
-        self.util_config = CUtilities()
-        self.env = CMqlEnvMgr()
-        self.params = self.env.all_params()
+         # Initialize utilities
+        self.utils_config = CUtilities()
         
-        # Extract parameter sections
-        self.base_params = self.params.get("base", {})
-        self.data_params = self.params.get("data", {})
-        self.ml_params = self.params.get("ml", {})
-        self.mltune_params = self.params.get("mltune", {})
-        self.app_params = self.params.get("app", {})
-
+        # Initialize print parameters
         self.colwidth = kwargs.get('colwidth', 20)
         self.hrows = kwargs.get('hrows', 5)
 
         # Initialize run state parameters
         self._initialize_mql()
+        self._set_envmgr_params(kwargs)
         self._set_global_parameters(kwargs)
+        self._set_ml_params(kwargs)
 
-        # Store column parameters for different DataFrame types
+        # Store column parameters after initialization
         self.COLUMN_PARAMS = {
             "df_api_ticks": {
                 'bid_column': 'T1_Bid_Price',
-                'ask_column': 'T1_Ask_Price',
-                'column_in': 'T1_Bid_Price',
-                'column_out1': self.mp_ml_input_keyfeat,
-                'column_out2': self.mp_ml_input_keyfeat_scaled,
+                'ask_column':'T1_Ask_Price',
+                'column_in':'T1_Bid_Price',
+                'column_out1': self.feature1,
+                'column_out2': self.feature1_scaled,
                 'lookahead_periods': self.lookahead_periods,
                 'ma_window': self.ma_window,
                 'hl_avg_col': self.hl_avg_col,
                 'ma_col': self.ma_col,
                 'returns_col': self.returns_col,
                 'shift_in': self.shift_in,
-                'create_label': self.create_label
+                'create_label': self.create_label,
+                'df1_filter_int': kwargs.get('filter_int', False),
+                'df1_filter_flt': kwargs.get('filter_flt', False),
+                'df1_filter_obj': kwargs.get('filter_obj', False),
+                'df1_filter_dtmi': kwargs.get('filter_dtmi', False),
+                'df1_filter_dtmf': kwargs.get('filter_dtmf', False),
+                'df1_mp_dropna': kwargs.get('mp_dropna', True),
+                'df1_mp_merge': kwargs.get('mp_merge',True),
+                'df1_mp_convert': kwargs.get('mp_convert', True),
+                'df1_mp_drop': kwargs.get('mp_drop',True)
             },
             "df_api_rates": {
                 'bid_column': 'R1_Open',
-                'ask_column': 'R1_Close',
-                'column_in': 'R1_Open',
+                'ask_column':'R1_Close',
+                'column_in':'R1_Open',
                 'open_column': 'R1_Open',
                 'high_column': 'R1_High',
                 'low_column': 'R1_Low',
                 'close_column': 'R1_Close',
-                'column_out1': self.mp_ml_input_keyfeat,
-                'column_out2': self.mp_ml_input_keyfeat_scaled,
+                'column_out1': self.feature1,
+                'column_out2': self.feature1_scaled,
                 'lookahead_periods': self.lookahead_periods,
                 'ma_window': self.ma_window,
                 'hl_avg_col': self.hl_avg_col,
                 'ma_col': self.ma_col,
                 'returns_col': self.returns_col,
                 'shift_in': self.shift_in,
-                'create_label': self.create_label
-            }, 
+                'create_label': self.create_label,
+                'df2_filter_int': kwargs.get('filter_int', False),
+                'df2_filter_flt': kwargs.get('filter_flt', False),
+                'df2_filter_obj': kwargs.get('filter_obj', False),
+                'df2_filter_dtmi': kwargs.get('filter_dtmi', False),
+                'df2_filter_dtmf': kwargs.get('filter_dtmf', False),
+                'df2_mp_dropna': kwargs.get('mp_dropna', True),
+                'df2_mp_merge': kwargs.get('mp_merge',True),
+                'df2_mp_convert': kwargs.get('mp_convert', True),
+                'df2_mp_drop': kwargs.get('mp_drop',True)
+            },
+
             "df_file_ticks": {
                 'bid_column': 'T2_Bid_Price',
-                'ask_column': 'T2_Ask_Price',
-                'column_in': 'T2_Bid_Price',
-                'column_out1': self.mp_ml_input_keyfeat,
-                'column_out2': self.mp_ml_input_keyfeat_scaled,
+                'ask_column':'T2_Ask_Price',
+                'column_in':'T2_Bid_Price',
+                'column_out1': self.feature1,
+                'column_out2': self.feature1_scaled,
                 'lookahead_periods': self.lookahead_periods,
                 'ma_window': self.ma_window,
                 'hl_avg_col': self.hl_avg_col,
                 'ma_col': self.ma_col,
                 'returns_col': self.returns_col,
                 'shift_in': self.shift_in,
-                'create_label': self.create_label
+                'create_label': self.create_label,
+                'df3_filter_int': kwargs.get('filter_int', False),
+                'df3_filter_flt': kwargs.get('filter_flt', False),
+                'df3_filter_obj': kwargs.get('filter_obj', False),
+                'df3_filter_dtmi': kwargs.get('filter_dtmi', False),
+                'df3_filter_dtmf': kwargs.get('filter_dtmf', False),
+                'df3_mp_dropna': kwargs.get('mp_dropna', True),
+                'df3_mp_merge': kwargs.get('mp_merge',True),
+                'df3_mp_convert': kwargs.get('mp_convert', True),
+                'df3_mp_drop': kwargs.get('mp_drop',True)
             },
             "df_file_rates": {
                 'bid_column': 'R2_Open',
-                'ask_column': 'R2_Close',
-                'column_in': 'R2_Open',
+                'ask_column':'R2_Close',
+                'column_in':'R2_Open',
                 'open_column': 'R2_Open',
                 'high_column': 'R2_High',
                 'low_column': 'R2_Low',
                 'close_column': 'R2_Close',
-                'column_out1': self.mp_ml_input_keyfeat,
-                'column_out2': self.mp_ml_input_keyfeat_scaled,
+                'column_out1': self.feature1,
+                'column_out2': self.feature1_scaled,
                 'lookahead_periods': self.lookahead_periods,
                 'ma_window': self.ma_window,
                 'hl_avg_col': self.hl_avg_col,
                 'ma_col': self.ma_col,
                 'returns_col': self.returns_col,
                 'shift_in': self.shift_in,
-                'create_label': self.create_label
+                'create_label': self.create_label,
+                'df4_filter_int': kwargs.get('filter_int', False),
+                'df4_filter_flt': kwargs.get('filter_flt', False),
+                'df4_filter_obj': kwargs.get('filter_obj', False),
+                'df4_filter_dtmi': kwargs.get('filter_dtmi', False),
+                'df4_filter_dtmf': kwargs.get('filter_dtmf', False),
+                'df4_mp_dropna': kwargs.get('mp_dropna', True),
+                'df4_mp_merge': kwargs.get('mp_merge',True),
+                'df4_mp_convert': kwargs.get('mp_convert', True),
+                'df4_mp_drop': kwargs.get('mp_drop',True)
             }
+
         }
+
 
     def _initialize_mql(self):
         """Initialize MetaTrader5 module if available."""
@@ -132,60 +169,97 @@ class CDataProcess:
             except ImportError as e:
                 logger.error(f"Failed to import MetaTrader5: {e}")
 
+    def _set_envmgr_params(self, kwargs):
+        """Extract environment parameters."""
+        # Extract parameter sections
+        env = CMqlEnvMgr() 
+        self.env = env
+        self.params = self.env.all_params()
+        self.base_params = self.params.get("base", {})
+        self.data_params = self.params.get("data", {})
+        self.ml_params = self.params.get("ml", {})
+        self.mltune_params = self.params.get("mltune", {})
+        self.app_params = self.params.get("app", {})
+
     def _set_global_parameters(self, kwargs):
         """Set configuration parameters from environment or user input."""
-        data_params = self.params.get('data', {})
-        ml_params = self.params.get('ml', {})
-        app_params = self.params.get('app', {})
-        base_params = self.params.get('base', {})
+       
+    def _set_ml_params(self,kwargs):
+        """Extract environment parameters."""  
+        # Load machine learning parameters
+        self.ml_config = CMqlEnvMLParams()
+        self.FEATURES_PARAMS = self.ml_config.get_features_params()
+        self.WINDOW_PARAMS = self.ml_config.get_window_params()
+        self.DEFAULT_PARAMS = self.ml_config.get_default_params()
+        logger.info("Features parameters: %s", self.FEATURES_PARAMS)
+        logger.info("Window parameters: %s", self.WINDOW_PARAMS)
+        logger.info("Default parameters: %s", self.DEFAULT_PARAMS)
+        #
+        # # File parameters
+        self.mp_data_filename1 = self.data_params.get('mp_data_filename1', 'default1.csv')
+        self.mp_data_filename2 = self.data_params.get('mp_data_filename2', 'default2.csv')
+        self.rownumber = self.ml_params.get('mp_rownumber', False)
+        self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default1.csv')
+        self.mp_data_filename2 = self.params.get('data', {}).get('mp_data_filename2', 'default2.csv')
+        self.rownumber = self.params.get("mp_data_self.rownumber")
+        self.colwidth = kwargs.get('colwidth', 20)
+        self.hrows = kwargs.get('hrows', 5)
 
-        self.mp_data_filename1 = data_params.get('mp_data_filename1', 'default1.csv')
-        self.mp_data_filename2 = data_params.get('mp_data_filename2', 'default2.csv')
-        self.rownumber = ml_params.get('mp_rownumber', False)
+         # Set default Feature parameters
+        for feature_key in self.FEATURES_PARAMS:
+            self.FEATURES_PARAMS[feature_key] = self.ml_params.get(feature_key, "KeyFeature")
+            self.feature1 = self.FEATURES_PARAMS["Feature1"]
+            logger.info("Feature1: %s", self.feature1)
 
-        # Machine learning parameters
-        self.mp_ml_input_keyfeat = ml_params.get('mp_ml_input_keyfeat', 'KeyFeature')
-        self.mp_ml_input_keyfeat_scaled = ml_params.get('mp_ml_input_keyfeat_scaled', 'KeyFeature_Scaled')
-        self.lookahead_periods = ml_params.get('mp_lookahead_periods', 1)
-        self.ma_window = ml_params.get('mp_ma_window', 10)
-        self.hl_avg_col = ml_params.get('mp_hl_avg_col', 'HL_Avg')
-        self.ma_col = ml_params.get('mp_ma_col', 'MA')
-        self.returns_col = ml_params.get('mp_returns_col', 'Returns')
-        self.shift_in = ml_params.get('mp_shift_in', 1)
-        self.create_label = ml_params.get('mp_create_label', False)
-        self.create_label_scaled = ml_params.get('mp_create_label_scaled', False)
+        for scaled_feature_key in self.FEATURES_PARAMS:
+            self.FEATURES_PARAMS[scaled_feature_key] = self.ml_params.get(scaled_feature_key, "KeyFeature_Scaled")
+            self.feature1_scaled = self.FEATURES_PARAMS["Feature1_scaled"]
+            logger.info("Feature1_scaled: %s", self.feature1_scaled)
 
-        # Run states
-        self.run_avg = ml_params.get('mp_run_avg', False)
-        self.run_avg_scaled = ml_params.get('mp_run_avg_scaled', False)
-        self.log_stationary = ml_params.get('mp_log_stationary', False)
-        self.remove_zeros = ml_params.get('mp_remove_zeros', False)
-        self.last_col = ml_params.get('mp_last_col', False)
+        for label_key in self.FEATURES_PARAMS:
+            self.FEATURES_PARAMS[label_key] = self.ml_params.get(label_key, "Label")
+            self.label = self.FEATURES_PARAMS["Label1"]
+            logger.info("Label: %s", self.label)
 
-        # Application parameters
+            self.mp_ml_input_keyfeat = self.feature1
+            self.mp_ml_input_keyfeat_scaled = self.feature1_scaled
+            self.mp_ml_input_label = self.label
+      
+        self.lookahead_periods = self.params.get('ml', {}).get('mp_lookahead_periods', 1)
+        self.ma_window = self.params.get('ml', {}).get('mp_ma_window', 10)
+        self.hl_avg_col = self.params.get('ml', {}).get('mp_hl_avg_col', 'HL_Avg')
+        self.ma_col = self.params.get('ml', {}).get('mp_ma_col', 'MA')
+        self.returns_col = self.params.get('ml', {}).get('mp_returns_col', 'Returns')
+        self.shift_in = self.params.get('ml', {}).get('mp_shift_in', 1)
+        self.create_label = self.params.get('ml', {}).get('mp_create_label', False)
+
+        #  Run states
+        self. run_avg = self.params.get('ml', {}).get('mp_run_avg', False)
+        self.run_avg_scaled = self.params.get('ml', {}).get('mp_run_avg_scaled', False)
+        self.log_stationary = self.params.get('ml', {}).get('mp_log_stationary', False)
+        self.remove_zeros = self.params.get('ml', {}).get('mp_remove_zeros', False)
+        self.last_col = self.params.get('ml', {}).get('mp_last_col', False)
+        self.create_label_scaled = self.params.get('ml', {}).get('mp_create_label_scaled', False)
+
+        # app parameters
         self.lp_utc_from = kwargs.get('lp_utc_from', datetime.utcnow())
         self.lp_utc_to = kwargs.get('lp_utc_to', datetime.utcnow())
-        self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', app_params.get('mp_app_primary_symbol', 'EURUSD'))
-        self.lp_app_rows = kwargs.get('lp_app_rows', app_params.get('mp_app_rows', 1000))
-        self.lp_timeframe = kwargs.get('lp_timeframe', app_params.get('mp_app_timeframe', 'H4'))
-        self.mp_glob_data_path = kwargs.get('mp_glob_data_path', base_params.get('mp_glob_data_path', 'Mql5Data'))
+        self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
+        self.lp_app_rows = kwargs.get('lp_app_rows', self.params.get('app', {}).get('mp_app_rows', 1000))
+        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('app', {}).get('mp_app_timeframe', 'H4'))
+        self.mp_glob_data_path = kwargs.get('mp_glob_data_path', self.params.get('base', {}).get('mp_glob_data_path', 'Mql5Data'))
+      
+        # Data parameters
+        self.rownumber = self.params.get('data', {}).get('mp_data_rownumber', False)
+        self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('"mp_data_rows', 1000))
+        self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
+        
 
         # Derived filenames
         self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
         self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
 
-        # Filtering and conversion flags for data wrangling
-        self.filter_int = kwargs.get('filter_int', False)
-        self.filter_flt = kwargs.get('filter_flt', False)
-        self.filter_obj = kwargs.get('filter_obj', False)
-        self.filter_dtmi = kwargs.get('filter_dtmi', False)
-        self.filter_dtmf = kwargs.get('filter_dtmf', False)
-        self.mp_dropna = kwargs.get('mp_dropna', True)
-        self.mp_convert = kwargs.get('mp_convert', True)
-        self.mp_drop = kwargs.get('mp_drop', True)
-        self.mp_merge = kwargs.get('mp_merge', True)
-        self.mp_unit = kwargs.get('UNIT', {})
-
+       
 
     def run_wrangle_service(self, **kwargs):
         """
@@ -193,27 +267,78 @@ class CDataProcess:
         Returns:
             Tuple of processed DataFrames: (df_api_ticks, df_api_rates, df_file_ticks, df_file_rates)
         """
-        self.df_api_ticks = kwargs.get('df_api_ticks', pd.DataFrame())
-        self.df_api_rates = kwargs.get('df_api_rates', pd.DataFrame())
-        self.df_file_ticks = kwargs.get('df_file_ticks', pd.DataFrame())
-        self.df_file_rates = kwargs.get('df_file_rates', pd.DataFrame())
+        self.df = kwargs.get('df', pd.DataFrame())
+        self.df_name = kwargs.get('df_name',None)
+      
+        self.mp_unit = kwargs.get('UNIT', {})
+        self.loadmql = kwargs.get('loadmql', True)
+        self.mp_filesrc = kwargs.get('mp_filesrc', 'ticks1')
 
+
+        if self.df_name == 'df_api_ticks':
+               self.df_api_ticks = self.df
+               self.filter_int = kwargs.get('filter_int',self.COLUMN_PARAMS["df_api_ticks"]["df1_filter_int"])  
+               self.filter_flt = kwargs.get('filter_flt',self.COLUMN_PARAMS["df_api_ticks"]["df1_filter_flt"])
+               self.filter_obj = kwargs.get('filter_obj',self.COLUMN_PARAMS["df_api_ticks"]["df1_filter_obj"])
+               self.filter_dtmi = kwargs.get('filter_dtmi',self.COLUMN_PARAMS["df_api_ticks"]["df1_filter_dtmi"])
+               self.filter_dtmf = kwargs.get('filter_dtmf',self.COLUMN_PARAMS["df_api_ticks"]["df1_filter_dtmf"])
+               self.mp_dropna = kwargs.get('mp_dropna',self.COLUMN_PARAMS["df_api_ticks"]["df1_mp_dropna"])
+               self.mp_merge = kwargs.get('mp_merge',self.COLUMN_PARAMS["df_api_ticks"]["df1_mp_merge"])
+               self.mp_convert = kwargs.get('mp_convert',self.COLUMN_PARAMS["df_api_ticks"]["df1_mp_convert"])
+               self.mp_drop = kwargs.get('mp_drop',self.COLUMN_PARAMS["df_api_ticks"]["df1_mp_drop"])
+
+        if self.df_name == 'df_api_rates':
+               self.df_api_rates = self.df
+               self.filter_int = kwargs.get('filter_int',self.COLUMN_PARAMS["df_api_rates"]["df2_filter_int"])
+               self.filter_flt = kwargs.get('filter_flt',self.COLUMN_PARAMS["df_api_rates"]["df2_filter_flt"])
+               self.filter_obj = kwargs.get('filter_obj',self.COLUMN_PARAMS["df_api_rates"]["df2_filter_obj"])
+               self.filter_dtmi = kwargs.get('filter_dtmi',self.COLUMN_PARAMS["df_api_rates"]["df2_filter_dtmi"])
+               self.filter_dtmf = kwargs.get('filter_dtmf',self.COLUMN_PARAMS["df_api_rates"]["df2_filter_dtmf"])
+               self.mp_dropna = kwargs.get('mp_dropna',self.COLUMN_PARAMS["df_api_rates"]["df2_mp_dropna"])
+               self.mp_merge = kwargs.get('mp_merge',self.COLUMN_PARAMS["df_api_rates"]["df2_mp_merge"])
+               self.mp_convert = kwargs.get('mp_convert',self.COLUMN_PARAMS["df_api_rates"]["df2_mp_convert"])
+               self.mp_drop = kwargs.get('mp_drop',self.COLUMN_PARAMS["df_api_rates"]["df2_mp_drop"])
+
+        if self.df_name == 'df_file_ticks':
+               self.df_file_ticks = self.df
+               self.filter_int = kwargs.get('filter_int',self.COLUMN_PARAMS["df_file_ticks"]["df3_filter_int"])
+               self.filter_flt = kwargs.get('filter_flt',self.COLUMN_PARAMS["df_file_ticks"]["df3_filter_flt"])
+               self.filter_obj = kwargs.get('filter_obj',self.COLUMN_PARAMS["df_file_ticks"]["df3_filter_obj"])
+               self.filter_dtmi = kwargs.get('filter_dtmi',self.COLUMN_PARAMS["df_file_ticks"]["df3_filter_dtmi"])
+               self.filter_dtmf = kwargs.get('filter_dtmf',self.COLUMN_PARAMS["df_file_ticks"]["df3_filter_dtmf"])
+               self.mp_dropna = kwargs.get('mp_dropna',self.COLUMN_PARAMS["df_file_ticks"]["df3_mp_dropna"])
+               self.mp_merge = kwargs.get('mp_merge',self.COLUMN_PARAMS["df_file_ticks"]["df3_mp_merge"])
+               self.mp_convert = kwargs.get('mp_convert',self.COLUMN_PARAMS["df_file_ticks"]["df3_mp_convert"])
+               self.mp_drop = kwargs.get('mp_drop',self.COLUMN_PARAMS["df_file_ticks"]["df3_mp_drop"])
+        if self.df_name == 'df_file_rates':
+               self.df_file_rates = self.df
+               self.filter_int = kwargs.get('filter_int',self.COLUMN_PARAMS["df_file_rates"]["df4_filter_int"])
+               self.filter_flt = kwargs.get('filter_flt',self.COLUMN_PARAMS["df_file_rates"]["df4_filter_flt"])
+               self.filter_obj = kwargs.get('filter_obj',self.COLUMN_PARAMS["df_file_rates"]["df4_filter_obj"])
+               self.filter_dtmi = kwargs.get('filter_dtmi',self.COLUMN_PARAMS["df_file_rates"]["df4_filter_dtmi"])
+               self.filter_dtmf = kwargs.get('filter_dtmf',self.COLUMN_PARAMS["df_file_rates"]["df4_filter_dtmf"])
+               self.mp_dropna = kwargs.get('mp_dropna',self.COLUMN_PARAMS["df_file_rates"]["df4_mp_dropna"])
+               self.mp_merge = kwargs.get('mp_merge',self.COLUMN_PARAMS["df_file_rates"]["df4_mp_merge"])
+               self.mp_convert = kwargs.get('mp_convert',self.COLUMN_PARAMS["df_file_rates"]["df4_mp_convert"])
+               self.mp_drop = kwargs.get('mp_drop',self.COLUMN_PARAMS["df_file_rates"]["df4_mp_drop"])
+       
         # Wrangle each DataFrame if not empty
-        if not self.df_api_ticks.empty and self.loadmql:
-            self.df_api_ticks = self.wrangle_time(self.df_api_ticks, mp_filesrc="ticks1")
-        if not self.df_api_rates.empty and self.loadmql:
-            self.df_api_rates = self.wrangle_time(self.df_api_rates, mp_filesrc="rates1")
-        if not self.df_file_ticks.empty:
-            self.df_file_ticks = self.wrangle_time(self.df_file_ticks, mp_filesrc="ticks2")
-        if not self.df_file_rates.empty:
-            self.df_file_rates = self.wrangle_time(self.df_file_rates, mp_filesrc="rates2")
+        if not self.df.empty and self.loadmql and self.df_name == 'df_api_ticks':
+            self.df_api_ticks = self.wrangle_data(self.df_api_ticks, mp_filesrc="ticks1")
+        if not self.df.empty and self.loadmql and self.df_name == 'df_api_rates':
+            self.df_api_rates = self.wrangle_data(self.df_api_rates, mp_filesrc="rates1")
+        if not self.df.empty and self.df_name == 'df_file_ticks':
+            self.df_file_ticks = self.wrangle_data(self.df_file_ticks, mp_filesrc="ticks2")
+        if not self.df.empty and self.df_name == 'df_file_rates':
+            self.df_file_rates = self.wrangle_data(self.df_file_rates, mp_filesrc="rates2")
+      
+        return self.df
 
-        return self.df_api_ticks, self.df_api_rates, self.df_file_ticks, self.df_file_rates
-
-    def wrangle_time(self, df: pd.DataFrame, mp_filesrc: str) -> pd.DataFrame:
+    def wrangle_data(self, df: pd.DataFrame, mp_filesrc: str) -> pd.DataFrame:
         """
         Wrangles time-related data in the DataFrame based on file source.
         """
+
         def rename_columns(df: pd.DataFrame, mapping: dict) -> None:
             valid_renames = {old: new for old, new in mapping.items() if old in df.columns}
             df.rename(columns=valid_renames, inplace=True)
@@ -401,7 +526,7 @@ class CDataProcess:
                 _, _, merged_col, _, _ = merge_columns[mp_filesrc]
                 df = resort_columns(df, merged_col)
                 
-            utils_config.run_mql_print(df, self.hrows, colwidth=self.colwidth, floatfmt='.5f', numalign='left', stralign='left')
+            self.utils_config.run_mql_print(df, self.hrows, colwidth=self.colwidth, floatfmt='.5f', numalign='left', stralign='left')
             logger.info("Dataframe headers after wrangling printed successfully.")
         return df
 
@@ -428,7 +553,7 @@ class CDataProcess:
             if close_column is None:
                 raise ValueError("`close_column` must be provided for OHLC data.")
             df[column_out1] = df[close_column]
-            utils_config.run_mql_print(df, self.hrows, colwidth=self.colwidth, floatfmt='.5f', numalign='left', stralign='left')
+            self.utils_config.run_mql_print(df, self.hrows, colwidth=self.colwidth, floatfmt='.5f', numalign='left', stralign='left')
             logger.info("Established common feature column for OHLC data.")
 
     def establish_common_feat_col_scaled(self, df: pd.DataFrame, df_name: str):
@@ -508,7 +633,7 @@ class CDataProcess:
             df.dropna(inplace=True)
             logger.info(f"Label column {column_out2} created.")
 
-        utils_config.run_mql_print(df, self.hrows, self.colwidth)
+        self.utils_config.run_mql_print(df, self.hrows, self.colwidth)
         return df
 
     def calculate_moving_average(self, df: pd.DataFrame, column: str, window: int):
