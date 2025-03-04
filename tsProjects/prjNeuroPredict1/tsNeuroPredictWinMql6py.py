@@ -187,7 +187,9 @@ def main(logger):
         df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader_config.load_data()
         for df in [df_api_ticks, df_api_rates, df_file_ticks, df_file_rates]:
             logger.info(f"Data File Shape: {df.shape}")
-            
+        
+          
+         
         # +-------------------------------------------------------------------
         # STEP: Run data process manipulation
         # +-------------------------------------------------------------------
@@ -195,8 +197,13 @@ def main(logger):
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
             logger.info(f"Data Wrangle start: {df_name} ,Unit {UNIT} df shape: {df.shape}")
             data_process_config.run_wrangle_service(df=df, df_name=df_name, mp_unit=UNIT)
-"""           
-        
+            utils_config.run_mql_print(df, hrows, hwidth)
+"""         
+        # Average the columns
+        for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
+            logger.info(f"Data Averaging of Columns start: {df_name} ,Unit {UNIT} df shape: {df.shape}")
+            data_process_config.run_average_columns(df,df_name)
+  
         #set Common Close column
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
             logger.info(f"Data Process Common Close Column start: {df_name} ,Unit {UNIT} df shape: {df.shape}")
@@ -205,7 +212,7 @@ def main(logger):
 
         datafile = df
         logger.info(f"Data File Shape: {datafile.shape}")
-   
+      
         # +-------------------------------------------------------------------
         # STEP: add The time index to the data
         # +-------------------------------------------------------------------
