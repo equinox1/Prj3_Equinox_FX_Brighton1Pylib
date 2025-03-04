@@ -661,3 +661,6 @@ class CDataProcess:
         df.set_index(first_column, inplace=True)
         df=df.dropna()
         return df
+
+
+        
