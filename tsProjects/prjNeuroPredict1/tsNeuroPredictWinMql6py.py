@@ -113,23 +113,15 @@ def main(logger):
         # STEP: Load Reference class and time variables
         # +-------------------------------------------------------------------
 
-        # Fetch individual parameters safely
-        lp_timeframe_name = data_params.get('mp_data_timeframe', "N/A")
-        rows = data_params.get('mp_data_rows', 0)
-        rowcount = data_params.get('mp_data_rowcount', 0)
-
-        logger.info(f"Timeframe: {lp_timeframe_name}, Rows: {rows}, Rowcount: {rowcount}")
-
         # File wrangling overrides
         mp_data_dropna = data_params.get('df4_mp_data_dropna', False)
         mp_data_merge = data_params.get('df4_mp_data_merge', False)
         mp_data_convert = data_params.get('df4_mp_data_convert', False)
         mp_data_drop = data_params.get('df4_mp_data_drop', False)
-       
-       
         logger.info(f"Dropna: {mp_data_dropna}, Merge: {mp_data_merge}, Convert: {mp_data_convert}, Drop: {mp_data_drop}")
 
         # Reference class
+        lp_timeframe_name = data_params.get('mp_data_timeframe', 'H4')
         reference_config = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
         #Symbol Constants
         PRIMARY_SYMBOL = app_params.get('lp_app_primary_symbol', app_params.get('mp_app_primary_symbol', 'EURUSD'))
@@ -150,6 +142,12 @@ def main(logger):
         timeval = HOUR # hours # used in the window creation
         logger.info(f"Timezone: {TIMEZONE}")
         logger.info(f"Timeframe: {TIMEFRAME}") 
+
+        # Fetch individual parameters safely
+        lp_timeframe_name = TIMEFRAME
+        rows =  data_params.get('mp_data_rows', 1000)
+        rowcount = data_params.get('mp_data_rowcount', 10000)
+        logger.info(f"Timeframe Name: {lp_timeframe_name}, Rows: {rows}, Rowcount: {rowcount}")
        
         # +-------------------------------------------------------------------
         # STEP: CBroker Login
@@ -184,35 +182,37 @@ def main(logger):
         
         # Load the data
         data_loader_config = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=rows , lp_app_rowcount=rowcount)
-        df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader_config.load_data()
-        for df in [df_api_ticks, df_api_rates, df_file_ticks, df_file_rates]:
-            logger.info(f"Data File Shape: {df.shape}")
         
-          
-         
+        # Define the dataframes
+        df_api_ticks = pd.DataFrame() ; df_api_rates = pd.DataFrame() ; df_file_ticks = pd.DataFrame() ; df_file_rates = pd.DataFrame()
+        
+        for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
+            df=data_loader_config.load_data(df=df, df_name=df_name)
+            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth)
+        
         # +-------------------------------------------------------------------
         # STEP: Run data process manipulation
         # +-------------------------------------------------------------------
         # Process the data Wrangle service
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
-            logger.info(f"Data Wrangle start: {df_name} ,Unit {UNIT} df shape: {df.shape}")
-            data_process_config.run_wrangle_service(df=df, df_name=df_name, mp_unit=UNIT)
-            utils_config.run_mql_print(df, hrows, hwidth)
-"""         
+            df=data_process_config.run_wrangle_service(df=df, df_name=df_name, mp_unit=UNIT)
+            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth)
+        """           
         # Average the columns
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
             logger.info(f"Data Averaging of Columns start: {df_name} ,Unit {UNIT} df shape: {df.shape}")
-            data_process_config.run_average_columns(df,df_name)
-  
+            df=data_process_config.run_average_columns(df,df_name)
+            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth)
+       
         #set Common Close column
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
             logger.info(f"Data Process Common Close Column start: {df_name} ,Unit {UNIT} df shape: {df.shape}")
-            data_process_config.establish_common_feat_col(df,df_name)
-            utils_config.run_mql_print(df, hrows, hwidth)
+            df=data_process_config.establish_common_feat_col(df,df_name)
+            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth)
 
         datafile = df
         logger.info(f"Data File Shape: {datafile.shape}")
-      
+  
         # +-------------------------------------------------------------------
         # STEP: add The time index to the data
         # +-------------------------------------------------------------------
