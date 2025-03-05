@@ -545,44 +545,6 @@ class CDataProcess:
             logger.info("Dataframe headers after wrangling printed successfully.")
         return df
 
-    def establish_common_feat_col(self, df: pd.DataFrame, df_name: str):
-        """
-        Create common feature column for tick and OHLC data.
-        """
-        df_params = self.COLUMN_PARAMS.get(df_name, {})
-        logger.info(f"Processing DataFrame: {df_name} with parameters: {df_params}")
-        
-        bid_column = df_params.get("bid_column")
-        ask_column = df_params.get("ask_column")
-        column_out1 = df_params.get("column_out1")
-
-        # For tick data, calculate average of bid and ask
-        if df_name in ["df_api_ticks", "df_file_ticks"]:
-            df[column_out1] = (df[bid_column] + df[ask_column]) / 2
-            if self.run_avg:
-                df[df_params.get("hl_avg_col")] = df[column_out1]
-                logger.info("Calculated bid-ask average for tick data.")
-        # For OHLC data, use close column
-        elif df_name in ["df_api_rates", "df_file_rates"]:
-            close_column = df_params.get("close_column")
-            if close_column is None:
-                raise ValueError("`close_column` must be provided for OHLC data.")
-            df[column_out1] = df[close_column]
-            self.utils_config.run_mql_print(df, self.hrows, colwidth=self.colwidth, floatfmt='.5f', numalign='left', stralign='left')
-            logger.info("Established common feature column for OHLC data.")
-
-    def establish_common_feat_col_scaled(self, df: pd.DataFrame, df_name: str):
-        """Create a scaled column for the common feature column."""
-        df_params = self.COLUMN_PARAMS.get(df_name, {})
-        logger.info(f"Processing DataFrame: {df_name} with parameters: {df_params}")
-         
-        column_out1 = df_params.get("column_out1")
-        column_out2 = df_params.get("column_out2")
-   
-        if column_out1 in df.columns:
-            df[column_out2] = df[column_out1].pct_change().fillna(0)
-            logger.info(f"Created scaled column: {column_out2}")
-
     def run_average_columns(self, df: pd.DataFrame, df_name: str) -> pd.DataFrame:
         """Compute moving average, log returns, future returns and other metrics."""
         df_params = self.COLUMN_PARAMS.get(df_name, {})
@@ -695,4 +657,81 @@ class CDataProcess:
         df.set_index(first_col, inplace=True)
         return df.dropna()
 
-     
+    
+    def establish_common_feat_col(self, df: pd.DataFrame, df_name: str) -> pd.DataFrame:
+        """
+        Create a common feature column for tick and OHLC data.
+        """
+        df_params = self.COLUMN_PARAMS.get(df_name, {})
+        logger.info(f"Processing DataFrame: {df_name} with parameters: {df_params}")
+        
+        bid_column = df_params.get("bid_column")
+        ask_column = df_params.get("ask_column")
+        column_out1 = df_params.get("column_out1")
+        
+        if df_name in ["df_api_ticks", "df_file_ticks"]:
+            if not bid_column or not ask_column or not column_out1:
+                raise ValueError(f"Missing column definitions for {df_name}")
+            df[column_out1] = (df[bid_column] + df[ask_column]) / 2
+            if getattr(self, "run_avg", False):
+                hl_avg_col = df_params.get("hl_avg_col")
+                if hl_avg_col:
+                    df[hl_avg_col] = df[column_out1]
+            logger.info("Calculated bid-ask average for tick data.")
+        
+        elif df_name in ["df_api_rates", "df_file_rates"]:
+            close_column = df_params.get("close_column")
+            if close_column is None:
+                raise ValueError("`close_column` must be provided for OHLC data.")
+            df[column_out1] = df[close_column]
+            self.utils_config.run_mql_print(df, self.hrows, colwidth=self.colwidth,
+                                            floatfmt='.5f', numalign='left', stralign='left')
+            logger.info("Established common feature column for OHLC data.")
+        
+        return df
+
+    def establish_common_feat_col_scaled(self, df: pd.DataFrame, df_name: str) -> pd.DataFrame:
+        """
+        Create a scaled column for the common feature column.
+        """
+        df_params = self.COLUMN_PARAMS.get(df_name, {})
+        logger.info(f"Processing DataFrame: {df_name} with parameters: {df_params}")
+        
+        column_out1 = df_params.get("column_out1")
+        column_out2 = df_params.get("column_out2")
+        
+        if not column_out1 or not column_out2:
+            raise ValueError(f"Missing output column definitions for {df_name}")
+        
+        if column_out1 in df.columns:
+            df[column_out2] = df[column_out1].pct_change().fillna(0)
+            logger.info(f"Created scaled column: {column_out2}")
+        
+        return df
+
+
+    def run_dataprocess_services(self, **kwargs):
+        # Process the data Wrangle service 
+        # Initialize the dataframes
+        self.df = kwargs.get('df', pd.DataFrame())
+        self.df_name = kwargs.get('df_name', None)
+        self.ldf = None
+
+        logger.info(f"Data Process Services start: {self.df_name} with shape: {self.df.shape}")
+
+        # Wrangle the data
+        logger.info(f"Data Wrangle Data start: {self.df_name}")
+        self.ldf = self.run_wrangle_service(df=self.df, df_name=self.df_name)
+        logger.info(f"Data Wrangle Data end: {self.df_name} with shape: {self.ldf.shape}")
+            
+        # Average the columns
+        logger.info(f"Data Averaging of Columns start: {self.df_name}")
+        self.ldf = self.run_average_columns(self.ldf, self.df_name)
+        logger.info(f"Data Averaging of Columns end: {self.df_name} with shape: {self.ldf.shape}")
+    
+        # Set Common Close column
+        logger.info(f"Data Process Common Close Column start: {self.df_name}")
+        self.ldf = self.establish_common_feat_col(self.ldf, self.df_name)
+        logger.info(f"Data Process Common Close Column end: {self.df_name} with shape: {self.ldf.shape}")
+    
+        return self.ldf

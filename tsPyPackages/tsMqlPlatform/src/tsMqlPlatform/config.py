@@ -56,7 +56,12 @@ LOG_DIR = config.get_platform_path()
 os.makedirs(LOG_DIR, exist_ok=True)
 
 # Configure logging
+
 LOG_FILE = os.path.join(LOG_DIR, "platform_helper.log")
+
+# Delete the log file if it exists
+if os.path.exists(LOG_FILE):
+    os.remove(LOG_FILE)
 
 logging.basicConfig(
     filename=LOG_FILE,
