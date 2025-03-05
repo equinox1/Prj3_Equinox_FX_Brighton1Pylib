@@ -21,8 +21,6 @@ from tsMqlPlatform import run_platform, platform_checker, logger
 from tsMqlEnvMgr import CMqlEnvMgr
 from tsMqlMLParams import CMqlEnvMLParams
 
-# Import utilities
-from tsMqlUtilities import CUtilities
 
 # Initialize platform checker
 pchk = run_platform.RunPlatform()
@@ -34,8 +32,7 @@ logger.info(f"Running on: {os_platform}, loadmql state: {loadmql}")
 class CDataProcess:
     def __init__(self, **kwargs):
         """Initialize data processing class."""
-         # Initialize utilities
-        self.utils_config = CUtilities()
+       
         
         # Initialize print parameters
         self.colwidth = kwargs.get('colwidth', 20)
@@ -354,15 +351,16 @@ class CDataProcess:
         self.ma_col = self.params.get('ml', {}).get('mp_ma_col', 'MA')
         self.returns_col = self.params.get('ml', {}).get('mp_returns_col', 'Returns')
         self.shift_in = self.params.get('ml', {}).get('mp_shift_in', 1)
-        self.create_label = self.params.get('ml', {}).get('mp_create_label', False)
-
+        
         #  Run states
         self.run_avg = self.params.get('ml', {}).get('mp_run_avg', False)
         self.run_avg_scaled = self.params.get('ml', {}).get('mp_run_avg_scaled', False)
         self.log_stationary = self.params.get('ml', {}).get('mp_log_stationary', False)
         self.remove_zeros = self.params.get('ml', {}).get('mp_remove_zeros', False)
         self.last_col = self.params.get('ml', {}).get('mp_last_col', False)
+        self.last_col_scaled = self.params.get('ml', {}).get('mp_last_col_scaled', False)
         self.first_col = self.params.get('ml', {}).get('mp_first_col', False)
+        self.create_label = self.params.get('ml', {}).get('mp_create_label', False)
         self.create_label_scaled = self.params.get('ml', {}).get('mp_create_label_scaled', False)
 
         # Data parameters
@@ -437,6 +435,24 @@ class CDataProcess:
                self.mp_merge = kwargs.get('mp_merge',self.COLUMN_PARAMS["df_file_rates"]["df4_mp_merge"])
                self.mp_convert = kwargs.get('mp_convert',self.COLUMN_PARAMS["df_file_rates"]["df4_mp_convert"])
                self.mp_drop = kwargs.get('mp_drop',self.COLUMN_PARAMS["df_file_rates"]["df4_mp_drop"])
+
+
+               logger.info(f"Wrangling {self.df_name} data")
+               logger.info(f"Filtering int: {self.filter_int}")
+               logger.info(f"Filtering flt: {self.filter_flt}")
+               logger.info(f"Filtering obj: {self.filter_obj}")
+               logger.info(f"Filtering dtmi: {self.filter_dtmi}")
+               logger.info(f"Filtering dtmf: {self.filter_dtmf}")
+               logger.info(f"Dropna: {self.mp_dropna}")
+               logger.info(f"Merge: {self.mp_merge}")
+               logger.info(f"Convert: {self.mp_convert}")
+               logger.info(f"Drop: {self.mp_drop}")
+               logger.info(f"Last col: {self.last_col}")
+               logger.info(f"Last col scaled: {self.last_col_scaled}") 
+               logger.info(f"First col: {self.first_col}")
+               logger.info(f"Create label: {self.create_label}")
+               logger.info(f"Create label scaled: {self.create_label_scaled}")
+
        
         # Wrangle each DataFrame if not empty
         if not self.df.empty and self.loadmql and self.df_name == 'df_api_ticks':
@@ -562,31 +578,7 @@ class CDataProcess:
             if mp_filesrc in self.merge_columns and self.mp_merge:
                 _, _, merged_col, _, _ = self.merge_columns[mp_filesrc]
                 df = resort_columns(df, merged_col)
-            # Move dates to first
-            if mp_filesrc in self.first_columns and self.first_col:
-               first_col = self.first_columns[mp_filesrc]
-               if first_col in df.columns:
-                  df = self.move_col_to_first(df, first_col)
-               else:
-                  logger.info(f"Column {first_col} not found in DataFrame.")
-
-            # Move features to end
-            if mp_filesrc in self.last_columns and self.last_col:
-               feat_col = self.last_columns[mp_filesrc]
-               if feat_col in df.columns:
-                  df = self.move_col_to_end(df, feat_col)
-               else:
-                  logger.info(f"Column {feat_col} not found in DataFrame.")
-
-             # Move scaled features to end
-            if mp_filesrc in self.last_columns and self.last_col_scaled:
-               last_col ,scaled_col = self.last_columns[mp_filesrc]
-               if scaled_col in df.columns:
-                  df = self.move_col_to_end(df, scaled_col)
-               else:
-                  logger.info(f"Column {scaled_col} not found in DataFrame.")
-
-
+           
             logger.info("Dataframe headers after wrangling printed successfully.")
         return df
 
@@ -633,29 +625,55 @@ class CDataProcess:
             df[returns_col] = self.calculate_future_returns(df, column_in, lookahead_periods)
             logger.info(f"Future returns column {returns_col} created.")
 
-        # Remove rows with zeros in returns column if required
+        # Remove rows with zeros in average returns column if required
         if self.remove_zeros and returns_col in df.columns:
             logger.info(f"Removing rows with zero in {returns_col}")
             df[returns_col] = self.run_remove_zeros(df, returns_col)
             logger.info(f"Rows with zeros removed from {returns_col}.")
-        
+        return df
+
+    def add_line_numbers(self, df: pd.DataFrame):
+        """Add line numbers to the DataFrame."""
         # Add row numbers if enabled
         if self.rownumber:
             self.set_row_numbers(df)
             logger.info("Row numbers added to DataFrame.")
+        return df
 
-        # Move specified column to end if last_col is provided
-        if self.last_col:
-            df = self.move_col_to_end(df, self.last_col)
-            logger.info(f"Column {self.last_col} moved to the end.")
+    def move_feat_col_to_end(self, df: pd.DataFrame,  df_name: str = None) -> pd.DataFrame:
+        # Move feature columns to last
+        mp_filesrc = df_name
+        logger.info(f"Moving feature columns to end for {mp_filesrc}")
+        if mp_filesrc in self.last_columns and self.last_col:
+           feat_col = self.last_columns[mp_filesrc]
+           if feat_col in df.columns:
+              df = self.move_col_to_end(df, feat_col)
+           else:
+              logger.info(f"Column {feat_col} not found in DataFrame.")
+        return df
 
-        # Create label scaled column if enabled
-        if self.create_label_scaled and column_out2:
-            df[column_out2] = df[column_in].shift(-lookahead_periods)
-            df.dropna(inplace=True)
-            logger.info(f"Label column {column_out2} created.")
+    def move_feat_col_to_end_scaled(self, df: pd.DataFrame,  df_name: str = None) -> pd.DataFrame:
+        # Move scaled feature columns to last
+        mp_filesrc = df_name
+        logger.info(f"Moving scaled feature columns to end for {mp_filesrc}")
+        if mp_filesrc in self.last_columns and self.last_col_scaled:
+            feat_col = self.last_columns[mp_filesrc]
+            if feat_col in df.columns:
+               df = self.move_col_to_end(df, feat_col)
+            else:
+               logger.info(f"Column {feat_col} not found in DataFrame.")
+        return df
 
-        self.utils_config.run_mql_print(df, self.hrows, self.colwidth)
+    def move_time_col_to_start(self, df: pd.DataFrame,df_name: str = None) -> pd.DataFrame:
+        # Move time columns to start
+        mp_filesrc = df_name
+        logger.info(f"Moving time columns to start for {mp_filesrc}")
+        if mp_filesrc in self.first_columns and self.first_col:
+             first_col = self.first_columns[mp_filesrc]
+             if first_col in df.columns:
+               df = self.move_col_to_start(df, first_col)
+             else:
+               logger.info(f"Column {first_col} not found in DataFrame.")
         return df
 
     def calculate_moving_average(self, df: pd.DataFrame, column: str, window: int):
@@ -693,10 +711,10 @@ class CDataProcess:
         cols = [col for col in df.columns if col != last_col] + [last_col]
         return df[cols]
 
-    def move_col_to_start(self, df: pd.DataFrame, last_col: str):
+    def move_col_to_start(self, df: pd.DataFrame, first_col: str):
         """Move specified column to the start of the DataFrame."""
         if first_col not in df.columns:
-            logger.warning(f"Column {last_col} not found. Skipping move_col_to_end.")
+            logger.warning(f"Column {first_col} not found. Skipping move_col_to_end.")
             return df
         cols = [ [first_col]+ col for col in df.columns if col != first_col]
         return df[cols]
@@ -737,8 +755,6 @@ class CDataProcess:
             if close_column is None:
                 raise ValueError("`close_column` must be provided for OHLC data.")
             df[column_out1] = df[close_column]
-            self.utils_config.run_mql_print(df, self.hrows, colwidth=self.colwidth,
-                                            floatfmt='.5f', numalign='left', stralign='left')
             logger.info("Established common feature column for OHLC data.")
         
         return df
@@ -771,7 +787,6 @@ class CDataProcess:
         self.ldf = None
 
         logger.info(f"Data Process Services start: {self.df_name} with shape: {self.df.shape}")
-
         # Wrangle the data
         logger.info(f"Data Wrangle Data start: {self.df_name}")
         self.ldf = self.run_wrangle_service(df=self.df, df_name=self.df_name)
@@ -789,7 +804,17 @@ class CDataProcess:
 
         # Re-move datetime column to the beginning
         logger.info(f"Data Process Reorder Columns start: {self.df_name}")
-        self.ldf = self.move_col_to_start(self.ldf)
+        self.ldf = self.move_time_col_to_start(df=self.df, df_name=self.df_name)
         logger.info(f"Data Process Reorder Columns end: {self.df_name} with shape: {self.ldf.shape}")
-    
+
+        # move Close feature column to the end
+        logger.info(f"Data Process Move Feature Column to End start: {self.df_name}")
+        self.ldf = self.move_feat_col_to_end(df=self.df, df_name=self.df_name)
+        logger.info(f"Data Process Move Feature Column to End end: {self.df_name} with shape: {self.ldf.shape}")
+         
+        # move Scaled Close feature column to the end
+        logger.info(f"Data Process Move Scaled Feature Column to End start: {self.df_name}")
+        self.ldf = self.move_feat_col_to_end_scaled(df=self.df, df_name=self.df_name)
+        logger.info(f"Data Process Move Scaled Feature Column to End end: {self.df_name} with shape: {self.ldf.shape}")
+       
         return self.ldf

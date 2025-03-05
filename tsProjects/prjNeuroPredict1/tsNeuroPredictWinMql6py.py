@@ -90,11 +90,9 @@ def main(logger):
         # Usage:env = EnvManager(custom_params={"ml": {"epochs": 20}}) ,logger.info("ML Epochs:", env.get_param("ml", "epochs"))
         # env.override_params({"base": {"learning_rate": 0.005}}) ,logger.info("Updated Learning Rate:", env.get_param("base", "learning_rate"))
         utils_config = CUtilities()
-        env = CMqlEnvMgr()
+        # Use the environment manager from the override instance
         override_config = CMqlOverrides()
-        # Fetch all parameters
-        params = env.all_params()
-        params.update(override_config.all_params())
+        params = override_config.env.all_params()
         logger.info(f"All Parameters: {params}")
 
         # Ensure sections exist

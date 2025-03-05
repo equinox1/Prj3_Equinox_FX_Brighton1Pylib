@@ -79,7 +79,7 @@ class CMqlOverrides(CEnvCore):
             "df1_mp_data_filter_obj": False,
             "df1_mp_data_filter_dtmi": False,
             "df1_mp_data_filter_dtmf": False,
-            "df1_mp_data_dropna": False,
+            "df1_mp_data_dropna": True,
             "df1_mp_data_merge": False,
             "df1_mp_data_convert": False,
             "df1_mp_data_drop": False,
@@ -89,7 +89,7 @@ class CMqlOverrides(CEnvCore):
             "df2_mp_data_filter_obj": False,
             "df2_mp_data_filter_dtmi": False,
             "df2_mp_data_filter_dtmf": False,
-            "df2_mp_data_dropna": False,
+            "df2_mp_data_dropna": True,
             "df2_mp_data_merge": False,
             "df2_mp_data_convert": False,
             "df2_mp_data_drop": False,
@@ -99,20 +99,20 @@ class CMqlOverrides(CEnvCore):
             "df3_mp_data_filter_obj": False,
             "df3_mp_data_filter_dtmi": False,
             "df3_mp_data_filter_dtmf": False,
-            "df3_mp_data_dropna": False,
+            "df3_mp_data_dropna": True,
             "df3_mp_data_merge": True,
             "df3_mp_data_convert": True,
-            "df3_mp_data_drop": False,
+            "df3_mp_data_drop": True,
             # File Rates Data Filters
             "df4_mp_data_filter_int": False,
             "df4_mp_data_filter_flt": False,
             "df4_mp_data_filter_obj": False,
             "df4_mp_data_filter_dtmi": False,
             "df4_mp_data_filter_dtmf": True,
-            "df4_mp_data_dropna": False,
+            "df4_mp_data_dropna": True,
             "df4_mp_data_merge": True,
             "df4_mp_data_convert": True,
-            "df4_mp_data_drop": False,
+            "df4_mp_data_drop": True,
         }
 
         try:
@@ -123,22 +123,30 @@ class CMqlOverrides(CEnvCore):
 
     def _set_ml_overrides(self):
         """
-        Placeholder for overriding ML-related parameters.
+        Overrides ML-related parameters by merging new values into the existing configuration.
         """
         if not hasattr(self, "env") or self.env is None:
             logger.error("Environment manager is not initialized. Skipping ML overrides.")
             return
-        
+
         ml_overrides = {
-            # Add ML-related overrides here when needed
+            "mp_ml_last_col": True,
+            "mp_ml_last_col_scaled": True,
+            "mp_ml_first_col": True,
+            "mp_ml_dropna": True,
+            "mp_ml_dropna_scaled": True,
         }
 
-        if ml_overrides:
-            try:
-                self.env.override_params({"ml": ml_overrides})
-                logger.info("ML parameters overridden successfully.")
-            except Exception as e:
-                logger.error("Failed to override ML parameters: %s", e)
+        try:
+            # Retrieve existing ML parameters (if any)
+            current_ml_params = self.params.get("ml", {})
+            # Merge the overrides into the existing parameters
+            current_ml_params.update(ml_overrides)
+            # Update the environment manager with the new ML parameters
+            self.env.override_params({"ml": current_ml_params})
+            logger.info("ML parameters overridden successfully.")
+        except Exception as e:
+            logger.error("Failed to override ML parameters: %s", e)
 
     def _set_mltune_overrides(self):
         """
@@ -147,7 +155,7 @@ class CMqlOverrides(CEnvCore):
         if not hasattr(self, "env") or self.env is None:
             logger.error("Environment manager is not initialized. Skipping ML tuning overrides.")
             return
-        
+
         mltune_overrides = {
             # Add ML tuning-related overrides here when needed
         }
@@ -158,3 +166,19 @@ class CMqlOverrides(CEnvCore):
                 logger.info("ML tuning parameters overridden successfully.")
             except Exception as e:
                 logger.error("Failed to override ML tuning parameters: %s", e)
+
+if __name__ == "__main__":
+    # Use the environment manager from the override instance
+    override_config = CMqlOverrides()
+    params = override_config.env.all_params()
+    logger.info(f"All Parameters: {params}")
+
+    # Ensure sections exist
+    params_sections = params.keys()
+    logger.info(f"PARAMS SECTIONS: {params_sections}")
+
+    base_params = params.get("base", {})
+    data_params = params.get("data", {})
+    ml_params = params.get("ml", {})
+    mltune_params = params.get("mltune", {})
+    app_params = params.get("app", {})

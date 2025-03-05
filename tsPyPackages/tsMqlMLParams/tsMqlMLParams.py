@@ -78,7 +78,10 @@ class CMqlEnvMLParams(CEnvCore):
             "mp_ml_log_stationary": True,
             "mp_ml_remove_zeros": True,
             "mp_ml_last_col": True,
+            "mp_ml_last_col_scaled": True,
             "mp_ml_first_col": True,
+            "mp_ml_dropna": True,
+            "mp_ml_dropna_scaled": True,
         }
 
         # Merge all parameters
