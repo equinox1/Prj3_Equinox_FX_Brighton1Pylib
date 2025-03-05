@@ -90,7 +90,7 @@ dense_modelscale = 2 # divide the model by this number
 
 
 def main():
-   """
+
     with strategy.scope():
         # +-------------------------------------------------------------------
         # STEP: Load Reference class and time variables
