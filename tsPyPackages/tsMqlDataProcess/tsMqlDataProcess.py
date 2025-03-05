@@ -59,6 +59,98 @@ class CDataProcess:
         self._set_global_parameters(kwargs)
         self._set_ml_params(kwargs)
 
+         # +-------------------------------------------------------------------
+      # MAP: from_to_column_maps
+      # +-------------------------------------------------------------------
+        self.from_to_column_maps = {
+            'ticks1': {
+                'time': 'T1_Date',
+                'bid': 'T1_Bid_Price',
+                'ask': 'T1_Ask_Price',
+                'last': 'T1_Last Price',
+                'volume': 'T1_Volume',
+                'time_msc': 'T1_Time_Msc',
+                'flags': 'T1_Flags',
+                'volume_real': 'T1_Real_Volume'
+            },
+            'rates1': {
+                'time': 'R1_Date',
+                'open': 'R1_Open',
+                'high': 'R1_High',
+                'low': 'R1_Low',
+                'close': 'R1_Close',
+                'tick_volume': 'R1_Tick_Volume',
+                'spread': 'R1_spread',
+                'real_volume': 'R1_Real_Volume'
+            },
+            'ticks2': {
+                'mDatetime': 'T2_mDatetime',
+                'Date': 'T2_Date',
+                'Timestamp': 'T2_Timestamp',
+                'Bid Price': 'T2_Bid_Price',
+                'Ask Price': 'T2_Ask_Price',
+                'Last Price': 'T2_Last_Price',
+                'Volume': 'T2_Volume'
+            },
+            'rates2': {
+                'mDatetime': 'R2_mDatetime',
+                'Date': 'R2_Date',
+                'Timestamp': 'R2_Timestamp',
+                'Open': 'R2_Open',
+                'High': 'R2_High',
+                'Low': 'R2_Low',
+                'Close': 'R2_Close',
+                'tick_volume': 'R2_Tick Volume',
+                'Volume': 'R2_Volume',
+                'vol2': 'R2_Vol1',
+                'vol3': 'R2_Vol3'
+               }
+         }
+
+      # +-------------------------------------------------------------------
+      # MAP: format date and time conversion columns
+      # +-------------------------------------------------------------------
+        self.date_columns = {
+            'ticks1': ('time', '%Y%m%d', 's', 'f'),
+            'rates1': ('time', '%Y%m%d', 's', 'f'),
+            'ticks2': ('Date', '%Y%m%d', 's', 'e'),
+            'rates2': ('Date', '%Y%m%d', 's', 'e'),
+        }
+
+        self.time_columns = {
+            'ticks1': ('time_msc', '%Y%m%d %H:%M:%S', 'ms', 'a'),
+            'ticks2': ('Timestamp', '%H:%M:%S', 'ms', 'a'),
+            'rates2': ('Timestamp', '%H:%M:%S', 's', 'a'),
+        }
+
+        self.conv_columns = {
+            'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 's', 'b'),
+            'rates1': ('R1_Date', '%Y%m%d %H:%M:%S.%f', 's', 'b'),
+            'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
+            'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
+        }
+
+      # +-------------------------------------------------------------------
+      # MAP: drop unnecessary columns
+      # +-------------------------------------------------------------------
+        self.drop_columns = {
+            'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g', ['T1_Time_Msc', 'T1_Flags', 'T1_Last Price', 'T1_Real_Volume', 'T1_Volume']),
+            'rates1': ('R1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g', ['R1_Tick_Volume', 'R1_spread', 'R1_Real_Volume']),
+            'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 'ms', 'g', ['T2_Timestamp', 'T2_Volume', 'T2_Last_Price']),
+            'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 'ms', 'g', ['R2_Timestamp', 'R2_Volume', 'R2_Vol1'])
+        }
+
+      # +-------------------------------------------------------------------
+      # MAP: Merge date and time columns
+      # +-------------------------------------------------------------------
+
+        self.merge_columns = {
+            'ticks1': ('T1_Date', 'T1_Timestamp', 'T1_mDatetime', '%Y%m%d %H:%M:%S', '%H:%M:%S'),
+            'rates1': ('R1_Date', 'R1_Timestamp', 'R1_mDatetime', '%Y%m%d %H:%M:%S', '%H:%M:%S'),
+            'ticks2': ('T2_Date', 'T2_Timestamp', 'T2_mDatetime', '%Y%m%d %H:%M:%S', '%Y%m%d %H:%M:%S'),
+            'rates2': ('R2_Date', 'R2_Timestamp', 'R2_mDatetime', '%Y%m%d %H:%M:%S', '%Y%m%d %H:%M:%S'),
+        }
+
         # Store column parameters after initialization
         self.COLUMN_PARAMS = {
             "df_api_ticks": {
@@ -269,7 +361,13 @@ class CDataProcess:
         """
         self.df = kwargs.get('df', pd.DataFrame())
         self.df_name = kwargs.get('df_name',None)
-        self.mp_filesrc = kwargs.get('mp_filesrc', 'ticks1')
+        self.mp_filesrc = kwargs.get('mp_filesrc', None)
+        self.loadmql = kwargs.get('loadmql', self.loadmql)
+
+        # Check if DataFrame is empty
+        if self.df.empty:
+            logger.warning("DataFrame is empty. Skipping wrangling.")
+            return self.df
 
         if self.df_name == 'df_api_ticks':
                self.df_api_ticks = self.df
@@ -392,7 +490,7 @@ class CDataProcess:
                 logger.info(f"Error converting column {column} for {mp_filesrc} with type {conv_type}: {e}")
 
         
-        if mp_filesrc in from_to_column_maps:
+        if mp_filesrc in self.from_to_column_maps:
             logger.info(f"Processing {mp_filesrc} data")
             # Convert date column if defined
             if mp_filesrc in self.date_columns:
@@ -404,7 +502,7 @@ class CDataProcess:
                 logger.info(f"Processing time column {col} for {mp_filesrc}")
                 convert_datetime(df, col, fmt=fmt, unit=unit, conv_type=conv_type)
             # Rename columns
-            rename_columns(df, from_to_column_maps[mp_filesrc])
+            rename_columns(df, self.from_to_column_maps[mp_filesrc])
             # Merge datetime columns if required
             if mp_filesrc in self.merge_columns and self.mp_merge:
                 col_date, col_time, merged_col, date_fmt, time_fmt = self.merge_columns[mp_filesrc]
@@ -597,94 +695,4 @@ class CDataProcess:
         df.set_index(first_col, inplace=True)
         return df.dropna()
 
-      # +-------------------------------------------------------------------
-      # MAP: from_to_column_maps
-      # +-------------------------------------------------------------------
-        self.from_to_column_maps = {
-            'ticks1': {
-                'time': 'T1_Date',
-                'bid': 'T1_Bid_Price',
-                'ask': 'T1_Ask_Price',
-                'last': 'T1_Last Price',
-                'volume': 'T1_Volume',
-                'time_msc': 'T1_Time_Msc',
-                'flags': 'T1_Flags',
-                'volume_real': 'T1_Real_Volume'
-            },
-            'rates1': {
-                'time': 'R1_Date',
-                'open': 'R1_Open',
-                'high': 'R1_High',
-                'low': 'R1_Low',
-                'close': 'R1_Close',
-                'tick_volume': 'R1_Tick_Volume',
-                'spread': 'R1_spread',
-                'real_volume': 'R1_Real_Volume'
-            },
-            'ticks2': {
-                'mDatetime': 'T2_mDatetime',
-                'Date': 'T2_Date',
-                'Timestamp': 'T2_Timestamp',
-                'Bid Price': 'T2_Bid_Price',
-                'Ask Price': 'T2_Ask_Price',
-                'Last Price': 'T2_Last_Price',
-                'Volume': 'T2_Volume'
-            },
-            'rates2': {
-                'mDatetime': 'R2_mDatetime',
-                'Date': 'R2_Date',
-                'Timestamp': 'R2_Timestamp',
-                'Open': 'R2_Open',
-                'High': 'R2_High',
-                'Low': 'R2_Low',
-                'Close': 'R2_Close',
-                'tick_volume': 'R2_Tick Volume',
-                'Volume': 'R2_Volume',
-                'vol2': 'R2_Vol1',
-                'vol3': 'R2_Vol3'
-               }
-         }
-
-      # +-------------------------------------------------------------------
-      # MAP: format date and time conversion columns
-      # +-------------------------------------------------------------------
-        self.date_columns = {
-            'ticks1': ('time', '%Y%m%d', 's', 'f'),
-            'rates1': ('time', '%Y%m%d', 's', 'f'),
-            'ticks2': ('Date', '%Y%m%d', 's', 'e'),
-            'rates2': ('Date', '%Y%m%d', 's', 'e'),
-        }
-
-        self.time_columns = {
-            'ticks1': ('time_msc', '%Y%m%d %H:%M:%S', 'ms', 'a'),
-            'ticks2': ('Timestamp', '%H:%M:%S', 'ms', 'a'),
-            'rates2': ('Timestamp', '%H:%M:%S', 's', 'a'),
-        }
-
-        self.conv_columns = {
-            'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 's', 'b'),
-            'rates1': ('R1_Date', '%Y%m%d %H:%M:%S.%f', 's', 'b'),
-            'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
-            'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
-        }
-
-      # +-------------------------------------------------------------------
-      # MAP: drop unnecessary columns
-      # +-------------------------------------------------------------------
-        self.drop_columns = {
-            'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g', ['T1_Time_Msc', 'T1_Flags', 'T1_Last Price', 'T1_Real_Volume', 'T1_Volume']),
-            'rates1': ('R1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g', ['R1_Tick_Volume', 'R1_spread', 'R1_Real_Volume']),
-            'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 'ms', 'g', ['T2_Timestamp', 'T2_Volume', 'T2_Last_Price']),
-            'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 'ms', 'g', ['R2_Timestamp', 'R2_Volume', 'R2_Vol1'])
-        }
-
-      # +-------------------------------------------------------------------
-      # MAP: Merge date and time columns
-      # +-------------------------------------------------------------------
-
-        self.merge_columns = {
-            'ticks1': ('T1_Date', 'T1_Timestamp', 'T1_mDatetime', '%Y%m%d %H:%M:%S', '%H:%M:%S'),
-            'rates1': ('R1_Date', 'R1_Timestamp', 'R1_mDatetime', '%Y%m%d %H:%M:%S', '%H:%M:%S'),
-            'ticks2': ('T2_Date', 'T2_Timestamp', 'T2_mDatetime', '%Y%m%d %H:%M:%S', '%Y%m%d %H:%M:%S'),
-            'rates2': ('R2_Date', 'R2_Timestamp', 'R2_mDatetime', '%Y%m%d %H:%M:%S', '%Y%m%d %H:%M:%S'),
-        }
+     

@@ -184,38 +184,74 @@ def main(logger):
         # Set the data rows
         
         # Load the data
-        data_loader_config = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=rows , lp_app_rowcount=rowcount)
+        data_loader_config = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=rows, lp_app_rowcount=rowcount)
         
         # Define the dataframes
-        df_api_ticks = pd.DataFrame() ; df_api_rates = pd.DataFrame() ; df_file_ticks = pd.DataFrame() ; df_file_rates = pd.DataFrame()
+        df_api_ticks = pd.DataFrame()
+        df_api_rates = pd.DataFrame()
+        df_file_ticks = pd.DataFrame()
+        df_file_rates = pd.DataFrame()
         
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
-            df=data_loader_config.load_data(df=df, df_name=df_name)
-            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth,app='data_loader_config_load_data')
+            logger.info(f"Data Load Data start: {df_name}")
+            if df_name == "df_api_ticks":
+                df_api_ticks = data_loader_config.load_data(df=df, df_name=df_name)
+            elif df_name == "df_api_rates":
+                df_api_rates = data_loader_config.load_data(df=df, df_name=df_name)
+            elif df_name == "df_file_ticks":
+                df_file_ticks = data_loader_config.load_data(df=df, df_name=df_name)
+            elif df_name == "df_file_rates":
+                df_file_rates = data_loader_config.load_data(df=df, df_name=df_name)
+            utils_config.run_mql_print(df=df, df_name=df_name, hrows=hrows, colwidth=hwidth, app='data_loader_config_load_data')
          
         # +-------------------------------------------------------------------
         # STEP: Run data process manipulation
         # +-------------------------------------------------------------------
-        # Process the data Wrangle service
-        for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
-            df=data_process_config.run_wrangle_service(df=df, df_name=df_name)
-            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth,app='data_process_config_run_wrangle_service')
+        # Process the data Wrangle service        
+        for i, (df, df_name) in enumerate([(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]):
+            logger.info(f"Data Wrangle Data start: {df_name}")
+            df = data_process_config.run_wrangle_service(df=df, df_name=df_name)
+            utils_config.run_mql_print(df=df, df_name=df_name, hrows=hrows, colwidth=hwidth, app='data_process_config_run_wrangle_service')
+            if df_name == "df_api_ticks":
+                df_api_ticks = df
+            elif df_name == "df_api_rates":
+                df_api_rates = df
+            elif df_name == "df_file_ticks":
+                df_file_ticks = df
+            elif df_name == "df_file_rates":
+                df_file_rates = df
            
         # Average the columns
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
-            logger.info(f"Data Averaging of Columns start: {df_name} ,Unit {UNIT} df shape: {df.shape}")
-            df=data_process_config.run_average_columns(df,df_name)
-            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth,app='data_process_config_run_average_columns')
-        """
-        #set Common Close column
+            logger.info(f"Data Averaging of Columns start: {df_name} ")
+            df = data_process_config.run_average_columns(df, df_name)
+            utils_config.run_mql_print(df=df, df_name=df_name, hrows=hrows, colwidth=hwidth, app='data_process_config_run_average_columns')
+            if df_name == "df_api_ticks":
+                df_api_ticks = df
+            elif df_name == "df_api_rates":
+                df_api_rates = df
+            elif df_name == "df_file_ticks":
+                df_file_ticks = df
+            elif df_name == "df_file_rates":
+                df_file_rates = df
+     
+        # Set Common Close column
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
-            logger.info(f"Data Process Common Close Column start: {df_name} ,Unit {UNIT} df shape: {df.shape}")
-            df=data_process_config.establish_common_feat_col(df,df_name)
-            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth,app='data_process_config_establish_common_feat_col')
+            logger.info(f"Data Process Common Close Column start: {df_name} ")
+            df = data_process_config.establish_common_feat_col(df, df_name)
+            utils_config.run_mql_print(df=df, df_name=df_name, hrows=hrows, colwidth=hwidth, app='data_process_config_establish_common_feat_col')
+            if df_name == "df_api_ticks":
+                df_api_ticks = df
+            elif df_name == "df_api_rates":
+                df_api_rates = df
+            elif df_name == "df_file_ticks":
+                df_file_ticks = df
+            elif df_name == "df_file_rates":
+                df_file_rates = df
 
-        datafile = df
-        logger.info(f"Data File Shape: {datafile.shape}")
        
+       
+        """
         # +-------------------------------------------------------------------
         # STEP: add The time index to the data
         # +-------------------------------------------------------------------
