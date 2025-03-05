@@ -167,5 +167,27 @@ class CDataLoader:
         """Reduce data to a specific number of rows."""
         return df.head(self.lp_data_rows)
 
+    def run_dataloader_services(self):
+        """Run the data loader services."""
+        logger.info("Running data loader services...")
+        # Define the dataframes
+        df_api_ticks = pd.DataFrame()
+        df_api_rates = pd.DataFrame()
+        df_file_ticks = pd.DataFrame()
+        df_file_rates = pd.DataFrame()
+        
+        for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
+            logger.info(f"Data Load Data start: {df_name}")
+            if df_name == "df_api_ticks":
+                df_api_ticks = self.load_data(df=df, df_name=df_name)
+            elif df_name == "df_api_rates":
+                df_api_rates = self.load_data(df=df, df_name=df_name)
+            elif df_name == "df_file_ticks":
+                df_file_ticks = self.load_data(df=df, df_name=df_name)
+            elif df_name == "df_file_rates":
+                df_file_rates = self.load_data(df=df, df_name=df_name)
+
+        return df_api_ticks, df_api_rates, df_file_ticks, df_file_rates 
+
 
     
