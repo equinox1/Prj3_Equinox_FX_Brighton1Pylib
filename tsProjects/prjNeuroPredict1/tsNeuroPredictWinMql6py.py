@@ -91,6 +91,7 @@ def main(logger):
         # env.override_params({"base": {"learning_rate": 0.005}}) ,logger.info("Updated Learning Rate:", env.get_param("base", "learning_rate"))
         utils_config = CUtilities()
         # Use the environment manager from the override instance
+        # Use the environment manager from the override instance
         override_config = CMqlOverrides()
         params = override_config.env.all_params()
         logger.info(f"All Parameters: {params}")
@@ -104,6 +105,7 @@ def main(logger):
         ml_params = params.get("ml", {})
         mltune_params = params.get("mltune", {})
         app_params = params.get("app", {})
+        logger.info(f"Base Params: {base_params}, Data Params: {data_params}, ML Params: {ml_params}, ML Tune Params: {mltune_params}, App Params: {app_params}")
 
         # Check if data_params exists
         if not data_params:

@@ -138,11 +138,8 @@ class CMqlOverrides(CEnvCore):
         }
 
         try:
-            # Retrieve existing ML parameters (if any)
             current_ml_params = self.params.get("ml", {})
-            # Merge the overrides into the existing parameters
             current_ml_params.update(ml_overrides)
-            # Update the environment manager with the new ML parameters
             self.env.override_params({"ml": current_ml_params})
             logger.info("ML parameters overridden successfully.")
         except Exception as e:
