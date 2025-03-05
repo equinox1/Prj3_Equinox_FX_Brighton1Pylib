@@ -38,7 +38,9 @@ class CDataLoader:
         self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
         self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('"mp_data_rows', 1000))
         self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
-        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('app', {}).get('mp_app_timeframe', 'H4'))
+        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('app', {}).get('mp_app_timeframe', 'mt5.TIMEFRAME_H4'))
+       
+
         logger.info(f"UTC from: {self.lp_utc_from}")
         logger.info(f"UTC to: {self.lp_utc_to}")
         logger.info(f"Timeframe: {self.lp_timeframe}")
@@ -120,15 +122,20 @@ class CDataLoader:
                 logger.error("MetaTrader5 module not initialized.")
                 return pd.DataFrame()
 
-            valid_timeframe = getattr(mt5, f"TIMEFRAME_{self.lp_timeframe}", mt5.TIMEFRAME_M1)
-
+           
+           
+           
             logger.info(f"Fetching {apitype} data from MetaTrader5 API")
             if apitype == 'ticks':
-                data = mt5.copy_ticks_from(self.lp_app_primary_symbol, self.lp_utc_from, self.lp_data_rows, mt5.COPY_TICKS_ALL)
                 logger.info(f"Api ticks: Fetching Symbol {self.lp_app_primary_symbol} with rows {self.lp_data_rows} of ticks from {self.lp_utc_from} to {self.lp_utc_to}")
+                logger.info(f"Api ticks: FetchingTimeframe {self.lp_timeframe} ")
+                #Tested ok:  ticks2=mt5.copy_ticks_from(lp_app_primary_symbol, lp_utc_from, lp_data_rows, mt5.COPY_TICKS_ALL)
+                data = mt5.copy_ticks_from(self.lp_app_primary_symbol, self.lp_utc_from, self.lp_data_rows, mt5.COPY_TICKS_ALL)
             elif apitype == 'rates':
                 logger.info(f"Api rates: Fetching Symbol {self.lp_app_primary_symbol} with rows {self.lp_data_rows} of rates from {self.lp_utc_from} to {self.lp_utc_to}")
-                data = mt5.copy_rates_from(self.lp_app_primary_symbol, valid_timeframe, self.lp_utc_from, self.lp_data_rows)
+                logger.info(f"Api rates: FetchingTimeframe {self.lp_timeframe} ")
+                #Tested ok:  rates2 = mt5.copy_rates_from(lp_app_primary_symbol, mt5.TIMEFRAME_H4, lp_utc_from, lp_data_rows)
+                data = mt5.copy_rates_from(self.lp_app_primary_symbol,mt5.TIMEFRAME_H4, self.lp_utc_from, self.lp_data_rows)
             df = pd.DataFrame(data)
             return df
         except Exception as e:

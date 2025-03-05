@@ -36,6 +36,7 @@ class CUtilities:
         self.stralign: str = kwargs.get("stralign", "left")
 
     def run_mql_print(self, df: pd.DataFrame, df_name: str = "DataFrame", hrows: int = 5, colwidth: int = 20,
+                      app=None,
                       tablefmt: str = "pretty", floatfmt: str = ".5f",
                       numalign: str = "left", stralign: str = "left") -> None:
         """
@@ -73,7 +74,7 @@ class CUtilities:
         stralign=stralign,
         floatfmt=floatfmt
          )
-        self._logger.info(f"Data from file: {df_name}, shape: {df.shape}\n" + formatted_table)
+        self._logger.info(f"Programme App finish: {app} Data from file: {df_name}, shape: {df.shape}\n" + formatted_table)
 
         
 

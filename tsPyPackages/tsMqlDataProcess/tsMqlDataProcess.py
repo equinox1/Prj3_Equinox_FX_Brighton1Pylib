@@ -41,6 +41,18 @@ class CDataProcess:
         self.colwidth = kwargs.get('colwidth', 20)
         self.hrows = kwargs.get('hrows', 5)
 
+        # Initialize environment parameters
+        self.params = kwargs.get('params', {})
+
+        # local data parameters
+        self.lp_utc_from = kwargs.get('lp_utc_from', datetime.utcnow())
+        self.lp_utc_to = kwargs.get('lp_utc_to', datetime.utcnow())
+        self.mp_unit = kwargs.get('UNIT', {})
+
+        # general default parameters
+        self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
+        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('data', {}).get('mp_data_timeframe', 'H4'))
+        
         # Initialize run state parameters
         self._initialize_mql()
         self._set_envmgr_params(kwargs)
@@ -194,17 +206,7 @@ class CDataProcess:
         logger.info("Features parameters: %s", self.FEATURES_PARAMS)
         logger.info("Window parameters: %s", self.WINDOW_PARAMS)
         logger.info("Default parameters: %s", self.DEFAULT_PARAMS)
-        #
-        # # File parameters
-        self.mp_data_filename1 = self.data_params.get('mp_data_filename1', 'default1.csv')
-        self.mp_data_filename2 = self.data_params.get('mp_data_filename2', 'default2.csv')
-        self.rownumber = self.ml_params.get('mp_rownumber', False)
-        self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default1.csv')
-        self.mp_data_filename2 = self.params.get('data', {}).get('mp_data_filename2', 'default2.csv')
-        self.rownumber = self.params.get("mp_data_self.rownumber")
-        self.colwidth = kwargs.get('colwidth', 20)
-        self.hrows = kwargs.get('hrows', 5)
-
+        
          # Set default Feature parameters
         for feature_key in self.FEATURES_PARAMS:
             self.FEATURES_PARAMS[feature_key] = self.ml_params.get(feature_key, "KeyFeature")
@@ -224,7 +226,15 @@ class CDataProcess:
             self.mp_ml_input_keyfeat = self.feature1
             self.mp_ml_input_keyfeat_scaled = self.feature1_scaled
             self.mp_ml_input_label = self.label
+
+        #  File parameters
+        self.mp_data_filename1 = self.data_params.get('mp_data_filename1', 'default1.csv')
+        self.mp_data_filename2 = self.data_params.get('mp_data_filename2', 'default2.csv')
+        self.rownumber = self.ml_params.get('mp_rownumber', False)
+        self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default1.csv')
+        self.mp_data_filename2 = self.params.get('data', {}).get('mp_data_filename2', 'default2.csv')
       
+        # Machine learning parameters  
         self.lookahead_periods = self.params.get('ml', {}).get('mp_lookahead_periods', 1)
         self.ma_window = self.params.get('ml', {}).get('mp_ma_window', 10)
         self.hl_avg_col = self.params.get('ml', {}).get('mp_hl_avg_col', 'HL_Avg')
@@ -234,32 +244,22 @@ class CDataProcess:
         self.create_label = self.params.get('ml', {}).get('mp_create_label', False)
 
         #  Run states
-        self. run_avg = self.params.get('ml', {}).get('mp_run_avg', False)
+        self.run_avg = self.params.get('ml', {}).get('mp_run_avg', False)
         self.run_avg_scaled = self.params.get('ml', {}).get('mp_run_avg_scaled', False)
         self.log_stationary = self.params.get('ml', {}).get('mp_log_stationary', False)
         self.remove_zeros = self.params.get('ml', {}).get('mp_remove_zeros', False)
         self.last_col = self.params.get('ml', {}).get('mp_last_col', False)
         self.create_label_scaled = self.params.get('ml', {}).get('mp_create_label_scaled', False)
 
-        # app parameters
-        self.lp_utc_from = kwargs.get('lp_utc_from', datetime.utcnow())
-        self.lp_utc_to = kwargs.get('lp_utc_to', datetime.utcnow())
-        self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
-        self.lp_app_rows = kwargs.get('lp_app_rows', self.params.get('app', {}).get('mp_app_rows', 1000))
-        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('app', {}).get('mp_app_timeframe', 'H4'))
-        self.mp_glob_data_path = kwargs.get('mp_glob_data_path', self.params.get('base', {}).get('mp_glob_data_path', 'Mql5Data'))
-      
         # Data parameters
         self.rownumber = self.params.get('data', {}).get('mp_data_rownumber', False)
         self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('"mp_data_rows', 1000))
         self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
         
-
         # Derived filenames
+        self.mp_glob_data_path = kwargs.get('mp_glob_data_path', self.params.get('base', {}).get('mp_glob_data_path', 'Mql5Data'))
         self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
         self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
-
-       
 
     def run_wrangle_service(self, **kwargs):
         """
@@ -269,11 +269,7 @@ class CDataProcess:
         """
         self.df = kwargs.get('df', pd.DataFrame())
         self.df_name = kwargs.get('df_name',None)
-      
-        self.mp_unit = kwargs.get('UNIT', {})
-        self.loadmql = kwargs.get('loadmql', True)
         self.mp_filesrc = kwargs.get('mp_filesrc', 'ticks1')
-
 
         if self.df_name == 'df_api_ticks':
                self.df_api_ticks = self.df
@@ -334,13 +330,13 @@ class CDataProcess:
       
         return self.df
 
-    def wrangle_data(self, df: pd.DataFrame, mp_filesrc: str) -> pd.DataFrame:
+    def wrangle_data(self, df: pd.DataFrame, mp_filesrc: str, df_name: str = None) -> pd.DataFrame:
         """
         Wrangles time-related data in the DataFrame based on file source.
         """
 
-        def rename_columns(df: pd.DataFrame, mapping: dict) -> None:
-            valid_renames = {old: new for old, new in mapping.items() if old in df.columns}
+        def rename_columns(df: pd.DataFrame, var_from_to_column_maps: dict) -> None:
+            valid_renames = {old: new for old, new in var_from_to_column_maps.items() if old in df.columns}
             df.rename(columns=valid_renames, inplace=True)
 
         def merge_datetime(df: pd.DataFrame, col_date: str, col_time: str, merged_col: str, date_fmt: str, time_fmt: str) -> pd.DataFrame:
@@ -395,110 +391,31 @@ class CDataProcess:
             except Exception as e:
                 logger.info(f"Error converting column {column} for {mp_filesrc} with type {conv_type}: {e}")
 
-        # Define mappings and configuration dictionaries
-        mappings = {
-            'ticks1': {
-                'time': 'T1_Date',
-                'bid': 'T1_Bid_Price',
-                'ask': 'T1_Ask_Price',
-                'last': 'T1_Last Price',
-                'volume': 'T1_Volume',
-                'time_msc': 'T1_Time_Msc',
-                'flags': 'T1_Flags',
-                'volume_real': 'T1_Real_Volume'
-            },
-            'rates1': {
-                'time': 'R1_Date',
-                'open': 'R1_Open',
-                'high': 'R1_High',
-                'low': 'R1_Low',
-                'close': 'R1_Close',
-                'tick_volume': 'R1_Tick_Volume',
-                'spread': 'R1_spread',
-                'real_volume': 'R1_Real_Volume'
-            },
-            'ticks2': {
-                'mDatetime': 'T2_mDatetime',
-                'Date': 'T2_Date',
-                'Timestamp': 'T2_Timestamp',
-                'Bid Price': 'T2_Bid_Price',
-                'Ask Price': 'T2_Ask_Price',
-                'Last Price': 'T2_Last_Price',
-                'Volume': 'T2_Volume'
-            },
-            'rates2': {
-                'mDatetime': 'R2_mDatetime',
-                'Date': 'R2_Date',
-                'Timestamp': 'R2_Timestamp',
-                'Open': 'R2_Open',
-                'High': 'R2_High',
-                'Low': 'R2_Low',
-                'Close': 'R2_Close',
-                'tick_volume': 'R2_Tick Volume',
-                'Volume': 'R2_Volume',
-                'vol2': 'R2_Vol1',
-                'vol3': 'R2_Vol3'
-            }
-        }
-
-        date_columns = {
-            'ticks1': ('time', '%Y%m%d', 's', 'f'),
-            'rates1': ('time', '%Y%m%d', 's', 'f'),
-            'ticks2': ('Date', '%Y%m%d', 's', 'e'),
-            'rates2': ('Date', '%Y%m%d', 's', 'e'),
-        }
-
-        time_columns = {
-            'ticks1': ('time_msc', '%Y%m%d %H:%M:%S', 'ms', 'a'),
-            'ticks2': ('Timestamp', '%H:%M:%S', 'ms', 'a'),
-            'rates2': ('Timestamp', '%H:%M:%S', 's', 'a'),
-        }
-
-        conv_columns = {
-            'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 's', 'b'),
-            'rates1': ('R1_Date', '%Y%m%d %H:%M:%S.%f', 's', 'b'),
-            'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
-            'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
-        }
-
-        drop_columns = {
-            'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g', ['T1_Time_Msc', 'T1_Flags', 'T1_Last Price', 'T1_Real_Volume', 'T1_Volume']),
-            'rates1': ('R1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g', ['R1_Tick_Volume', 'R1_spread', 'R1_Real_Volume']),
-            'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 'ms', 'g', ['T2_Timestamp', 'T2_Volume', 'T2_Last_Price']),
-            'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 'ms', 'g', ['R2_Timestamp', 'R2_Volume', 'R2_Vol1'])
-        }
-
-        merge_columns = {
-            'ticks1': ('T1_Date', 'T1_Timestamp', 'T1_mDatetime', '%Y%m%d %H:%M:%S', '%H:%M:%S'),
-            'rates1': ('R1_Date', 'R1_Timestamp', 'R1_mDatetime', '%Y%m%d %H:%M:%S', '%H:%M:%S'),
-            'ticks2': ('T2_Date', 'T2_Timestamp', 'T2_mDatetime', '%Y%m%d %H:%M:%S', '%Y%m%d %H:%M:%S'),
-            'rates2': ('R2_Date', 'R2_Timestamp', 'R2_mDatetime', '%Y%m%d %H:%M:%S', '%Y%m%d %H:%M:%S'),
-        }
-
-        if mp_filesrc in mappings:
+        
+        if mp_filesrc in from_to_column_maps:
             logger.info(f"Processing {mp_filesrc} data")
             # Convert date column if defined
-            if mp_filesrc in date_columns:
-                col, fmt, unit, conv_type = date_columns[mp_filesrc]
+            if mp_filesrc in self.date_columns:
+                col, fmt, unit, conv_type = self.date_columns[mp_filesrc]
                 convert_datetime(df, col, fmt=fmt, unit=unit, conv_type=conv_type)
             # Convert time column if defined
-            if mp_filesrc in time_columns:
-                col, fmt, unit, conv_type = time_columns[mp_filesrc]
+            if mp_filesrc in self.time_columns:
+                col, fmt, unit, conv_type = self.time_columns[mp_filesrc]
                 logger.info(f"Processing time column {col} for {mp_filesrc}")
                 convert_datetime(df, col, fmt=fmt, unit=unit, conv_type=conv_type)
             # Rename columns
-            rename_columns(df, mappings[mp_filesrc])
+            rename_columns(df, from_to_column_maps[mp_filesrc])
             # Merge datetime columns if required
-            if mp_filesrc in merge_columns and self.mp_merge:
-                col_date, col_time, merged_col, date_fmt, time_fmt = merge_columns[mp_filesrc]
+            if mp_filesrc in self.merge_columns and self.mp_merge:
+                col_date, col_time, merged_col, date_fmt, time_fmt = self.merge_columns[mp_filesrc]
                 df = merge_datetime(df, col_date, col_time, merged_col, date_fmt, time_fmt)
             # Convert datetime columns if required
-            if mp_filesrc in conv_columns and self.mp_convert:
-                col, fmt, unit, conv_type = conv_columns[mp_filesrc]
+            if mp_filesrc in self.conv_columns and self.mp_convert:
+                col, fmt, unit, conv_type = self.conv_columns[mp_filesrc]
                 convert_datetime(df, col, fmt=fmt, unit=unit, conv_type=conv_type)
             # Drop unnecessary columns if required
-            if mp_filesrc in drop_columns and self.mp_drop:
-                col, fmt, unit, conv_type, drop_cols = drop_columns[mp_filesrc]
+            if mp_filesrc in self.drop_columns and self.mp_drop:
+                col, fmt, unit, conv_type, drop_cols = self.drop_columns[mp_filesrc]
                 logger.info(f"Dropping columns for {mp_filesrc}: {drop_cols}")
                 convert_datetime(df, col, fmt=fmt, unit=unit, conv_type=conv_type, drop_cols=drop_cols)
 
@@ -522,8 +439,8 @@ class CDataProcess:
                 df.fillna(0, inplace=True)
                 logger.info("Filled NaN values with 0")
             # Final column resorting if merged
-            if mp_filesrc in merge_columns and self.mp_merge:
-                _, _, merged_col, _, _ = merge_columns[mp_filesrc]
+            if mp_filesrc in self.merge_columns and self.mp_merge:
+                _, _, merged_col, _, _ = self.merge_columns[mp_filesrc]
                 df = resort_columns(df, merged_col)
                 
             self.utils_config.run_mql_print(df, self.hrows, colwidth=self.colwidth, floatfmt='.5f', numalign='left', stralign='left')
@@ -679,3 +596,95 @@ class CDataProcess:
         df[first_col] = df[first_col].fillna('Unknown').astype(str).str.strip()
         df.set_index(first_col, inplace=True)
         return df.dropna()
+
+      # +-------------------------------------------------------------------
+      # MAP: from_to_column_maps
+      # +-------------------------------------------------------------------
+        self.from_to_column_maps = {
+            'ticks1': {
+                'time': 'T1_Date',
+                'bid': 'T1_Bid_Price',
+                'ask': 'T1_Ask_Price',
+                'last': 'T1_Last Price',
+                'volume': 'T1_Volume',
+                'time_msc': 'T1_Time_Msc',
+                'flags': 'T1_Flags',
+                'volume_real': 'T1_Real_Volume'
+            },
+            'rates1': {
+                'time': 'R1_Date',
+                'open': 'R1_Open',
+                'high': 'R1_High',
+                'low': 'R1_Low',
+                'close': 'R1_Close',
+                'tick_volume': 'R1_Tick_Volume',
+                'spread': 'R1_spread',
+                'real_volume': 'R1_Real_Volume'
+            },
+            'ticks2': {
+                'mDatetime': 'T2_mDatetime',
+                'Date': 'T2_Date',
+                'Timestamp': 'T2_Timestamp',
+                'Bid Price': 'T2_Bid_Price',
+                'Ask Price': 'T2_Ask_Price',
+                'Last Price': 'T2_Last_Price',
+                'Volume': 'T2_Volume'
+            },
+            'rates2': {
+                'mDatetime': 'R2_mDatetime',
+                'Date': 'R2_Date',
+                'Timestamp': 'R2_Timestamp',
+                'Open': 'R2_Open',
+                'High': 'R2_High',
+                'Low': 'R2_Low',
+                'Close': 'R2_Close',
+                'tick_volume': 'R2_Tick Volume',
+                'Volume': 'R2_Volume',
+                'vol2': 'R2_Vol1',
+                'vol3': 'R2_Vol3'
+               }
+         }
+
+      # +-------------------------------------------------------------------
+      # MAP: format date and time conversion columns
+      # +-------------------------------------------------------------------
+        self.date_columns = {
+            'ticks1': ('time', '%Y%m%d', 's', 'f'),
+            'rates1': ('time', '%Y%m%d', 's', 'f'),
+            'ticks2': ('Date', '%Y%m%d', 's', 'e'),
+            'rates2': ('Date', '%Y%m%d', 's', 'e'),
+        }
+
+        self.time_columns = {
+            'ticks1': ('time_msc', '%Y%m%d %H:%M:%S', 'ms', 'a'),
+            'ticks2': ('Timestamp', '%H:%M:%S', 'ms', 'a'),
+            'rates2': ('Timestamp', '%H:%M:%S', 's', 'a'),
+        }
+
+        self.conv_columns = {
+            'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 's', 'b'),
+            'rates1': ('R1_Date', '%Y%m%d %H:%M:%S.%f', 's', 'b'),
+            'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
+            'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
+        }
+
+      # +-------------------------------------------------------------------
+      # MAP: drop unnecessary columns
+      # +-------------------------------------------------------------------
+        self.drop_columns = {
+            'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g', ['T1_Time_Msc', 'T1_Flags', 'T1_Last Price', 'T1_Real_Volume', 'T1_Volume']),
+            'rates1': ('R1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g', ['R1_Tick_Volume', 'R1_spread', 'R1_Real_Volume']),
+            'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 'ms', 'g', ['T2_Timestamp', 'T2_Volume', 'T2_Last_Price']),
+            'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 'ms', 'g', ['R2_Timestamp', 'R2_Volume', 'R2_Vol1'])
+        }
+
+      # +-------------------------------------------------------------------
+      # MAP: Merge date and time columns
+      # +-------------------------------------------------------------------
+
+        self.merge_columns = {
+            'ticks1': ('T1_Date', 'T1_Timestamp', 'T1_mDatetime', '%Y%m%d %H:%M:%S', '%H:%M:%S'),
+            'rates1': ('R1_Date', 'R1_Timestamp', 'R1_mDatetime', '%Y%m%d %H:%M:%S', '%H:%M:%S'),
+            'ticks2': ('T2_Date', 'T2_Timestamp', 'T2_mDatetime', '%Y%m%d %H:%M:%S', '%Y%m%d %H:%M:%S'),
+            'rates2': ('R2_Date', 'R2_Timestamp', 'R2_mDatetime', '%Y%m%d %H:%M:%S', '%Y%m%d %H:%M:%S'),
+        }

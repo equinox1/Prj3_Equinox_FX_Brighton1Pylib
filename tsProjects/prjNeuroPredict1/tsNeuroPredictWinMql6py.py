@@ -9,6 +9,9 @@
 # +------------------------------------------------------------------+
 # STEP: Platform settings
 # +-------------------------------------------------------------------
+# log timeframe h4 in the data parameters and override the default values
+# log where to src lp-timeframe
+# log override params to file
 # gpu and tensor platform
 from tsMqlSetup import CMqlSetup
 import logging
@@ -165,7 +168,7 @@ def main(logger):
         # +-------------------------------------------------------------------
         # Retrieve broker file paths
         data_loader_config = CDataLoader()
-        data_process_config = CDataProcess()
+        data_process_config = CDataProcess(mp_unit=UNIT)
         ml_process_config = CDMLProcess()
 
         # +-------------------------------------------------------------------
@@ -188,31 +191,31 @@ def main(logger):
         
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
             df=data_loader_config.load_data(df=df, df_name=df_name)
-            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth)
-        
+            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth,app='data_loader_config_load_data')
+         
         # +-------------------------------------------------------------------
         # STEP: Run data process manipulation
         # +-------------------------------------------------------------------
         # Process the data Wrangle service
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
-            df=data_process_config.run_wrangle_service(df=df, df_name=df_name, mp_unit=UNIT)
-            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth)
-        """           
+            df=data_process_config.run_wrangle_service(df=df, df_name=df_name)
+            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth,app='data_process_config_run_wrangle_service')
+           
         # Average the columns
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
             logger.info(f"Data Averaging of Columns start: {df_name} ,Unit {UNIT} df shape: {df.shape}")
             df=data_process_config.run_average_columns(df,df_name)
-            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth)
-       
+            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth,app='data_process_config_run_average_columns')
+        """
         #set Common Close column
         for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
             logger.info(f"Data Process Common Close Column start: {df_name} ,Unit {UNIT} df shape: {df.shape}")
             df=data_process_config.establish_common_feat_col(df,df_name)
-            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth)
+            utils_config.run_mql_print(df=df,df_name=df_name, hrows=hrows, colwidth=hwidth,app='data_process_config_establish_common_feat_col')
 
         datafile = df
         logger.info(f"Data File Shape: {datafile.shape}")
-  
+       
         # +-------------------------------------------------------------------
         # STEP: add The time index to the data
         # +-------------------------------------------------------------------
