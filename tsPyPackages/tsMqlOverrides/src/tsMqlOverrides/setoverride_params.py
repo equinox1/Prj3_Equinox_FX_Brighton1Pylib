@@ -102,7 +102,7 @@ class CMqlOverrides(CEnvCore):
             "df3_mp_data_dropna": False,
             "df3_mp_data_merge": True,
             "df3_mp_data_convert": True,
-            "df3_mp_data_drop": True,
+            "df3_mp_data_drop": False,
             # File Rates Data Filters
             "df4_mp_data_filter_int": False,
             "df4_mp_data_filter_flt": False,
@@ -112,7 +112,7 @@ class CMqlOverrides(CEnvCore):
             "df4_mp_data_dropna": False,
             "df4_mp_data_merge": True,
             "df4_mp_data_convert": True,
-            "df4_mp_data_drop": True,
+            "df4_mp_data_drop": False,
         }
 
         try:

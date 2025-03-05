@@ -151,6 +151,27 @@ class CDataProcess:
             'rates2': ('R2_Date', 'R2_Timestamp', 'R2_mDatetime', '%Y%m%d %H:%M:%S', '%Y%m%d %H:%M:%S'),
         }
 
+      # +-------------------------------------------------------------------
+      # MAP:Time move chosen column to first
+      # +-------------------------------------------------------------------
+        self.first_columns = {
+            'ticks1' :  ('T1_Date'),
+            'rates1' :  ('R1_Date'),
+            'ticks2' :  ('T2_mDatetime'),
+            'rates2' :  ('R2_mDatetime'),
+         }
+
+      # +-------------------------------------------------------------------
+      # MAP:Time move chosen column to first
+      # +-------------------------------------------------------------------
+        self.last_columns = {
+            'ticks1' :  ('Close','Close_scaled'),
+            'rates1' :  ('Close','Close_scaled'),
+            'ticks2' :  ('Close','Close_scaled'),
+            'rates2' :  ('Close','Close_scaled'),
+         }
+
+      
         # Store column parameters after initialization
         self.COLUMN_PARAMS = {
             "df_api_ticks": {
@@ -166,15 +187,15 @@ class CDataProcess:
                 'returns_col': self.returns_col,
                 'shift_in': self.shift_in,
                 'create_label': self.create_label,
-                'df1_filter_int': kwargs.get('filter_int', False),
-                'df1_filter_flt': kwargs.get('filter_flt', False),
-                'df1_filter_obj': kwargs.get('filter_obj', False),
-                'df1_filter_dtmi': kwargs.get('filter_dtmi', False),
-                'df1_filter_dtmf': kwargs.get('filter_dtmf', False),
-                'df1_mp_dropna': kwargs.get('mp_dropna', True),
-                'df1_mp_merge': kwargs.get('mp_merge',True),
-                'df1_mp_convert': kwargs.get('mp_convert', True),
-                'df1_mp_drop': kwargs.get('mp_drop',True)
+                'df1_filter_int': self.params.get('data', {}).get('df1_filter_int', False),
+                'df1_filter_flt': self.params.get('data', {}).get('df1_filter_flt', False),
+                'df1_filter_obj': self.params.get('data', {}).get('df1_filter_obj', False),
+                'df1_filter_dtmi': self.params.get('data', {}).get('df1_filter_dtmi', False),
+                'df1_filter_dtmf': self.params.get('data', {}).get('df1_filter_dtmf', False),
+                'df1_mp_dropna': self.params.get('data', {}).get('df1_mp_dropna', True),
+                'df1_mp_merge': self.params.get('data', {}).get('df1_mp_merge',True),
+                'df1_mp_convert': self.params.get('data', {}).get('df1_mp_convert', True),
+                'df1_mp_drop': self.params.get('data', {}).get('df1_mp_drop',False)
             },
             "df_api_rates": {
                 'bid_column': 'R1_Open',
@@ -193,15 +214,15 @@ class CDataProcess:
                 'returns_col': self.returns_col,
                 'shift_in': self.shift_in,
                 'create_label': self.create_label,
-                'df2_filter_int': kwargs.get('filter_int', False),
-                'df2_filter_flt': kwargs.get('filter_flt', False),
-                'df2_filter_obj': kwargs.get('filter_obj', False),
-                'df2_filter_dtmi': kwargs.get('filter_dtmi', False),
-                'df2_filter_dtmf': kwargs.get('filter_dtmf', False),
-                'df2_mp_dropna': kwargs.get('mp_dropna', True),
-                'df2_mp_merge': kwargs.get('mp_merge',True),
-                'df2_mp_convert': kwargs.get('mp_convert', True),
-                'df2_mp_drop': kwargs.get('mp_drop',True)
+                'df2_filter_int': self.params.get('data', {}).get('df2_filter_int', False),
+                'df2_filter_flt': self.params.get('data', {}).get('df2_filter_flt', False),
+                'df2_filter_obj': self.params.get('data', {}).get('df2_filter_obj', False),
+                'df2_filter_dtmi': self.params.get('data', {}).get('df2_filter_dtmi', False),
+                'df2_filter_dtmf': self.params.get('data', {}).get('df2_filter_dtmf', False),
+                'df2_mp_dropna': self.params.get('data', {}).get('df2_mp_dropna', True),
+                'df2_mp_merge': self.params.get('data', {}).get('df2_mp_merge',True),
+                'df2_mp_convert': self.params.get('data', {}).get('df2_mp_convert', True),
+                'df2_mp_drop': self.params.get('data', {}).get('df2_mp_drop',False)
             },
 
             "df_file_ticks": {
@@ -217,15 +238,15 @@ class CDataProcess:
                 'returns_col': self.returns_col,
                 'shift_in': self.shift_in,
                 'create_label': self.create_label,
-                'df3_filter_int': kwargs.get('filter_int', False),
-                'df3_filter_flt': kwargs.get('filter_flt', False),
-                'df3_filter_obj': kwargs.get('filter_obj', False),
-                'df3_filter_dtmi': kwargs.get('filter_dtmi', False),
-                'df3_filter_dtmf': kwargs.get('filter_dtmf', False),
-                'df3_mp_dropna': kwargs.get('mp_dropna', True),
-                'df3_mp_merge': kwargs.get('mp_merge',True),
-                'df3_mp_convert': kwargs.get('mp_convert', True),
-                'df3_mp_drop': kwargs.get('mp_drop',True)
+                'df3_filter_int': self.params.get('data', {}).get('df3_filter_int', False),
+                'df3_filter_flt': self.params.get('data', {}).get('df3_filter_flt', False),
+                'df3_filter_obj': self.params.get('data', {}).get('df3_filter_obj', False),
+                'df3_filter_dtmi': self.params.get('data', {}).get('df3_filter_dtmi', False),
+                'df3_filter_dtmf': self.params.get('data', {}).get('df3_filter_dtmf', False),
+                'df3_mp_dropna': self.params.get('data', {}).get('df3_mp_dropna', True),
+                'df3_mp_merge': self.params.get('data', {}).get('df3_mp_merge',True),
+                'df3_mp_convert': self.params.get('data', {}).get('df3_mp_convert', True),
+                'df3_mp_drop': self.params.get('data', {}).get('df3_mp_drop',False)
             },
             "df_file_rates": {
                 'bid_column': 'R2_Open',
@@ -244,15 +265,15 @@ class CDataProcess:
                 'returns_col': self.returns_col,
                 'shift_in': self.shift_in,
                 'create_label': self.create_label,
-                'df4_filter_int': kwargs.get('filter_int', False),
-                'df4_filter_flt': kwargs.get('filter_flt', False),
-                'df4_filter_obj': kwargs.get('filter_obj', False),
-                'df4_filter_dtmi': kwargs.get('filter_dtmi', False),
-                'df4_filter_dtmf': kwargs.get('filter_dtmf', False),
-                'df4_mp_dropna': kwargs.get('mp_dropna', True),
-                'df4_mp_merge': kwargs.get('mp_merge',True),
-                'df4_mp_convert': kwargs.get('mp_convert', True),
-                'df4_mp_drop': kwargs.get('mp_drop',True)
+                'df4_filter_int': self.params.get('data', {}).get('df4_filter_int', False),
+                'df4_filter_flt': self.params.get('data', {}).get('df4_filter_flt', False),
+                'df4_filter_obj': self.params.get('data', {}).get('df4_filter_obj', False),
+                'df4_filter_dtmi': self.params.get('data', {}).get('df4_filter_dtmi', False),
+                'df4_filter_dtmf': self.params.get('data', {}).get('df4_filter_dtmf', False),
+                'df4_mp_dropna': self.params.get('data', {}).get('df4_mp_dropna', True),
+                'df4_mp_merge': self.params.get('data', {}).get('df4_mp_merge',True),
+                'df4_mp_convert': self.params.get('data', {}).get('df4_mp_convert', True),
+                'df4_mp_drop': self.params.get('data', {}).get('df4_mp_drop',False)
             }
 
         }
@@ -341,6 +362,7 @@ class CDataProcess:
         self.log_stationary = self.params.get('ml', {}).get('mp_log_stationary', False)
         self.remove_zeros = self.params.get('ml', {}).get('mp_remove_zeros', False)
         self.last_col = self.params.get('ml', {}).get('mp_last_col', False)
+        self.first_col = self.params.get('ml', {}).get('mp_first_col', False)
         self.create_label_scaled = self.params.get('ml', {}).get('mp_create_label_scaled', False)
 
         # Data parameters
@@ -540,8 +562,31 @@ class CDataProcess:
             if mp_filesrc in self.merge_columns and self.mp_merge:
                 _, _, merged_col, _, _ = self.merge_columns[mp_filesrc]
                 df = resort_columns(df, merged_col)
-                
-            self.utils_config.run_mql_print(df, self.hrows, colwidth=self.colwidth, floatfmt='.5f', numalign='left', stralign='left')
+            # Move dates to first
+            if mp_filesrc in self.first_columns and self.first_col:
+               first_col = self.first_columns[mp_filesrc]
+               if first_col in df.columns:
+                  df = self.move_col_to_first(df, first_col)
+               else:
+                  logger.info(f"Column {first_col} not found in DataFrame.")
+
+            # Move features to end
+            if mp_filesrc in self.last_columns and self.last_col:
+               feat_col = self.last_columns[mp_filesrc]
+               if feat_col in df.columns:
+                  df = self.move_col_to_end(df, feat_col)
+               else:
+                  logger.info(f"Column {feat_col} not found in DataFrame.")
+
+             # Move scaled features to end
+            if mp_filesrc in self.last_columns and self.last_col_scaled:
+               last_col ,scaled_col = self.last_columns[mp_filesrc]
+               if scaled_col in df.columns:
+                  df = self.move_col_to_end(df, scaled_col)
+               else:
+                  logger.info(f"Column {scaled_col} not found in DataFrame.")
+
+
             logger.info("Dataframe headers after wrangling printed successfully.")
         return df
 
@@ -648,6 +693,14 @@ class CDataProcess:
         cols = [col for col in df.columns if col != last_col] + [last_col]
         return df[cols]
 
+    def move_col_to_start(self, df: pd.DataFrame, last_col: str):
+        """Move specified column to the start of the DataFrame."""
+        if first_col not in df.columns:
+            logger.warning(f"Column {last_col} not found. Skipping move_col_to_end.")
+            return df
+        cols = [ [first_col]+ col for col in df.columns if col != first_col]
+        return df[cols]
+
     def create_index_column(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         Create an index column from the first column of the DataFrame.
@@ -733,5 +786,10 @@ class CDataProcess:
         logger.info(f"Data Process Common Close Column start: {self.df_name}")
         self.ldf = self.establish_common_feat_col(self.ldf, self.df_name)
         logger.info(f"Data Process Common Close Column end: {self.df_name} with shape: {self.ldf.shape}")
+
+        # Re-move datetime column to the beginning
+        logger.info(f"Data Process Reorder Columns start: {self.df_name}")
+        self.ldf = self.move_col_to_start(self.ldf)
+        logger.info(f"Data Process Reorder Columns end: {self.df_name} with shape: {self.ldf.shape}")
     
         return self.ldf
