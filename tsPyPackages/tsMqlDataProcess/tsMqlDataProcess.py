@@ -19,8 +19,7 @@ from tabulate import tabulate
 # Import platform dependencies
 from tsMqlPlatform import run_platform, platform_checker, logger
 from tsMqlEnvMgr import CMqlEnvMgr
-from tsMqlMLParams import CMqlEnvMLParams
-
+from tsMqlOverrides import CMqlOverrides
 
 # Initialize platform checker
 pchk = run_platform.RunPlatform()
@@ -39,24 +38,29 @@ class CDataProcess:
         self.hrows = kwargs.get('hrows', 5)
 
         # Initialize environment parameters
-        self.params = kwargs.get('params', {})
+      
 
         # local data parameters
         self.lp_utc_from = kwargs.get('lp_utc_from', datetime.utcnow())
         self.lp_utc_to = kwargs.get('lp_utc_to', datetime.utcnow())
         self.mp_unit = kwargs.get('UNIT', {})
 
-        # general default parameters
-        self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
-        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('data', {}).get('mp_data_timeframe', 'H4'))
-        
+          
         # Initialize run state parameters
         self._initialize_mql()
         self._set_envmgr_params(kwargs)
         self._set_global_parameters(kwargs)
-        self._set_ml_params(kwargs)
+        
+        logger.info(f"ml:DataProcess1: mp_ml_last_col: {ml_params.get('mp_ml_last_col')}")
+        logger.info(f"ml:DataProcess1:: mp_ml_first_col: {ml_params.get('mp_ml_first_col')}")
 
-         # +-------------------------------------------------------------------
+        set_ml_features(kwargs)
+        logger.info(f"ml:DataProcess2: mp_ml_last_col: {ml_params.get('mp_ml_last_col')}")
+        logger.info(f"ml:DataProcess2:: mp_ml_first_col: {ml_params.get('mp_ml_first_col')}")
+        self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
+        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('data', {}).get('mp_data_timeframe', 'H4'))
+      
+      # +-------------------------------------------------------------------
       # MAP: from_to_column_maps
       # +-------------------------------------------------------------------
         self.from_to_column_maps = {
@@ -294,25 +298,31 @@ class CDataProcess:
     def _set_envmgr_params(self, kwargs):
         """Extract environment parameters."""
         # Extract parameter sections
-        env = CMqlEnvMgr() 
-        self.env = env
-        self.params = self.env.all_params()
-        self.base_params = self.params.get("base", {})
-        self.data_params = self.params.get("data", {})
-        self.ml_params = self.params.get("ml", {})
-        self.mltune_params = self.params.get("mltune", {})
-        self.app_params = self.params.get("app", {})
+       # Use the environment manager from the override instance
+        override_config = CMqlOverrides()
+        self.params = override_config.env.all_params()
+        logger.info(f"All Parameters: {params}")
+      
+        # Ensure sections exist
+        self.params_sections = params.keys()
+        logger.info(f"PARAMS SECTIONS: {params_sections}")
+
+        self.base_params = params.get("base", {})
+        self.data_params = params.get("data", {})
+        self.ml_params = params.get("ml", {})
+        self.mltune_params = params.get("mltune", {})
+        self.app_params = params.get("app", {})
+
 
     def _set_global_parameters(self, kwargs):
         """Set configuration parameters from environment or user input."""
        
-    def _set_ml_params(self,kwargs):
+    def _set_ml_features(self,kwargs):
         """Extract environment parameters."""  
         # Load machine learning parameters
-        self.ml_config = CMqlEnvMLParams()
-        self.FEATURES_PARAMS = self.ml_config.get_features_params()
-        self.WINDOW_PARAMS = self.ml_config.get_window_params()
-        self.DEFAULT_PARAMS = self.ml_config.get_default_params()
+        self.FEATURES_PARAMS = self.ml_params.get_features_params()
+        self.WINDOW_PARAMS = self.ml_params.get_window_params()
+        self.DEFAULT_PARAMS = self.ml_params.get_default_params()
         logger.info("Features parameters: %s", self.FEATURES_PARAMS)
         logger.info("Window parameters: %s", self.WINDOW_PARAMS)
         logger.info("Default parameters: %s", self.DEFAULT_PARAMS)

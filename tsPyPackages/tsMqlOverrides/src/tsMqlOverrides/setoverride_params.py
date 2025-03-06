@@ -6,11 +6,10 @@ import yaml  # For loading configurations
 
 # Import platform dependencies
 from tsMqlPlatform import run_platform, platform_checker, logger
-from tsMqlEnvMgr import CMqlEnvMgr
-from tsMqlMLParams import CMqlEnvMLParams
-from tsMqlMLTunerParams import CMqlEnvMLTunerParams
-from tsMqlDataParams import CMqlEnvDataParams
+
 from tsMqlEnvCore import CEnvCore
+from tsMqlEnvMgr import CMqlEnvMgr
+
 
 # Initialize platform checker
 pchk = run_platform.RunPlatform()
@@ -138,12 +137,10 @@ class CMqlOverrides(CEnvCore):
         }
 
         try:
-            current_ml_params = self.params.get("ml", {})
-            current_ml_params.update(ml_overrides)
-            self.env.override_params({"ml": current_ml_params})
+            self.env.override_params({"ml": ml_overrides})
             logger.info("ML parameters overridden successfully.")
         except Exception as e:
-            logger.error("Failed to override ML parameters: %s", e)
+            logger.error("Failed to override ml parameters: %s", e)
 
     def _set_mltune_overrides(self):
         """
