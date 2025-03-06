@@ -15,7 +15,6 @@
 # gpu and tensor platform
 from tsMqlSetup import CMqlSetup
 import logging
-
 # Initialize logger
 logger = logging.getLogger("Main")
 logging.basicConfig(level=logging.INFO)
@@ -36,25 +35,24 @@ from pathlib import Path
 import json
 from datetime import datetime, date
 import pytz
-
 # Data packages
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass
-
 # Machine Learning packages
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
-
 # set package options
 feature_scaler = MinMaxScaler()
 label_scaler = MinMaxScaler()
 # Equinox environment manager
 from tsMqlEnvMgr import CMqlEnvMgr
+from tsMqlOverrides import CMqlOverrides
+from tsMqlUtilities import CUtilities
 #Reference class
 from tsMqlReference import CMqlRefConfig
 # Equinox sub packages
@@ -63,11 +61,7 @@ from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
 # Equinox ML packages
 from tsMqlMLTune import CMdtuner
-from tsMqlMLParams import CMqlEnvMLParams
 from tsMqlMLProcess import CDMLProcess
-from tsMqlOverrides import CMqlOverrides
-from tsMqlUtilities import CUtilities
-
 
 # Setup the logging and tensor platform dependencies
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
@@ -90,12 +84,12 @@ def main(logger):
         # Usage:env = EnvManager(custom_params={"ml": {"epochs": 20}}) ,logger.info("ML Epochs:", env.get_param("ml", "epochs"))
         # env.override_params({"base": {"learning_rate": 0.005}}) ,logger.info("Updated Learning Rate:", env.get_param("base", "learning_rate"))
         utils_config = CUtilities()
-        # Use the environment manager from the override instance
+        
         # Use the environment manager from the override instance
         override_config = CMqlOverrides()
         params = override_config.env.all_params()
         logger.info(f"All Parameters: {params}")
-
+      
         # Ensure sections exist
         params_sections = params.keys()
         logger.info(f"PARAMS SECTIONS: {params_sections}")
@@ -105,26 +99,17 @@ def main(logger):
         ml_params = params.get("ml", {})
         mltune_params = params.get("mltune", {})
         app_params = params.get("app", {})
-        logger.info(f"Base Params: {base_params}, Data Params: {data_params}, ML Params: {ml_params}, ML Tune Params: {mltune_params}, App Params: {app_params}")
-
-        # Check if data_params exists
-        if not data_params:
-            logger.error("Missing 'data' section in params!")
-            raise ValueError("Missing 'data' section in params.")
+        logger.info(f"Base Params: {base_params} , Data Params: {data_params}, ML Params: {ml_params}, ML Tune Params: {mltune_params}, App Params: {app_params}")
+        logger.info(f"ml:Main: mp_ml_last_col: {ml_params.get('mp_ml_last_col')}")
+        logger.info(f"ml:Main: mp_ml_first_col: {ml_params.get('mp_ml_first_col')}")
 
         # +-------------------------------------------------------------------
         # STEP: Load Reference class and time variables
         # +-------------------------------------------------------------------
 
-        # File wrangling overrides
-        mp_data_dropna = data_params.get('df4_mp_data_dropna', False)
-        mp_data_merge = data_params.get('df4_mp_data_merge', False)
-        mp_data_convert = data_params.get('df4_mp_data_convert', False)
-        mp_data_drop = data_params.get('df4_mp_data_drop', False)
-        logger.info(f"Dropna: {mp_data_dropna}, Merge: {mp_data_merge}, Convert: {mp_data_convert}, Drop: {mp_data_drop}")
-
-        # Reference class
+        # Timeframes Reference class
         lp_timeframe_name = data_params.get('mp_data_timeframe', 'H4')
+
         reference_config = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
         #Symbol Constants
         PRIMARY_SYMBOL = app_params.get('lp_app_primary_symbol', app_params.get('mp_app_primary_symbol', 'EURUSD'))
@@ -147,11 +132,10 @@ def main(logger):
         logger.info(f"Timeframe: {TIMEFRAME}") 
 
         # Fetch individual parameters safely
-        lp_timeframe_name = TIMEFRAME
+       
         rows =  data_params.get('mp_data_rows', 1000)
         rowcount = data_params.get('mp_data_rowcount', 10000)
         logger.info(f"Timeframe Name: {lp_timeframe_name}, Rows: {rows}, Rowcount: {rowcount}")
-       
         # +-------------------------------------------------------------------
         # STEP: CBroker Login
         # +-------------------------------------------------------------------
@@ -162,7 +146,6 @@ def main(logger):
             logger.info("Successfully logged in to MetaTrader 5.")
         else:
             logger.info(f"Failed to login. Error code: {mqqlobj}")
-
         # +-------------------------------------------------------------------
         # STEP: initiate the data loader and data process classes
         # +-------------------------------------------------------------------
@@ -170,7 +153,6 @@ def main(logger):
         data_loader_config = CDataLoader()
         data_process_config = CDataProcess(mp_unit=UNIT)
         ml_process_config = CDMLProcess()
-
         # +-------------------------------------------------------------------
         # STEP: Data loading and processing
         # +-------------------------------------------------------------------
@@ -181,8 +163,7 @@ def main(logger):
         mv_data_utc_to = data_loader_config.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAY, TIMEZONE)
         logger.info(f"Main:UTC From: {mv_data_utc_from}")
         logger.info(f"Main:UTC To: {mv_data_utc_to}")
-        # Set the data rows
-        
+       
         # Load the data
         data_loader_config = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=rows, lp_app_rowcount=rowcount)
         df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader_config.run_dataloader_services()
@@ -191,7 +172,6 @@ def main(logger):
         # +-------------------------------------------------------------------
         # STEP: Run data process manipulation
         # +-------------------------------------------------------------------
-
         df_api_ticks= data_process_config.run_dataprocess_services(df=df_api_ticks,df_name='df_api_ticks')
         df_api_rates= data_process_config.run_dataprocess_services(df=df_api_rates,df_name='df_api_rates')
         df_file_ticks= data_process_config.run_dataprocess_services(df=df_file_ticks,df_name='df_file_ticks')
