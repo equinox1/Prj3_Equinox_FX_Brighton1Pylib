@@ -313,18 +313,18 @@ class CDataProcess:
     def _set_ml_features(self, kwargs):
         """Extract and set machine learning features."""
         # Get feature configuration dictionary, if available
-        ml_features_config = self.ml_params.get('mp_features', {})
+        self.ml_features_config = self.ml_params.get('mp_features', {})
 
         # Explicitly get Feature1 column from ml_params or fallback to configuration or default value.
-        self.feature1 = self.ml_params.get('Feature1', ml_features_config.get('Feature1', 'Feature1'))
+        self.feature1 = self.ml_params.get('Feature1', self.ml_features_config.get('Feature1', 'Feature1'))
         logger.info("Feature1: %s", self.feature1)
 
         # Explicitly get the scaled Feature1 column
-        self.feature1_scaled = self.ml_params.get('Feature1_scaled', ml_features_config.get('Feature1_scaled', 'Feature1_Scaled'))
+        self.feature1_scaled = self.ml_params.get('Feature1_scaled', self.ml_features_config.get('Feature1_scaled', 'Feature1_Scaled'))
         logger.info("Feature1_scaled: %s", self.feature1_scaled)
 
         # Explicitly get the label column
-        self.label = self.ml_params.get('Label1', ml_features_config.get('Label1', 'Label'))
+        self.label = self.ml_params.get('Label1', self.ml_features_config.get('Label1', 'Label'))
         logger.info("Label: %s", self.label)
 
         # Set input keys for the machine learning pipeline
@@ -332,7 +332,7 @@ class CDataProcess:
         self.mp_ml_input_keyfeat_scaled = self.feature1_scaled
         self.mp_ml_input_label = self.label
 
-        logger.info("Machine learning features configuration: %s", ml_features_config)
+        logger.info("Machine learning features configuration: %s", self.ml_features_config)
         logger.info("Machine learning input key feature: %s", self.mp_ml_input_keyfeat)
         logger.info("Machine learning input key feature scaled: %s", self.mp_ml_input_keyfeat_scaled)
         logger.info("Machine learning input label: %s", self.mp_ml_input_label)
