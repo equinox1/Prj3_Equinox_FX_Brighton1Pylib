@@ -119,10 +119,23 @@ class CDMLProcess:
         logger.info("Label: %s", self.label)
 
         # Set input keys for the machine learning pipeline
-        self.mp_ml_input_keyfeat = self.feature1
-        self.mp_ml_input_keyfeat_scaled = self.feature1_scaled
-        self.mp_ml_input_label = self.label
+        self.mp_ml_input_keyfeat = self.ml_params.get(
+            'mp_ml_input_keyfeat', 
+            self.ml_features_config.get('mp_ml_input_keyfeat', 'Close')
+        )
 
+         # Set input keys for the machine learning pipeline
+        self.mp_ml_input_keyfeat_scaled = self.ml_params.get(
+            'mp_ml_input_keyfeat_scaled', 
+            self.ml_features_config.get('mp_ml_input_keyfeat_scaled', 'Close_Scaled')
+         )
+        
+         # Set input label for the machine learning pipeline
+        self.mp_ml_input_label = self.ml_params.get(
+               'mp_ml_input_label', 
+               self.ml_features_config.get('mp_ml_input_label', 'Label')
+            )  
+  
         logger.info("Machine learning features configuration: %s", self.ml_features_config)
         logger.info("Machine learning input key feature: %s", self.mp_ml_input_keyfeat)
         logger.info("Machine learning input key feature scaled: %s", self.mp_ml_input_keyfeat_scaled)
@@ -274,17 +287,18 @@ class CDMLProcess:
 
     def create_ml_window(self, timeval):
         """Select the data file based on the DataFrame name."""
-        features_count = len(self.ml_features_config.get("mp_ml_input_features", {}))
-        labels_count = len(self.ml_features_config.get("mp_ml_output_label", {}))
-       
+        self.feature1 = self.ml_features_config.get('Feature1', 'Feature1')
+        self.feature1_scaled = self.ml_features_config.get('Feature1_Scaled', 'Feature1_Scaled')
+        self.label = self.ml_features_config.get('Label', 'Label')
+        self.label_scaled = self.ml_features_config.get('Label_Scaled', 'Label_Scaled')
+        
         past_width = int(self.ml_features_config.get("pasttimeperiods", 24)) * timeval
         future_width = int(self.ml_features_config.get("futuretimeperiods", 24)) * timeval
         pred_width = int(self.ml_features_config.get("predtimeperiods", 1)) * timeval
 
-        logger.info("Past Width: %s, Future Width: %s, Prediction Width: %s, Features Count: %s, Labels Count: %s",
-                    past_width, future_width, pred_width, features_count, labels_count)
+        logger.info("Past Width: %s, Future Width: %s, Prediction Width: %s", past_width, future_width, pred_width)
 
-        return past_width, future_width, pred_width, features_count, labels_count
+        return past_width, future_width, pred_width
 
     def split_dataset(self, X, y, train_size=0.7, val_size=0.15, test_size=0.15, random_state=None):
         X_train, X_temp, y_train, y_temp = train_test_split(X, y, train_size=train_size, random_state=random_state)
