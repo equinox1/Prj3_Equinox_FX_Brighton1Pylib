@@ -204,16 +204,17 @@ def main(logger):
         # +-------------------------------------------------------------------
         # 1: 24 HOURS/24 HOURS prediction window
         logger.info("Creating the 24 hour prediction timeval{timeval},hour {HOUR}")
-        past_width, future_width, pred_width, features_count, labels_count = ml_process_config.create_ml_window(timeval=HOUR)
-        logger.info(f"Past Width: {past_width}, Future Width: {future_width}, Prediction Width: {pred_width}, Features Count: {features_count}, Labels Count: {labels_count}")
+        past_width, future_width, pred_width = ml_process_config.create_ml_window(timeval=HOUR)
+        logger.info(f"Past Width: {past_width}, Future Width: {future_width}, Prediction Width: {pred_width}")
         
         # +-------------------------------------------------------------------
         # STEP: Generate X and y from the Time Series
         # +-------------------------------------------------------------------
-        feature1=ml_process_config.get_feature_columns("Feature1")
-        feature1_scaled=ml_process_config.get_scaled_feature_columns("Feature1_scaled")
-        label1=ml_process_config.get_label_columns("Label1")
-        logger.info(f"Feature1: {feature1}, Feature1 Scaled: {feature1_scaled}, Label1: {label1},window size: {past_width} , using past width")
+        feature1=ml_params.get('Feature1', ml_params.get('Feature1', 'Feature1'))
+        feature1_scaled=ml_params.get('Feature1_scaled', ml_params.get('Feature1_scaled', 'Feature1_scaled'))
+        label1=ml_params.get('Label1', ml_params.get('Label1', 'Label1'))
+        logger.info(f"Main: Feature1: {feature1}, Feature1 Scaled: {feature1_scaled}, Label1: {label1},window size: {past_width} , using past width")
+
         datafile_X,datafile_y = ml_process_config.create_XY_unscaled_feature_sequence(datafile, target_col=feature1, window_size=past_width)
         logger.info(f"Datafile X: {datafile_X.shape}, Datafile y: {datafile_y.shape}")
      
@@ -236,7 +237,7 @@ def main(logger):
         # Convert to TensorFlow datasets
         train_dataset, val_dataset, test_dataset = ml_process_config.convert_to_tfds(X_train, y_train, X_val, y_val, X_test, y_test, batch_size=tf_batch_size)
         logger.info(f"Train Dataset: {train_dataset}, Val Dataset: {val_dataset}, Test Dataset: {test_dataset}")
-      
+       
         # +-------------------------------------------------------------------
         # STEP: Shapes: add tensor values for model input
         # +-------------------------------------------------------------------
