@@ -4,7 +4,7 @@ File: tsPyPackages/tsMqlDataProcess/tsMqlDataProcess.py
 Description: Load and add files and data parameters, login to MetaTrader.
 Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
-Version: 1.1 (Refactored)
+Version: 1.1 (Refactored and Fixed)
 """
 
 import logging
@@ -311,89 +311,89 @@ class CDataProcess:
         pass
 
     def _set_ml_features(self, kwargs):
-      """Extract and set machine learning features."""
-      # Get feature configuration dictionary, if available
-      ml_features_config = self.ml_params.get('mp_features', {})
+        """Extract and set machine learning features."""
+        # Get feature configuration dictionary, if available
+        ml_features_config = self.ml_params.get('mp_features', {})
 
-      # Explicitly get Feature1 column from ml_params or fallback to configuration or default value.
-      self.feature1 = self.ml_params.get('Feature1', ml_features_config.get('Feature1', 'Feature1'))
-      logger.info("Feature1: %s", self.feature1)
+        # Explicitly get Feature1 column from ml_params or fallback to configuration or default value.
+        self.feature1 = self.ml_params.get('Feature1', ml_features_config.get('Feature1', 'Feature1'))
+        logger.info("Feature1: %s", self.feature1)
 
-      # Explicitly get the scaled Feature1 column
-      self.feature1_scaled = self.ml_params.get('Feature1_scaled', ml_features_config.get('Feature1_scaled', 'Feature1_Scaled'))
-      logger.info("Feature1_scaled: %s", self.feature1_scaled)
+        # Explicitly get the scaled Feature1 column
+        self.feature1_scaled = self.ml_params.get('Feature1_scaled', ml_features_config.get('Feature1_scaled', 'Feature1_Scaled'))
+        logger.info("Feature1_scaled: %s", self.feature1_scaled)
 
-      # Explicitly get the label column
-      self.label = self.ml_params.get('Label1', ml_features_config.get('Label1', 'Label'))
-      logger.info("Label: %s", self.label)
+        # Explicitly get the label column
+        self.label = self.ml_params.get('Label1', ml_features_config.get('Label1', 'Label'))
+        logger.info("Label: %s", self.label)
 
-      # Set input keys for the machine learning pipeline
-      self.mp_ml_input_keyfeat = self.feature1
-      self.mp_ml_input_keyfeat_scaled = self.feature1_scaled
-      self.mp_ml_input_label = self.label
+        # Set input keys for the machine learning pipeline
+        self.mp_ml_input_keyfeat = self.feature1
+        self.mp_ml_input_keyfeat_scaled = self.feature1_scaled
+        self.mp_ml_input_label = self.label
 
-      logger.info("Machine learning features configuration: %s", ml_features_config)
-      logger.info("Machine learning input key feature: %s", self.mp_ml_input_keyfeat)
-      logger.info("Machine learning input key feature scaled: %s", self.mp_ml_input_keyfeat_scaled)
-      logger.info("Machine learning input label: %s", self.mp_ml_input_label)
+        logger.info("Machine learning features configuration: %s", ml_features_config)
+        logger.info("Machine learning input key feature: %s", self.mp_ml_input_keyfeat)
+        logger.info("Machine learning input key feature scaled: %s", self.mp_ml_input_keyfeat_scaled)
+        logger.info("Machine learning input label: %s", self.mp_ml_input_label)
 
-      # File parameters
-      self.rownumber = self.ml_params.get('mp_rownumber', False)
-      self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default1.csv')
-      self.mp_data_filename2 = self.params.get('data', {}).get('mp_data_filename2', 'default2.csv')
+        # File parameters
+        self.rownumber = self.ml_params.get('mp_rownumber', False)
+        self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default1.csv')
+        self.mp_data_filename2 = self.params.get('data', {}).get('mp_data_filename2', 'default2.csv')
 
-      logger.info("Data filename1: %s", self.mp_data_filename1)
-      logger.info("Data filename2: %s", self.mp_data_filename2)
-      logger.info("Row number: %s", self.rownumber)
+        logger.info("Data filename1: %s", self.mp_data_filename1)
+        logger.info("Data filename2: %s", self.mp_data_filename2)
+        logger.info("Row number: %s", self.rownumber)
 
-      # Machine learning parameters
-      self.lookahead_periods = self.params.get('ml', {}).get('mp_lookahead_periods', 1)
-      self.ma_window = self.params.get('ml', {}).get('mp_ma_window', 10)
-      self.hl_avg_col = self.params.get('ml', {}).get('mp_hl_avg_col', 'HL_Avg')
-      self.ma_col = self.params.get('ml', {}).get('mp_ma_col', 'MA')
-      self.returns_col = self.params.get('ml', {}).get('mp_returns_col', 'Returns')
-      self.shift_in = self.params.get('ml', {}).get('mp_shift_in', 1)
+        # Machine learning parameters
+        self.lookahead_periods = self.params.get('ml', {}).get('mp_lookahead_periods', 1)
+        self.ma_window = self.params.get('ml', {}).get('mp_ml_tf_ma_windowin', 10)
+        self.hl_avg_col = self.params.get('ml', {}).get('mp_ml_hl_avg_col', 'HL_Avg')
+        self.ma_col = self.params.get('ml', {}).get('mp_ml_ma_col', 'MA')
+        self.returns_col = self.params.get('ml', {}).get('mp_ml_returns_col', 'Returns')
+        self.shift_in = self.params.get('ml', {}).get('mp_ml_tf_shiftin', 1)
 
-      self.run_avg = self.params.get('ml', {}).get('mp_run_avg', False)
-      self.run_avg_scaled = self.params.get('ml', {}).get('mp_run_avg_scaled', False)
-      self.log_stationary = self.params.get('ml', {}).get('mp_log_stationary', False)
-      self.remove_zeros = self.params.get('ml', {}).get('mp_remove_zeros', False)
+        # Fixed keys (removed extra quotes)
+        self.run_avg = self.params.get('ml', {}).get('mp_ml_run_avg', False)
+        self.run_avg_scaled = self.params.get('ml', {}).get('mp_ml_run_avg_scaled', False)
+        self.log_stationary = self.params.get('ml', {}).get('mp_ml_log_stationary', False)
+        self.remove_zeros = self.params.get('ml', {}).get('mp_ml_remove_zeros', False)
 
-      self.last_col = self.params.get('ml', {}).get('mp_ml_last_col', False)
-      self.last_col_scaled = self.params.get('ml', {}).get('mp_ml_last_col_scaled', False)
-      self.first_col = self.params.get('ml', {}).get('mp_ml_first_col', False)
-      self.mp_ml_dropna = self.params.get('ml', {}).get('mp_ml_dropna', False)
-      self.mp_ml_dropna_scaled = self.params.get('ml', {}).get('mp_ml_dropna_scaled', False)
+        self.last_col = self.params.get('ml', {}).get('mp_ml_last_col', False)
+        self.last_col_scaled = self.params.get('ml', {}).get('mp_ml_last_col_scaled', False)
+        self.first_col = self.params.get('ml', {}).get('mp_ml_first_col', False)
+        self.mp_ml_dropna = self.params.get('ml', {}).get('mp_ml_dropna', False)
+        self.mp_ml_dropna_scaled = self.params.get('ml', {}).get('mp_ml_dropna_scaled', False)
 
-      self.create_label = self.params.get('ml', {}).get('mp_create_label', False)
-      self.create_label_scaled = self.params.get('ml', {}).get('mp_create_label_scaled', False)
+        self.create_label = self.params.get('ml', {}).get('mp_ml_create_label', False)
+        self.create_label_scaled = self.params.get('ml', {}).get('mp_ml_create_label_scaled', False)
 
-      logger.info("Lookahead periods: %s", self.lookahead_periods)
-      logger.info("Moving average window: %s", self.ma_window)
-      logger.info("High-low average column: %s", self.hl_avg_col)
-      logger.info("Moving average column: %s", self.ma_col)
-      logger.info("Returns column: %s", self.returns_col)
-      logger.info("Shift in: %s", self.shift_in)
-      logger.info("Run average: %s", self.run_avg)
-      logger.info("Run average scaled: %s", self.run_avg_scaled)
-      logger.info("Log stationary: %s", self.log_stationary)
-      logger.info("Remove zeros: %s", self.remove_zeros)
-      logger.info("Last column: %s", self.last_col)
-      logger.info("Last column scaled: %s", self.last_col_scaled)
-      logger.info("First column: %s", self.first_col)
-      logger.info("Create label: %s", self.create_label)
-      logger.info("Create label scaled: %s", self.create_label_scaled)
+        logger.info("Lookahead periods: %s", self.lookahead_periods)
+        logger.info("Moving average window: %s", self.ma_window)
+        logger.info("High-low average column: %s", self.hl_avg_col)
+        logger.info("Moving average column: %s", self.ma_col)
+        logger.info("Returns column: %s", self.returns_col)
+        logger.info("Shift in: %s", self.shift_in)
+        logger.info("Run average: %s", self.run_avg)
+        logger.info("Run average scaled: %s", self.run_avg_scaled)
+        logger.info("Log stationary: %s", self.log_stationary)
+        logger.info("Remove zeros: %s", self.remove_zeros)
+        logger.info("Last column: %s", self.last_col)
+        logger.info("Last column scaled: %s", self.last_col_scaled)
+        logger.info("First column: %s", self.first_col)
+        logger.info("Create label: %s", self.create_label)
+        logger.info("Create label scaled: %s", self.create_label_scaled)
 
-      # Data parameters
-      self.rownumber = self.params.get('data', {}).get('mp_data_rownumber', False)
-      self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('mp_data_rows', 1000))
-      self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
+        # Data parameters
+        self.rownumber = self.params.get('data', {}).get('mp_data_rownumber', False)
+        self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('mp_data_rows', 1000))
+        self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
 
-      # Derived filenames
-      self.mp_glob_data_path = kwargs.get('mp_glob_data_path', self.params.get('base', {}).get('mp_glob_data_path', 'Mql5Data'))
-      self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
-      self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
-
+        # Derived filenames
+        self.mp_glob_data_path = kwargs.get('mp_glob_data_path', self.params.get('base', {}).get('mp_glob_data_path', 'Mql5Data'))
+        self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
+        self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
 
     def run_wrangle_service(self, **kwargs):
         """
@@ -601,53 +601,57 @@ class CDataProcess:
 
     def run_average_columns(self, df: pd.DataFrame, df_name: str) -> pd.DataFrame:
         """Compute moving average, log returns, future returns and other metrics."""
-        df_params = self.COLUMN_PARAMS.get(df_name, {})
-        logger.info(f"Processing DataFrame: {df_name} with parameters: {df_params}")
+        try:
+            df_params = self.COLUMN_PARAMS.get(df_name, {})
+            logger.info(f"Processing DataFrame: {df_name} with parameters: {df_params}")
 
-        column_in = df_params.get("column_in")
-        column_out1 = df_params.get("column_out1")
-        column_out2 = df_params.get("column_out2")
-        lookahead_periods = df_params.get("lookahead_periods")
-        ma_window = df_params.get("ma_window")
-        hl_avg_col = df_params.get("hl_avg_col")
-        ma_col = df_params.get("ma_col")
-        returns_col = df_params.get("returns_col")
-        shift_in = df_params.get("shift_in")
+            column_in = df_params.get("column_in")
+            column_out1 = df_params.get("column_out1")
+            column_out2 = df_params.get("column_out2")
+            lookahead_periods = df_params.get("lookahead_periods")
+            ma_window = df_params.get("ma_window")
+            hl_avg_col = df_params.get("hl_avg_col")
+            ma_col = df_params.get("ma_col")
+            returns_col = df_params.get("returns_col")
+            shift_in = df_params.get("shift_in")
 
-        if column_in not in df.columns:
-            logger.error(f"Column {column_in} not found in DataFrame.")
+            if column_in not in df.columns:
+                logger.error(f"Column {column_in} not found in DataFrame.")
+                return df
+
+            # Calculate moving average
+            if ma_window and ma_col:
+                logger.info(f"Calculating moving average for {column_in} with window {ma_window}")
+                df[ma_col] = self.calculate_moving_average(df, column_in, ma_window)
+                logger.info(f"Moving average column {ma_col} created.")
+
+            # Calculate log returns
+            if shift_in and returns_col:
+                logger.info(f"Calculating log returns for {column_in} with shift {shift_in}")
+                df[returns_col] = self.calculate_log_returns(df, column_in, shift_in)
+                logger.info(f"Log returns column {returns_col} created.")
+
+            # Calculate log stationary if enabled
+            if self.log_stationary and ma_col in df.columns:
+                logger.info(f"Calculating log stationary for {ma_col}")
+                df[ma_col] = self.calculate_log_stationary(df, ma_col)
+                logger.info(f"Log stationary for {ma_col} computed.")
+
+            # Calculate future returns
+            if lookahead_periods and returns_col:
+                logger.info(f"Calculating future returns for {column_in} with lookahead {lookahead_periods}")
+                df[returns_col] = self.calculate_future_returns(df, column_in, lookahead_periods)
+                logger.info(f"Future returns column {returns_col} created.")
+
+            # Remove rows with zeros in returns column if required
+            if self.remove_zeros and returns_col in df.columns:
+                logger.info(f"Removing rows with zero in {returns_col}")
+                df = self.run_remove_zeros(df, returns_col)
+                logger.info(f"Rows with zeros removed based on {returns_col}.")
             return df
-
-        # Calculate moving average
-        if ma_window and ma_col:
-            logger.info(f"Calculating moving average for {column_in} with window {ma_window}")
-            df[ma_col] = self.calculate_moving_average(df, column_in, ma_window)
-            logger.info(f"Moving average column {ma_col} created.")
-
-        # Calculate log returns
-        if shift_in and returns_col:
-            logger.info(f"Calculating log returns for {column_in} with shift {shift_in}")
-            df[returns_col] = self.calculate_log_returns(df, column_in, shift_in)
-            logger.info(f"Log returns column {returns_col} created.")
-
-        # Calculate log stationary if enabled
-        if self.log_stationary and ma_col in df.columns:
-            logger.info(f"Calculating log stationary for {ma_col}")
-            df[ma_col] = self.calculate_log_stationary(df, ma_col)
-            logger.info(f"Log stationary for {ma_col} computed.")
-
-        # Calculate future returns
-        if lookahead_periods and returns_col:
-            logger.info(f"Calculating future returns for {column_in} with lookahead {lookahead_periods}")
-            df[returns_col] = self.calculate_future_returns(df, column_in, lookahead_periods)
-            logger.info(f"Future returns column {returns_col} created.")
-
-        # Remove rows with zeros in returns column if required
-        if self.remove_zeros and returns_col in df.columns:
-            logger.info(f"Removing rows with zero in {returns_col}")
-            df[returns_col] = self.run_remove_zeros(df, returns_col)
-            logger.info(f"Rows with zeros removed from {returns_col}.")
-        return df
+        except Exception as e:
+            logger.error(f"Error in run_average_columns: {e}")
+            return df
 
     def add_line_numbers(self, df: pd.DataFrame):
         """Add line numbers to the DataFrame."""
@@ -665,6 +669,7 @@ class CDataProcess:
             for col in feat_col:
                 if col in df.columns:
                     df = self.move_col_to_end(df, col)
+                    logger.info(f"Column {col} moved to end for file source {mp_filesrc}.")
                 else:
                     logger.info(f"Column {col} not found in DataFrame.")
         return df
@@ -678,6 +683,7 @@ class CDataProcess:
             for col in feat_col:
                 if col in df.columns:
                     df = self.move_col_to_end(df, col)
+                    logger.info(f"Column {col} moved to end for file source {mp_filesrc}.")
                 else:
                     logger.info(f"Column {col} not found in DataFrame.")
         return df
@@ -827,6 +833,14 @@ class CDataProcess:
         logger.info(f"Data Process Move Scaled Feature Column to End start: {self.df_name}")
         self.ldf = self.move_feat_col_to_end_scaled(df=self.ldf, df_name=self.df_name)
         logger.info(f"Data Process Move Scaled Feature Column to End end: {self.df_name} with shape: {self.ldf.shape}")
+
+        logger.info(f"Data Process Add Line Numbers start: {self.df_name}")
+        self.ldf = self.add_line_numbers(self.ldf)
+        logger.info(f"Data Process Add Line Numbers end: {self.df_name} with shape: {self.ldf.shape}")
+      
+        logger.info(f"Data Process Create Index Column start: {self.df_name}")
+        self.ldf = self.create_index_column(self.ldf)
+        logger.info(f"Data Process Create Index Column end: {self.df_name} with shape: {self.ldf.shape}")
 
         return self.ldf
 

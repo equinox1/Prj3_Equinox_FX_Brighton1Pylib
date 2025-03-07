@@ -25,6 +25,7 @@ os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
+
 # +-------------------------------------------------------------------
 # STEP: Import standard Python packages
 # +-------------------------------------------------------------------
@@ -185,12 +186,13 @@ def main(logger):
         utils_config.run_mql_print(df=df_file_ticks, df_name='df_file_ticks', hrows=hrows, colwidth=hwidth, app='data procesing')
         utils_config.run_mql_print(df=df_file_rates, df_name='df_file_rates', hrows=hrows, colwidth=hwidth, app='data procesing')
 
-       
-        """
+        datafile = df_file_rates
+
+        
+     
         # +-------------------------------------------------------------------
         # STEP: add The time index to the data
         # +-------------------------------------------------------------------
-        # datafile = data_process_config.create_index_column(datafile)
         # Limit the columns to just the time column and all features
         column_features = datafile.columns[1:]
         logger.info(f"Column Features: {column_features}")
@@ -229,7 +231,8 @@ def main(logger):
         tf_batch_size = ml_params.get('tf_batch_size', 32)
         # Preprocess to avoid datetime columns
         logger.info(f"X_train: {X_train.shape}, X_val: {X_val.shape}, X_test: {X_test.shape}")
-
+      
+        """
         # Convert to TensorFlow datasets
         train_dataset, val_dataset, test_dataset = ml_process_config.convert_to_tfds(X_train, y_train, X_val, y_val, X_test, y_test, batch_size=tf_batch_size)
         logger.info(f"Train Dataset: {train_dataset}, Val Dataset: {val_dataset}, Test Dataset: {test_dataset}")
@@ -241,7 +244,7 @@ def main(logger):
         input_shape = X_train.shape[1:]  # Shape of a single sample (time_steps, features)
         label_shape = y_train.shape[1:]  # Shape of a single label (future_steps)
          
-   
+      
          # +-------------------------------------------------------------------
          # STEP: Tune best model Hyperparameter tuning and model setup
          # +-------------------------------------------------------------------

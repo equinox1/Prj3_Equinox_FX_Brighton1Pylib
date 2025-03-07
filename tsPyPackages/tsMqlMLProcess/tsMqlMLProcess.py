@@ -17,49 +17,58 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+# Import platform dependencies
 from tsMqlPlatform import run_platform, platform_checker, logger
-from tsMqlEnvMgr import CMqlEnvMgr  # Ensure this exists
-from tsMqlMLParams import CMqlEnvMLParams  # Ensure this exists
-from tsMqlMLTunerParams import CMqlEnvMLTunerParams  # Ensure this exists
-
-# Set up logger if not already configured
-if not logging.getLogger().hasHandlers():
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+from tsMqlEnvMgr import CMqlEnvMgr
+from tsMqlOverrides import CMqlOverrides
 
 # Initialize platform checker
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
-logger.info("Running on: %s, loadmql state: %s", os_platform, loadmql)
+logger.info(f"Running on: {os_platform}, loadmql state: {loadmql}")
+
 
 class CDMLProcess:
     def __init__(self, **kwargs):
         """Initialize data processing class."""
-        self.env = CMqlEnvMgr()
-        self.mlconfig = CMqlEnvMLParams()
-        self.ml_tune_config = CMqlEnvMLTunerParams()
-        
-        self.mt5 = None
-        if loadmql:
-            try:
-                import MetaTrader5 as mt5
-                self.mt5 = mt5
-                if not self.mt5.initialize():
-                    logger.error("Failed to initialize MetaTrader5: %s", self.mt5.last_error())
-            except ImportError:
-                logger.error("MetaTrader5 module not found. Exiting...")
-                sys.exit(1)
+        # Initialize print parameters
+        self.colwidth = kwargs.get('colwidth', 20)
+        self.hrows = kwargs.get('hrows', 5)
 
+        # Local data parameters
+        self.lp_utc_from = kwargs.get('lp_utc_from', datetime.utcnow())
+        self.lp_utc_to = kwargs.get('lp_utc_to', datetime.utcnow())
+        self.mp_unit = kwargs.get('UNIT', {})
+
+        # Initialize run state parameters
+        self._initialize_mql()
         self._set_envmgr_params(kwargs)
-        self._set_ml_params(kwargs)
         self._set_global_parameters(kwargs)
+        self._set_ml_features(kwargs)
+
+    def _initialize_mql(self):
+        """Initialize MetaTrader5 module if available."""
+        self.os_platform = platform_checker.get_platform()
+        self.loadmql = pchk.check_mql_state()
+        logger.info(f"Running on: {self.os_platform}, loadmql state: {self.loadmql}")
+
+        if self.loadmql:
+            try:
+                global mt5
+                import MetaTrader5 as mt5
+                if not mt5.initialize():
+                    logger.error(f"Failed to initialize MetaTrader5. Error: {mt5.last_error()}")
+            except ImportError as e:
+                logger.error(f"Failed to import MetaTrader5: {e}")
 
     def _set_envmgr_params(self, kwargs):
-        try:
-            self.params = self.env.all_params()
-        except Exception as e:
-            logger.critical("Failed to initialize CMqlEnvMgr: %s", e)
-            self.params = {}
+        """Extract environment parameters."""
+        override_config = CMqlOverrides()
+        self.params = override_config.env.all_params()
+        logger.info(f"All Parameters: {self.params}")
+        self.params_sections = self.params.keys()
+        logger.info(f"PARAMS SECTIONS: {self.params_sections}")
 
         self.base_params = self.params.get("base", {})
         self.data_params = self.params.get("data", {})
@@ -67,24 +76,97 @@ class CDMLProcess:
         self.mltune_params = self.params.get("mltune", {})
         self.app_params = self.params.get("app", {})
 
-    def _set_ml_params(self, kwargs):
-        try:
-            self.FEATURES_PARAMS = self.mlconfig.get_features_params() or {}
-            self.WINDOW_PARAMS = self.mlconfig.get_window_params() or {}
-            self.DEFAULT_PARAMS = self.mlconfig.get_default_params() or {}
-            self.TUNER_DEFAULT_PARAMS = self.ml_tune_config.get_default_params() or {}
-        except Exception as e:
-            logger.error("Error loading ML parameters: %s", e)
-            self.FEATURES_PARAMS, self.WINDOW_PARAMS, self.DEFAULT_PARAMS, self.TUNER_DEFAULT_PARAMS = {}, {}, {}, {}
-
     def _set_global_parameters(self, kwargs):
-        self.timeval = kwargs.get('timeval', 1)
-        self.colwidth = kwargs.get('colwidth', 20)
-        self.hrows = kwargs.get('hrows', 5)
-        
-        self.feature1 = self.FEATURES_PARAMS.get("Feature1", "KeyFeature")
-        self.feature1_scaled = self.FEATURES_PARAMS.get("Feature1_scaled", "KeyFeature_Scaled")
-        self.label = self.FEATURES_PARAMS.get("Label1", "Label")
+        """Set configuration parameters from environment or user input."""
+        # Implementation of global parameter setting as required.
+        pass
+
+    def _set_ml_features(self, kwargs):
+        """Extract and set machine learning features."""
+        # Get feature configuration dictionary, if available
+        ml_features_config = self.ml_params.get('mp_features', {})
+
+        # Explicitly get Feature1 column from ml_params or fallback to configuration or default value.
+        self.feature1 = self.ml_params.get('Feature1', ml_features_config.get('Feature1', 'Feature1'))
+        logger.info("Feature1: %s", self.feature1)
+
+        # Explicitly get the scaled Feature1 column
+        self.feature1_scaled = self.ml_params.get('Feature1_scaled', ml_features_config.get('Feature1_scaled', 'Feature1_Scaled'))
+        logger.info("Feature1_scaled: %s", self.feature1_scaled)
+
+        # Explicitly get the label column
+        self.label = self.ml_params.get('Label1', ml_features_config.get('Label1', 'Label'))
+        logger.info("Label: %s", self.label)
+
+        # Set input keys for the machine learning pipeline
+        self.mp_ml_input_keyfeat = self.feature1
+        self.mp_ml_input_keyfeat_scaled = self.feature1_scaled
+        self.mp_ml_input_label = self.label
+
+        logger.info("Machine learning features configuration: %s", ml_features_config)
+        logger.info("Machine learning input key feature: %s", self.mp_ml_input_keyfeat)
+        logger.info("Machine learning input key feature scaled: %s", self.mp_ml_input_keyfeat_scaled)
+        logger.info("Machine learning input label: %s", self.mp_ml_input_label)
+
+        # File parameters
+        self.rownumber = self.ml_params.get('mp_rownumber', False)
+        self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default1.csv')
+        self.mp_data_filename2 = self.params.get('data', {}).get('mp_data_filename2', 'default2.csv')
+
+        logger.info("Data filename1: %s", self.mp_data_filename1)
+        logger.info("Data filename2: %s", self.mp_data_filename2)
+        logger.info("Row number: %s", self.rownumber)
+
+        # Machine learning parameters
+        self.lookahead_periods = self.params.get('ml', {}).get('mp_lookahead_periods', 1)
+        self.ma_window = self.params.get('ml', {}).get('mp_ml_tf_ma_windowin', 10)
+        self.hl_avg_col = self.params.get('ml', {}).get('mp_ml_hl_avg_col', 'HL_Avg')
+        self.ma_col = self.params.get('ml', {}).get('mp_ml_ma_col', 'MA')
+        self.returns_col = self.params.get('ml', {}).get('mp_ml_returns_col', 'Returns')
+        self.shift_in = self.params.get('ml', {}).get('mp_ml_tf_shiftin', 1)
+
+        # Fixed keys (removed extra quotes)
+        self.run_avg = self.params.get('ml', {}).get('mp_ml_run_avg', False)
+        self.run_avg_scaled = self.params.get('ml', {}).get('mp_ml_run_avg_scaled', False)
+        self.log_stationary = self.params.get('ml', {}).get('mp_ml_log_stationary', False)
+        self.remove_zeros = self.params.get('ml', {}).get('mp_ml_remove_zeros', False)
+
+        self.last_col = self.params.get('ml', {}).get('mp_ml_last_col', False)
+        self.last_col_scaled = self.params.get('ml', {}).get('mp_ml_last_col_scaled', False)
+        self.first_col = self.params.get('ml', {}).get('mp_ml_first_col', False)
+        self.mp_ml_dropna = self.params.get('ml', {}).get('mp_ml_dropna', False)
+        self.mp_ml_dropna_scaled = self.params.get('ml', {}).get('mp_ml_dropna_scaled', False)
+
+        self.create_label = self.params.get('ml', {}).get('mp_ml_create_label', False)
+        self.create_label_scaled = self.params.get('ml', {}).get('mp_ml_create_label_scaled', False)
+
+        logger.info("Lookahead periods: %s", self.lookahead_periods)
+        logger.info("Moving average window: %s", self.ma_window)
+        logger.info("High-low average column: %s", self.hl_avg_col)
+        logger.info("Moving average column: %s", self.ma_col)
+        logger.info("Returns column: %s", self.returns_col)
+        logger.info("Shift in: %s", self.shift_in)
+        logger.info("Run average: %s", self.run_avg)
+        logger.info("Run average scaled: %s", self.run_avg_scaled)
+        logger.info("Log stationary: %s", self.log_stationary)
+        logger.info("Remove zeros: %s", self.remove_zeros)
+        logger.info("Last column: %s", self.last_col)
+        logger.info("Last column scaled: %s", self.last_col_scaled)
+        logger.info("First column: %s", self.first_col)
+        logger.info("Create label: %s", self.create_label)
+        logger.info("Create label scaled: %s", self.create_label_scaled)
+
+        # Data parameters
+        self.rownumber = self.params.get('data', {}).get('mp_data_rownumber', False)
+        self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('mp_data_rows', 1000))
+        self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
+
+        # Derived filenames
+        self.mp_glob_data_path = kwargs.get('mp_glob_data_path', self.params.get('base', {}).get('mp_glob_data_path', 'Mql5Data'))
+        self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
+        self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
+
+   
 
     def get_feature_columns(self,feature_name = "Feature1"):
         return_value = self.FEATURES_PARAMS.get(feature_name, None)
