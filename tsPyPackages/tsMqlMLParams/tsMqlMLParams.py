@@ -22,9 +22,10 @@ class CMqlEnvMLParams(CEnvCore):
             "mp_ml_cfg_period3": 1,   # Hours
             "mp_ml_cfg_period": 24,   # Hours
             "mp_ml_tf_ma_windowin": 24,  # Hours
-            "pasttimeperiods": 24,
-            "futuretimeperiods": 24,
-            "predtimeperiods": 1,
+            "mp_ml_pasttimeperiods": 24,
+            "mp_ml_futuretimeperiods": 24,
+            "mp_ml_predtimeperiods": 1,
+            "mp_ml_lookahead_periods": 24,
         }
 
         self.FEATURES_PARAMS = {
