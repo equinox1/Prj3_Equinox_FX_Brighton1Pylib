@@ -212,7 +212,6 @@ def main(logger):
         utils_config.run_mql_print(df=df_api_rates, df_name='df_api_rates', hrows=hrows, colwidth=hwidth, app='data processing')
         utils_config.run_mql_print(df=df_file_ticks, df_name='df_file_ticks', hrows=hrows, colwidth=hwidth, app='data processing')
         utils_config.run_mql_print(df=df_file_rates, df_name='df_file_rates', hrows=hrows, colwidth=hwidth, app='data processing')
-
         datafile = df_file_rates
         # Further processing or model training could occur here.
 

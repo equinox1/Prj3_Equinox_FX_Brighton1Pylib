@@ -487,6 +487,7 @@ class CDataProcess:
         """
         def rename_columns(df: pd.DataFrame, var_from_to: dict) -> None:
             valid_renames = {old: new for old, new in var_from_to.items() if old in df.columns}
+            logger.info(f"Renaming columns {valid_renames} for {mp_filesrc}")
             df.rename(columns=valid_renames, inplace=True)
 
         def merge_datetime(df: pd.DataFrame, col_date: str, col_time: str,
@@ -500,9 +501,11 @@ class CDataProcess:
                         format='%Y-%m-%d %H:%M:%S.%f', errors='coerce', utc=True
                     )
                     df.drop([col_date, col_time], axis=1, inplace=True)
+                    logger.info("Dropped columns %s and %s", col_date, col_time)
                     # Reorder columns to place datetime first
                     datetime_col = merged_col if merged_col in df.columns else df.columns[0]
                     df = df[[datetime_col] + [col for col in df.columns if col != datetime_col]]
+                    logger.info("Reordered columns to place datetime column first.")
                 except Exception as e:
                     logger.error(f"Error merging columns {col_date} and {col_time} for {mp_filesrc}: {e}")
             return df
@@ -510,7 +513,7 @@ class CDataProcess:
         def resort_columns(df: pd.DataFrame, merged_col: str) -> pd.DataFrame:
             if merged_col in df.columns:
                 df = df[[merged_col] + [col for col in df.columns if col != merged_col]]
-                logger.info("Reordered columns to place datetime column first.")
+                logger.info("Reordered columns to place datetime column first. {merged_col}")
             return df
 
         def convert_datetime(df: pd.DataFrame, column: str, fmt: str = None,
