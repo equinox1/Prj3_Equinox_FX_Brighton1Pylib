@@ -1,6 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-#!/usr/bin/env python3 - uncomment for linux run
-# -*- coding: utf-8 -*-  - uncomment for linux run
 Filename: environment_managers.py
 File: tsPyPackages/tsMqlGlobalParams/src/tsMqlGlobalParams/environment_managers.py
 Description: Set global environment parameters.
@@ -51,9 +51,8 @@ class CMqlEnvMgr:
         for category, params in new_params.items():
             logger.info(f"Overriding {category} parameters: {params}")
             if category in self.env_params:
-                logger.info(f"Overriding {category} parameters: {params}")
                 self.env_params[category].update(params)
-                logger.info(f"Overridden {category} parameters: {params}")
+                logger.info(f"Overridden {category} parameters: {self.env_params[category]}")
 
     def split_params(self, *categories):
         """Retrieve only selected parameter categories."""

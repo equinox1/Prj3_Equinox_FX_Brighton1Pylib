@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # +------------------------------------------------------------------+
 # |                                                 neuropredict2.py |
 # |                                                    Tony Shepherd |
@@ -7,136 +8,155 @@
 # property link      "https://www.xercescloud.co.uk"
 # property version   "1.01"
 # +------------------------------------------------------------------+
+
 # STEP: Platform settings
 # +-------------------------------------------------------------------
-# log timeframe h4 in the data parameters and override the default values
-# log where to src lp-timeframe
-# log override params to file
-# gpu and tensor platform
+# Log timeframe h4 in the data parameters and override the default values
+# Log where to src lp-timeframe
+# Log override params to file
+# GPU and tensor platform
+
 from tsMqlSetup import CMqlSetup
 import logging
+
 # Initialize logger
 logger = logging.getLogger("Main")
 logging.basicConfig(level=logging.INFO)
 
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
+
+# Initialize platform checker and state
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
-
 # +-------------------------------------------------------------------
 # STEP: Import standard Python packages
 # +-------------------------------------------------------------------
-# System packages
 import os
 import pathlib
 from pathlib import Path
 import json
 from datetime import datetime, date
 import pytz
+
 # Data packages
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
+
 from dataclasses import dataclass
+
 # Machine Learning packages
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
-# set package options
+
+# Set package options
 feature_scaler = MinMaxScaler()
 label_scaler = MinMaxScaler()
-# Equinox environment manager
+
+# Equinox environment manager and custom modules
 from tsMqlEnvMgr import CMqlEnvMgr
 from tsMqlOverrides import CMqlOverrides
 from tsMqlUtilities import CUtilities
-#Reference class
 from tsMqlReference import CMqlRefConfig
-# Equinox sub packages
 from tsMqlConnect import CMqlBrokerConfig
 from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
-# Equinox ML packages
 from tsMqlMLTune import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
-# Setup the logging and tensor platform dependencies
+# Setup logging and tensor platform dependencies
 obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
 strategy = obj1_CMqlSetup.get_computation_strategy()
-# format values
+
+# Format values for data table display
 mp_data_tab_rows = 5
 mp_data_tab_width = 30
-hrows=mp_data_tab_rows
-hwidth=mp_data_tab_width
+hrows = mp_data_tab_rows
+hwidth = mp_data_tab_width
+
 # +-------------------------------------------------------------------
 # STEP: End of driving parameters
 # +-------------------------------------------------------------------
 
 def main(logger):
+    # Ensure that the TensorFlow strategy scope is used
     with strategy.scope():
-
         # +----------------------------------------------------------
-        # STEP: setup environment
+        # STEP: Setup environment
         # +----------------------------------------------------------
-        # Usage:env = EnvManager(custom_params={"ml": {"epochs": 20}}) ,logger.info("ML Epochs:", env.get_param("ml", "epochs"))
-        # env.override_params({"base": {"learning_rate": 0.005}}) ,logger.info("Updated Learning Rate:", env.get_param("base", "learning_rate"))
         utils_config = CUtilities()
         
-        # Use the environment manager from the override instance
-        override_config = CMqlOverrides()
-        params = override_config.env.all_params()
-        logger.info(f"All Parameters: {params}")
-      
-        # Ensure sections exist
-        params_sections = params.keys()
-        logger.info(f"PARAMS SECTIONS: {params_sections}")
+        # Set up logging for demonstration purposes
+        logging.basicConfig(level=logging.INFO)
+         
+        # Create an instance of the CMqlOverrides class using the config file
+        mql_overrides = CMqlOverrides("config.yaml")
+         
+        # Retrieve overridden parameters for inspection using the "params" attribute
+        data_params = mql_overrides.params.get("data", {})
+        feat_params = mql_overrides.params.get("feat", {})
+        ml_params = mql_overrides.params.get("ml", {})
+        mltune_params = mql_overrides.params.get("mltune", {})
+        app_params = mql_overrides.params.get("app", {})
+         
+        print("Data Parameters:")
+        for key, value in data_params.items():
+            print(f"  {key}: {value}")
+         
+        print("\nFeature Parameters:")
+        for key, value in feat_params.items():
+            print(f"  {key}: {value}")
+         
+        print("\nML Parameters:")
+        for key, value in ml_params.items():
+            print(f"  {key}: {value}")
+         
+        print("\nML Tuning Parameters:")
+        for key, value in mltune_params.items():
+            print(f"  {key}: {value}")
 
-        base_params = params.get("base", {})
-        data_params = params.get("data", {})
-        ml_params = params.get("ml", {})
-        mltune_params = params.get("mltune", {})
-        app_params = params.get("app", {})
-        logger.info(f"Base Params: {base_params} , Data Params: {data_params}, ML Params: {ml_params}, ML Tune Params: {mltune_params}, App Params: {app_params}")
-        logger.info(f"ml:Main: mp_ml_last_col: {ml_params.get('mp_ml_last_col')}")
-        logger.info(f"ml:Main: mp_ml_first_col: {ml_params.get('mp_ml_first_col')}")
+        print("\nApp Parameters:")
+        for key, value in app_params.items():
+            print(f"  {key}: {value}")
 
         # +-------------------------------------------------------------------
         # STEP: Load Reference class and time variables
         # +-------------------------------------------------------------------
-
-        # Timeframes Reference class
         lp_timeframe_name = data_params.get('mp_data_timeframe', 'H4')
 
         reference_config = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
-        #Symbol Constants
+        # Symbol Constants
         PRIMARY_SYMBOL = app_params.get('lp_app_primary_symbol', app_params.get('mp_app_primary_symbol', 'EURUSD'))
-        SECONDARY_SYMBOL = app_params.get('lp_app_secondary_symbol', app_params.get('mp_app_primary_symbol','EURCHF'))
+        SECONDARY_SYMBOL = app_params.get('lp_app_secondary_symbol', app_params.get('mp_app_primary_symbol', 'EURCHF'))
         # Time Constants
-        UNIT=reference_config.TIME_CONSTANTS["UNIT"]["SECOND"]
+        UNIT = reference_config.TIME_CONSTANTS["UNIT"]["SECOND"]
         MINUTE = reference_config.get_timevalue('MINUTE')
         HOUR = reference_config.get_timevalue('HOUR')
         DAY = reference_config.get_timevalue('DAY')
         # Current Time Constants
-        CURRENTDAY = reference_config.get_current_time()["CURRENTDAY"]
-        CURRENTMONTH = reference_config.get_current_time()["CURRENTMONTH"]
-        CURRENTYEAR = reference_config.get_current_time()["CURRENTYEAR"]
-   
+        CURRENT_TIME = reference_config.get_current_time()
+        CURRENTDAY = CURRENT_TIME["CURRENTDAY"]
+        CURRENTMONTH = CURRENT_TIME["CURRENTMONTH"]
+        CURRENTYEAR = CURRENT_TIME["CURRENTYEAR"]
+
         # Mql Time Constants
-        TIMEZONE = reference_config.get_current_time()["TIMEZONE"]
-        TIMEFRAME = reference_config.get_current_time()["TIMEFRAME"]
-        timeval = HOUR # hours # used in the window creation
+        TIMEZONE = CURRENT_TIME["TIMEZONE"]
+        TIMEFRAME = CURRENT_TIME["TIMEFRAME"]
+        timeval = HOUR  # hours, used in the window creation
         logger.info(f"Timezone: {TIMEZONE}")
-        logger.info(f"Timeframe: {TIMEFRAME}") 
+        logger.info(f"Timeframe: {TIMEFRAME}")
 
         # Fetch individual parameters safely
-       
-        rows =  data_params.get('mp_data_rows', 1000)
+        rows = data_params.get('mp_data_rows', 1000)
         rowcount = data_params.get('mp_data_rowcount', 10000)
         logger.info(f"Timeframe Name: {lp_timeframe_name}, Rows: {rows}, Rowcount: {rowcount}")
+
         # +-------------------------------------------------------------------
         # STEP: CBroker Login
         # +-------------------------------------------------------------------
@@ -147,49 +167,57 @@ def main(logger):
             logger.info("Successfully logged in to MetaTrader 5.")
         else:
             logger.info(f"Failed to login. Error code: {mqqlobj}")
+
         # +-------------------------------------------------------------------
-        # STEP: initiate the data loader and data process classes
+        # STEP: Initiate the data loader and data process classes
         # +-------------------------------------------------------------------
         # Retrieve broker file paths
         data_loader_config = CDataLoader()
         data_process_config = CDataProcess(mp_unit=UNIT)
         ml_process_config = CDMLProcess()
+
         # +-------------------------------------------------------------------
         # STEP: Data loading and processing
         # +-------------------------------------------------------------------
-        # Set the data history size
-        mp_data_history_size = data_params.get('mp_data_history_size')
+        mp_data_history_size = data_params.get('mp_data_history_size', 1)  # Default to 1 if not set
         # Set the UTC time for the data
         mv_data_utc_from = data_loader_config.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAY, TIMEZONE)
         mv_data_utc_to = data_loader_config.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAY, TIMEZONE)
-        logger.info(f"Main:UTC From: {mv_data_utc_from}")
-        logger.info(f"Main:UTC To: {mv_data_utc_to}")
-       
+        logger.info(f"Main: UTC From: {mv_data_utc_from}")
+        logger.info(f"Main: UTC To: {mv_data_utc_to}")
+
         # Load the data
-        data_loader_config = CDataLoader(lp_utc_from=mv_data_utc_from, lp_utc_to=mv_data_utc_to, lp_timeframe=lp_timeframe_name, lp_app_primary_symbol=PRIMARY_SYMBOL, lp_app_rows=rows, lp_app_rowcount=rowcount)
+        data_loader_config = CDataLoader(
+            lp_utc_from=mv_data_utc_from,
+            lp_utc_to=mv_data_utc_to,
+            lp_timeframe=lp_timeframe_name,
+            lp_app_primary_symbol=PRIMARY_SYMBOL,
+            lp_app_rows=rows,
+            lp_app_rowcount=rowcount
+        )
         df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader_config.run_dataloader_services()
-        logger.info(f"Loaded: Data API Ticks: {df_api_ticks.shape}, Data API Rates: {df_api_rates.shape}, Data File Ticks: {df_file_ticks.shape}, Data File Rates: {df_file_rates.shape}")        
-                   
+        logger.info(f"Loaded: Data API Ticks: {df_api_ticks.shape}, Data API Rates: {df_api_rates.shape}, "
+                    f"Data File Ticks: {df_file_ticks.shape}, Data File Rates: {df_file_rates.shape}")
+
         # +-------------------------------------------------------------------
         # STEP: Run data process manipulation
         # +-------------------------------------------------------------------
-        df_api_ticks= data_process_config.run_dataprocess_services(df=df_api_ticks,df_name='df_api_ticks')
-        df_api_rates= data_process_config.run_dataprocess_services(df=df_api_rates,df_name='df_api_rates')
-        df_file_ticks= data_process_config.run_dataprocess_services(df=df_file_ticks,df_name='df_file_ticks')
-        df_file_rates= data_process_config.run_dataprocess_services(df=df_file_rates,df_name='df_file_rates')
-           
-        # +-------------------------------------------------------------------
-        # STEP: Run data process manipulation
-        # +-------------------------------------------------------------------  
-        utils_config.run_mql_print(df=df_api_ticks, df_name='df_api_ticks', hrows=hrows, colwidth=hwidth, app='data procesing')
-        utils_config.run_mql_print(df=df_api_rates, df_name='df_api_rates', hrows=hrows, colwidth=hwidth, app='data procesing')
-        utils_config.run_mql_print(df=df_file_ticks, df_name='df_file_ticks', hrows=hrows, colwidth=hwidth, app='data procesing')
-        utils_config.run_mql_print(df=df_file_rates, df_name='df_file_rates', hrows=hrows, colwidth=hwidth, app='data procesing')
+        df_api_ticks = data_process_config.run_dataprocess_services(df=df_api_ticks, df_name='df_api_ticks')
+        df_api_rates = data_process_config.run_dataprocess_services(df=df_api_rates, df_name='df_api_rates')
+        df_file_ticks = data_process_config.run_dataprocess_services(df=df_file_ticks, df_name='df_file_ticks')
+        df_file_rates = data_process_config.run_dataprocess_services(df=df_file_rates, df_name='df_file_rates')
+
+        # Log processed data summaries
+        utils_config.run_mql_print(df=df_api_ticks, df_name='df_api_ticks', hrows=hrows, colwidth=hwidth, app='data processing')
+        utils_config.run_mql_print(df=df_api_rates, df_name='df_api_rates', hrows=hrows, colwidth=hwidth, app='data processing')
+        utils_config.run_mql_print(df=df_file_ticks, df_name='df_file_ticks', hrows=hrows, colwidth=hwidth, app='data processing')
+        utils_config.run_mql_print(df=df_file_rates, df_name='df_file_rates', hrows=hrows, colwidth=hwidth, app='data processing')
 
         datafile = df_file_rates
+        # Further processing or model training could occur here.
 
         
-     
+        """
         # +-------------------------------------------------------------------
         # STEP: add The time index to the data
         # +-------------------------------------------------------------------
@@ -233,7 +261,7 @@ def main(logger):
         # Preprocess to avoid datetime columns
         logger.info(f"X_train: {X_train.shape}, X_val: {X_val.shape}, X_test: {X_test.shape}")
       
-        """
+    
         # Convert to TensorFlow datasets
         train_dataset, val_dataset, test_dataset = ml_process_config.convert_to_tfds(X_train, y_train, X_val, y_val, X_test, y_test, batch_size=tf_batch_size)
         logger.info(f"Train Dataset: {train_dataset}, Val Dataset: {val_dataset}, Test Dataset: {test_dataset}")
