@@ -1,4 +1,196 @@
 # config.yaml
-# This file contains the configuration settings for the tsMqlOverrides package
-# This file is used to set the global variables for the package
+# Configuration settings for tsMqlOverrides package.
+# data: Data settings for data loading and processing
+mp_data_load: False
+mp_data_save: False
+mp_data_savefile: False
+mp_data_rownumber: False
+mp_data_data_label: 3
+mp_data_history_size: 5
+mp_data_timeframe: 'mt5.TIMEFRAME_H4'
+mp_data_tab_rows: 10
+mp_data_tab_width: 30
+mp_data_show_dtype: False
+mp_data_show_head: False
+mp_data_command_ticks: null
+mp_data_command_rates: null
+mp_data_cfg_usedata: 'loadfilerates'
+mp_data_loadapiticks: True
+mp_data_loadapirates: True
+mp_data_loadfileticks: True
+mp_data_loadfilerates: True
+mv_data_dfname1: 'df_rates1'
+mv_data_dfname2: 'df_rates2'
+mp_data_rows: 1000
+mp_data_rowcount: 10000
+mp_data_filename1: 'tickdata1'
+mp_data_filename2: 'ratesdata1'
 
+# Data filter settings for different data sources
+df1:
+  filter_int: False
+  filter_flt: False
+  filter_obj: False
+  filter_dtmi: False
+  filter_dtmf: False
+  dropna: True
+  merge: False
+  convert: False
+  drop: False
+
+df2:
+  filter_int: False
+  filter_flt: False
+  filter_obj: False
+  filter_dtmi: False
+  filter_dtmf: False
+  dropna: True
+  merge: False
+  convert: False
+  drop: False
+
+df3:
+  filter_int: False
+  filter_flt: False
+  filter_obj: False
+  filter_dtmi: False
+  filter_dtmf: False
+  dropna: True
+  merge: True
+  convert: True
+  drop: True
+
+df4:
+  filter_int: False
+  filter_flt: False
+  filter_obj: False
+  filter_dtmi: False
+  filter_dtmf: True
+  dropna: True
+  merge: True
+  convert: True
+  drop: True
+
+# Api ML Settings
+WINDOW_PARAMS:
+  mp_ml_cfg_period1: 24
+  mp_ml_cfg_period2: 6
+  mp_ml_cfg_period3: 1
+  mp_ml_cfg_period: 24
+  mp_ml_tf_ma_windowin: 24
+  mp_ml_pasttimeperiods: 24
+  mp_ml_futuretimeperiods: 24
+  mp_ml_predtimeperiods: 1
+  mp_ml_lookahead_periods: 24
+
+FEATURES_PARAMS:
+  mp_ml_input_keyfeat: "Close"
+  Feature1: "Close"
+  Feature2: "High"
+  Feature3: "Low"
+  Feature4: "Open"
+  Feature5: "Volume"
+  Feature6: "HLAvg"
+  Feature7: "SMA"
+  Feature8: "LogReturns"
+  mp_ml_input_keyfeat_scaled: "Close_Scaled"
+  Feature1_scaled: "Close_Scaled"
+  Feature2_scaled: "High_Scaled"
+  Feature3_scaled: "Low_Scaled"
+  Feature4_scaled: "Open_Scaled"
+  Feature5_scaled: "Volume_Scaled"
+  Feature6_scaled: "HLAvg_Scaled"
+  Feature7_scaled: "SMA_Scaled"
+  Feature8_scaled: "LogReturns_Scaled"
+  mp_ml_output_label: "Label"
+  mp_ml_output_label_scaled: "Label_Scaled"
+  Label1: "Label"
+  Label1_Scaled: "Label_Scaled"
+  Label2: "Target"
+  Label2_Scaled: "Target_Scaled"
+
+ML_PARAMS:
+  mp_ml_tf_shiftin: 1
+  mp_ml_hl_avg_col: 'HLAvg'
+  mp_ml_ma_col: 'SMA'
+  mp_ml_returns_col: 'LogReturns'
+  mp_ml_returns_col_scaled: 'LogReturns_scaled'
+  mp_ml_create_label: True
+  mp_ml_create_label_scaled: False
+  mp_ml_run_avg: True
+  mp_ml_run_avg_scaled: True
+  mp_ml_run_ma: True
+  mp_ml_run_ma_scaled: True
+  mp_ml_run_returns: True
+  mp_ml_run_returns_scaled: True
+  mp_ml_run_returns_shifted: True
+  mp_ml_run_returns_shifted_scaled: True
+  mp_ml_run_label: True
+  mp_ml_run_label_scaled: True
+  mp_ml_run_label_shifted: True
+  mp_ml_run_label_shifted_scaled: True
+  mp_ml_log_stationary: True
+  mp_ml_remove_zeros: True
+  mp_ml_last_col: True
+  mp_ml_last_col_scaled: True
+  mp_ml_first_col: True
+  mp_ml_dropna: True
+  mp_ml_dropna_scaled: True
+
+# ML Tuning Settings
+ML_TUNING_PARAMS:
+  mp_ml_tunemode: True
+  tunemodeepochs: 100
+  seed: 42
+  tuner_id: 1
+  train_split: 0.7
+  validation_split: 0.2
+  test_split: 0.1
+  batch_size: 8
+  input_width: 24
+  shift: 24
+  total_window_size: 48
+  label_width: 1
+  keras_tuner: "Hyperband"
+  hyperband_iterations: 1
+  max_epochs: 100
+  min_epochs: 10
+  epochs: 2
+  num_trials: 3
+  overwrite: True
+  optimizer: "adam"
+  loss: "mean_squared_error"
+  metrics:
+    - "mean_squared_error"
+  dropout: 0.2
+  units: 32
+  activation: "relu"
+
+APP_PARAMS:
+  mp_app_primary_symbol: "EURUSD"  # Corrected typo
+  mp_app_secondary_symbol: "EURCHF"
+  mp_app_broker: "METAQUOTES"
+  mp_app_server: ""
+  mp_app_timeout: 60000
+  mp_app_portable: True
+  mp_app_env: "demo"
+  mp_app_dfname1: "df_rates1"
+  mp_app_dfname2: "df_rates2"
+  mp_app_cfg_usedata: 'df_file_rates' #  df_api_ticks, df_api_rates, df_file_ticks, df_file_rates
+  mp_app_rows: 2000
+  mp_app_rowcount: 10000
+  mp_app_ONNX_save: False
+  mp_app_ml_show_plot: False
+  mp_app_ml_hard_run: True
+  mp_app_ml_tunemode: True
+  mp_app_ml_tunemodeepochs: True
+  mp_app_ml_Keras_tuner: 'hyperband'
+  mp_app_ml_batch_size: 4
+  mp_app_ml_all_modelscale: 2
+  mp_app_ml_cnn_modelscale: 2
+  mp_app_ml_lstm_modelscale: 2
+  mp_app_ml_gru_modelscale: 2
+  mp_app_trans_modelscale: 2
+  mp_app_transh_modelscale: 1
+  mp_app_transff_modelscale: 4
+  mp_app_dense_modelscale: 2
