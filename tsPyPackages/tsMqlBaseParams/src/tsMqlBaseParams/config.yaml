@@ -12,11 +12,13 @@ mp_glob_dir1: '8.0 Projects'
 mp_glob_dir2: '8.3 ProjectModelsEquinox'
 mp_glob_data_subdir: 'Mql5Data'
 
+
 # Project Information
 
 # Machine Learning Paths
 mp_glob_ml_src_lib: 'PythonLib'
 mp_glob_ml_src_modeldata: 'tsModelData'
+mp_glob_ml_src_configdata: 'tsConfigData'
 mp_glob_ml_directory: 'tshybrid_ensemble_tuning_prod'
 mp_glob_ml_model_name: 'prjEquinox1_prod.keras'
 mp_glob_ml_baseuniq: '1'
