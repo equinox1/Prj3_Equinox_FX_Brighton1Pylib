@@ -93,6 +93,7 @@ def main(logger):
         utils_config = CUtilities()
                  
         # Retrieve overridden parameters for inspection using the "params" attribute
+        mql_overrides = CMqlOverrides()
         data_params = mql_overrides.params.get("data", {})
         feat_params = mql_overrides.params.get("feat", {})
         ml_params = mql_overrides.params.get("ml", {})
