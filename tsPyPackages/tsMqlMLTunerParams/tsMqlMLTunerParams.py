@@ -134,6 +134,9 @@ class CMqlEnvMLTunerParams(CEnvCore):
         # Base path for file operations.
         self.base_path: str = kwargs.get('base_path', os.getcwd())
 
+        # Update the internal parameter dictionary with all default tuner parameters.
+        self.params.update(self.get_default_params())
+
     def get_tuner_params(self) -> Dict[str, Any]:
         """
         Retrieve tuner-specific parameters from the environment.
