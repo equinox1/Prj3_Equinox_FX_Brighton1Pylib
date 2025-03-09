@@ -100,17 +100,17 @@ class CDMLProcess:
         # Get feature configuration dictionary, if available
         self.ml_features_config = self.ml_params.get('mp_features', {})
 
-        # Explicitly get Feature1 column from ml_params or fallback to configuration or default value.
-        self.feature1 = self.ml_params.get('Feature1', self.ml_features_config.get('Feature1', 'Feature1'))
-        if self.feature1 is None:
-            self.feature1 = 'Feature1'
-        logger.info("Feature1: %s", self.feature1)
+        # Explicitly get feature4 column from ml_params or fallback to configuration or default value.
+        self.feature4 = self.ml_params.get('Feature4', self.ml_features_config.get('Feature4', 'Feature4'))
+        if self.feature4 is None:
+            self.feature4 = 'feature4'
+        logger.info("Feature4: %s", self.feature4)
 
-        # Explicitly get the scaled Feature1 column
-        self.feature1_scaled = self.ml_params.get('Feature1_scaled', self.ml_features_config.get('Feature1_scaled', 'Feature1_Scaled'))
-        if self.feature1_scaled is None:
-            self.feature1_scaled = 'Feature1_Scaled'
-        logger.info("Feature1_scaled: %s", self.feature1_scaled)
+        # Explicitly get the scaled feature4 column
+        self.feature4_scaled = self.ml_params.get('feature4_scaled', self.ml_features_config.get('feature4_scaled', 'feature4_Scaled'))
+        if self.feature4_scaled is None:
+            self.feature4_scaled = 'feature4_Scaled'
+        logger.info("feature4_scaled: %s", self.feature4_scaled)
 
         # Explicitly get the label column
         self.label = self.ml_params.get('Label1', self.ml_features_config.get('Label1', 'Label'))
@@ -199,12 +199,12 @@ class CDMLProcess:
         self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
         self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
 
-    def get_feature_columns(self, feature_name="Feature1"):
+    def get_feature_columns(self, feature_name="feature4"):
         return_value = self.ml_features_config.get(feature_name, None)
         if return_value is not None:
             return [f"{return_value}"]
 
-    def get_scaled_feature_columns(self, feature_name="Feature1_Scaled"):
+    def get_scaled_feature_columns(self, feature_name="feature4_Scaled"):
         return_value = self.ml_features_config.get(feature_name, None)
         if return_value is not None:
             return [f"{return_value}"]
@@ -233,7 +233,7 @@ class CDMLProcess:
             if hasattr(self, 'mp_ml_input_keyfeat') and self.mp_ml_input_keyfeat is not None:
                 target_col = self.mp_ml_input_keyfeat
             else:
-                target_col = "Feature1"
+                target_col = "feature4"
             logger.warning("No target column specified. Falling back to default: %s", target_col)
         
         # Ensure window_size is an integer
@@ -285,10 +285,33 @@ class CDMLProcess:
         
         return np.array(X), np.array(Y)
 
+
+    def  Create_Xy_input_and_target(self,df, back_window, forward_window, features):
+         # For each point in time where we have enough data for both windows,
+         # we create an input window (X) and the target (y)
+         X = []
+         y = []
+
+         # We loop from index = back_window to len(df)-forward_window
+         for i in range(int(back_window), len(df) - int(forward_window) + 1):
+            # Extract the back window of OHLC data
+            window_data = df[features].iloc[i - int(back_window): i].values
+            X.append(window_data)
+
+            # Use the close price at the end of the forward window as target
+            target_close = df[features].iloc[i + int(forward_window) - 1]
+            y.append(target_close)
+
+         # Convert lists to numpy arrays
+         X = np.array(X)
+         y = np.array(y)
+         return X, y
+
+
     def create_ml_window(self, timeval):
         """Select the data file based on the DataFrame name."""
-        self.feature1 = self.ml_features_config.get('Feature1', 'Feature1')
-        self.feature1_scaled = self.ml_features_config.get('Feature1_Scaled', 'Feature1_Scaled')
+        self.feature4 = self.ml_features_config.get('feature4', 'feature4')
+        self.feature4_scaled = self.ml_features_config.get('feature4_Scaled', 'feature4_Scaled')
         self.label = self.ml_features_config.get('Label', 'Label')
         self.label_scaled = self.ml_features_config.get('Label_Scaled', 'Label_Scaled')
         
@@ -305,6 +328,12 @@ class CDMLProcess:
         val_test_ratio = val_size / (val_size + test_size)
         X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, train_size=val_test_ratio, random_state=random_state)
         return X_train, X_val, X_test, y_train, y_val, y_test
+
+    def manual_split_data(self, X_train_in, y_train_in,train_end=None, val_end=None):
+         X_train, y_train = X_train_in[:train_end], y_train_in[:train_end]
+         X_val, y_val = X_train_in[train_end:val_end], y_train_in[train_end:val_end]
+         X_test, y_test = X_train_in[val_end:], y_train_in[val_end:]
+         return X_train, X_val, X_test, y_train, y_val, y_test
 
     def preprocess_data(self, X):
         """Convert timestamp columns to numeric format if they exist and ensure the data is numeric."""
@@ -358,6 +387,17 @@ class CDMLProcess:
             test_ds = test_ds.batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
 
         return train_ds, val_ds, test_ds
+   
+    def create_simple_tf_dataset(self, X_train, y_train,X_val, y_val,X_test, y_test, batch_size=32,buffer_size=1000):
+         # Create training dataset
+         train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+         train_dataset = train_dataset.shuffle(buffer_size=buffer_size).batch(batch_size)
+         # Create validation dataset
+         val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(batch_size)
+         # Create test dataset
+         test_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(batch_size)
+         return train_dataset, val_dataset, test_dataset
+
 
     def evaluate_model(self, model, X_test, y_test):
         predictions = model.predict(X_test)
