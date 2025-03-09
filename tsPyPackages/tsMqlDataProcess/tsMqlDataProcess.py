@@ -108,7 +108,7 @@ class CDataProcess:
             'rates2': ('R2_Date', 'R2_Timestamp', 'R2_mDatetime', '%Y%m%d %H:%M:%S', '%Y%m%d %H:%M:%S'),
         }
 
-        # Updated mappings with keys that match the expected DataFrame names
+        # Updated mapping with keys that match the expected DataFrame names
         self.first_columns = {
             'df_api_ticks': 'T1_Date',
             'df_api_rates': 'R1_Date',
@@ -375,50 +375,61 @@ class CDataProcess:
                      'rates1' if 'rates' in self.df_name and 'api' in self.df_name else \
                      'ticks2' if 'ticks' in self.df_name else 'rates2'
         
-        # Apply datetime conversions if mappings are defined
+        # Apply datetime conversions if mapping are defined
         if source_key in self.date_columns:
             col, fmt, unit, conv_type = self.date_columns[source_key]
             self.df = self._convert_datetime(self.df, col, fmt, unit, conv_type)
+            logger.info(f"DW: 1.1 Converted Date: {col} to datetime if found in mapping")
         if source_key in self.time_columns:
             col, fmt, unit, conv_type = self.time_columns[source_key]
             self.df = self._convert_datetime(self.df, col, fmt, unit, conv_type)
+            logger.info(f"DW: 1.2 Converted Time: {col} to datetime if found in mapping")
         
         # Rename columns
         if source_key in self.from_to_column_maps:
             self.df.rename(columns=self.from_to_column_maps[source_key], inplace=True)
+            logger.info(f"DW: 1.3 Renamed columns based on mapping")
         
         # Merge datetime columns if enabled
         if source_key in self.merge_columns and self.mp_merge:
             col_date, col_time, merged_col, _, _ = self.merge_columns[source_key]
             self.df = self._merge_datetime(self.df, col_date, col_time, merged_col)
+            logger.info(f"DW: 1.4 Merged {col_date} and {col_time} into {merged_col} if enabled {self.mp_merge}")
         
         # Convert datetime in specified column if enabled
         if source_key in self.conv_columns and self.mp_convert:
             col, fmt, unit, conv_type = self.conv_columns[source_key]
             self.df = self._convert_datetime(self.df, col, fmt, unit, conv_type)
+            logger.info(f"DW: 1.5 Converted specific datetime  column : {col} if enabled {self.mp_convert}")
         
         # Drop unnecessary columns if enabled
         if source_key in self.drop_columns and self.mp_drop:
             col, fmt, unit, conv_type, drop_cols = self.drop_columns[source_key]
             self.df = self._convert_datetime(self.df, col, fmt, unit, conv_type, drop_cols)
+            logger.info(f"DW: 1.6 Dropped unnecessary columns if enabled {self.mp_drop}")
         
         # Apply type filtering conversions
         for dtype, flag in [('int64', self.filter_int), ('float64', self.filter_flt)]:
             if flag:
                 for col in self.df.select_dtypes(include=[dtype]).columns:
                     self.df[col] = pd.to_numeric(self.df[col], errors='coerce')
+                    logger.info(f"DF: 1.1 Converted {dtype} columns to numeric if enabled {flag}")
         if self.filter_obj:
             for col in self.df.select_dtypes(include=['object']).columns:
                 self.df[col] = pd.to_datetime(self.df[col], errors='coerce')
+                logger.info("DF: 1.2 Converted object columns to datetime if enabled")
         if self.filter_dtmi:
             for col in self.df.select_dtypes(include=['datetime64[ns]', 'datetime64[ns, UTC]', 'datetime64']).columns:
                 self.df[col] = pd.to_numeric(self.df[col].view('int64'))
+                logger.info("DF: 1.3 Converted datetime columns to int64 if enabled")
         if self.filter_dtmf:
             for col in self.df.select_dtypes(include=['datetime64[ns]', 'datetime64[ns, UTC]', 'datetime64']).columns:
                 self.df[col] = pd.to_numeric(self.df[col].view('float64'))
+                logger.info("DF: 1.4 Converted datetime columns to float64 if enabled")
         if self.mp_dropna:
             self.df.fillna(0, inplace=True)
-            logger.info("Filled NaN values with 0")
+            logger.info("DF: 1.5 Filled NaN values with 0")
+            
         
         # Reorder columns if merged
         if source_key in self.merge_columns and self.mp_merge:
@@ -539,14 +550,22 @@ class CDataProcess:
         logger.info(f"Starting data processing for {self.df_name} with shape {self.df.shape}")
 
         # Wrangle, average, establish features, reorder, and add index
+        logger.info(f"DP:1.0 Running data processing for {self.df_name}...")
+        logger.info(f"DP:1.1 Wrangling {self.df_name} data...")
         ldf = self.run_wrangle_service(df=self.df, df_name=self.df_name)
+        logger.info(f"DP:1.2 Averaging columns for {self.df_name}...")
         ldf = self.run_average_columns(ldf, self.df_name)
+        logger.info(f"DP:1.3 Establishing common feature column for {self.df_name}...")
         ldf = self.establish_common_feat_col(ldf, self.df_name)
+        logger.info(f"DP:1.4 Moving columns to start {self.df_name} Column: {self.first_columns.get(self.df_name, ldf.columns[0])}")
         ldf = self.move_col_to_start(ldf, self.first_columns.get(self.df_name, ldf.columns[0]))
+        logger.info(f"DP:1.5 Moving columns to End{self.df_name} Column: {self.last_columns.get(self.df_name, ())[0]}")
         ldf = self.move_col_to_end(ldf, self.last_columns.get(self.df_name, ())[0] if self.last_col else None)
+        logger.info(f"DP:1.6 Add line Numbers {self.df_name}...")
         ldf = self.add_line_numbers(ldf)
-        ldf = self.create_index_column(ldf)
-        logger.info(f"Data processing completed for {self.df_name} with shape {ldf.shape}")
+        logger.info(f"DP:1.7 Create Index for {self.df_name}...")
+        #ldf = self.create_index_column(ldf)
+        #logger.info(f"DP: 1.8 Data processing completed for {self.df_name} with shape {ldf.shape}")
         return ldf
 
 
