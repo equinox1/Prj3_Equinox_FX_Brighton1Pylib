@@ -14,7 +14,6 @@ import platform
 import os
 from pathlib import Path
 import yaml
-
 import logging
 import numpy as np
 import pandas as pd
@@ -32,7 +31,6 @@ pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
 logger.info(f"Running on: {os_platform}, loadmql state: {loadmql}")
-
 
 class CMqlOverrides(CEnvCore):
     """
@@ -55,7 +53,8 @@ class CMqlOverrides(CEnvCore):
         self._set_feature_overrides()  # Ensure feature overrides are applied
         self._set_ml_overrides()
         self._set_mltune_overrides()
-        self._set_app_overrides()  # Now including app-specific overrides
+        self._set_tuner_overrides()   # NEW: load tuner-specific overrides
+        self._set_app_overrides()     # Now including app-specific overrides
 
     def _load_config(self, config_path):
         """Load configuration parameters from a YAML file."""
@@ -120,7 +119,7 @@ class CMqlOverrides(CEnvCore):
             "mp_data_rows": data_config.get("mp_data_rows", 1000),
             "mp_data_rowcount": data_config.get("mp_data_rowcount", 10000),
             "df1_filter_int": data_config.get("df1_filter_int", False),
-            "df1_filter_flt": data_config.get("df_filter_flt",False),
+            "df1_filter_flt": data_config.get("df_filter_flt", False),
             "df1_filter_obj": data_config.get("df1_filter_obj", False),
             "df1_filter_dtmi": data_config.get("df1_filter_dtmi", False),
             "df1_filter_dtmf": data_config.get("df_filter_dtmf", False),
@@ -128,18 +127,18 @@ class CMqlOverrides(CEnvCore):
             "df1_convert": data_config.get("df1_convert", False),
             "df1_drop": data_config.get("df1_drop", False),
             "df1_dropna": data_config.get("df1_dropna", False),
-            "df2_filter_int": data_config.get("df2_filter_int",False),
+            "df2_filter_int": data_config.get("df2_filter_int", False),
             "df2_filter_flt": data_config.get("df2_filter_flt", False),
             "df2_filter_obj": data_config.get("df2_filter_obj", False),
             "df2_filter_dtmi": data_config.get("df2_filter_dtmi", False),
-            "df2_filter_dtmf": data_config.get("df2_filter_dtmf",False),
+            "df2_filter_dtmf": data_config.get("df2_filter_dtmf", False),
             "df2_merge": data_config.get("df2_merge", False),
             "df2_convert": data_config.get("df2_convert", False),
             "df2_drop": data_config.get("df2_drop", False),
             "df2_dropna": data_config.get("df2_dropna", False),
             "df3_filter_int": data_config.get("df3_filter_int", False),
-            "df3_filter_flt": data_config.get("df3_filter_flt",False),
-            "df3_filter_obj": data_config.get("df3_filter_obj",False),
+            "df3_filter_flt": data_config.get("df3_filter_flt", False),
+            "df3_filter_obj": data_config.get("df3_filter_obj", False),
             "df3_filter_dtmi": data_config.get("df3_filter_dtmi", False),
             "df3_filter_dtmf": data_config.get("df3_filter_dtmf", False),
             "df3_merge": data_config.get("df3_merge", False),
@@ -229,30 +228,6 @@ class CMqlOverrides(CEnvCore):
         mltune_config = self.config.get("ML_TUNING_PARAMS", {})
         mltune_overrides = {
             "mp_ml_tunemode": mltune_config.get("mp_ml_tunemode", True),
-            "tunemodeepochs": mltune_config.get("tunemodeepochs", 100),
-            "seed": mltune_config.get("seed", 42),
-            "tuner_id": mltune_config.get("tuner_id", 1),
-            "train_split": mltune_config.get("train_split", 0.7),
-            "validation_split": mltune_config.get("validation_split", 0.2),
-            "test_split": mltune_config.get("test_split", 0.1),
-            "batch_size": mltune_config.get("batch_size", 8),
-            "input_width": mltune_config.get("input_width", 24),
-            "shift": mltune_config.get("shift", 24),
-            "total_window_size": mltune_config.get("total_window_size", 48),
-            "label_width": mltune_config.get("label_width", 1),
-            "keras_tuner": mltune_config.get("keras_tuner", "Hyperband"),
-            "hyperband_iterations": mltune_config.get("hyperband_iterations", 1),
-            "max_epochs": mltune_config.get("max_epochs", 100),
-            "min_epochs": mltune_config.get("min_epochs", 10),
-            "epochs": mltune_config.get("epochs", 2),
-            "num_trials": mltune_config.get("num_trials", 3),
-            "overwrite": mltune_config.get("overwrite", True),
-            "optimizer": mltune_config.get("optimizer", "adam"),
-            "loss": mltune_config.get("loss", "mean_squared_error"),
-            "metrics": mltune_config.get("metrics", ["mean_squared_error"]),
-            "dropout": mltune_config.get("dropout", 0.2),
-            "units": mltune_config.get("units", 32),
-            "activation": mltune_config.get("activation", "relu"),
         }
 
         try:
@@ -260,6 +235,30 @@ class CMqlOverrides(CEnvCore):
             logger.info("ML tuning parameters overridden successfully.")
         except Exception as e:
             logger.error("Failed to override ML tuning parameters: %s", e)
+
+    def _set_tuner_overrides(self):
+        """Overrides tuner-specific parameters using settings from config.yaml if provided."""
+        if not hasattr(self, "env") or self.env is None:
+            logger.error("Environment manager is not initialized. Skipping tuner overrides.")
+            return
+
+        tuner_config = self.config.get("TUNER_PARAMS", {})
+        if tuner_config:
+            tuner_overrides = {
+                "tunemode": tuner_config.get("tunemode", "Hyperband"),
+                "tunemodeepochs": tuner_config.get("tunemodeepochs", 100),
+                "seed": tuner_config.get("seed", 42),
+                "keras_tuner": tuner_config.get("keras_tuner", "Hyperband"),
+                "hyperband_iterations": tuner_config.get("hyperband_iterations", 1),
+                # Add additional tuner parameters if needed.
+            }
+            try:
+                self.env.override_params({"mltune": tuner_overrides})
+                logger.info("Tuner parameters overridden successfully.")
+            except Exception as e:
+                logger.error("Failed to override tuner parameters: %s", e)
+        else:
+            logger.info("No tuner overrides provided.")
 
     def _set_app_overrides(self):
         """Overrides APP tuning parameters if provided in config.yaml."""
@@ -328,7 +327,7 @@ if __name__ == "__main__":
     for key, value in ml_params.items():
         print(f"  {key}: {value}")
     
-    print("\nML Tuning Parameters:")
+    print("\nML Tuning Parameters (including Tuner Overrides):")
     for key, value in mltune_params.items():
         print(f"  {key}: {value}")
 

@@ -132,31 +132,7 @@ ML_PARAMS:
 # ML Tuning Settings
 ML_TUNING_PARAMS:
   mp_ml_tunemode: True
-  tunemodeepochs: 100
-  seed: 42
-  tuner_id: 1
-  train_split: 0.7
-  validation_split: 0.2
-  test_split: 0.1
-  batch_size: 8
-  input_width: 24
-  shift: 24
-  total_window_size: 48
-  label_width: 1
-  keras_tuner: "Hyperband"
-  hyperband_iterations: 1
-  max_epochs: 100
-  min_epochs: 10
-  epochs: 2
-  num_trials: 3
-  overwrite: True
-  optimizer: "adam"
-  loss: "mean_squared_error"
-  metrics:
-    - "mean_squared_error"
-  dropout: 0.2
-  units: 32
-  activation: "relu"
+  
 
 APP_PARAMS:
   mp_app_primary_symbol: "EURUSD"  # Corrected typo

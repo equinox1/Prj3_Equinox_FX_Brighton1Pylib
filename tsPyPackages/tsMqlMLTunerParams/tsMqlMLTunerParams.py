@@ -1,73 +1,218 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-#!/usr/bin/env python3 - uncomment for linux run
-# -*- coding: utf-8 -*-  - uncomment for linux run
 Filename: tsMqlMLTunerParams.py
 File: tsPyPackages/tsMqlMLTunerParams/tsMqlMLTunerParams.py
 Description: Load and set machine learning tuner parameters.
 Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
 Version: 1.0
-License: (Optional) e.g., MIT License
+License: MIT License
 """
 
-
-# Each parameter Class now extends the CEnvCore class and has a 
-# DEFAULT_PARAMS dictionary that contains the default values for the parameters.
-# The CEnvCore class has a get_params method that returns the parameters
-# dictionary and a set_param method that allows you to set a parameter dynamically.
-# The CMqlEnvDataParams and CMqlEnvMLParams classes have the DEFAULT_PARAMS dictionary 
-# that contains the default values for the parameters. The CMqlEnvDataParams class has
-# parameters related to data loading, while the CMqlEnvMLParams class has parameters 
-# related to machine learning.
-
+import os
+from datetime import datetime
 from tsMqlEnvCore import CEnvCore
+from typing import Any, Dict, List, Optional
 
-from datetime import date
-
-def date_helper():
-    """Returns the current date and time as a string."""
-    return date.today().strftime('%Y-%m-%d %H:%M:%S')
-
+def get_current_datetime() -> str:
+    """Return the current date and time as a formatted string."""
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 class CMqlEnvMLTunerParams(CEnvCore):
     """Manage machine learning tuner parameters."""
-    def __init__(self, **kwargs):
-        super().__init__(custom_params=kwargs)  # Ensure proper initialization
 
-         # Set the current date and time  
-        self.params["today"] = date_helper()
+    def __init__(self, **kwargs: Any) -> None:
+        """
+        Initialize the machine learning tuner parameters.
+        
+        Keyword arguments allow overriding of default values.
+        """
+        # Initialize parent with custom parameters.
+        super().__init__(custom_params=kwargs)
 
-    DEFAULT_PARAMS = {
-        "mp_ml_tunemode": True,
-        "tunemodeepochs": 100,
-        "seed": 42,
-        "tuner_id": 1,
-        "train_split": 0.7,
-        "validation_split": 0.2,
-        "test_split": 0.1,
-        "batch_size": 8,
-        "input_width": 24,
-        "shift": 24,
-        "total_window_size": 48,
-        "label_width": 1,
-        "keras_tuner": "Hyperband",
-        "hyperband_iterations": 1,
-        "max_epochs": 100,
-        "min_epochs": 10,
-        "epochs": 2,
-        "num_trials": 3,
-        "overwrite": True,
-        "optimizer": "adam",
-        "loss": "mean_squared_error",
-        "metrics": ["mean_squared_error"],
-        "dropout": 0.2
-    }
+        # Get a consistent datetime value.
+        current_datetime: str = kwargs.get('today', get_current_datetime())
+        self.params["today"] = current_datetime
+        self.today: str = current_datetime
 
-    def get_tuner_params(self):
-        """Return the tuner parameters."""
+        # General settings.
+        self.seed: int = kwargs.get('seed', 42)
+        self.tuner_id: Optional[str] = kwargs.get('tuner_id', None)
+
+        # Tuner mode settings.
+        self.tunemode: str = kwargs.get('tunemode', 'Hyperband')
+        self.tunemodeepochs: int = kwargs.get('tunemodeepochs', 100)
+        self.modelsummary: bool = kwargs.get('modelsummary', False)
+
+        # Dataset paths.
+        self.train_dataset: Optional[str] = kwargs.get('train_dataset', None)
+        self.val_dataset: Optional[str] = kwargs.get('val_dataset', None)
+        self.test_dataset: Optional[str] = kwargs.get('test_dataset', None)
+
+        # Input configuration.
+        self.input_shape: Optional[List[int]] = kwargs.get('input_shape', None)
+        self.data_input_shape: Optional[List[int]] = kwargs.get('data_input_shape', None)
+        self.multi_inputs: bool = kwargs.get('multi_inputs', False)
+        self.batch_size: int = kwargs.get('batch_size', 32)
+
+        # Model selection flags.
+        self.cnn_model: bool = kwargs.get('cnn_model', True)
+        self.lstm_model: bool = kwargs.get('lstm_model', True)
+        self.gru_model: bool = kwargs.get('gru_model', True)
+        self.transformer_model: bool = kwargs.get('transformer_model', True)
+        self.multiactivate: bool = kwargs.get('multiactivate', True)
+        self.multi_branches: bool = kwargs.get('multi_branches', True)
+        self.multi_outputs: bool = kwargs.get('multi_outputs', False)
+
+        # Label and windowing configuration.
+        self.label_columns: Optional[List[str]] = kwargs.get('label_columns', None)
+        self.input_width: Optional[int] = kwargs.get('input_width', None)
+        self.shift: Optional[int] = kwargs.get('shift', None)
+        self.total_window_size: Optional[int] = kwargs.get('total_window_size', None)
+        self.label_width: Optional[int] = kwargs.get('label_width', None)
+
+        # Tuner application settings.
+        self.keras_tuner: str = kwargs.get('keras_tuner', 'Hyperband')
+        self.hyperband_iterations: int = kwargs.get('hyperband_iterations', 1)
+
+        # Epoch settings.
+        self.max_epochs: int = kwargs.get('max_epochs', 100)
+        self.min_epochs: int = kwargs.get('min_epochs', 10)
+        self.tf_param_epochs: int = kwargs.get('tf_param_epochs', 10)
+        self.epochs: int = kwargs.get('epochs', 2)
+        self.tune_new_entries: bool = kwargs.get('tune_new_entries', True)
+        self.allow_new_entries: bool = kwargs.get('allow_new_entries', True)
+
+        # Core tuner parameters.
+        self.num_trials: int = kwargs.get('num_trials', 3)
+        self.max_retries_per_trial: int = kwargs.get('max_retries_per_trial', 5)
+        self.max_consecutive_failed_trials: int = kwargs.get('max_consecutive_failed_trials', 3)
+        self.steps_per_execution: int = kwargs.get('steps_per_execution', 50)
+        self.executions_per_trial: int = kwargs.get('executions_per_trial', 1)
+        self.overwrite: bool = kwargs.get('overwrite', True)
+
+        # Extra tuner parameters.
+        self.factor: int = kwargs.get('factor', 10)
+        self.objective: str = kwargs.get('objective', 'val_loss')
+
+        # Logging and TensorFlow version flags.
+        self.logger: Optional[Any] = kwargs.get('logger', None)
+        self.tf1: bool = kwargs.get('tf1', False)
+        self.tf2: bool = kwargs.get('tf2', False)
+
+        # Evaluator settings.
+        self.optimizer: str = kwargs.get('optimizer', 'adam')
+        self.loss: str = kwargs.get('loss', 'mean_squared_error')
+        self.metrics: List[str] = kwargs.get('metrics', ['mean_squared_error'])
+        self.dropout: float = kwargs.get('dropout', 0.2)
+
+        # Checkpointing options.
+        self.chk_fullmodel: bool = kwargs.get('chk_fullmodel', True)
+        self.chk_verbosity: int = kwargs.get('chk_verbosity', 1)
+        self.chk_mode: str = kwargs.get('chk_mode', 'min')
+        self.chk_monitor: str = kwargs.get('chk_monitor', 'val_loss')
+        self.chk_sav_freq: str = kwargs.get('chk_sav_freq', 'epoch')
+        self.chk_patience: int = kwargs.get('chk_patience', 3)
+
+        # Model tuner parameters.
+        self.unitmin: int = kwargs.get('unitmin', 32)
+        self.unitmax: int = kwargs.get('unitmax', 512)
+        self.unitstep: int = kwargs.get('unitstep', 32)
+        self.defaultunits: int = kwargs.get('defaultunits', 128)
+
+        # Model scales.
+        self.all_modelscale: float = kwargs.get('all_modelscale', 1.0)
+        self.cnn_modelscale: float = kwargs.get('cnn_modelscale', 1.0)
+        self.lstm_modelscale: float = kwargs.get('lstm_modelscale', 1.0)
+        self.gru_modelscale: float = kwargs.get('gru_modelscale', 1.0)
+        self.trans_modelscale: float = kwargs.get('trans_modelscale', 1.0)
+        self.transh_modelscale: float = kwargs.get('transh_modelscale', 1.0)
+        self.transff_modelscale: float = kwargs.get('transff_modelscale', 1.0)
+        self.dense_modelscale: float = kwargs.get('dense_modelscale', 1.0)
+
+        # Base path for file operations.
+        self.base_path: str = kwargs.get('base_path', os.getcwd())
+
+    def get_tuner_params(self) -> Dict[str, Any]:
+        """
+        Retrieve tuner-specific parameters from the environment.
+        
+        Returns:
+            A dictionary containing the tuner parameters.
+        """
         return self.params.get("tuner", {})
 
-    def get_default_params(self): # Fixed indentation
-        """Return the default parameters."""
-        return self.DEFAULT_PARAMS
-
+    def get_default_params(self) -> Dict[str, Any]:
+        """
+        Compile and return a dictionary of default parameters based on the current instance attributes.
+        
+        Returns:
+            A dictionary with all the default tuner and model parameters.
+        """
+        return {
+            "train_dataset": self.train_dataset,
+            "val_dataset": self.val_dataset,
+            "test_dataset": self.test_dataset,
+            "today": self.today,
+            "mp_ml_tunemode": True,
+            "tunemodeepochs": self.tunemodeepochs,
+            "seed": self.seed,
+            "tuner_id": self.tuner_id,
+            "batch_size": self.batch_size,
+            "input_width": self.input_width,
+            "shift": self.shift,
+            "total_window_size": self.total_window_size,
+            "label_width": self.label_width,
+            "keras_tuner": self.keras_tuner,
+            "hyperband_iterations": self.hyperband_iterations,
+            "max_epochs": self.max_epochs,
+            "min_epochs": self.min_epochs,
+            "tf_param_epochs": self.tf_param_epochs,
+            "epochs": self.epochs,
+            "tune_new_entries": self.tune_new_entries,
+            "allow_new_entries": self.allow_new_entries,
+            "num_trials": self.num_trials,
+            "max_retries_per_trial": self.max_retries_per_trial,
+            "max_consecutive_failed_trials": self.max_consecutive_failed_trials,
+            "steps_per_execution": self.steps_per_execution,
+            "executions_per_trial": self.executions_per_trial,
+            "overwrite": self.overwrite,
+            "factor": self.factor,
+            "objective": self.objective,
+            "logger": self.logger,
+            "tf1": self.tf1,
+            "tf2": self.tf2,
+            "optimizer": self.optimizer,
+            "loss": self.loss,
+            "metrics": self.metrics,
+            "dropout": self.dropout,
+            "chk_fullmodel": self.chk_fullmodel,
+            "chk_verbosity": self.chk_verbosity,
+            "chk_mode": self.chk_mode,
+            "chk_monitor": self.chk_monitor,
+            "chk_sav_freq": self.chk_sav_freq,
+            "chk_patience": self.chk_patience,
+            "unitmin": self.unitmin,
+            "unitmax": self.unitmax,
+            "unitstep": self.unitstep,
+            "defaultunits": self.defaultunits,
+            "all_modelscale": self.all_modelscale,
+            "cnn_modelscale": self.cnn_modelscale,
+            "lstm_modelscale": self.lstm_modelscale,
+            "gru_modelscale": self.gru_modelscale,
+            "trans_modelscale": self.trans_modelscale,
+            "transh_modelscale": self.transh_modelscale,
+            "transff_modelscale": self.transff_modelscale,
+            "dense_modelscale": self.dense_modelscale,
+            "cnn_model": self.cnn_model,
+            "lstm_model": self.lstm_model,
+            "gru_model": self.gru_model,
+            "transformer_model": self.transformer_model,
+            "multiactivate": self.multiactivate,
+            "multi_branches": self.multi_branches,
+            "input_shape": self.input_shape,
+            "multi_inputs": self.multi_inputs,
+            "multi_outputs": self.multi_outputs,
+            "label_columns": self.label_columns,
+        }
