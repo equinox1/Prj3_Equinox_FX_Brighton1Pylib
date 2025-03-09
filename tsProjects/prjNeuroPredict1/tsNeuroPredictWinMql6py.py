@@ -276,16 +276,18 @@ def main(logger):
         logger.info("Validation dataset: %s", val_dataset)  
         logger.info("Test dataset: %s", test_dataset)
 
-        
-        """
         # +-------------------------------------------------------------------
         # STEP: Shapes: add tensor values for model input
         # +-------------------------------------------------------------------
-        train_shape, val_shape, test_shape = get_dataset_shapes(train_dataset, val_dataset, test_dataset)
-        input_shape = X_train.shape[1:]  # Shape of a single sample (time_steps, features)
-        label_shape = y_train.shape[1:]  # Shape of a single label (future_steps)
-         
-      
+        # Using element_spec to get the shape
+        input_shape = train_dataset.element_spec[0].shape
+        output_shape = train_dataset.element_spec[1].shape
+        logger.info("Input shape: %s", input_shape)
+        logger.info("Output shape: %s", output_shape)
+
+
+
+        """
          # +-------------------------------------------------------------------
          # STEP: Tune best model Hyperparameter tuning and model setup
          # +-------------------------------------------------------------------
