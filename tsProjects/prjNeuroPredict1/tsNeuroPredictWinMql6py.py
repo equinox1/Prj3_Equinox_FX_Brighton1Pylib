@@ -216,16 +216,17 @@ def main(logger):
         # Further processing or model training could occur here.
 
         
-        """
+     
         # +-------------------------------------------------------------------
         # STEP: add The time index to the data
         # +-------------------------------------------------------------------
         # Limit the columns to just the time column and all features
         column_features = datafile.columns[1:]
-        logger.info(f"Column Features: {column_features}")
         datafile = datafile[[datafile.columns[0]] + list(datafile.columns[1:])]
-        logger.info(f"Data File Shape: {datafile.head(hrows)}")
+        utils_config.run_mql_print(df=datafile, df_name='df_file_rates', hrows=hrows, colwidth=hwidth, app='datafile')
 
+   
+        """
         # +-------------------------------------------------------------------
         # STEP: Create Window Parameters
         # +-------------------------------------------------------------------
@@ -233,7 +234,7 @@ def main(logger):
         logger.info("Creating the 24 hour prediction timeval{timeval},hour {HOUR}")
         past_width, future_width, pred_width = ml_process_config.create_ml_window(timeval=HOUR)
         logger.info(f"Past Width: {past_width}, Future Width: {future_width}, Prediction Width: {pred_width}")
-        
+       
         # +-------------------------------------------------------------------
         # STEP: Generate X and y from the Time Series
         # +-------------------------------------------------------------------
@@ -260,11 +261,11 @@ def main(logger):
         # Preprocess to avoid datetime columns
         logger.info(f"X_train: {X_train.shape}, X_val: {X_val.shape}, X_test: {X_test.shape}")
       
-    
+        
         # Convert to TensorFlow datasets
         train_dataset, val_dataset, test_dataset = ml_process_config.convert_to_tfds(X_train, y_train, X_val, y_val, X_test, y_test, batch_size=tf_batch_size)
         logger.info(f"Train Dataset: {train_dataset}, Val Dataset: {val_dataset}, Test Dataset: {test_dataset}")
-       
+        
         # +-------------------------------------------------------------------
         # STEP: Shapes: add tensor values for model input
         # +-------------------------------------------------------------------
