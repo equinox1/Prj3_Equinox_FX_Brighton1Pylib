@@ -323,25 +323,19 @@ class CDMLProcess:
         return X
 
     def convert_to_tfds(self, X_train, y_train, X_val=None, y_val=None, X_test=None, y_test=None, batch_size=32, shuffle=True):
-        X_train = self.preprocess_data(X_train)
-        y_train = self.preprocess_data(y_train)
-
-        X_val = self.preprocess_data(X_val) if X_val is not None else None
-        y_val = self.preprocess_data(y_val) if y_val is not None else None
-
-        X_test = self.preprocess_data(X_test) if X_test is not None else None
-        y_test = self.preprocess_data(y_test) if y_test is not None else None
-
-        logger.info(f"X_train shape: {X_train.shape}, dtype: {X_train.dtype}")
-        logger.info(f"y_train shape: {y_train.shape}, dtype: {y_train.dtype}")
-
-        logger.info(f"X_train type: {type(X_train)}, dtype: {X_train.dtype if isinstance(X_train, np.ndarray) else 'N/A'}")
-        logger.info(f"y_train type: {type(y_train)}, dtype: {y_train.dtype if isinstance(y_train, np.ndarray) else 'N/A'}")
-
-        y_train = np.array(y_train).astype(np.float32)
-        y_val = np.array(y_val).astype(np.float32) if y_val is not None else None
-        y_test = np.array(y_test).astype(np.float32) if y_test is not None else None
+        # Convert all inputs to NumPy arrays with float32 dtype
+        X_train = np.array(X_train, dtype=np.float32)
+        y_train = np.array(y_train, dtype=np.float32)
+        if X_val is not None:
+            X_val = np.array(X_val, dtype=np.float32)
+        if y_val is not None:
+            y_val = np.array(y_val, dtype=np.float32)
+        if X_test is not None:
+            X_test = np.array(X_test, dtype=np.float32)
+        if y_test is not None:
+            y_test = np.array(y_test, dtype=np.float32)
         
+        # Check for NaN values and replace them if any
         if np.isnan(X_train).any() or np.isnan(y_train).any():
             logger.info("Warning: NaN values detected in the dataset!")
             X_train = np.nan_to_num(X_train)

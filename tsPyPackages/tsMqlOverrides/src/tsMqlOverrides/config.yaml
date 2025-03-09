@@ -27,49 +27,41 @@ mp_data_filename1: 'tickdata1'
 mp_data_filename2: 'ratesdata1'
 
 # Data filter settings for different data sources
-df1:
-  filter_int: False
-  filter_flt: False
-  filter_obj: False
-  filter_dtmi: False
-  filter_dtmf: False
-  dropna: True
-  merge: False
-  convert: False
-  drop: False
+df1_filter_int: False
+df_filter_flt: False
+df1_filter_obj: False
+df1_filter_dtmi: False
+df_filter_dtmf: False
+df1_merge: False
+df1_convert: False
+df1_drop: False
 
-df2:
-  filter_int: False
-  filter_flt: False
-  filter_obj: False
-  filter_dtmi: False
-  filter_dtmf: False
-  dropna: True
-  merge: False
-  convert: False
-  drop: False
+df2_filter_int: False
+df2_filter_flt: False
+df2_filter_obj: False
+df2_filter_dtmi: False
+df2_filter_dtmf: False
+df2_merge: False
+df2_convert: False
+df2_drop: False
 
-df3:
-  filter_int: False
-  filter_flt: False
-  filter_obj: False
-  filter_dtmi: False
-  filter_dtmf: False
-  dropna: True
-  merge: True
-  convert: True
-  drop: True
+df3_filter_int: False
+df3_filter_flt: False
+df3_filter_obj: False
+df3_filter_dtmi: False
+df3_filter_dtmf: False
+df3_merge: False
+df3_convert: False
+df3_drop: False
 
-df4:
-  filter_int: False
-  filter_flt: False
-  filter_obj: False
-  filter_dtmi: False
-  filter_dtmf: True
-  dropna: True
-  merge: True
-  convert: True
-  drop: True
+df4_filter_int: False
+df4_filter_flt: False
+df4_filter_obj: False
+df4_filter_dtmi: False
+df4_filter_dtmf: False
+df4_merge: False
+df4_convert: False
+df4_drop: False
 
 # Api ML Settings
 WINDOW_PARAMS:
