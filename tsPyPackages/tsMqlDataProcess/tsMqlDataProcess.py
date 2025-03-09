@@ -129,8 +129,8 @@ class CDataProcess:
                 'bid_column': 'T1_Bid_Price',
                 'ask_column': 'T1_Ask_Price',
                 'column_in': 'T1_Bid_Price',
-                'column_out1': self.feature1,
-                'column_out2': self.feature1_scaled,
+                'column_out1': self.feature4,
+                'column_out2': self.feature4_scaled,
                 'lookahead_periods': self.lookahead_periods,
                 'ma_window': self.ma_window,
                 'hl_avg_col': self.hl_avg_col,
@@ -156,8 +156,8 @@ class CDataProcess:
                 'high_column': 'R1_High',
                 'low_column': 'R1_Low',
                 'close_column': 'R1_Close',
-                'column_out1': self.feature1,
-                'column_out2': self.feature1_scaled,
+                'column_out1': self.feature4,
+                'column_out2': self.feature4_scaled,
                 'lookahead_periods': self.lookahead_periods,
                 'ma_window': self.ma_window,
                 'hl_avg_col': self.hl_avg_col,
@@ -179,8 +179,8 @@ class CDataProcess:
                 'bid_column': 'T2_Bid_Price',
                 'ask_column': 'T2_Ask_Price',
                 'column_in': 'T2_Bid_Price',
-                'column_out1': self.feature1,
-                'column_out2': self.feature1_scaled,
+                'column_out1': self.feature4,
+                'column_out2': self.feature4_scaled,
                 'lookahead_periods': self.lookahead_periods,
                 'ma_window': self.ma_window,
                 'hl_avg_col': self.hl_avg_col,
@@ -206,8 +206,8 @@ class CDataProcess:
                 'high_column': 'R2_High',
                 'low_column': 'R2_Low',
                 'close_column': 'R2_Close',
-                'column_out1': self.feature1,
-                'column_out2': self.feature1_scaled,
+                'column_out1': self.feature4,
+                'column_out2': self.feature4_scaled,
                 'lookahead_periods': self.lookahead_periods,
                 'ma_window': self.ma_window,
                 'hl_avg_col': self.hl_avg_col,
@@ -259,11 +259,12 @@ class CDataProcess:
     def _set_ml_features(self, kwargs):
         """Extract and set machine learning features."""
         self.ml_features_config = self.ml_params.get('mp_features', {})
-        self.feature1 = self.ml_params.get('Feature1', self.ml_features_config.get('Feature1', 'Feature1'))
-        self.feature1_scaled = self.ml_params.get('Feature1_scaled', self.ml_features_config.get('Feature1_scaled', 'Feature1_Scaled'))
+        self.feature4 = self.ml_params.get('feature4', self.ml_features_config.get('feature4', 'Close'))
+        self.feature4_scaled = self.ml_params.get('feature4_scaled', self.ml_features_config.get('feature4_scaled', 'Close_Scaled'))
         self.label = self.ml_params.get('Label1', self.ml_features_config.get('Label1', 'Label'))
-        self.mp_ml_input_keyfeat = self.feature1
-        self.mp_ml_input_keyfeat_scaled = self.feature1_scaled
+        logger.info(f"ML features configured: {self.feature4}, {self.feature4_scaled}, {self.label}")
+        self.mp_ml_input_keyfeat = self.feature4
+        self.mp_ml_input_keyfeat_scaled = self.feature4_scaled
         self.mp_ml_input_label = self.label
 
         # File parameters
@@ -508,9 +509,13 @@ class CDataProcess:
     def create_index_column(self, df: pd.DataFrame) -> pd.DataFrame:
         """Set the first column as index after cleaning."""
         first_col = df.columns[0]
-        df[first_col] = df[first_col].fillna('Unknown').astype(str).str.strip()
+        # Convert the mDatetime' column to datetime objects if not already done
+        df[first_col] = pd.to_datetime(df[first_col])
+        # Set the datetime column as the DataFrame index
         df.set_index(first_col, inplace=True)
-        return df.dropna()
+        df.sort_index(inplace=True)  # Optional: sort by the index if needed
+        return df
+
 
     def establish_common_feat_col(self, df: pd.DataFrame, df_name: str) -> pd.DataFrame:
         """Establish a common feature column for tick (bid-ask average) or OHLC (close)."""
@@ -564,8 +569,9 @@ class CDataProcess:
         logger.info(f"DP:1.6 Add line Numbers {self.df_name}...")
         ldf = self.add_line_numbers(ldf)
         logger.info(f"DP:1.7 Create Index for {self.df_name}...")
-        #ldf = self.create_index_column(ldf)
-        #logger.info(f"DP: 1.8 Data processing completed for {self.df_name} with shape {ldf.shape}")
+        ldf = self.create_index_column(ldf)
+        logger.info(ldf.index)
+        logger.info(f"DP:1.8 Data processing completed for {self.df_name} with shape {ldf.shape}")
         return ldf
 
 

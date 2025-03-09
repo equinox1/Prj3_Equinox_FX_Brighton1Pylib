@@ -213,10 +213,7 @@ def main(logger):
         utils_config.run_mql_print(df=df_file_ticks, df_name='df_file_ticks', hrows=hrows, colwidth=hwidth, app='data processing')
         utils_config.run_mql_print(df=df_file_rates, df_name='df_file_rates', hrows=hrows, colwidth=hwidth, app='data processing')
         datafile = df_file_rates
-        # Further processing or model training could occur here.
-
-        
-     
+    
         # +-------------------------------------------------------------------
         # STEP: add The time index to the data
         # +-------------------------------------------------------------------
@@ -224,48 +221,63 @@ def main(logger):
         column_features = datafile.columns[1:]
         datafile = datafile[[datafile.columns[0]] + list(datafile.columns[1:])]
         utils_config.run_mql_print(df=datafile, df_name='df_file_rates', hrows=hrows, colwidth=hwidth, app='datafile')
-
-   
-        """
+        # Print the DataFrame index to show that it's a DateTimeIndex
+        logger.info(datafile.index)
+        
         # +-------------------------------------------------------------------
         # STEP: Create Window Parameters
         # +-------------------------------------------------------------------
-        # 1: 24 HOURS/24 HOURS prediction window
+        # 1: 24 HOURS/24 HOURS prediction sliding window
+        # -----------------------------
         logger.info("Creating the 24 hour prediction timeval{timeval},hour {HOUR}")
-        past_width, future_width, pred_width = ml_process_config.create_ml_window(timeval=HOUR)
-        logger.info(f"Past Width: {past_width}, Future Width: {future_width}, Prediction Width: {pred_width}")
+        back_window, forward_window, pred_width = ml_process_config.create_ml_window(timeval=HOUR)
+        logger.info(f"Back Window: {back_window}, Forward Window: {forward_window}, Prediction Width: {pred_width}")
        
+       
+        # +-------------------------------------------------------------------
+        # STEP: Select features and labels
+        # +-------------------------------------------------------------------
+        # Select the features (you can include more if needed)
+        features = ml_params.get("mp_ml_input_keyfeat", "Close")
+        features_scaled = ml_params.get("mp_ml_input_keyfeat_scaled", "Close_Scaled")
+        label1 = ml_params.get("mp_ml_output_label", "Label")
+        logger.info(f"Main: Features: {features}, Features Scaled: {features_scaled}, Label1: {label1}")
+        
         # +-------------------------------------------------------------------
         # STEP: Generate X and y from the Time Series
         # +-------------------------------------------------------------------
-        feature1=ml_params.get('Feature1', ml_params.get('Feature1', 'Feature1'))
-        feature1_scaled=ml_params.get('Feature1_scaled', ml_params.get('Feature1_scaled', 'Feature1_scaled'))
-        label1=ml_params.get('Label1', ml_params.get('Label1', 'Label1'))
-        logger.info(f"Main: Feature1: {feature1}, Feature1 Scaled: {feature1_scaled}, Label1: {label1},window size: {past_width} , using past width")
+        # For each point in time where we have enough data for both windows,we create an input window (X) and the target (y)
+        datafile_X,datafile_y = ml_process_config.Create_Xy_input_and_target(datafile,back_window=back_window,forward_window=forward_window,features=[features])
+        logger.info("Input shape: %s, Expected shape: (Num_Samples, Periods, Labels)", datafile_X.shape)
+        logger.info("Target shape: %s, Expected shape: (Num_samples,)", datafile_y.shape)
 
-        datafile_X,datafile_y = ml_process_config.create_XY_unscaled_feature_sequence(datafile, target_col=feature1, window_size=past_width)
-        logger.info(f"Datafile X: {datafile_X.shape}, Datafile y: {datafile_y.shape}")
-     
         # +-------------------------------------------------------------------
         # STEP: Split the data into training and test sets Fixed Partitioning
         # +-------------------------------------------------------------------
         seed= mltune_params.get('seed', 42)
+        n_samples = len(datafile_X)
+        train_end = int(0.7 * n_samples)
+        val_end = int(0.85 * n_samples)
         # Split the dataset
-        X_train, X_val, X_test, y_train, y_val, y_test = ml_process_config.split_dataset(datafile_X,datafile_y , random_state=seed)
-        
+        X_train, X_val, X_test, y_train, y_val, y_test = ml_process_config.manual_split_data(datafile_X,datafile_y , train_end, val_end)
+        logger.info("Train samples: %s", X_train.shape[0])
+        logger.info("Validation samples: %s", X_val.shape[0])
+        logger.info("Test samples: %s", X_test.shape[0])
+
         # +-------------------------------------------------------------------
         # STEP:convert numpy dataset to TF dataset
         # +-------------------------------------------------------------------
         # initiate the object using a window generatorwindow is not  used in this model Parameters
         tf_batch_size = ml_params.get('tf_batch_size', 32)
-        # Preprocess to avoid datetime columns
-        logger.info(f"X_train: {X_train.shape}, X_val: {X_val.shape}, X_test: {X_test.shape}")
-      
-        
+        buffer_size=1000
         # Convert to TensorFlow datasets
-        train_dataset, val_dataset, test_dataset = ml_process_config.convert_to_tfds(X_train, y_train, X_val, y_val, X_test, y_test, batch_size=tf_batch_size)
-        logger.info(f"Train Dataset: {train_dataset}, Val Dataset: {val_dataset}, Test Dataset: {test_dataset}")
+        train_dataset, val_dataset, test_dataset = ml_process_config.create_simple_tf_dataset(X_train, y_train,X_val,y_val,X_test,y_test, batch_size=tf_batch_size, buffer_size=buffer_size)
+        logger.info("Train dataset: %s", train_dataset)
+        logger.info("Validation dataset: %s", val_dataset)  
+        logger.info("Test dataset: %s", test_dataset)
+
         
+        """
         # +-------------------------------------------------------------------
         # STEP: Shapes: add tensor values for model input
         # +-------------------------------------------------------------------
