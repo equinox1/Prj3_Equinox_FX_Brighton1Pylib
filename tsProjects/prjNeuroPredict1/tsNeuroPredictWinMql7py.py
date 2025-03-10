@@ -283,17 +283,20 @@ def main(logger):
         logger.info("Input shape: %s", input_shape)
         logger.info("Output shape: %s", output_shape)
 
-        # logger.info("\nML Tuning Parameters:")
-        # for key, value in mltune_params.items():
-        #     logger.info(f"  {key}: {value}")
+        # logger.info("\nML All Parameters:")
+        for key, value in mql_overrides.env.all_params().items():
+            logger.info(f"  {key}: {value}")
 
-        
         """
         # +-------------------------------------------------------------------
         # STEP: Tune best model Hyperparameter tuning and model setup
         # +-------------------------------------------------------------------
+        tunermodelparams = mql_overrides.env.all_params()
+
         tuner_config = CMdtuner(
-            hypermodel_params=mltune_params,
+
+
+            hypermodel_params= tunermodelparams,
             traindataset=train_dataset,
             valdataset=val_dataset,
             testdataset=test_dataset,
@@ -302,6 +305,7 @@ def main(logger):
 
         tuner_config.initialize_tuner()
         best_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
+        
         
       
         # If no model or a hard run is required, run the search

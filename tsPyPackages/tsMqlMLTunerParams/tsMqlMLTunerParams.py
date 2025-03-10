@@ -6,7 +6,7 @@ File: tsPyPackages/tsMqlMLTunerParams/tsMqlMLTunerParams.py
 Description: Load and set machine learning tuner parameters.
 Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
-Version: 1.0
+Version: 1.1
 License: MIT License
 """
 
@@ -33,6 +33,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
 
         # Get a consistent datetime value.
         current_datetime: str = kwargs.get('today', get_current_datetime())
+        self.params: Dict[str, Any] = {}  # Ensure the params dict exists
         self.params["today"] = current_datetime
         self.today: str = current_datetime
 
@@ -131,6 +132,39 @@ class CMqlEnvMLTunerParams(CEnvCore):
         self.transff_modelscale: float = kwargs.get('transff_modelscale', 1.0)
         self.dense_modelscale: float = kwargs.get('dense_modelscale', 1.0)
 
+        # Additional model parameters (ensure integer values where applicable).
+        self.trans_dim_min: int = int(kwargs.get('trans_dim_min', 32 / self.trans_modelscale))
+        self.trans_dim_max: int = int(kwargs.get('trans_dim_max', 256 / self.trans_modelscale))
+        self.trans_dim_step: int = int(kwargs.get('trans_dim_step', 32 / self.trans_modelscale))
+        self.trans_dim_default: int = int(kwargs.get('trans_dim_default', 64 / self.trans_modelscale))
+
+        self.lstm_units_min: int = int(kwargs.get('lstm_units_min', 32 / self.lstm_modelscale))
+        self.lstm_units_max: int = int(kwargs.get('lstm_units_max', 128 / self.lstm_modelscale))
+        self.lstm_units_step: int = int(kwargs.get('lstm_units_step', 32 / self.lstm_modelscale))
+        self.lstm_units_default: int = int(kwargs.get('lstm_units_default', 64 / self.lstm_modelscale))
+
+        self.gru_units_min: int = int(kwargs.get('gru_units_min', 32 / self.gru_modelscale))
+        self.gru_units_max: int = int(kwargs.get('gru_units_max', 128 / self.gru_modelscale))
+        self.gru_units_step: int = int(kwargs.get('gru_units_step', 32 / self.gru_modelscale))
+        self.gru_units_default: int = int(kwargs.get('gru_units_default', 64 / self.gru_modelscale))
+
+        self.cnn_units_min: int = int(kwargs.get('cnn_units_min', 32 / self.cnn_modelscale))
+        self.cnn_units_max: int = int(kwargs.get('cnn_units_max', 128 / self.cnn_modelscale))
+        self.cnn_units_step: int = int(kwargs.get('cnn_units_step', 32 / self.cnn_modelscale))
+        self.cnn_units_default: int = int(kwargs.get('cnn_units_default', 64 / self.cnn_modelscale))
+
+        self.trans_heads_min: int = int(kwargs.get('trans_heads_min', 2 / self.transh_modelscale))
+        self.trans_heads_max: int = int(kwargs.get('trans_heads_max', 8 / self.transh_modelscale))
+        self.trans_heads_step: int = int(kwargs.get('trans_heads_step', 2 / self.transh_modelscale))
+
+        self.trans_ff_min: int = int(kwargs.get('trans_ff_min', 64 / self.transff_modelscale))
+        self.trans_ff_max: int = int(kwargs.get('trans_ff_max', 512 / self.transff_modelscale))
+        self.trans_ff_step: int = int(kwargs.get('trans_ff_step', 64 / self.transff_modelscale))
+
+        self.dense_units_min: int = int(kwargs.get('dense_units_min', 32 / self.dense_modelscale))
+        self.dense_units_max: int = int(kwargs.get('dense_units_max', 128 / self.dense_modelscale))
+        self.dense_units_step: int = int(kwargs.get('dense_units_step', 32 / self.dense_modelscale))
+
         # Base path for file operations.
         self.base_path: str = kwargs.get('base_path', os.getcwd())
 
@@ -144,7 +178,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
         Returns:
             A dictionary containing the tuner parameters.
         """
-        return self.params.get("tuner", {})
+        return self.params.get("tuner", self.params)
 
     def get_default_params(self) -> Dict[str, Any]:
         """
@@ -154,52 +188,93 @@ class CMqlEnvMLTunerParams(CEnvCore):
             A dictionary with all the default tuner and model parameters.
         """
         return {
+            # General settings
+            "today": self.today,
+            "seed": self.seed,
+            "tuner_id": self.tuner_id,
+            
+            # Tuner mode settings
+            "tunemode": self.tunemode,
+            "tunemodeepochs": self.tunemodeepochs,
+            "modelsummary": self.modelsummary,
+            
+            # Dataset paths
             "train_dataset": self.train_dataset,
             "val_dataset": self.val_dataset,
             "test_dataset": self.test_dataset,
-            "today": self.today,
-            "mp_ml_tunemode": True,
-            "tunemodeepochs": self.tunemodeepochs,
-            "seed": self.seed,
-            "tuner_id": self.tuner_id,
+            
+            # Input configuration
+            "input_shape": self.input_shape,
+            "data_input_shape": self.data_input_shape,
+            "multi_inputs": self.multi_inputs,
             "batch_size": self.batch_size,
+            
+            # Model selection flags
+            "cnn_model": self.cnn_model,
+            "lstm_model": self.lstm_model,
+            "gru_model": self.gru_model,
+            "transformer_model": self.transformer_model,
+            "multiactivate": self.multiactivate,
+            "multi_branches": self.multi_branches,
+            "multi_outputs": self.multi_outputs,
+            
+            # Label and windowing configuration
+            "label_columns": self.label_columns,
             "input_width": self.input_width,
             "shift": self.shift,
             "total_window_size": self.total_window_size,
             "label_width": self.label_width,
+            
+            # Tuner application settings
             "keras_tuner": self.keras_tuner,
             "hyperband_iterations": self.hyperband_iterations,
+            
+            # Epoch settings
             "max_epochs": self.max_epochs,
             "min_epochs": self.min_epochs,
             "tf_param_epochs": self.tf_param_epochs,
             "epochs": self.epochs,
             "tune_new_entries": self.tune_new_entries,
             "allow_new_entries": self.allow_new_entries,
+            
+            # Core tuner parameters
             "num_trials": self.num_trials,
             "max_retries_per_trial": self.max_retries_per_trial,
             "max_consecutive_failed_trials": self.max_consecutive_failed_trials,
             "steps_per_execution": self.steps_per_execution,
             "executions_per_trial": self.executions_per_trial,
             "overwrite": self.overwrite,
+            
+            # Extra tuner parameters
             "factor": self.factor,
             "objective": self.objective,
+            
+            # Logging and TensorFlow flags
             "logger": self.logger,
             "tf1": self.tf1,
             "tf2": self.tf2,
+            
+            # Evaluator settings
             "optimizer": self.optimizer,
             "loss": self.loss,
             "metrics": self.metrics,
             "dropout": self.dropout,
+            
+            # Checkpointing options
             "chk_fullmodel": self.chk_fullmodel,
             "chk_verbosity": self.chk_verbosity,
             "chk_mode": self.chk_mode,
             "chk_monitor": self.chk_monitor,
             "chk_sav_freq": self.chk_sav_freq,
             "chk_patience": self.chk_patience,
+            
+            # Model tuner parameters
             "unitmin": self.unitmin,
             "unitmax": self.unitmax,
             "unitstep": self.unitstep,
             "defaultunits": self.defaultunits,
+            
+            # Model scales
             "all_modelscale": self.all_modelscale,
             "cnn_modelscale": self.cnn_modelscale,
             "lstm_modelscale": self.lstm_modelscale,
@@ -208,14 +283,55 @@ class CMqlEnvMLTunerParams(CEnvCore):
             "transh_modelscale": self.transh_modelscale,
             "transff_modelscale": self.transff_modelscale,
             "dense_modelscale": self.dense_modelscale,
-            "cnn_model": self.cnn_model,
-            "lstm_model": self.lstm_model,
-            "gru_model": self.gru_model,
-            "transformer_model": self.transformer_model,
-            "multiactivate": self.multiactivate,
-            "multi_branches": self.multi_branches,
-            "input_shape": self.input_shape,
-            "multi_inputs": self.multi_inputs,
-            "multi_outputs": self.multi_outputs,
-            "label_columns": self.label_columns,
+            
+            # Additional model parameters
+            "trans_dim_min": self.trans_dim_min,
+            "trans_dim_max": self.trans_dim_max,
+            "trans_dim_step": self.trans_dim_step,
+            "trans_dim_default": self.trans_dim_default,
+            
+            "lstm_units_min": self.lstm_units_min,
+            "lstm_units_max": self.lstm_units_max,
+            "lstm_units_step": self.lstm_units_step,
+            "lstm_units_default": self.lstm_units_default,
+            
+            "gru_units_min": self.gru_units_min,
+            "gru_units_max": self.gru_units_max,
+            "gru_units_step": self.gru_units_step,
+            "gru_units_default": self.gru_units_default,
+            
+            "cnn_units_min": self.cnn_units_min,
+            "cnn_units_max": self.cnn_units_max,
+            "cnn_units_step": self.cnn_units_step,
+            "cnn_units_default": self.cnn_units_default,
+            
+            "trans_heads_min": self.trans_heads_min,
+            "trans_heads_max": self.trans_heads_max,
+            "trans_heads_step": self.trans_heads_step,
+            
+            "trans_ff_min": self.trans_ff_min,
+            "trans_ff_max": self.trans_ff_max,
+            "trans_ff_step": self.trans_ff_step,
+            
+            "dense_units_min": self.dense_units_min,
+            "dense_units_max": self.dense_units_max,
+            "dense_units_step": self.dense_units_step,
+            
+            # Base path
+            "base_path": self.base_path,
         }
+
+# Example of returning parameters to an environment manager:
+if __name__ == "__main__":
+    # Instantiate the parameters class, possibly with overrides.
+    tuner_params = CMqlEnvMLTunerParams(seed=123, tunemode='Hyperband', max_epochs=200)
+    
+    # Retrieve the complete dictionary of parameters.
+    params_dict = tuner_params.get_tuner_params()
+    
+    # Example: pass the parameters dictionary to your environment manager.
+    # envmgr.set_params(params_dict)
+    
+    # For demonstration, print the parameters.
+    for key, value in params_dict.items():
+        print(f"{key}: {value}")
