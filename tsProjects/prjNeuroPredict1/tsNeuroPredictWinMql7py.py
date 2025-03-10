@@ -92,33 +92,36 @@ def main(logger):
         # +----------------------------------------------------------
         utils_config = CUtilities()
                  
-        # Retrieve overridden parameters for inspection using the "params" attribute
-        mql_overrides = CMqlOverrides()
-        data_params = mql_overrides.params.get("data", {})
-        feat_params = mql_overrides.params.get("feat", {})
-        ml_params = mql_overrides.params.get("ml", {})
-        mltune_params = mql_overrides.params.get("mltune", {})
-        app_params = mql_overrides.params.get("app", {})
+        # Create an instance of the CMqlOverrides class.
+        mql_overrides = CMqlOverrides()  # If no config.yaml is provided, only defaults are used
+         
+        # Retrieve parameters for inspection using the "params" attribute.
+        data_params = mql_overrides.env.all_params().get("data", {})
+        feat_params = mql_overrides.env.all_params().get("feat", {})
+        ml_params = mql_overrides.env.all_params().get("ml", {})
+        mltune_params = mql_overrides.env.all_params().get("mltune", {})
+        app_params = mql_overrides.env.all_params().get("app", {})
          
         print("Data Parameters:")
         for key, value in data_params.items():
-            print(f"  {key}: {value}")
+           print(f"  {key}: {value}")
          
         print("\nFeature Parameters:")
         for key, value in feat_params.items():
-            print(f"  {key}: {value}")
+           print(f"  {key}: {value}")
          
         print("\nML Parameters:")
         for key, value in ml_params.items():
             print(f"  {key}: {value}")
          
-        print("\nML Tuning Parameters:")
+        print("\nML Tuning & Tuner Parameters:")
         for key, value in mltune_params.items():
             print(f"  {key}: {value}")
-
+         
         print("\nApp Parameters:")
         for key, value in app_params.items():
             print(f"  {key}: {value}")
+
 
         # +-------------------------------------------------------------------
         # STEP: Load Reference class and time variables
@@ -280,11 +283,11 @@ def main(logger):
         logger.info("Input shape: %s", input_shape)
         logger.info("Output shape: %s", output_shape)
 
-        logger.info("\nML Tuning Parameters:")
-        for key, value in mltune_params.items():
-            logger.info(f"  {key}: {value}")
+        # logger.info("\nML Tuning Parameters:")
+        # for key, value in mltune_params.items():
+        #     logger.info(f"  {key}: {value}")
 
-
+        
         """
         # +-------------------------------------------------------------------
         # STEP: Tune best model Hyperparameter tuning and model setup
