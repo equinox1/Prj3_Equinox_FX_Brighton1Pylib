@@ -46,7 +46,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 class CMdtuner:
     def __init__(self, **kwargs):
         # Initialize hypermodel parameters
-        self.hypermodel_params = kwargs.get('hypermodel_params', {})
+        self.hypermodel_params = kwargs.get('tunermodelparams', {})
         self.traindataset = kwargs.get('traindataset')
         self.valdataset = kwargs.get('valdataset')
         self.testdataset = kwargs.get('testdataset')
@@ -67,38 +67,25 @@ class CMdtuner:
             self.testdataset = self.testdataset.map(self.castval)
 
         # env src params
-        self.mp_ml_train_split = self.hypermodel_params.get('mp_ml_train_split', None)
-        self.mp_ml_validation_split = self.hypermodel_params.get('mp_ml_validation_split', None)
-        self.mp_ml_test_split = self.hypermodel_params.get('mp_ml_test_split', None)
-
-        self.train_split = self.hypermodel_params.get('train_split', self.mp_ml_train_split)
-        self.validation_split = self.hypermodel_params.get('validation_split', self.mp_ml_validation_split)
-        self.test_split = self.hypermodel_params.get('test_split', self.mp_ml_test_split)
-
-        self.mp_ml_src_base = self.hypermodel_params.get('mp_ml_src_base', None)
-        self.mp_pl_platform_base = self.hypermodel_params.get('mp_pl_platform_base', None)
-        self.mp_ml_src_lib = self.hypermodel_params.get('mp_ml_src_lib', None)
-        self.mp_ml_src_data = self.hypermodel_params.get('mp_ml_src_data', None)
-        self.mp_ml_directory = self.hypermodel_params.get('mp_ml_directory', None)
-        self.mp_ml_baseuniq = self.hypermodel_params.get('mp_ml_baseuniq', None)
-        self.mp_ml_project_name = self.hypermodel_params.get('mp_ml_project_name', None)
-
-        self.mp_ml_def_base_path = self.hypermodel_params.get('mp_ml_def_base_path', None)
-        self.mp_ml_num_base_path = self.hypermodel_params.get('mp_ml_num_base_path', None)
-
-        self.base_path = self.hypermodel_params.get('base_path', self.mp_ml_num_base_path)
-        self.baseuniq = self.hypermodel_params.get('baseuniq', self.mp_ml_baseuniq)
-        self.project_name = self.hypermodel_params.get('project_name', self.mp_ml_project_name)
+        self.mp_ml_train_split = kwargs..hypermodel_params.get('mp_ml_train_split', None)
+        self.mp_ml_validation_split = kwargs..hypermodel_params.get('mp_ml_validation_split', None)
+        self.mp_ml_test_split = kwargs..hypermodel_params.get('mp_ml_test_split', None)
+        self.mp_ml_src_base = kwargs..hypermodel_params.get('mp_ml_src_base', None)
+        self.mp_pl_platform_base = kwargs..hypermodel_params.get('mp_pl_platform_base', None)
+        self.mp_ml_src_lib = kwargs..hypermodel_params.get('mp_ml_src_lib', None)
+        self.mp_ml_src_data = kwargs..hypermodel_params.get('mp_ml_src_data', None)
+        self.mp_ml_directory = kwargs..hypermodel_params.get('mp_ml_directory', None)
+        self.mp_ml_baseuniq = kwargs..hypermodel_params.get('mp_ml_baseuniq', None)
+        self.mp_ml_project_name = kwargs..hypermodel_params.get('mp_ml_project_name', None)
+        self.mp_ml_def_base_path = kwargs..hypermodel_params.get('mp_ml_def_base_path', None)
+        self.mp_ml_num_base_path = kwargs..hypermodel_params.get('mp_ml_num_base_path', None)
+        self.base_path = kwargs..hypermodel_params.get('base_path', self.mp_ml_num_base_path)
+        self.baseuniq = kwargs..hypermodel_params.get('baseuniq', self.mp_ml_baseuniq)
+        self.project_name = kwargs..hypermodel_params.get('project_name', self.mp_ml_project_name)
         self.subdir = os.path.join(self.base_path, self.mp_ml_project_name, self.baseuniq)
-        self.modeldatapath = self.hypermodel_params.get('modeldatapath', self.mp_ml_num_base_path)
-        self.directory = self.hypermodel_params.get('directory', self.mp_ml_directory)
-        self.base_checkpoint_filepath = self.hypermodel_params.get('base_checkpoint_filepath', self.mp_ml_num_base_path)
-
-        print(f"Base path: {self.base_path} ")
-        print(f"Subdir: {self.subdir}")
-        print(f"Model data path: {self.modeldatapath}")
-        print(f"Directory: {self.directory}")
-        print(f"Base checkpoint filepath: {self.base_checkpoint_filepath}")
+        self.modeldatapath = kwargs..hypermodel_params.get('modeldatapath', self.mp_ml_num_base_path)
+        self.directory = kwargs..hypermodel_params.get('directory', self.mp_ml_directory)
+        self.base_checkpoint_filepath = kwargs..hypermodel_params.get('base_checkpoint_filepath', self.mp_ml_num_base_path)
 
         # Hypermodel parameters
         self.cnn_model = self.hypermodel_params.get('cnn_model', True)

@@ -31,14 +31,7 @@ class CMqlEnvAppParams(CEnvCore):
         "mp_app_ml_tunemodeepochs": True,
         "mp_app_ml_Keras_tuner": 'hyperband',
         "mp_app_ml_batch_size": 4,
-        "mp_app_ml_all_modelscale": 2,
-        "mp_app_ml_cnn_modelscale": 2,
-        "mp_app_ml_lstm_modelscale": 2,
-        "mp_app_ml_gru_modelscale": 2,
-        "mp_app_trans_modelscale": 2,
-        "mp_app_transh_modelscale": 1,
-        "mp_app_transff_modelscale": 4,
-        "mp_app_dense_modelscale": 2
+       
     }
 
     def __init__(self, **kwargs):

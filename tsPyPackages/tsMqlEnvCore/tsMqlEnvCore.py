@@ -1,3 +1,14 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Filename: tsMqlEnvCore.py
+File: tsPyPackages/tsMqlEnvCore/tsMqlEnvCore.py
+Description: Load and add files and data parameters. Login to Metatrader.
+Author: Tony Shepherd - Xercescloud
+Date: 2025-01-24
+Version: 1.1
+"""
+
 import logging
 from pathlib import Path
 
