@@ -15,6 +15,8 @@ class Config:
 
     def load_config(self):
         """Loads configuration from JSON and YAML files."""
+        logger.info(f"EnvMgr: Looking for CONFIG_JSON_FILE: {CONFIG_JSON_FILE}")
+        logger.info(f"EnvMgr: Looking for CONFIG_YAML_FILE: {CONFIG_YAML_FILE}")
         # Load JSON config if available
         if os.path.exists(CONFIG_JSON_FILE):
             try:

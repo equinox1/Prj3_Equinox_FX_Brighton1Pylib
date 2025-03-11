@@ -1,6 +1,6 @@
 [project]
 name = "tsmqlplatform"
-version = "2.3.16"
+version = "2.3.19"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
