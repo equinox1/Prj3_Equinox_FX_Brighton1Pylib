@@ -96,31 +96,36 @@ def main(logger):
         mql_overrides = CMqlOverrides()  # If no config.yaml is provided, only defaults are used
          
         # Retrieve parameters for inspection using the "params" attribute.
+        base_params = mql_overrides.env.all_params().get("base", {})
         data_params = mql_overrides.env.all_params().get("data", {})
         feat_params = mql_overrides.env.all_params().get("feat", {})
         ml_params = mql_overrides.env.all_params().get("ml", {})
         mltune_params = mql_overrides.env.all_params().get("mltune", {})
         app_params = mql_overrides.env.all_params().get("app", {})
-         
-        print("Data Parameters:")
+
+        logger.info("\nBase Parameters:")
+        for key, value in base_params.items():
+            logger.info(f"  {key}: {value}")
+
+        logger.info("\nData Parameters:")   
         for key, value in data_params.items():
-           print(f"  {key}: {value}")
-         
-        print("\nFeature Parameters:")
+            logger.info(f"  {key}: {value}")
+
+        logger.info("\nFeature Parameters:")
         for key, value in feat_params.items():
-           print(f"  {key}: {value}")
-         
-        print("\nML Parameters:")
+            logger.info(f"  {key}: {value}")
+
+        logger.info("\nML Parameters:")
         for key, value in ml_params.items():
-            print(f"  {key}: {value}")
-         
-        print("\nML Tuning & Tuner Parameters:")
+            logger.info(f"  {key}: {value}")
+
+        logger.info("\nML Tuning & Tuner Parameters:")
         for key, value in mltune_params.items():
-            print(f"  {key}: {value}")
-         
-        print("\nApp Parameters:")
+            logger.info(f"  {key}: {value}")
+
+        logger.info("\nApp Parameters:")
         for key, value in app_params.items():
-            print(f"  {key}: {value}")
+            logger.info(f"  {key}: {value}")
 
 
         # +-------------------------------------------------------------------

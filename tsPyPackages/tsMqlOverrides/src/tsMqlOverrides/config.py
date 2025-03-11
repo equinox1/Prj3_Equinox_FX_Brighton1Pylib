@@ -8,6 +8,7 @@ from .logger import logger
 CONFIG_JSON_FILE = os.path.join(os.path.dirname(__file__), "config.json")
 CONFIG_YAML_FILE = os.path.join(os.path.dirname(__file__), "config.yaml")
 
+
 class Config:
     def __init__(self):
         self.config = {}
@@ -16,6 +17,9 @@ class Config:
     def load_config(self):
         """Loads configuration from JSON and YAML files."""
         # Load JSON config if available
+        logger.info(f"Overrides: Looking for CONFIG_JSON_FILE: {CONFIG_JSON_FILE}")
+        logger.info(f"Overrides: Looking for CONFIG_YAML_FILE: {CONFIG_YAML_FILE}")
+        
         if os.path.exists(CONFIG_JSON_FILE):
             try:
                 with open(CONFIG_JSON_FILE, "r") as f:
