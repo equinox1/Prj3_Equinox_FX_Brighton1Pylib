@@ -2,7 +2,10 @@ import json
 import yaml
 import os
 import logging
-from .logger import logger
+
+# Setup logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 # Define paths for configuration files
 CONFIG_JSON_FILE = os.path.join(os.path.dirname(__file__), "config.json")

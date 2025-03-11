@@ -18,10 +18,8 @@
 
 from tsMqlSetup import CMqlSetup
 import logging
-
-# Initialize logger
-logger = logging.getLogger("Main")
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
 
@@ -71,8 +69,8 @@ from tsMqlMLTune import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
 # Setup logging and tensor platform dependencies
-obj1_CMqlSetup = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
-strategy = obj1_CMqlSetup.get_computation_strategy()
+setup_config = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
+strategy = setup_config.get_computation_strategy()
 
 # Format values for data table display
 mp_data_tab_rows = 5
@@ -103,6 +101,21 @@ def main(logger):
         mltune_params = mql_overrides.env.all_params().get("mltune", {})
         app_params = mql_overrides.env.all_params().get("app", {})
 
+     
+        # Initialize logger
+        logdir = base_params.get('mp_glob_base_log_path', 'logs')
+        os.makedirs(logdir, exist_ok=True)
+        logfile = os.path.join(logdir, 'tsneuropredict_app.log')
+        print(f"Logfile: {logfile}")
+        logging.basicConfig(
+               filename=str(logfile),
+               filemode='w',
+               format='%(asctime)s - %(levelname)s - %(message)s',
+               datefmt='%Y-%m-%d %H:%M:%S',
+               level=logging.DEBUG,
+               style='%'
+            )
+        """
         logger.info("\nBase Parameters:")
         for key, value in base_params.items():
             logger.info(f"  {key}: {value}")
@@ -292,7 +305,7 @@ def main(logger):
         for key, value in mql_overrides.env.all_params().items():
             logger.info(f"  {key}: {value}")
 
-        """
+       
         # +-------------------------------------------------------------------
         # STEP: Tune best model Hyperparameter tuning and model setup
         # +-------------------------------------------------------------------
