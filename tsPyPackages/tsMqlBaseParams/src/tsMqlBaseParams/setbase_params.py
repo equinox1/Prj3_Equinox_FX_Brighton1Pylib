@@ -1,21 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Filename: etbase_params.py
+Filename: setbase_params.py
 File: tsPyPackages/tsMqlBaseParams/src/tsMqlBaseParams/setbase_params.py
 Description: Load and add files and data parameters. Login to Metatrader.
 Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
 Version: 1.1
 """
+
 import sys
+import os
 import platform
+import json
 from pathlib import Path
 import yaml  # For loading configurations
 import logging
 
+# Initialize logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler(sys.stdout)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
 # It’s assumed that these modules provide platform detection, logging, and other utilities.
-from tsMqlPlatform import run_platform, platform_checker, logger, config as global_config
+from tsMqlPlatform import run_platform, platform_checker, config as global_config
 from tsMqlEnvCore import CEnvCore
 
 class CMqlEnvBaseParams(CEnvCore):
@@ -101,31 +112,30 @@ class CMqlEnvBaseParams(CEnvCore):
         self.mp_glob_data_path = self._get_data_paths()
 
         # Setup ML paths: returns three values: base, models, and checkpoints.
-        (self.model_base, self.project_dir, self.checkpoint_filepath , self.logdir) = self._get_ml_paths()
+        (self.model_base, self.project_dir, self.checkpoint_filepath) = self._get_ml_paths()
 
         # Setup MQL paths: returns base and data paths.
         (self.mql_basepath, self.mql_data_path, self.mql_include_path, self.mql_lib_path, self.mql_script_path, 
-        self.mql_expert_path, self.mql_indicator_path) = self._get_mql_paths()
-
+         self.mql_expert_path, self.mql_indicator_path) = self._get_mql_paths()
 
         self.DEFAULT_PARAMS = {
-         'mp_glob_base_path': self.mp_glob_base_path,
-         'mp_glob_base_config_path': self.mp_glob_config_path,
-         'mp_glob_base_data_path': self.mp_glob_data_path,
-         'mp_glob_base_ml_modeldir': self.model_base,
-         'mp_glob_base_ml_project_dir': self.project_dir,
-         'mp_glob_base_ml_checkpoint_filepath': self.checkpoint_filepath,
-         'mp_glob_base_mql_basepath': self.mql_basepath,
-         'mp_glob_base_mql_data_path': self.mql_data_path,
-         'mp_glob_base_mql_include_path': self.mql_include_path,
-         'mp_glob_base_mql_lib_path': self.mql_lib_path,
-         'mp_glob_base_mql_script_path': self.mql_script_path,
-         'mp_glob_base_mql_expert_path': self.mql_expert_path,
-         'mp_glob_base_mql_indicator_path': self.mql_indicator_path,
-         'mp_glob_base_pl_platform_type': self.mp_glob_pl_platform_type,
-         'mp_glob_base_platform_dir': self.platform_dir,
-         'mp_glob_base_pl_default_platform': self.mp_glob_pl_default_platform,
-         'mp_glob_base_log_path': self.mp_glob_log_path,
+            'mp_glob_base_path': self.mp_glob_base_path,
+            'mp_glob_base_config_path': self.mp_glob_config_path,
+            'mp_glob_base_data_path': self.mp_glob_data_path,
+            'mp_glob_base_ml_modeldir': self.model_base,
+            'mp_glob_base_ml_project_dir': self.project_dir,
+            'mp_glob_base_ml_checkpoint_filepath': self.checkpoint_filepath,
+            'mp_glob_base_mql_basepath': self.mql_basepath,
+            'mp_glob_base_mql_data_path': self.mql_data_path,
+            'mp_glob_base_mql_include_path': self.mql_include_path,
+            'mp_glob_base_mql_lib_path': self.mql_lib_path,
+            'mp_glob_base_mql_script_path': self.mql_script_path,
+            'mp_glob_base_mql_expert_path': self.mql_expert_path,
+            'mp_glob_base_mql_indicator_path': self.mql_indicator_path,
+            'mp_glob_base_pl_platform_type': self.mp_glob_pl_platform_type,
+            'mp_glob_base_platform_dir': self.platform_dir,
+            'mp_glob_base_pl_default_platform': self.mp_glob_pl_default_platform,
+            'mp_glob_base_log_path': self.mp_glob_log_path,
         }
         logger.info("Distinct Base Environment parameters:")
         for key, value in self.DEFAULT_PARAMS.items():
@@ -156,8 +166,7 @@ class CMqlEnvBaseParams(CEnvCore):
         home_dir = Path.home()
         self.platformdir = self.mp_glob_pl_default_platform
 
-        #Point the base directory to the correct location
-
+        # Point the base directory to the correct location
         base_dir1 = self.config.get('mp_glob_sub_dir1', '8.0 Projects')
         if not base_dir1:
             logger.warning("Missing 'mp_glob_sub_dir1' in config. Using default: '8.0 Projects'.")
@@ -166,9 +175,8 @@ class CMqlEnvBaseParams(CEnvCore):
         if not base_dir2:
             logger.warning("Missing 'mp_glob_sub_dir2' in config. Using default: '8.3 ProjectModelsEquinox'.")
 
-        self.base_dir3 =home_dir / one_drive /base_dir1 / base_dir2 / self.platform_dir
+        self.base_dir3 = home_dir / one_drive / base_dir1 / base_dir2 / self.platform_dir
         logger.info(f"Base path: {self.base_dir3}")
-
 
         # Construct the base path
         base_path = self.base_dir3
@@ -211,18 +219,17 @@ class CMqlEnvBaseParams(CEnvCore):
             - Log subdirectory
          """
          base_path = self.base_dir3
-         # define subdirectory names
+         # Define subdirectory name
          self.mp_glob_sub_log = self.config.get('mp_glob_sub_log', 'Logdir')
-          # Define the base configuration path.
+         # Define the log path.
          self.logdir = base_path / self.mp_glob_sub_log 
-         # Log the paths
          Logflag = "Base:"
          logger.info(f"{Logflag} Log Path: {self.logdir}")
 
          # Ensure directories exist.
          self.logdir.mkdir(parents=True, exist_ok=True)
         
-         return
+         return self.logdir
 
     def _get_data_paths(self):
          """
@@ -231,11 +238,10 @@ class CMqlEnvBaseParams(CEnvCore):
             - Data subdirectory
          """
          base_path = self.base_dir3
-         # define subdirectory names
+         # Define subdirectory name
          self.mp_glob_sub_data = self.config.get('mp_glob_sub_data', 'Mql5Data')
-          # Define the base configuration path.
+         # Define the data path.
          self.data_path = base_path / self.mp_glob_sub_data 
-         # Log the paths
          Logflag = "Base:"
          logger.info(f"{Logflag} Data Path: {self.data_path}")
 
@@ -253,86 +259,79 @@ class CMqlEnvBaseParams(CEnvCore):
             - Checkpoints subdirectory
          """
          base_path = self.base_dir3
-         # define subdirectory names
+         # Define subdirectory names
          self.lib_subdir = self.config.get('mp_glob_sub_ml_src_lib', 'PythonLib')
          self.model_subdir = self.config.get('mp_glob_sub_ml_src_modeldata', 'tsModelData')
          self.project_dir = self.config.get('mp_glob_sub_ml_directory', 'tshybrid_ensemble_tuning_prod')
          self.model_name = self.config.get('mp_glob_sub_ml_model_name', 'prjEquinox1_prod.keras')
          self.model_uniq = self.config.get('mp_glob_sub_ml_baseuniq', '1')
+         
 
-         # define paths
-         self.pybase= self.lib_subdir
-         self.model_base = base_path /self.pybase/ self.model_subdir
-         self.project_dir = base_path / self.pybase / self.model_subdir / self.project_dir
-         self.project_name = base_path / self.pybase / self.model_subdir / self.project_dir / self.model_name
-         self.baseuniq = base_path / self.pybase / self.model_subdir / self.project_dir / self.model_uniq/ self.model_name
-         self.checkpoint_filepath = base_path / self.pybase / self.model_subdir / self.project_dir
+         # Define paths
+         self.pybase = self.lib_subdir
+         
+         self.model_base = base_path / self.pybase / self.model_subdir
+         self.project_dir = base_path / self.pybase / self.model_subdir / self.project_dir / self.model_uniq
+         self.project_name = self.project_dir / self.model_name
+         self.checkpoint_filepath = self.project_dir 
         
-         # Log the paths
          Logflag = "Base:"
          logger.info(f"{Logflag} Model base: {self.model_base}")
          logger.info(f"{Logflag} Project directory: {self.project_dir}")
          logger.info(f"{Logflag} Project name: {self.project_name}")
-         logger.info(f"{Logflag} Base unique: {self.baseuniq}")
          logger.info(f"{Logflag} Checkpoint path: {self.checkpoint_filepath}")
         
-
-
          # Ensure directories exist.
          self.model_base.mkdir(parents=True, exist_ok=True)
          self.project_dir.mkdir(parents=True, exist_ok=True)
          self.project_name.mkdir(parents=True, exist_ok=True)
-         self.baseuniq.mkdir(parents=True, exist_ok=True)
          self.checkpoint_filepath.mkdir(parents=True, exist_ok=True)
-         self.logdir.mkdir(parents=True, exist_ok=True)
 
-         return self.model_base, self.project_dir, self.checkpoint_filepath , self.logdir
+         return self.model_base, self.project_dir, self.checkpoint_filepath
 
-        
     def _get_mql_paths(self):
-      base_path = self.base_dir3
+         base_path = self.base_dir3
 
-      self.mql_base_ver = self.config.get('mp_glob_mql5_base_ver', 'MQL5')
-      self.mql_base_broker = self.config.get('mp_glob_mql5_base_broker', 'Brokers')
-      self.mql_base_broker_name = self.broker_name
-      self.mql_dir1 = self.config.get('mp_glob_sub_mql_dir1', 'Mql5')
-      self.mql_dir2 = self.config.get('mp_glob_sub_mql_dir2', 'Files')
-      self.mql_dir3 = self.config.get('mp_glob_sub_mql_dir3', 'Include')
-      self.mql_dir4 = self.config.get('mp_glob_sub_mql_dir4', 'Libraries')
-      self.mql_dir5 = self.config.get('mp_glob_sub_mql_dir5', 'Scripts')
-      self.mql_dir6 = self.config.get('mp_glob_sub_mql_dir6', 'Experts')
-      self.mql_dir7 = self.config.get('mp_glob_sub_mql_dir7', 'Indicators')
+         self.mql_base_ver = self.config.get('mp_glob_mql5_base_ver', 'MQL5')
+         self.mql_base_broker = self.config.get('mp_glob_mql5_base_broker', 'Brokers')
+         self.mql_base_broker_name = self.broker_name
+         self.mql_dir1 = self.config.get('mp_glob_sub_mql_dir1', 'Mql5')
+         self.mql_dir2 = self.config.get('mp_glob_sub_mql_dir2', 'Files')
+         self.mql_dir3 = self.config.get('mp_glob_sub_mql_dir3', 'Include')
+         self.mql_dir4 = self.config.get('mp_glob_sub_mql_dir4', 'Libraries')
+         self.mql_dir5 = self.config.get('mp_glob_sub_mql_dir5', 'Scripts')
+         self.mql_dir6 = self.config.get('mp_glob_sub_mql_dir6', 'Experts')
+         self.mql_dir7 = self.config.get('mp_glob_sub_mql_dir7', 'Indicators')
 
-      # define paths
-      self.mql_basepath = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name/ self.mql_dir1
-      self.mql_data_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name/ self.mql_dir2
-      self.mql_include_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name/ self.mql_dir3
-      self.mql_lib_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name/ self.mql_dir4
-      self.mql_script_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name/ self.mql_dir5
-      self.mql_expert_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name/ self.mql_dir6
-      self.mql_indicator_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name/ self.mql_dir7
+         self.mql_basepath = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir1
+         self.mql_data_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir2
+         self.mql_include_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir3
+         self.mql_lib_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir4
+         self.mql_script_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir5
+         self.mql_expert_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir6
+         self.mql_indicator_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir7
 
-      # Log the paths
-      Logflag = "Base:"
-      logger.info(f"{Logflag} MQL base path: {self.mql_basepath}")
-      logger.info(f"{Logflag} MQL data path: {self.mql_data_path}")
-      logger.info(f"{Logflag} MQL include path: {self.mql_include_path}")
-      logger.info(f"{Logflag} MQL lib path: {self.mql_lib_path}")
-      logger.info(f"{Logflag} MQL script path: {self.mql_script_path}")
-      logger.info(f"{Logflag} MQL expert path: {self.mql_expert_path}")
-      logger.info(f"{Logflag} MQL indicator path: {self.mql_indicator_path}")
+         Logflag = "Base:"
+         logger.info(f"{Logflag} MQL base path: {self.mql_basepath}")
+         logger.info(f"{Logflag} MQL data path: {self.mql_data_path}")
+         logger.info(f"{Logflag} MQL include path: {self.mql_include_path}")
+         logger.info(f"{Logflag} MQL lib path: {self.mql_lib_path}")
+         logger.info(f"{Logflag} MQL script path: {self.mql_script_path}")
+         logger.info(f"{Logflag} MQL expert path: {self.mql_expert_path}")
+         logger.info(f"{Logflag} MQL indicator path: {self.mql_indicator_path}")
 
-      # Ensure directories exist.
-      self.mql_basepath.mkdir(parents=True, exist_ok=True)
-      self.mql_data_path.mkdir(parents=True, exist_ok=True)
-      self.mql_include_path.mkdir(parents=True, exist_ok=True)
-      self.mql_lib_path.mkdir(parents=True, exist_ok=True)
-      self.mql_script_path.mkdir(parents=True, exist_ok=True)
-      self.mql_expert_path.mkdir(parents=True, exist_ok=True)
-      self.mql_indicator_path.mkdir(parents=True, exist_ok=True)
+         # Ensure directories exist.
+         self.mql_basepath.mkdir(parents=True, exist_ok=True)
+         self.mql_data_path.mkdir(parents=True, exist_ok=True)
+         self.mql_include_path.mkdir(parents=True, exist_ok=True)
+         self.mql_lib_path.mkdir(parents=True, exist_ok=True)
+         self.mql_script_path.mkdir(parents=True, exist_ok=True)
+         self.mql_expert_path.mkdir(parents=True, exist_ok=True)
+         self.mql_indicator_path.mkdir(parents=True, exist_ok=True)
 
-      return self.mql_basepath, self.mql_data_path, self.mql_include_path, self.mql_lib_path, self.mql_script_path, self.mql_expert_path, self.mql_indicator_path
-
+         return (self.mql_basepath, self.mql_data_path, self.mql_include_path,
+                 self.mql_lib_path, self.mql_script_path, self.mql_expert_path,
+                 self.mql_indicator_path)
 
 # Example usage:
 if __name__ == "__main__":

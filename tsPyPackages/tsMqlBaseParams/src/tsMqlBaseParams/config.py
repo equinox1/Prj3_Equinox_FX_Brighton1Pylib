@@ -3,7 +3,10 @@ import yaml
 import os
 import logging
 from pathlib import Path
-from .logger import logger
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Define paths for configuration files
 CONFIG_JSON_FILE = os.path.join(os.path.dirname(__file__), "config.json")
@@ -18,6 +21,7 @@ class Config:
         """Loads configuration from JSON and YAML files."""
         logger.info(f"BaseParams: Looking for CONFIG_JSON_FILE: {CONFIG_JSON_FILE}")
         logger.info(f"BaseParams: Looking for CONFIG_YAML_FILE: {CONFIG_YAML_FILE}")
+
         # Load JSON config if available
         if os.path.exists(CONFIG_JSON_FILE):
             try:
@@ -27,7 +31,7 @@ class Config:
                 logger.info("Config JSON file loaded successfully.")
             except Exception as e:
                 logger.error(f"Error loading config.json: {e}")
-        
+
         # Load YAML config if available
         if os.path.exists(CONFIG_YAML_FILE):
             try:

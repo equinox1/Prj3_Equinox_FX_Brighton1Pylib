@@ -10,9 +10,7 @@ Version: 1.0
 License: (Optional) e.g., MIT License
 """
 import logging
-logger = logging.getLogger("environment_managers")
-logging.basicConfig(level=logging.INFO)
-
+logger = logging.getLogger(__name__)
 from tsMqlBaseParams.setbase_params import CMqlEnvBaseParams
 from tsMqlDataParams import CMqlEnvDataParams
 from tsMqlMLParams import CMqlEnvMLParams

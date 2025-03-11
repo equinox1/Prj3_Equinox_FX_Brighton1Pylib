@@ -122,9 +122,6 @@ class CDataLoader:
                 logger.error("MetaTrader5 module not initialized.")
                 return pd.DataFrame()
 
-           
-           
-           
             logger.info(f"Fetching {apitype} data from MetaTrader5 API")
             if apitype == 'ticks':
                 logger.info(f"Api ticks: Fetching Symbol {self.lp_app_primary_symbol} with rows {self.lp_data_rows} of ticks from {self.lp_utc_from} to {self.lp_utc_to}")

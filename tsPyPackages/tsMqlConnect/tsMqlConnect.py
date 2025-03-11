@@ -2,11 +2,12 @@ import logging
 import keyring as kr
 from tsMqlPlatform import run_platform, platform_checker
 from tsMqlEnvMgr import CMqlEnvMgr
-import pathlib , os
+import pathlib
+import os
 
 # Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 # Initialize platform
 pchk = run_platform.RunPlatform()
@@ -56,7 +57,7 @@ class CMqlBrokerConfig:
         
         self.base_path = base_params.get('mp_glob_mql_basepath', '')
         self.data_path = base_params.get('mp_glob_mql_data_path', '')
-        self.broker_path = os.path.join(self.base_path, self.broker.get('broker_path'))
+        self.broker_path = os.path.join(self.base_path, self.broker.get('broker_path', ''))
         self.file_path = self.broker.get('files_path', '')
         logger.info(f"Base Path: {self.base_path}")
         logger.info(f"Data Path: {self.data_path}")

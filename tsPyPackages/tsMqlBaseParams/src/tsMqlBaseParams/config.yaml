@@ -39,12 +39,14 @@ mp_glob_full_platform_lin_base: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 Projec
 mp_glob_full_platform_mac_base: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUNLMAC'
 mp_glob_config_data: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\ConfigData'
 mp_glob_full_data_base: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Mql5Data'
-mp_glob_full_log_model: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir
+
 mp_glob_full_python_base: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib'
 mp_glob_full_model_data: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\tsModelData'
 mp_glob_full_model_project: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\tsModelData\tshybrid_ensemble_tuning_prod'
 mp_glob_full_model_sequence: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\tsModelData\tshybrid_ensemble_tuning_prod\1'
 mp_glob_full_model_logs: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\tsModelData\tshybrid_ensemble_tuning_prod\1\logs'
+mp_glob_full_log_model: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir'
+
 mp_glob_full_mql5_base: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\MQL5\Brokers\Metaquotes\MQL5'
 mp_glob_full_mql5_files: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\MQL5\Brokers\Metaquotes\MQL5\Files'
 mp_glob_full_mql5_include: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\MQL5\Brokers\Metaquotes\MQL5\Include'

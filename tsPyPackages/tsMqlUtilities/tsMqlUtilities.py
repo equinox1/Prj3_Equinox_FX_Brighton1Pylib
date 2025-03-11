@@ -17,9 +17,7 @@ import pandas as pd
 import tensorflow as tf
 from tabulate import tabulate
 
-# Set up logger if not already configured
-if not logging.getLogger().hasHandlers():
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
 
 
 class CUtilities:
