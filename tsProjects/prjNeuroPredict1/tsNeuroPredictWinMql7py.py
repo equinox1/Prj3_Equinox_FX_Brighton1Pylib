@@ -9,29 +9,6 @@
 # property version   "1.01"
 # +------------------------------------------------------------------+
 
-# STEP: Platform settings
-# +-------------------------------------------------------------------
-# Log timeframe h4 in the data parameters and override the default values
-# Log where to src lp-timeframe
-# Log override params to file
-# GPU and tensor platform
-
-from tsMqlSetup import CMqlSetup
-import logging
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
-
-# Initialize platform checker and state
-pchk = run_platform.RunPlatform()
-os_platform = platform_checker.get_platform()
-loadmql = pchk.check_mql_state()
-logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
-
-# +-------------------------------------------------------------------
-# STEP: Import standard Python packages
-# +-------------------------------------------------------------------
 import os
 import pathlib
 from pathlib import Path
@@ -45,19 +22,22 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 
-from dataclasses import dataclass
-
 # Machine Learning packages
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
 
-# Set package options
-feature_scaler = MinMaxScaler()
-label_scaler = MinMaxScaler()
+# Extra modules needed for ONNX conversion and MetaTrader5 (adjust if not used)
+import tf2onnx
+import onnx
+from onnx import checker
+import onnxruntime as ort
+import MetaTrader5 as mt5
 
-# Equinox environment manager and custom modules
+# Custom modules
+from tsMqlSetup import CMqlSetup
+from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
 from tsMqlEnvMgr import CMqlEnvMgr
 from tsMqlOverrides import CMqlOverrides
 from tsMqlUtilities import CUtilities
@@ -68,32 +48,44 @@ from tsMqlDataProcess import CDataProcess
 from tsMqlMLTune import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
-# Setup logging and tensor platform dependencies
+# ----- Logging configuration -----
+logdir = r"C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
+os.makedirs(logdir, exist_ok=True)
+logfile = os.path.join(logdir, 'tsneuropredict_app.log')
+
+import logging
+# Remove any existing handlers to ensure our configuration is used.
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+fh = logging.FileHandler(logfile, mode='w')
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+fh.setFormatter(formatter)
+logger.addHandler(fh)
+logger.info("Logging configured successfully with FileHandler.")
+
+# ----- Setup platform -----
 setup_config = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
 strategy = setup_config.get_computation_strategy()
 
-# Format values for data table display
-mp_data_tab_rows = 5
-mp_data_tab_width = 30
-hrows = mp_data_tab_rows
-hwidth = mp_data_tab_width
+pchk = run_platform.RunPlatform()
+os_platform = platform_checker.get_platform()
+loadmql = pchk.check_mql_state()
+logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
-# +-------------------------------------------------------------------
-# STEP: End of driving parameters
-# +-------------------------------------------------------------------
+# Set package options
+feature_scaler = MinMaxScaler()
+label_scaler = MinMaxScaler()
 
+# ----- Main Function -----
 def main(logger):
-    # Ensure that the TensorFlow strategy scope is used
     with strategy.scope():
-        # +----------------------------------------------------------
-        # STEP: Setup environment
-        # +----------------------------------------------------------
+        # Setup environment and retrieve parameters
         utils_config = CUtilities()
-                 
-        # Create an instance of the CMqlOverrides class.
-        mql_overrides = CMqlOverrides()  # If no config.yaml is provided, only defaults are used
-         
-        # Retrieve parameters for inspection using the "params" attribute.
+        mql_overrides = CMqlOverrides()  # Uses defaults if no config.yaml provided
+
         base_params = mql_overrides.env.all_params().get("base", {})
         data_params = mql_overrides.env.all_params().get("data", {})
         feat_params = mql_overrides.env.all_params().get("feat", {})
@@ -101,108 +93,76 @@ def main(logger):
         mltune_params = mql_overrides.env.all_params().get("mltune", {})
         app_params = mql_overrides.env.all_params().get("app", {})
 
-     
-        # Initialize logger
+        # Log the logfile location
         logdir = base_params.get('mp_glob_base_log_path', 'logs')
         os.makedirs(logdir, exist_ok=True)
-        logfile = os.path.join(logdir, 'tsneuropredict_app.log')
-        print(f"Logfile: {logfile}")
-        logging.basicConfig(
-               filename=str(logfile),
-               filemode='w',
-               format='%(asctime)s - %(levelname)s - %(message)s',
-               datefmt='%Y-%m-%d %H:%M:%S',
-               level=logging.DEBUG,
-               style='%'
-            )
-        """
-        logger.info("\nBase Parameters:")
+        logger.info(f"Logfile: {logfile}")
+
+        # Log parameter details
+        logger.info("Base Parameters:")
         for key, value in base_params.items():
             logger.info(f"  {key}: {value}")
-
-        logger.info("\nData Parameters:")   
+        logger.info("Data Parameters:")   
         for key, value in data_params.items():
             logger.info(f"  {key}: {value}")
-
-        logger.info("\nFeature Parameters:")
+        logger.info("Feature Parameters:")
         for key, value in feat_params.items():
             logger.info(f"  {key}: {value}")
-
-        logger.info("\nML Parameters:")
+        logger.info("ML Parameters:")
         for key, value in ml_params.items():
             logger.info(f"  {key}: {value}")
-
-        logger.info("\nML Tuning & Tuner Parameters:")
+        logger.info("ML Tuning Parameters:")
         for key, value in mltune_params.items():
             logger.info(f"  {key}: {value}")
-
-        logger.info("\nApp Parameters:")
+        logger.info("App Parameters:")
         for key, value in app_params.items():
             logger.info(f"  {key}: {value}")
-
-
-        # +-------------------------------------------------------------------
-        # STEP: Load Reference class and time variables
-        # +-------------------------------------------------------------------
+    
+        # ----- Load Reference class and time variables -----
         lp_timeframe_name = data_params.get('mp_data_timeframe', 'H4')
-
         reference_config = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
-        # Symbol Constants
         PRIMARY_SYMBOL = app_params.get('lp_app_primary_symbol', app_params.get('mp_app_primary_symbol', 'EURUSD'))
         SECONDARY_SYMBOL = app_params.get('lp_app_secondary_symbol', app_params.get('mp_app_primary_symbol', 'EURCHF'))
-        # Time Constants
+
         UNIT = reference_config.TIME_CONSTANTS["UNIT"]["SECOND"]
         MINUTE = reference_config.get_timevalue('MINUTE')
         HOUR = reference_config.get_timevalue('HOUR')
         DAY = reference_config.get_timevalue('DAY')
-        # Current Time Constants
         CURRENT_TIME = reference_config.get_current_time()
         CURRENTDAY = CURRENT_TIME["CURRENTDAY"]
         CURRENTMONTH = CURRENT_TIME["CURRENTMONTH"]
         CURRENTYEAR = CURRENT_TIME["CURRENTYEAR"]
-
-        # Mql Time Constants
         TIMEZONE = CURRENT_TIME["TIMEZONE"]
         TIMEFRAME = CURRENT_TIME["TIMEFRAME"]
-        timeval = HOUR  # hours, used in the window creation
+        timeval = HOUR  # used for window creation
         logger.info(f"Timezone: {TIMEZONE}")
         logger.info(f"Timeframe: {TIMEFRAME}")
 
-        # Fetch individual parameters safely
         rows = data_params.get('mp_data_rows', 1000)
         rowcount = data_params.get('mp_data_rowcount', 10000)
         logger.info(f"Timeframe Name: {lp_timeframe_name}, Rows: {rows}, Rowcount: {rowcount}")
 
-        # +-------------------------------------------------------------------
-        # STEP: CBroker Login
-        # +-------------------------------------------------------------------
-        logger.info("PARAM HEADER: MP_APP_BROKER:", app_params.get('mp_app_broker'))
+        # ----- Broker Login -----
+        logger.info("PARAM HEADER: MP_APP_BROKER: %s", app_params.get('mp_app_broker'))
         broker_config = CMqlBrokerConfig(app_params.get('mp_app_broker'))
         mqqlobj = broker_config.run_mql_login()
         if mqqlobj is True:
             logger.info("Successfully logged in to MetaTrader 5.")
         else:
-            logger.info(f"Failed to login. Error code: {mqqlobj}")
+            logger.info("Failed to login. Error code: %s", mqqlobj)
 
-        # +-------------------------------------------------------------------
-        # STEP: Initiate the data loader and data process classes
-        # +-------------------------------------------------------------------
-        # Retrieve broker file paths
+        # ----- Data Loader and Process Initialization -----
         data_loader_config = CDataLoader()
         data_process_config = CDataProcess(mp_unit=UNIT)
         ml_process_config = CDMLProcess()
 
-        # +-------------------------------------------------------------------
-        # STEP: Data loading and processing
-        # +-------------------------------------------------------------------
-        mp_data_history_size = data_params.get('mp_data_history_size', 1)  # Default to 1 if not set
-        # Set the UTC time for the data
+        # ----- Data Loading and Processing -----
+        mp_data_history_size = data_params.get('mp_data_history_size', 1)
         mv_data_utc_from = data_loader_config.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAY, TIMEZONE)
         mv_data_utc_to = data_loader_config.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAY, TIMEZONE)
         logger.info(f"Main: UTC From: {mv_data_utc_from}")
         logger.info(f"Main: UTC To: {mv_data_utc_to}")
 
-        # Load the data
         data_loader_config = CDataLoader(
             lp_utc_from=mv_data_utc_from,
             lp_utc_to=mv_data_utc_to,
@@ -212,248 +172,179 @@ def main(logger):
             lp_app_rowcount=rowcount
         )
         df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader_config.run_dataloader_services()
-        logger.info(f"Loaded: Data API Ticks: {df_api_ticks.shape}, Data API Rates: {df_api_rates.shape}, "
-                    f"Data File Ticks: {df_file_ticks.shape}, Data File Rates: {df_file_rates.shape}")
+        logger.info("Loaded: Data API Ticks: %s, Data API Rates: %s, Data File Ticks: %s, Data File Rates: %s",
+                    df_api_ticks.shape, df_api_rates.shape, df_file_ticks.shape, df_file_rates.shape)
 
-        # +-------------------------------------------------------------------
-        # STEP: Run data process manipulation
-        # +-------------------------------------------------------------------
         df_api_ticks = data_process_config.run_dataprocess_services(df=df_api_ticks, df_name='df_api_ticks')
         df_api_rates = data_process_config.run_dataprocess_services(df=df_api_rates, df_name='df_api_rates')
         df_file_ticks = data_process_config.run_dataprocess_services(df=df_file_ticks, df_name='df_file_ticks')
         df_file_rates = data_process_config.run_dataprocess_services(df=df_file_rates, df_name='df_file_rates')
-
-        # Log processed data summaries
-        utils_config.run_mql_print(df=df_api_ticks, df_name='df_api_ticks', hrows=hrows, colwidth=hwidth, app='data processing')
-        utils_config.run_mql_print(df=df_api_rates, df_name='df_api_rates', hrows=hrows, colwidth=hwidth, app='data processing')
-        utils_config.run_mql_print(df=df_file_ticks, df_name='df_file_ticks', hrows=hrows, colwidth=hwidth, app='data processing')
-        utils_config.run_mql_print(df=df_file_rates, df_name='df_file_rates', hrows=hrows, colwidth=hwidth, app='data processing')
+        utils_config.run_mql_print(df=df_api_ticks, df_name='df_api_ticks', hrows=5, colwidth=30, app='data processing')
+        utils_config.run_mql_print(df=df_api_rates, df_name='df_api_rates', hrows=5, colwidth=30, app='data processing')
+        utils_config.run_mql_print(df=df_file_ticks, df_name='df_file_ticks', hrows=5, colwidth=30, app='data processing')
+        utils_config.run_mql_print(df=df_file_rates, df_name='df_file_rates', hrows=5, colwidth=30, app='data processing')
         datafile = df_file_rates
-    
-        # +-------------------------------------------------------------------
-        # STEP: add The time index to the data
-        # +-------------------------------------------------------------------
-        # Limit the columns to just the time column and all features
+
+        # ----- Add Time Index to Data -----
         column_features = datafile.columns[1:]
-        datafile = datafile[[datafile.columns[0]] + list(datafile.columns[1:])]
-        utils_config.run_mql_print(df=datafile, df_name='df_file_rates', hrows=hrows, colwidth=hwidth, app='datafile')
-        # Print the DataFrame index to show that it's a DateTimeIndex
-        logger.info(datafile.index)
-        
-        # +-------------------------------------------------------------------
-        # STEP: Create Window Parameters
-        # +-------------------------------------------------------------------
-        # 1: 24 HOURS/24 HOURS prediction sliding window
-        # -----------------------------
-        logger.info("Creating the 24 hour prediction timeval{timeval},hour {HOUR}")
+        datafile = datafile[[datafile.columns[0]] + list(column_features)]
+        utils_config.run_mql_print(df=datafile, df_name='df_file_rates', hrows=5, colwidth=30, app='datafile')
+        logger.info("DataFrame index: %s", datafile.index)
+
+        # ----- Create Window Parameters -----
+        logger.info("Creating the 24 hour prediction window with timeval: %s and HOUR: %s", timeval, HOUR)
         back_window, forward_window, pred_width = ml_process_config.create_ml_window(timeval=HOUR)
-        logger.info(f"Back Window: {back_window}, Forward Window: {forward_window}, Prediction Width: {pred_width}")
-       
-       
-        # +-------------------------------------------------------------------
-        # STEP: Select features and labels
-        # +-------------------------------------------------------------------
-        # Select the features (you can include more if needed)
+        logger.info("Back Window: %s, Forward Window: %s, Prediction Width: %s", back_window, forward_window, pred_width)
+
+        # ----- Select Features and Labels -----
         features = ml_params.get("mp_ml_input_keyfeat", "Close")
         features_scaled = ml_params.get("mp_ml_input_keyfeat_scaled", "Close_Scaled")
         label1 = ml_params.get("mp_ml_output_label", "Label")
-        logger.info(f"Main: Features: {features}, Features Scaled: {features_scaled}, Label1: {label1}")
-        
-        # +-------------------------------------------------------------------
-        # STEP: Generate X and y from the Time Series
-        # +-------------------------------------------------------------------
-        # For each point in time where we have enough data for both windows,we create an input window (X) and the target (y)
-        datafile_X,datafile_y = ml_process_config.Create_Xy_input_and_target(datafile,back_window=back_window,forward_window=forward_window,features=[features])
-        logger.info("Input shape: %s, Expected shape: (Num_Samples, Periods, Labels)", datafile_X.shape)
-        logger.info("Target shape: %s, Expected shape: (Num_samples,)", datafile_y.shape)
+        logger.info("Main: Features: %s, Features Scaled: %s, Label1: %s", features, features_scaled, label1)
 
-        # +-------------------------------------------------------------------
-        # STEP: Split the data into training and test sets Fixed Partitioning
-        # +-------------------------------------------------------------------
-        seed= mltune_params.get('seed', 42)
+        # ----- Generate X and y -----
+        datafile_X, datafile_y = ml_process_config.Create_Xy_input_and_target(
+            datafile, back_window=back_window, forward_window=forward_window, features=[features]
+        )
+        logger.info("Input shape: %s, Target shape: %s", datafile_X.shape, datafile_y.shape)
+
+        # ----- Split Data -----
+        seed = mltune_params.get('seed', 42)
         n_samples = len(datafile_X)
         train_end = int(0.7 * n_samples)
         val_end = int(0.85 * n_samples)
-        # Split the dataset
-        X_train, X_val, X_test, y_train, y_val, y_test = ml_process_config.manual_split_data(datafile_X,datafile_y , train_end, val_end)
+        X_train, X_val, X_test, y_train, y_val, y_test = ml_process_config.manual_split_data(datafile_X, datafile_y, train_end, val_end)
         logger.info("Train samples: %s", X_train.shape[0])
         logger.info("Validation samples: %s", X_val.shape[0])
         logger.info("Test samples: %s", X_test.shape[0])
 
-        # +-------------------------------------------------------------------
-        # STEP:convert numpy dataset to TF dataset
-        # +-------------------------------------------------------------------
-        # initiate the object using a window generatorwindow is not  used in this model Parameters
+        # ----- Convert to TensorFlow Dataset -----
         tf_batch_size = ml_params.get('tf_batch_size', 32)
-        buffer_size=1000
-        # Convert to TensorFlow datasets
-        train_dataset, val_dataset, test_dataset = ml_process_config.create_simple_tf_dataset(X_train, y_train,X_val,y_val,X_test,y_test, batch_size=tf_batch_size, buffer_size=buffer_size)
+        buffer_size = 1000
+        train_dataset, val_dataset, test_dataset = ml_process_config.create_simple_tf_dataset(
+            X_train, y_train, X_val, y_val, X_test, y_test, batch_size=tf_batch_size, buffer_size=buffer_size
+        )
         logger.info("Train dataset: %s", train_dataset)
-        logger.info("Validation dataset: %s", val_dataset)  
+        logger.info("Validation dataset: %s", val_dataset)
         logger.info("Test dataset: %s", test_dataset)
 
-        # +-------------------------------------------------------------------
-        # STEP: Shapes: add tensor values for model input
-        # +-------------------------------------------------------------------
-        # Using element_spec to get the shape
         input_shape = train_dataset.element_spec[0].shape
         output_shape = train_dataset.element_spec[1].shape
         logger.info("Input shape: %s", input_shape)
         logger.info("Output shape: %s", output_shape)
 
-        # logger.info("\nML All Parameters:")
-        for key, value in mql_overrides.env.all_params().items():
-            logger.info(f"  {key}: {value}")
-
-       
-        # +-------------------------------------------------------------------
-        # STEP: Tune best model Hyperparameter tuning and model setup
-        # +-------------------------------------------------------------------
-        tunermodelparams = mql_overrides.env.all_params()
-
+        # ----- Model Tuning and Setup -----
+        mp_ml_mbase_path = mql_overrides.env.all_params().get("ml_base_path", "./models")
+        mp_ml_project_name = mql_overrides.env.all_params().get("ml_project_name", "default_model")
+        mp_ml_hard_run = mql_overrides.env.all_params().get("ml_hard_run", False)
+        batch_size = ml_params.get("batch_size", 32)
+        mp_ml_tf_param_epochs = ml_params.get("epochs", 10)
+        ONNX_save = mql_overrides.env.all_params().get("onnx_save", False)
+        mp_ml_base_path = mp_ml_mbase_path  # reusing base path
+        mp_ml_data_path = mql_overrides.env.all_params().get("ml_data_path", "./data")
+        mp_symbol_primary = app_params.get("lp_app_primary_symbol", "EURUSD")
+        mp_ml_data_type = mql_overrides.env.all_params().get("ml_data_type", "default")
+        
+        """
         tuner_config = CMdtuner(
-
-
-            hypermodel_params= tunermodelparams,
+            hypermodel_params=mql_overrides.env.all_params(),
             traindataset=train_dataset,
             valdataset=val_dataset,
             testdataset=test_dataset,
             castmode='float32',
         )
-
         tuner_config.initialize_tuner()
         best_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
+
+        mt_obj = tuner_config
+
+        if best_model is None:
+            logger.info("No best model loaded. Running tuner search (default run).")
+            runtuner = mt_obj.run_search()
+            mt_obj.export_best_model(ftype='tf')
+        elif mp_ml_hard_run:
+            logger.info("Running tuner search (hard run).")
+            runtuner = mt_obj.run_search()
+            mt_obj.export_best_model(ftype='tf')
+        else:
+            logger.info("Best model loaded successfully.")
+            runtuner = True
+
+        # ----- Train and Evaluate the Model -----
+        logger.info("Model: Loading file from directory %s, Model: filename %s", mp_ml_mbase_path, mp_ml_project_name)
+        load_model = mt_obj.check_and_load_model(mp_ml_mbase_path, ftype='tf')
+        if load_model is not None:
+            best_model = load_model
+            logger.info("Model: Best model: %s", best_model.name)
+            best_model.summary(print_fn=lambda x: logger.info(x))
+            tf.keras.backend.clear_session()
+
+            logger.info("Training the best model...")
+            best_model.fit(
+                train_dataset,
+                validation_data=val_dataset,
+                batch_size=batch_size,
+                epochs=mp_ml_tf_param_epochs
+            )
+            logger.info("Training completed.")
+
+            logger.info("Evaluating the model...")
+            val_metrics = best_model.evaluate(val_dataset, verbose=1)
+            test_metrics = best_model.evaluate(test_dataset, verbose=1)
+            logger.info("Validation Metrics - Loss: %.4f, Accuracy: %.4f", val_metrics[0], val_metrics[1])
+            logger.info("Test Metrics - Loss: %.4f, Accuracy: %.4f", test_metrics[0], test_metrics[1])
+
+            label_scaler.fit(y_train.reshape(-1, 1))
+            logger.info("Running predictions and scaling...")
+            predicted_fx_price = best_model.predict(test_dataset)
+            predicted_fx_price = label_scaler.inverse_transform(predicted_fx_price)
+            real_fx_price = label_scaler.inverse_transform(y_test.reshape(-1, 1))
+            logger.info("Predictions and scaling completed.")
+
+            if np.isnan(real_fx_price).any() or np.isnan(predicted_fx_price).any():
+                logger.info("Warning: NaN values found; removing corresponding entries.")
+                mask = ~np.isnan(real_fx_price) & ~np.isnan(predicted_fx_price)
+                real_fx_price = real_fx_price[mask]
+                predicted_fx_price = predicted_fx_price[mask]
+
+            mse = mean_squared_error(real_fx_price, predicted_fx_price)
+            mae = mean_absolute_error(real_fx_price, predicted_fx_price)
+            r2 = r2_score(real_fx_price, predicted_fx_price)
+            logger.info("MSE: %s, MAE: %s, R2: %s", mse, mae, r2)
+            logger.info("Mean Squared Error: %s", mse)
+            logger.info("Mean Absolute Error: %s", mae)
+            logger.info("R2 Score: %s", r2)
+
+            plt.plot(real_fx_price, color='red', label='Real FX Price')
+            plt.plot(predicted_fx_price, color='blue', label='Predicted FX Price')
+            plt.title('FX Price Prediction')
+            plt.xlabel('Time')
+            plt.ylabel('FX Price')
+            plt.legend()
+            plot_filepath = os.path.join(mp_ml_base_path, 'plot.png')
+            plt.savefig(plot_filepath)
+            if mql_overrides.env.all_params().get("mp_ml_show_plot", False):
+                plt.show()
+            logger.info("Plot saved to %s", plot_filepath)
+
+            if ONNX_save:
+                mp_output_path = os.path.join(mp_ml_data_path, f"model_{mp_symbol_primary}_{mp_ml_data_type}.onnx")
+                logger.info("Output Path: %s", mp_output_path)
+                opset_version = 17
+                spec = [tf.TensorSpec(input_shape, tf.float32, name="input")]
+                onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature=spec, opset=opset_version)
+                onnx.save_model(onnx_model, mp_output_path)
+                logger.info("Model saved to %s", mp_output_path)
+                checker.check_model(onnx_model)
+                logger.info("ONNX model is valid.")
+                logger.info("ONNX Runtime version: %s", ort.__version__)
+            mt5.shutdown()
+            logger.info("Finished.")
+        else:
+            logger.info("No data loaded; exiting.")
+            mt5.shutdown()
+            logger.info("Finished.")
+        """
         
-        
-      
-        # If no model or a hard run is required, run the search
-        runtuner = False
-       
-         if best_model is None:
-               logger.info("Running the tuner search bo model")
-               runtuner = mt.run_search()
-               mt.export_best_model(ftype='tf')
-         elif mp_ml_hard_run:  
-               logger.info("Running the tuner search hard run")
-               runtuner = mt.run_search()
-               mt.export_best_model(ftype='tf')
-         else:
-               logger.info("Best model loaded successfully")
-               runtuner = True
-       
-         # +-------------------------------------------------------------------
-         # STEP: Train and evaluate the best model
-         # +-------------------------------------------------------------------
-         logger.info("Model: Loading file from directory", mp_ml_mbase_path,"Model: filename", mp_ml_project_name)   
-         if (load_model := mt.check_and_load_model(mp_ml_mbase_path, ftype='tf')) is not None:
-               best_model = load_model
-               logger.info("Model: Best model: ", best_model.name)
-               logger.info("best_model.summary()", best_model.summary())
-               
-               # Fit the label scaler on the training labels
-               
-               # Model Training
-               tf.keras.backend.clear_session(free_memory=True)
-
-               logger.info("Training the best model...")
-               best_model.fit(
-                  train_dataset,
-                  validation_data=val_dataset,
-                  batch_size=batch_size,
-                  epochs=mp_ml_tf_param_epochs
-               )
-               logger.info("Training completed.")
-               
-               # Model Evaluation
-               logger.info("Evaluating the model...")
-               val_metrics = best_model.evaluate(val_dataset, verbose=1)
-               test_metrics = best_model.evaluate(test_dataset, verbose=1)
-
-               logger.info(f"Validation Metrics - Loss: {val_metrics[0]:.4f}, Accuracy: {val_metrics[1]:.4f}")
-               logger.info(f"Test Metrics - Loss: {test_metrics[0]:.4f}, Accuracy: {test_metrics[1]:.4f}")
-
-               # Fit the label scaler on the training labels
-               label_scaler.fit(y_train.reshape(-1, 1))
-
-               # Predictions and Scaling
-               logger.info("Running predictions and scaling...")
-               predicted_fx_price = best_model.predict(test_dataset)
-               predicted_fx_price = label_scaler.inverse_transform(predicted_fx_price)
-
-               real_fx_price = label_scaler.inverse_transform(y_test.reshape(-1, 1))
-               logger.info("Predictions and scaling completed.")
-               # +-------------------------------------------------------------------
-               # STEP: Performance Check
-               # +-------------------------------------------------------------------
-               # Evaluation and visualization
-               # Mean Squared Error (MSE): It measures the average squared difference between the predicted and actual values. 
-               # The lower the MSE, the better the model.
-
-               # Mean Absolute Error (MAE): It measures the average absolute difference between the predicted and actual values. 
-               # Like MSE, lower values indicate better model performance.
-
-               # R2 Score: Also known as the coefficient of determination, it measures the proportion of the variance in the
-               # dependent variable that is predictable from the independent variable(s). An R2 score of 1 indicates a 
-               # perfect fit, while a score of 0 suggests that the model is no better than predicting the mean of the label
-               # variable. Negative values indicate poor model performance.
-               # Check for NaN values and handle them
-               if np.isnan(real_fx_price).any() or np.isnan(predicted_fx_price).any():
-                  logger.info("Warning: NaN values found in input data. Handling NaNs by removing corresponding entries.")
-                  mask = ~np.isnan(real_fx_price) & ~np.isnan(predicted_fx_price)
-                  real_fx_price = real_fx_price[mask]
-                  predicted_fx_price = predicted_fx_price[mask]
-               
-               mse = mean_squared_error(real_fx_price, predicted_fx_price)
-               mae = mean_absolute_error(real_fx_price, predicted_fx_price)
-               r2 = r2_score(real_fx_price, predicted_fx_price)
-               logger.info(f"MSE: {mse}, MAE: {mae}, R2: {r2}")
-               logger.info(f"Mean Squared Error: The lower the MSE, the better the model: {mse}")
-               logger.info(f"Mean Absolute Error: The lower the MAE, the better the model: {mae}")
-               logger.info(f"R2 Score: The closer to 1, the better the model: {r2}")
-
-               plt.plot(real_fx_price, color='red', label='Real FX Price')
-               plt.plot(predicted_fx_price, color='blue', label='Predicted FX Price')
-               plt.title('FX Price Prediction')
-               plt.xlabel('Time')
-               plt.ylabel('FX Price')
-               plt.legend()
-               plt.savefig(mp_ml_base_path + '/' + 'plot.png')
-               if mp_ml_show_plot:
-                  plt.show()
-               logger.info("Plot Model saved to ", mp_ml_base_path + '/' + 'plot.png')
-
-               if ONNX_save:
-                  # Save the model to ONNX
-                  
-                  # Define the output path
-                  mp_output_path = mp_ml_data_path + f"model_{mp_symbol_primary}_{mp_ml_data_type}.onnx"
-                  logger.info(f"Output Path: {mp_output_path}")
-
-                  # Convert Keras model to ONNX
-                  opset_version = 17  # Choose an appropriate ONNX opset version
-
-                  # Assuming your model has a single input
-                  spec = [tf.TensorSpec(input_shape, tf.float32, name="input")]
-                  onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature=spec, opset=opset_version)
-
-                  # Save the ONNX model
-                  onnx.save_model(onnx_model, mp_output_path)
-                  logger.info(f"Model saved to {mp_output_path}")
-
-                  # Verify the ONNX model
-                  checker.check_model(onnx_model)
-                  logger.info("ONNX model is valid.")
-
-                  # Check ONNX Runtime version
-                  logger.info("ONNX Runtime version:", ort.__version__)
-
-                  # finish
-                  mt5.shutdown()
-                  logger.info("Finished")
-         else:
-               logger.info("No data loaded")
-         mt5.shutdown()
-         logger.info("Finished")    
-"""
 if __name__ == "__main__":
     main(logger)
