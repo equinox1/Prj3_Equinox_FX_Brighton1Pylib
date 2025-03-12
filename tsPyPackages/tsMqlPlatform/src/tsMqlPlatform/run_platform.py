@@ -9,8 +9,11 @@ Date: 2025-01-24
 Version: 1.0
 License: MIT License
 """
+import logging
 
-from tsMqlPlatform import platform_checker, PLATFORM_DEPENDENCIES, logger, config
+from tsMqlPlatform import platform_checker, PLATFORM_DEPENDENCIES, config
+
+logger = logging.getLogger(__name__)
 
 logger.info("Starting application...")
 

@@ -11,6 +11,9 @@ Version: 1.1
 
 import logging
 from pathlib import Path
+import logging
+logger = logging.getLogger(__name__)
+
 
 class CEnvCore:
     """Common functionality shared across parameter classes."""

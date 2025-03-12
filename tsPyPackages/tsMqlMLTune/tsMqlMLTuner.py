@@ -10,6 +10,7 @@ Version: 1.0
 License: (Optional) e.g., MIT License
 """
 
+
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger, config
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
@@ -40,8 +41,8 @@ import pathlib
 import numpy as np
 from datetime import date
 import logging
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+logger = logging.getLogger(__name__)
 
 class CMdtuner:
     def __init__(self, **kwargs):

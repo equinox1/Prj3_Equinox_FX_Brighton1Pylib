@@ -14,6 +14,7 @@ import os
 import posixpath  # For path handling
 import warnings
 import gc
+import logging
 
 import tensorflow as tf
 from tensorflow.keras.mixed_precision import Policy
@@ -22,6 +23,9 @@ from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES,
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql=pchk.check_mql_state()
+
+logger = logging.getLogger(__name__)
+
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
 class CMqlSetup:

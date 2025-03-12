@@ -9,6 +9,8 @@ Version: 1.0
 """
 
 from tsMqlEnvCore import CEnvCore
+import logging
+logger = logging.getLogger(__name__)
 
 class CMqlEnvMLParams(CEnvCore):
     """Manage machine learning tuner parameters."""

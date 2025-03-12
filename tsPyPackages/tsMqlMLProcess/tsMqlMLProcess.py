@@ -25,6 +25,8 @@ from tsMqlPlatform import run_platform, platform_checker, logger
 from tsMqlEnvMgr import CMqlEnvMgr
 from tsMqlOverrides import CMqlOverrides
 
+logger = logging.getLogger(__name__)
+
 # Initialize platform checker
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()

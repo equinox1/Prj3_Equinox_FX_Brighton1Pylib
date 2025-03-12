@@ -9,6 +9,8 @@ Date: 2025-01-24
 Version: 1.1
 """
 
+logger = logging.getLogger(__name__)
+
 import sys
 import os
 import platform

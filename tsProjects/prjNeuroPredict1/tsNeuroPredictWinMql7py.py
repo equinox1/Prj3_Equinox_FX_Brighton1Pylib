@@ -61,9 +61,13 @@ for handler in logging.root.handlers[:]:
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 fh = logging.FileHandler(logfile, mode='w')
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
+
+formatter = logging.Formatter('%(asctime)s - %(levelname)s -%(filename)s -%(funcName)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 fh.setFormatter(formatter)
 logger.addHandler(fh)
+
+
 logger.info("Logging configured successfully with FileHandler.")
 
 # ----- Setup platform -----

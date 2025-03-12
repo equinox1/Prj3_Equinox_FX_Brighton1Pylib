@@ -3,6 +3,8 @@ from datetime import datetime
 import tzlocal
 import zoneinfo  # Import zoneinfo
 
+logger = logging.getLogger(__name__)
+
 try:
     import MetaTrader5 as mt5
 except ImportError:
