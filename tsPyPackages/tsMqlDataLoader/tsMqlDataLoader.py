@@ -83,7 +83,8 @@ class CDataLoader:
         for section in param_sections:
             setattr(self, f"{section}_params", self.params.get(section, {}))
 
-        self.mp_glob_data_path = kwargs.get('mp_glob_data_path', self.params.get('base', {}).get('mp_glob_data_path', 'Mql5Data'))
+  
+        self.mp_glob_base_data_path = self.params.get('base', {}).get('mp_glob_base_data_path', 'Mql5Data')
 
         self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
         self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
@@ -92,7 +93,7 @@ class CDataLoader:
         self.mp_data_loadfileticks = kwargs.get('mp_data_loadfileticks', self.params.get('data', {}).get('mp_data_loadfileticks', True))
         self.mp_data_loadfilerates = kwargs.get('mp_data_loadfilerates', self.params.get('data', {}).get('mp_data_loadfilerates', True))
 
-        logger.info(f"Data path: {self.mp_glob_data_path}")
+        logger.info(f"Data path: {self.mp_glob_base_data_path}")
         logger.info(f"Data filename1: {self.mp_data_filename1_merge}")
         logger.info(f"Data filename2: {self.mp_data_filename2_merge}")
         logger.info(f"Load API ticks: {self.mp_data_loadapiticks}")
@@ -141,7 +142,7 @@ class CDataLoader:
 
     def _load_from_file(self, filename):
         """Load data from a CSV file."""
-        filepath = os.path.join(self.mp_glob_data_path, filename)
+        filepath = os.path.join(self.mp_glob_base_data_path, filename)
         if not os.path.exists(filepath):
             logger.error(f"File not found: {filepath}")
             return pd.DataFrame()
