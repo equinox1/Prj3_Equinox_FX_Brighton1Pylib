@@ -17,7 +17,6 @@ import logging
 from .config import config
 
 # Configure the logger (adjust configuration as needed)
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class PlatformChecker:

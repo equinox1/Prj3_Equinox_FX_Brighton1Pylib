@@ -16,8 +16,7 @@ import logging
 import copy
 
 # Basic logger configuration for demonstration
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("tsMqlOverrides")
+logger = logging.getLogger(__name__)
 
 # Adjust these imports as necessary for your project structure
 from tsMqlEnvMgr import CMqlEnvMgr

@@ -1,6 +1,6 @@
 [project]
-name = "tsMqlSetup"
-version = "2.3.9"
+name = "tsmqlsetup"
+version = "2.3.10"
 authors = [
   { name="Tony Shepherd", email="shep.antony@gmail.com" },
 ]
@@ -14,4 +14,4 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/blob/icm/tsPyPackages/tsMqlSetup"
+Homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/blob/icm/tsPyPackages/tsmqlsetup"

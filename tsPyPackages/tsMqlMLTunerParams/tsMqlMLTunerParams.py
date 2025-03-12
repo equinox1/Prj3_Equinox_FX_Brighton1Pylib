@@ -14,6 +14,8 @@ import os
 from datetime import datetime
 from tsMqlEnvCore import CEnvCore
 from typing import Any, Dict, List, Optional
+import logging
+logger = logging.getLogger(__name__)
 
 def get_current_datetime() -> str:
     """Return the current date and time as a formatted string."""

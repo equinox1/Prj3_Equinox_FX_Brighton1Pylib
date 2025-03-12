@@ -8,6 +8,8 @@ Version: 1.1 (Optimized)
 License: (Optional) e.g., MIT License
 """
 
+logger = logging.getLogger(__name__)
+
 from tsMqlEnvCore import CEnvCore
 
 class CMqlEnvAppParams(CEnvCore):

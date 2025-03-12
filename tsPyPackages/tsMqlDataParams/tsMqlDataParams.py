@@ -20,6 +20,8 @@ License: (Optional) e.g., MIT License
 
 from tsMqlEnvCore import CEnvCore
 
+logger = logging.getLogger(__name__)
+
 class CMqlEnvDataParams(CEnvCore):
    def __init__(self, **kwargs):
         super().__init__(custom_params=kwargs)  # Ensure proper initialization

@@ -17,14 +17,13 @@ import pandas as pd
 import tensorflow as tf
 from tabulate import tabulate
 
-
+logger = logging.getLogger(__name__)
 
 
 class CUtilities:
     def __init__(self, **kwargs):
         """Initialize data processing class."""
-        self._logger = logging.getLogger(__name__)
-        self._logger.info("Initializing Utilities class...")
+        
         self.df: pd.DataFrame = kwargs.get("df", None)
         self.hrows: int = kwargs.get("hrows", 5)
         self.colwidth: int = kwargs.get("colwidth", 20)

@@ -7,6 +7,7 @@
 # Version: 1.1
 # License: MIT License (Optional)
 
+
 import logging
 import pandas as pd
 import numpy as np
@@ -15,6 +16,8 @@ import os
 from datetime import datetime
 from tsMqlPlatform import run_platform, platform_checker, logger, config
 from tsMqlEnvMgr import CMqlEnvMgr
+
+logger = logging.getLogger(__name__)
 
 class CDataLoader:
     """Class to manage and load market data with override capability."""
