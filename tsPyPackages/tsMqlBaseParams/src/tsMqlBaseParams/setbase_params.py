@@ -8,7 +8,7 @@ Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
 Version: 1.1
 """
-
+import logging
 logger = logging.getLogger(__name__)
 
 import sys
@@ -17,15 +17,11 @@ import platform
 import json
 from pathlib import Path
 import yaml  # For loading configurations
-import logging
+
 
 # Initialize logger
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-handler = logging.StreamHandler(sys.stdout)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-logger.addHandler(handler)
+
 
 # It’s assumed that these modules provide platform detection, logging, and other utilities.
 from tsMqlPlatform import run_platform, platform_checker, config as global_config

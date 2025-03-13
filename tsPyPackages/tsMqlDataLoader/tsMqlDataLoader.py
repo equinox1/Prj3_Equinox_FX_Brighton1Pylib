@@ -14,9 +14,9 @@ import numpy as np
 import pytz
 import os
 from datetime import datetime
-from tsMqlPlatform import run_platform, platform_checker, logger, config
+from tsMqlPlatform import run_platform, platform_checker, config
 from tsMqlEnvMgr import CMqlEnvMgr
-
+import logging
 logger = logging.getLogger(__name__)
 
 class CDataLoader:

@@ -11,7 +11,7 @@ License: (Optional) e.g., MIT License
 """
 
 
-from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, logger, config
+from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql=pchk.check_mql_state()

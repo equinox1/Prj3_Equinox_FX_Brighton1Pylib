@@ -14,10 +14,11 @@ from datetime import datetime
 from tabulate import tabulate
 
 # Import platform dependencies
-from tsMqlPlatform import run_platform, platform_checker, logger
+from tsMqlPlatform import run_platform, platform_checker
 from tsMqlEnvMgr import CMqlEnvMgr
 from tsMqlOverrides import CMqlOverrides
 
+logger = logging.getLogger(__name__)
 # Initialize platform checker
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()

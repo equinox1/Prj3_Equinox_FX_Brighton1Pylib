@@ -48,10 +48,10 @@ from tsMqlDataProcess import CDataProcess
 from tsMqlMLTune import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
-# ----- Logging configuration -----
-logdir = r"C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
-os.makedirs(logdir, exist_ok=True)
-logfile = os.path.join(logdir, 'tsneuropredict_app.log')
+# ----- Global Logging configuration -----
+global_logdir = r"C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
+os.makedirs(global_logdir, exist_ok=True)
+global_logfile = os.path.join(global_logdir, 'tsneuropredict_app.log')
 
 import logging
 # Remove any existing handlers to ensure our configuration is used.
@@ -60,20 +60,16 @@ for handler in logging.root.handlers[:]:
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-fh = logging.FileHandler(logfile, mode='w')
-
-
-formatter = logging.Formatter('%(asctime)s - %(levelname)s -%(filename)s -%(funcName)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+fh = logging.FileHandler(global_logfile, mode='w')
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s',
+                              datefmt='%Y-%m-%d %H:%M:%S')
 fh.setFormatter(formatter)
 logger.addHandler(fh)
-
-
 logger.info("Logging configured successfully with FileHandler.")
 
 # ----- Setup platform -----
 setup_config = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
 strategy = setup_config.get_computation_strategy()
-
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
@@ -97,9 +93,10 @@ def main(logger):
         mltune_params = mql_overrides.env.all_params().get("mltune", {})
         app_params = mql_overrides.env.all_params().get("app", {})
 
-        # Log the logfile location
-        logdir = base_params.get('mp_glob_base_log_path', 'logs')
+        # Log the logfile location; ensure logdir is not None.
+        logdir = base_params.get('mp_glob_base_log_path') or 'logs'
         os.makedirs(logdir, exist_ok=True)
+        logfile = os.path.join(logdir, 'tsneuropredict_app.log')
         logger.info(f"Logfile: {logfile}")
 
         # Log parameter details
@@ -125,10 +122,13 @@ def main(logger):
         # ----- Load Reference class and time variables -----
         lp_timeframe_name = data_params.get('mp_data_timeframe', 'H4')
         reference_config = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
-        PRIMARY_SYMBOL = app_params.get('lp_app_primary_symbol', app_params.get('mp_app_primary_symbol', 'EURUSD'))
-        SECONDARY_SYMBOL = app_params.get('lp_app_secondary_symbol', app_params.get('mp_app_primary_symbol', 'EURCHF'))
-
-        UNIT = reference_config.TIME_CONSTANTS["UNIT"]["SECOND"]
+        
+        # Adjust TIME_CONSTANTS handling in case it's a list.
+        time_constants = reference_config.TIME_CONSTANTS
+        if isinstance(time_constants, list):
+            time_constants = time_constants[0]
+        
+        UNIT = time_constants["UNIT"]["SECOND"]
         MINUTE = reference_config.get_timevalue('MINUTE')
         HOUR = reference_config.get_timevalue('HOUR')
         DAY = reference_config.get_timevalue('DAY')
@@ -171,7 +171,7 @@ def main(logger):
             lp_utc_from=mv_data_utc_from,
             lp_utc_to=mv_data_utc_to,
             lp_timeframe=lp_timeframe_name,
-            lp_app_primary_symbol=PRIMARY_SYMBOL,
+            lp_app_primary_symbol=app_params.get('lp_app_primary_symbol', app_params.get('mp_app_primary_symbol', 'EURUSD')),
             lp_app_rows=rows,
             lp_app_rowcount=rowcount
         )
@@ -250,6 +250,7 @@ def main(logger):
         mp_ml_data_type = mql_overrides.env.all_params().get("ml_data_type", "default")
         
         """
+        # ----- Uncomment the tuner and model training block below as needed -----
         tuner_config = CMdtuner(
             hypermodel_params=mql_overrides.env.all_params(),
             traindataset=train_dataset,
