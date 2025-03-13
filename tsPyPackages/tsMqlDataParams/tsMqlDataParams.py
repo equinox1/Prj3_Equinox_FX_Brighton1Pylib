@@ -19,7 +19,7 @@ License: (Optional) e.g., MIT License
 # related to machine learning.
 
 from tsMqlEnvCore import CEnvCore
-
+import logging
 logger = logging.getLogger(__name__)
 
 class CMqlEnvDataParams(CEnvCore):

@@ -7,7 +7,7 @@ Date: 2025-01-24
 Version: 1.1 (Optimized)
 License: (Optional) e.g., MIT License
 """
-
+import logging
 logger = logging.getLogger(__name__)
 
 from tsMqlEnvCore import CEnvCore
