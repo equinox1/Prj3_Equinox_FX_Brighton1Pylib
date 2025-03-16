@@ -6,7 +6,7 @@ File: tsPyPackages/tsMqlOverrides/tsMqlOverrides.py
 Description: Load and add files and data parameters. Login to Metatrader.
 Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
-Version: 1.1
+Version: 1.2
 """
 
 import os
@@ -56,7 +56,6 @@ class CMqlOverrides(CEnvCore):
 
         # Apply individual category overrides (if needed)
         self._set_data_overrides()
-        self._set_feature_overrides()
         self._set_ml_overrides()
         self._set_mltune_overrides()
         self._set_tuner_overrides()
@@ -75,12 +74,12 @@ class CMqlOverrides(CEnvCore):
                 logger.error("Error loading configuration from %s: %s", config_path, e)
                 return {}
         else:
-            logger.error("Configuration file %s not found.", config_path)
+            logger.error("Overrides: Configuration file %s not found.", config_path)
             return {}
 
     def _set_data_overrides(self):
         """Overrides default data parameters using values from config.yaml if available."""
-        data_config = self.config.get("data", {})
+        data_config = self.config.get("DATA_PARAMS", {})
         data_overrides = {
             "mp_data_load": data_config.get("mp_data_load", True),
             "mp_data_save": data_config.get("mp_data_save", False),
@@ -95,20 +94,6 @@ class CMqlOverrides(CEnvCore):
             logger.info("Data parameters overridden successfully.")
         except Exception as e:
             logger.error("Failed to override data parameters: %s", e)
-
-    def _set_feature_overrides(self):
-        """Overrides feature parameters using settings from config.yaml if provided."""
-        feat_config = self.config.get("FEATURES_PARAMS", {})
-        if feat_config:
-            try:
-                current = self.env.all_params().get("feat", {})
-                merged = deep_merge(current, feat_config)
-                self.env.override_params({"feat": merged})
-                logger.info("Feature parameters overridden successfully.")
-            except Exception as e:
-                logger.error("Failed to override feature parameters: %s", e)
-        else:
-            logger.info("No feature overrides provided.")
 
     def _set_ml_overrides(self):
         """Overrides ML-related parameters using config.yaml settings if available."""
@@ -184,7 +169,6 @@ if __name__ == "__main__":
     
     # Retrieve parameters for inspection using the "params" attribute.
     data_params = mql_overrides.env.all_params().get("data", {})
-    feat_params = mql_overrides.env.all_params().get("feat", {})
     ml_params = mql_overrides.env.all_params().get("ml", {})
     mltune_params = mql_overrides.env.all_params().get("mltune", {})
     app_params = mql_overrides.env.all_params().get("app", {})
@@ -193,9 +177,6 @@ if __name__ == "__main__":
     for key, value in data_params.items():
         print(f"  {key}: {value}")
     
-    print("\nFeature Parameters:")
-    for key, value in feat_params.items():
-        print(f"  {key}: {value}")
     
     print("\nML Parameters:")
     for key, value in ml_params.items():

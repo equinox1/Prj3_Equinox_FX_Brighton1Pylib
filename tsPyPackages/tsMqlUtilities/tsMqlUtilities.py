@@ -19,7 +19,6 @@ from tabulate import tabulate
 
 logger = logging.getLogger(__name__)
 
-
 class CUtilities:
     def __init__(self, **kwargs):
         """Initialize data processing class."""
@@ -39,7 +38,7 @@ class CUtilities:
         """
         Prints a formatted table of the first few rows of a DataFrame.
 
-        :param df: DataFrame to print
+        :param df: DataFrame to logger.info
         :param df_name: Name of the DataFrame for logging
         :param hrows: Number of rows to display
         :param colwidth: Maximum column width for text wrapping
@@ -50,10 +49,10 @@ class CUtilities:
         """
         if df is None or df.empty:
             self._logger.warning("DataFrame is empty or None.")
-            print("No data available to display.")
+            logger.info("No data available to display.")
             return
 
-        print(f"Print Table: first {min(hrows, len(df))} rows (total rows: {len(df)})")
+        logger.info(f"Print Table: first {min(hrows, len(df))} rows (total rows: {len(df)})")
 
         def wrap_column_data(column, width):
             return column.apply(lambda x: '\n'.join(textwrap.wrap(str(x), width)))
@@ -71,7 +70,7 @@ class CUtilities:
         stralign=stralign,
         floatfmt=floatfmt
          )
-        self._logger.info(f"Programme App finish: {app} Data from file: {df_name}, shape: {df.shape}\n" + formatted_table)
+        logger.info(f"Programme App finish: {app} Data from file: {df_name}, shape: {df.shape}\n" + formatted_table)
 
         
 
@@ -86,6 +85,6 @@ if __name__ == "__main__":
     }
     sample_df = pd.DataFrame(data)
 
-    # Instantiate the utility class and print the sample DataFrame
+    # Instantiate the utility class and logger.info the sample DataFrame
     util = CUtilities(df=sample_df)
-    util.run_mql_print(sample_df, df_name="Sample DataFrame", hrows=5, colwidth=30)
+    util.run_mql_logger.info(sample_df, df_name="Sample DataFrame", hrows=5, colwidth=30)

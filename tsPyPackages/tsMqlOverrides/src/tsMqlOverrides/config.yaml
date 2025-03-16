@@ -1,37 +1,39 @@
 # config.yaml
 # Configuration settings for tsMqlOverrides package.
 # data: Data settings for data loading and processing
-mp_data_load: False
-mp_data_save: False
-mp_data_savefile: False
-mp_data_rownumber: False
-mp_data_data_label: 3
-mp_data_history_size: 5
-mp_data_timeframe: 'mt5.TIMEFRAME_H4'
-mp_data_tab_rows: 10
-mp_data_tab_width: 30
-mp_data_show_dtype: False
-mp_data_show_head: False
-mp_data_command_ticks: null
-mp_data_command_rates: null
-mp_data_cfg_usedata: 'loadfilerates'
-mp_data_loadapiticks: True
-mp_data_loadapirates: True
-mp_data_loadfileticks: True
-mp_data_loadfilerates: True
-mv_data_dfname1: 'df_rates1'
-mv_data_dfname2: 'df_rates2'
-mp_data_rows: 1000
-mp_data_rowcount: 10000
-mp_data_filename1: 'tickdata1'
-mp_data_filename2: 'ratesdata1'
+
+DATA_PARAMS:
+  mp_data_load: False
+  mp_data_save: False
+  mp_data_savefile: False
+  mp_data_rownumber: False
+  mp_data_data_label: 3
+  mp_data_history_size: 5
+  mp_data_timeframe: 'mt5.TIMEFRAME_H4'
+  mp_data_tab_rows: 10
+  mp_data_tab_width: 30
+  mp_data_show_dtype: False
+  mp_data_show_head: False
+  mp_data_command_ticks: null
+  mp_data_command_rates: null
+  mp_data_cfg_usedata: 'loadfilerates'
+  mp_data_loadapiticks: True
+  mp_data_loadapirates: True
+  mp_data_loadfileticks: True
+  mp_data_loadfilerates: True
+  mv_data_dfname1: 'df_rates1'
+  mv_data_dfname2: 'df_rates2'
+  mp_data_rows: 1000
+  mp_data_rowcount: 10000
+  mp_data_filename1: 'tickdata1'
+  mp_data_filename2: 'ratesdata1'
 
 # Data filter settings for different data sources
 df1_filter_int: False
-df_filter_flt: False
+df1_filter_flt: False
 df1_filter_obj: False
 df1_filter_dtmi: False
-df_filter_dtmf: False
+df1_filter_dtmf: False
 df1_merge: False
 df1_convert: False
 df1_drop: False
@@ -64,7 +66,7 @@ df4_convert: False
 df4_drop: False
 
 # Api ML Settings
-WINDOW_PARAMS:
+ML_PARAMS:
   mp_ml_cfg_period1: 24
   mp_ml_cfg_period2: 6
   mp_ml_cfg_period3: 1
@@ -74,8 +76,6 @@ WINDOW_PARAMS:
   mp_ml_futuretimeperiods: 24
   mp_ml_predtimeperiods: 1
   mp_ml_lookahead_periods: 24
-
-FEATURES_PARAMS:
   mp_ml_input_keyfeat: "Close"
   Feature1: "Close"
   Feature2: "High"
@@ -97,11 +97,9 @@ FEATURES_PARAMS:
   mp_ml_output_label: "Label"
   mp_ml_output_label_scaled: "Label_Scaled"
   Label1: "Label"
-  Label1_Scaled: "Label_Scaled"
+  Label1_scaled: "Label_Scaled"
   Label2: "Target"
-  Label2_Scaled: "Target_Scaled"
-
-ML_PARAMS:
+  Label2_scaled: "Target_Scaled"
   mp_ml_tf_shiftin: 1
   mp_ml_hl_avg_col: 'HLAvg'
   mp_ml_ma_col: 'SMA'
@@ -132,7 +130,6 @@ ML_PARAMS:
 # ML Tuning Settings
 ML_TUNING_PARAMS:
   mp_ml_tunemode: True
-  
 
 APP_PARAMS:
   mp_app_primary_symbol: "EURUSD"  # Corrected typo

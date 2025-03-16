@@ -72,11 +72,11 @@ class CMqlEnvMLTunerParams(CEnvCore):
         self.label_columns: Optional[List[str]] = kwargs.get('label_columns', None)
         self.input_width: Optional[int] = kwargs.get('input_width', None)
         self.shift: Optional[int] = kwargs.get('shift', None)
-        self.total_window_size: Optional[int] = kwargs.get('total_window_size', None)
+        self.total_window_size: Optional[int] = kwargs.get('total_window_size',None)
         self.label_width: Optional[int] = kwargs.get('label_width', None)
 
         # Tuner application settings.
-        self.keras_tuner: str = kwargs.get('keras_tuner', 'Hyperband')
+        self.keras_tuner: str = kwargs.get('keras_tuner', 'hyperband')
         self.hyperband_iterations: int = kwargs.get('hyperband_iterations', 1)
 
         # Epoch settings.
@@ -107,7 +107,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
         # Evaluator settings.
         self.optimizer: str = kwargs.get('optimizer', 'adam')
         self.loss: str = kwargs.get('loss', 'mean_squared_error')
-        self.metrics: List[str] = kwargs.get('metrics', ['mean_squared_error'])
+        self.metrics: List[str] = kwargs.get('metrics', ['mean_squared_error']) if isinstance(kwargs.get('metrics', ['mean_squared_error']), list) else [kwargs.get('metrics', 'mean_squared_error')]
         self.dropout: float = kwargs.get('dropout', 0.2)
 
         # Checkpointing options.
