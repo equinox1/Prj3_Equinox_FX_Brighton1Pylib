@@ -117,12 +117,25 @@ class CMqlEnvBaseParams(CEnvCore):
          self.mql_expert_path, self.mql_indicator_path) = self._get_mql_paths()
 
         self.DEFAULT_PARAMS = {
+            # Platform settings
+            'mp_glob_base_pl_platform_type': self.mp_glob_pl_platform_type,
+            'mp_glob_base_platform_dir': self.platform_dir,
+            'mp_glob_base_pl_default_platform': self.mp_glob_pl_default_platform,
+            # log settings
+            'mp_glob_base_log_path': self.mp_glob_log_path,
+            # Base paths
             'mp_glob_base_path': self.mp_glob_base_path,
+            'mp_glob_base_connect_path': self.mql_base_connect_path,   
             'mp_glob_base_config_path': self.mp_glob_config_path,
             'mp_glob_base_data_path': self.mp_glob_data_path,
             'mp_glob_base_ml_modeldir': self.model_base,
+            # ML paths
             'mp_glob_base_ml_project_dir': self.project_dir,
+            'mp_glob_base_ml_project_name': self.project_name,
+            'mp_glob_sub_ml_baseuniq': self.model_uniq,
             'mp_glob_base_ml_checkpoint_filepath': self.checkpoint_filepath,
+            'mp_glob_sub_ml_model_name' : self.model_name,
+            # MQL paths
             'mp_glob_base_mql_basepath': self.mql_basepath,
             'mp_glob_base_mql_data_path': self.mql_data_path,
             'mp_glob_base_mql_include_path': self.mql_include_path,
@@ -130,10 +143,6 @@ class CMqlEnvBaseParams(CEnvCore):
             'mp_glob_base_mql_script_path': self.mql_script_path,
             'mp_glob_base_mql_expert_path': self.mql_expert_path,
             'mp_glob_base_mql_indicator_path': self.mql_indicator_path,
-            'mp_glob_base_pl_platform_type': self.mp_glob_pl_platform_type,
-            'mp_glob_base_platform_dir': self.platform_dir,
-            'mp_glob_base_pl_default_platform': self.mp_glob_pl_default_platform,
-            'mp_glob_base_log_path': self.mp_glob_log_path,
         }
         logger.info("Distinct Base Environment parameters:")
         for key, value in self.DEFAULT_PARAMS.items():
@@ -302,6 +311,7 @@ class CMqlEnvBaseParams(CEnvCore):
          self.mql_dir7 = self.config.get('mp_glob_sub_mql_dir7', 'Indicators')
 
          self.mql_basepath = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir1
+         self.mql_base_connect_path = base_path / self.mql_base_ver
          self.mql_data_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir2
          self.mql_include_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir3
          self.mql_lib_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir4
@@ -311,6 +321,7 @@ class CMqlEnvBaseParams(CEnvCore):
 
          Logflag = "Base:"
          logger.info(f"{Logflag} MQL base path: {self.mql_basepath}")
+         logger.info(f"{Logflag} MQL connect path: {self.mql_base_connect_path}")
          logger.info(f"{Logflag} MQL data path: {self.mql_data_path}")
          logger.info(f"{Logflag} MQL include path: {self.mql_include_path}")
          logger.info(f"{Logflag} MQL lib path: {self.mql_lib_path}")

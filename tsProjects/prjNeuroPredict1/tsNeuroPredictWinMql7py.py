@@ -45,7 +45,7 @@ from tsMqlReference import CMqlRefConfig
 from tsMqlConnect import CMqlBrokerConfig
 from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
-from tsMqlMLTune import CMdtuner
+from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
 # ----- Global Logging configuration -----
@@ -66,6 +66,7 @@ formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(filename)s - %(fu
 fh.setFormatter(formatter)
 logger.addHandler(fh)
 logger.info("Logging configured successfully with FileHandler.")
+logger.info("Logfile: %s", global_logfile)
 
 # ----- Setup platform -----
 setup_config = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
@@ -88,7 +89,7 @@ def main(logger):
 
         base_params = mql_overrides.env.all_params().get("base", {})
         data_params = mql_overrides.env.all_params().get("data", {})
-        feat_params = mql_overrides.env.all_params().get("feat", {})
+        feat_params = mql_overrides.env.all_params().get("features", {})
         ml_params = mql_overrides.env.all_params().get("ml", {})
         mltune_params = mql_overrides.env.all_params().get("mltune", {})
         app_params = mql_overrides.env.all_params().get("app", {})
@@ -100,22 +101,19 @@ def main(logger):
         logger.info(f"Logfile: {logfile}")
 
         # Log parameter details
-        logger.info("Base Parameters:")
+        logger.info("Main Base Parameters:")
         for key, value in base_params.items():
             logger.info(f"  {key}: {value}")
-        logger.info("Data Parameters:")   
+        logger.info("Main Data Parameters:")   
         for key, value in data_params.items():
             logger.info(f"  {key}: {value}")
-        logger.info("Feature Parameters:")
-        for key, value in feat_params.items():
-            logger.info(f"  {key}: {value}")
-        logger.info("ML Parameters:")
+        logger.info("Main ML Parameters:")
         for key, value in ml_params.items():
             logger.info(f"  {key}: {value}")
-        logger.info("ML Tuning Parameters:")
+        logger.info("Main ML Tuning Parameters:")
         for key, value in mltune_params.items():
             logger.info(f"  {key}: {value}")
-        logger.info("App Parameters:")
+        logger.info("Main App Parameters:")
         for key, value in app_params.items():
             logger.info(f"  {key}: {value}")
     
@@ -198,8 +196,22 @@ def main(logger):
         # ----- Create Window Parameters -----
         logger.info("Creating the 24 hour prediction window with timeval: %s and HOUR: %s", timeval, HOUR)
         back_window, forward_window, pred_width = ml_process_config.create_ml_window(timeval=HOUR)
-        logger.info("Back Window: %s, Forward Window: %s, Prediction Width: %s", back_window, forward_window, pred_width)
+        total_window_size = back_window + forward_window
+        logger.info("Create Window: Back Window: %s, Forward Window: %s, Prediction Width: %s", back_window, forward_window, pred_width)
 
+        mql_overrides.env.override_params({"mltune": {"total_window_size": total_window_size}})
+        mql_overrides.env.override_params({"mltune": {"input_width": back_window}})
+        mql_overrides.env.override_params({"mltune": {"label_width": forward_window}})
+        mql_overrides.env.override_params({"mltune": {"shift": pred_width}})
+
+        mltune_overrides = mql_overrides.env.all_params().get("mltune", {})
+        logger.info("OverRidden: ML Tuning Parameters: %s", mltune_overrides)
+        logger.info("OverRidden: Total Window Size: %s", mltune_overrides.get("total_window_size", total_window_size))
+        logger.info("OverRidden: Input Width: %s", mltune_overrides.get("Input Width", back_window))
+        logger.info("OverRidden: Label Width: %s", mltune_overrides.get("Label Width", forward_window))
+        logger.info("OverRidden: Shift: %s", mltune_overrides.get("Shift", pred_width))
+
+        
         # ----- Select Features and Labels -----
         features = ml_params.get("mp_ml_input_keyfeat", "Close")
         features_scaled = ml_params.get("mp_ml_input_keyfeat_scaled", "Close_Scaled")
@@ -233,7 +245,14 @@ def main(logger):
         logger.info("Test dataset: %s", test_dataset)
 
         input_shape = train_dataset.element_spec[0].shape
+        data_input_shape = input_shape
         output_shape = train_dataset.element_spec[1].shape
+        
+        mql_overrides.env.override_params({"mltune": {"input_shape": input_shape}})
+        mql_overrides.env.override_params({"mltune": {"output_shape": output_shape}})
+        mql_overrides.env.override_params({"mltune": {"data_input_shape": data_input_shape}})
+        mltune_overrides = mql_overrides.env.all_params().get("mltune", {})
+
         logger.info("Input shape: %s", input_shape)
         logger.info("Output shape: %s", output_shape)
 
@@ -248,8 +267,9 @@ def main(logger):
         mp_ml_data_path = mql_overrides.env.all_params().get("ml_data_path", "./data")
         mp_symbol_primary = app_params.get("lp_app_primary_symbol", "EURUSD")
         mp_ml_data_type = mql_overrides.env.all_params().get("ml_data_type", "default")
-        
-        """
+   
+        logger.info("mql_overrides.env.all_params(): %s", mql_overrides.env.all_params())
+      
         # ----- Uncomment the tuner and model training block below as needed -----
         tuner_config = CMdtuner(
             hypermodel_params=mql_overrides.env.all_params(),
@@ -258,7 +278,10 @@ def main(logger):
             testdataset=test_dataset,
             castmode='float32',
         )
+      
         tuner_config.initialize_tuner()
+
+        """
         best_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
 
         mt_obj = tuner_config
@@ -350,6 +373,5 @@ def main(logger):
             mt5.shutdown()
             logger.info("Finished.")
         """
-        
 if __name__ == "__main__":
     main(logger)
