@@ -257,18 +257,23 @@ def main(logger):
         logger.info("Output shape: %s", output_shape)
 
         # ----- Model Tuning and Setup -----
-        mp_ml_mbase_path = mql_overrides.env.all_params().get("ml_base_path", "./models")
-        mp_ml_project_name = mql_overrides.env.all_params().get("ml_project_name", "default_model")
-        mp_ml_hard_run = mql_overrides.env.all_params().get("ml_hard_run", False)
-        batch_size = ml_params.get("batch_size", 32)
-        mp_ml_tf_param_epochs = ml_params.get("epochs", 10)
-        ONNX_save = mql_overrides.env.all_params().get("onnx_save", False)
-        mp_ml_base_path = mp_ml_mbase_path  # reusing base path
-        mp_ml_data_path = mql_overrides.env.all_params().get("ml_data_path", "./data")
-        mp_symbol_primary = app_params.get("lp_app_primary_symbol", "EURUSD")
-        mp_ml_data_type = mql_overrides.env.all_params().get("ml_data_type", "default")
-   
-        logger.info("mql_overrides.env.all_params(): %s", mql_overrides.env.all_params())
+        mql_overrides.env.override_params({"app_params": {"'mp_app_ml_hard_run'": True}})
+        
+        mp_ml_mbase_path= base_params.get('mp_glob_base_ml_project_dir', None)
+        mp_ml_model_name=base_params.get('mp_glob_sub_ml_model_name', None)
+      
+        mp_ml_hard_run=app_params.get('mp_app_ml_hard_run', False)
+
+        mp_ml_tf_param_epochs=base_params.get('mp_ml_tf_param_epochs', 10)
+        ONNX_save=base_params.get('onnx_save', False)
+        
+        mp_ml_data_path=base_params.get('mp_ml_data_path', None)
+        mp_symbol_primary=base_params.get('lp_app_primary_symbol', 'EURUSD')
+
+        logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
+        logger.info("Main Model Check: mp_ml_model_name: %s", mp_ml_model_name)
+        logger.info("Main Model Check: mp_ml_hard_run: %s", mp_ml_hard_run)
+        logger.info("Main Model Check: mp_ml_tf_param_epochs: %s", mp_ml_tf_param_epochs)
       
         # ----- Uncomment the tuner and model training block below as needed -----
         tuner_config = CMdtuner(
@@ -281,11 +286,11 @@ def main(logger):
       
         tuner_config.initialize_tuner()
 
-        """
+        logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
         best_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
 
         mt_obj = tuner_config
-
+        
         if best_model is None:
             logger.info("No best model loaded. Running tuner search (default run).")
             runtuner = mt_obj.run_search()
@@ -299,7 +304,7 @@ def main(logger):
             runtuner = True
 
         # ----- Train and Evaluate the Model -----
-        logger.info("Model: Loading file from directory %s, Model: filename %s", mp_ml_mbase_path, mp_ml_project_name)
+        logger.info("Model: Loading file from directory %s, Model: filename %s", mp_ml_mbase_path, mp_ml_model_name)
         load_model = mt_obj.check_and_load_model(mp_ml_mbase_path, ftype='tf')
         if load_model is not None:
             best_model = load_model
@@ -315,7 +320,7 @@ def main(logger):
                 epochs=mp_ml_tf_param_epochs
             )
             logger.info("Training completed.")
-
+        
             logger.info("Evaluating the model...")
             val_metrics = best_model.evaluate(val_dataset, verbose=1)
             test_metrics = best_model.evaluate(test_dataset, verbose=1)
@@ -372,6 +377,6 @@ def main(logger):
             logger.info("No data loaded; exiting.")
             mt5.shutdown()
             logger.info("Finished.")
-        """
+      
 if __name__ == "__main__":
     main(logger)
