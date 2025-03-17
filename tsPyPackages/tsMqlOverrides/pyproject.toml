@@ -1,6 +1,6 @@
 [project]
 name = "tsmqloverrides"
-version = "2.7.30"
+version = "2.7.32"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]

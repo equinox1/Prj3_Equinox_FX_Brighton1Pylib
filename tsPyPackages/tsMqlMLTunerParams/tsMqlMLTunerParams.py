@@ -44,7 +44,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
         self.tuner_id: Optional[str] = kwargs.get('tuner_id', None)
 
         # Tuner mode settings.
-        self.tunemode: str = kwargs.get('tunemode', 'Hyperband')
+        self.tunemode: str = kwargs.get('tunemode', 'hyperband')
         self.tunemodeepochs: int = kwargs.get('tunemodeepochs', 100)
         self.modelsummary: bool = kwargs.get('modelsummary', False)
 
@@ -326,7 +326,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
 # Example of returning parameters to an environment manager:
 if __name__ == "__main__":
     # Instantiate the parameters class, possibly with overrides.
-    tuner_params = CMqlEnvMLTunerParams(seed=123, tunemode='Hyperband', max_epochs=200)
+    tuner_params = CMqlEnvMLTunerParams(seed=123, tunemode='hyperband', max_epochs=200)
     
     # Retrieve the complete dictionary of parameters.
     params_dict = tuner_params.get_tuner_params()

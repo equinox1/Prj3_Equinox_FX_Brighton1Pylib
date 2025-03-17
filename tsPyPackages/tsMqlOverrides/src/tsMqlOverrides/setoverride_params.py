@@ -12,11 +12,15 @@ Version: 1.2
 import os
 from pathlib import Path
 import yaml
+import json
 import logging
 import copy
 
 # Basic logger configuration for demonstration
 logger = logging.getLogger(__name__)
+
+# Define a global configuration as a fallback if none is provided.
+global_config = {}
 
 # Adjust these imports as necessary for your project structure
 from tsMqlEnvMgr import CMqlEnvMgr
@@ -39,13 +43,38 @@ class CMqlOverrides(CEnvCore):
     Environment setup for the MQL-based platform, handling paths and configurations.
     Reads configuration parameters from config.yaml and deep merges them with defaults.
     """
+    def __init__(self, config_file: str = None, **kwargs):
+        """
+        Initialize environment parameters.
 
-    def __init__(self, config_path="config.yaml", **kwargs):
-        # Load configuration from YAML file
-        self.config = self._load_config(config_path)
-        # Pass additional kwargs to base class if needed
-        super().__init__(custom_params=kwargs)
-   
+        Args:
+            config_file (str, optional): Path to a YAML or JSON configuration file.
+            **kwargs: Keyword arguments to override configuration settings.
+        """
+        # Load configuration from file if provided; otherwise use global_config if available.
+        if config_file:
+            try:
+                # Determine file extension
+                _, ext = os.path.splitext(config_file)
+                if ext.lower() == '.json':
+                    with open(config_file, 'r') as f:
+                        file_config = json.load(f)
+                else:
+                    with open(config_file, 'r') as f:
+                        file_config = yaml.safe_load(f) or {}
+            except Exception as e:
+                logger.error(f"Error loading config from {config_file}: {e}")
+                file_config = {}
+        else:
+            # Use global_config if provided and is a dict, otherwise an empty dict.
+            file_config = global_config if isinstance(global_config, dict) else {}
+
+        # Merge file configuration with keyword arguments (kwargs take precedence)
+        self.config = {**file_config, **kwargs}
+        
+        # Call parent initializer with custom parameters.
+        super().__init__(custom_params=self.config)
+
         # Initialize the environment manager and load default parameters.
         self.env = CMqlEnvMgr()
         # Get the default parameters from the environment manager.
@@ -176,7 +205,6 @@ if __name__ == "__main__":
     print("Data Parameters:")
     for key, value in data_params.items():
         print(f"  {key}: {value}")
-    
     
     print("\nML Parameters:")
     for key, value in ml_params.items():
