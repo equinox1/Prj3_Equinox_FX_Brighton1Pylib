@@ -235,7 +235,7 @@ def main(logger):
         logger.info("Test samples: %s", X_test.shape[0])
 
         # ----- Convert to TensorFlow Dataset -----
-        tf_batch_size = ml_params.get('tf_batch_size', 32)
+        tf_batch_size = ml_params.get('tf_batch_size', 8)
         buffer_size = 1000
         train_dataset, val_dataset, test_dataset = ml_process_config.create_simple_tf_dataset(
             X_train, y_train, X_val, y_val, X_test, y_test, batch_size=tf_batch_size, buffer_size=buffer_size
@@ -257,7 +257,8 @@ def main(logger):
         logger.info("Output shape: %s", output_shape)
 
         # ----- Model Tuning and Setup -----
-        mql_overrides.env.override_params({"app_params": {"'mp_app_ml_hard_run'": True}})
+        mql_overrides.env.override_params({"app_params": {'mp_app_ml_hard_run': True}})
+        mql_overrides.env.override_params({"ml_params": {'tf_batch_size': 4}})
         
         mp_ml_mbase_path= base_params.get('mp_glob_base_ml_project_dir', None)
         mp_ml_model_name=base_params.get('mp_glob_sub_ml_model_name', None)

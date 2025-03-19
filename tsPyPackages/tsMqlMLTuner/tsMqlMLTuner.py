@@ -6,7 +6,7 @@ File: tsPyPackages/tsMqlMLTuner/tsMqlMLTuner.py
 Description: The Tuner method for the machine learning model.
 Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
-Version: 1.1 (Updated and Fixed)
+Version: 1.2 (Updated, Fixed, and Optimized)
 License: MIT License
 """
 
@@ -29,7 +29,7 @@ from tensorflow.keras.layers import (
 from tensorflow.keras.models import Model
 from tensorflow.keras import mixed_precision
 
-from tensorflow.keras.optimizers import Adam, RMSprop, SGD, Nadam, Adadelta, Adagrad, Adamax, Ftrl
+from tensorflow.keras.optimizers import Adam, RMSprop, SGD, Nadam, Adadelta, Adagrad, Adamax
 from tensorflow.keras.activations import relu, tanh, selu, elu, linear, sigmoid, softmax, softplus
 from tensorflow.keras.regularizers import l2
 
@@ -43,6 +43,14 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoa
 import keras_tuner as kt
 import numpy as np
 from datetime import date
+
+from tensorflow.keras import mixed_precision
+mixed_precision.set_global_policy('mixed_float16')
+
+
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+if physical_devices:
+    tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 
 class CMdtuner:
@@ -101,7 +109,7 @@ class CMdtuner:
         self.seed                    = mltune.get('seed', 42)
         self.tunemode                = mltune.get('tunemode', 'Hyperband')
         self.tunemodeepochs          = mltune.get('tunemodeepochs', 100)
-        self.batch_size              = mltune.get('batch_size', 32)
+        self.batch_size              = mltune.get('batch_size', 16)  # Reduced batch size to ease memory load
         self.epochs                  = mltune.get('epochs', 2)
         self.num_trials              = mltune.get('num_trials', 3)
         self.max_epochs              = mltune.get('max_epochs', 100)
@@ -215,11 +223,11 @@ class CMdtuner:
         hp = kt.HyperParameters()
         logger.info(f"Hyperparameters: {hp}")
         # Define common hyperparameters
-        hp.Choice('optimizer',        ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax', 'ftrl'])
-        hp.Choice('learning_rate',      [1e-2, 1e-3, 1e-4, 1e-5])
-        hp.Choice('loss',               ['binary_crossentropy', 'mse', 'mae', 'mape', 'msle', 'poisson', 'kld', 'cosine_similarity'])
+        hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax'])  # Removed 'ftrl'
+        hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4, 1e-5])
+        hp.Choice('loss', ['binary_crossentropy', 'mse', 'mae', 'mape', 'msle', 'poisson', 'kld', 'cosine_similarity'])
         hp.Choice('dense_1_activation', ['relu', 'tanh'])
-        hp.Choice('metric',             ['accuracy', 'mae', 'mse', 'mape', 'msle', 'poisson', 'cosine_similarity'])
+        hp.Choice('metric', ['accuracy', 'mae', 'mse', 'mape', 'msle', 'poisson', 'cosine_similarity'])
         hp.Float('l2_reg', min_value=1e-6, max_value=1e-2, sampling='log', default=1e-4)
 
         # Set epochs tuning based on tunemodeepochs
@@ -394,7 +402,7 @@ class CMdtuner:
             kernel_regularizer=tf.keras.regularizers.l2(hp.get('l2_reg'))
         )(concatenated)
         dense_dropout = Dropout(0.2)(dense_1)
-        output = Dense(1, activation="linear" if 1 > 1 else "sigmoid")(dense_dropout)
+        output = Dense(1, activation="sigmoid")(dense_dropout)
 
         logger.info(f"Including {len(inputs)} input(s) and {len(branches)} branch(es).")
         if len(inputs) == 1:
@@ -423,9 +431,9 @@ class CMdtuner:
 
         model.compile(
             optimizer=optimizer,
-            loss=hp.get('loss') if self.tunemode else 'mse',
+            loss=loss_fn,
             steps_per_execution=50,
-            metrics=[hp.get('metric')] if self.tunemode else ['mse']
+            metrics=[metric_fn]
         )
 
         if self.modelsummary:
@@ -440,10 +448,11 @@ class CMdtuner:
             'nadam':   tf.keras.optimizers.Nadam,
             'adadelta':tf.keras.optimizers.Adadelta,
             'adagrad': tf.keras.optimizers.Adagrad,
-            'adamax':  tf.keras.optimizers.Adamax,
-            'ftrl':    tf.keras.optimizers.Ftrl
+            'adamax':  tf.keras.optimizers.Adamax
         }
-        return optimizers[optimizer_name](learning_rate=learning_rate)
+        # Fallback to Adam if the optimizer is unknown
+        optimizer_class = optimizers.get(optimizer_name, Adam)
+        return optimizer_class(learning_rate=learning_rate)
 
     def get_callbacks(self):
         checkpoint_filepath = self.checkpoint_filepath
