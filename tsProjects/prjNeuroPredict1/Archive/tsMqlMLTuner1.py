@@ -380,7 +380,7 @@ class CMdtuner:
             transformer_branch = transformer_input
             num_transformer_blocks = hp.get('num_transformer_blocks') if self.tunemode else 1
             for i in range(num_transformer_blocks):
-                transformer_branch = self.transformer_block(transformer_branch, hp, i, hp.get(f'key_dim_{i}'))
+                transformer_branch = self.transformer_block(transformer_branch, hp, i, hp.get(f'key_dim_{i}', 64))
             transformer_branch = GlobalAveragePooling1D()(transformer_branch)
             transformer_branch = Dense(64, activation=hp.get('dense_1_activation') if self.tunemode else 'relu')(transformer_branch)
             transformer_branch = Dropout(0.2)(transformer_branch)
