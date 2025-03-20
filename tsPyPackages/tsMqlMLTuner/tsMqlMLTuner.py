@@ -3,51 +3,56 @@
 """
 Filename: tsMqlMLTuner.py
 File: tsPyPackages/tsMqlMLTuner/tsMqlMLTuner.py
-Description: The Tuner method for the machine learning model.
+Description: The Tuner method for the machine learning model with performance optimizations.
 Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
-Version: 1.3 (Optimized to reduce memory usage and updated to tune parameters using defined units/modelscale values)
+Version: 1.3.1 (Optimized for reduced memory usage and increased execution performance)
 License: MIT License
 """
 
 import logging
 import os
 import pathlib
+import tensorflow as tf
+from datetime import date
+
+# Configure logging
 logger = logging.getLogger(__name__)
 
+# Platform imports
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
 pchk         = run_platform.RunPlatform()
 os_platform  = platform_checker.get_platform()
 loadmql      = pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
-import tensorflow as tf
+# TensorFlow/Keras imports
 from tensorflow.keras.layers import (
     Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout,
     Concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D, Reshape
 )
 from tensorflow.keras.models import Model
 from tensorflow.keras import mixed_precision
-
 from tensorflow.keras.optimizers import Adam, RMSprop, SGD, Nadam, Adadelta, Adagrad, Adamax
 from tensorflow.keras.activations import relu, tanh, selu, elu, linear, sigmoid, softmax, softplus
 from tensorflow.keras.regularizers import l2
-
 from tensorflow.keras.losses import (MeanSquaredError, BinaryCrossentropy, MeanAbsoluteError,
                                      MeanAbsolutePercentageError, MeanSquaredLogarithmicError,
                                      Poisson, KLDivergence, CosineSimilarity)
 from tensorflow.keras.metrics import (MSE, MAE, MAPE, MSLE, Poisson, KLDivergence,
                                       CosineSimilarity, Accuracy)
-
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, ReduceLROnPlateau
 import keras_tuner as kt
 import numpy as np
-from datetime import date
+
+# Enable mixed precision and XLA JIT compilation for performance
+tf.config.optimizer.set_jit(True)
+mixed_precision.set_global_policy('mixed_float16')
 
 
 class CMdtuner:
     def __init__(self, **kwargs):
-        # (Initialization code remains similar to version 1.2 with additional tuning parameters)
+        # Extract hypermodel parameters
         self.hypermodel_params = kwargs.get('hypermodel_params', {})
         logger.info(f"Hypermodel parameters: {self.hypermodel_params}")
 
@@ -61,19 +66,21 @@ class CMdtuner:
         self.modelname                 = base.get('mp_glob_sub_ml_model_name', None)
         self.project_name              = base.get('mp_glob_sub_ml_model_name', None)
 
-        logger.info(f"TuneParams: modeldatapath    : {self.modeldatapath}")
         logger.info(f"TuneParams: mp_pl_platform_base: {self.mp_pl_platform_base}")
+        logger.info(f"TuneParams: checkpoint_filepath: {self.checkpoint_filepath}")
         logger.info(f"TuneParams: base_path          : {self.base_path}")
         logger.info(f"TuneParams: project_dir        : {self.project_dir}")
         logger.info(f"TuneParams: baseuniq           : {self.baseuniq}")
+        logger.info(f"TuneParams: modeldatapath      : {self.modeldatapath}")
         logger.info(f"TuneParams: modelname          : {self.modelname}")
-        logger.info(f"TuneParams: checkpoint_filepath: {self.checkpoint_filepath}")
-
+        logger.info(f"TuneParams: project_name       : {self.project_name}")
+       
         if not self.base_path:
             raise ValueError("The 'mp_glob_base_path' parameter must be provided in hypermodel_params.")
         if not self.project_name:
             raise ValueError("The 'mp_glob_base_ml_project_dir' parameter must be provided in hypermodel_params.")
 
+        # Data parameters
         data = self.hypermodel_params.get('data', {})
         self.mp_data_load       = data.get('mp_data_load', True)
         self.mp_data_save       = data.get('mp_data_save', False)
@@ -81,6 +88,13 @@ class CMdtuner:
         self.mp_data_rowcount   = data.get('mp_data_rowcount', 10000)
         self.df1_mp_data_filter_int = data.get('df1_mp_data_filter_int', False)
 
+        logger.info(f"Data parameters: mp_data_load: {self.mp_data_load}")
+        logger.info(f"Data parameters: mp_data_save: {self.mp_data_save}")
+        logger.info(f"Data parameters: mp_data_rows: {self.mp_data_rows}")
+        logger.info(f"Data parameters: mp_data_rowcount: {self.mp_data_rowcount}")
+        logger.info(f"Data parameters: df1_mp_data_filter_int: {self.df1_mp_data_filter_int}")
+
+        # Machine Learning parameters
         ml = self.hypermodel_params.get('ml', {})
         self.input_keyfeat         = ml.get('mp_ml_input_keyfeat', 'Close')
         self.feature1              = ml.get('feature1', 'Open')
@@ -89,6 +103,14 @@ class CMdtuner:
         self.feature4              = ml.get('feature4', 'Close')
         self.feature5              = ml.get('feature5', 'Volume')
 
+        logger.info(f"ML parameters: input_keyfeat: {self.input_keyfeat}")
+        logger.info(f"ML parameters: feature1: {self.feature1}")
+        logger.info(f"ML parameters: feature2: {self.feature2}")
+        logger.info(f"ML parameters: feature3: {self.feature3}")
+        logger.info(f"ML parameters: feature4: {self.feature4}")
+        logger.info(f"ML parameters: feature5: {self.feature5}")
+
+        # Tuning parameters
         mltune = self.hypermodel_params.get('mltune', {})
         self.today                   = mltune.get('today', '2025-03-16 17:27:46')
         self.seed                    = mltune.get('seed', 42)
@@ -112,7 +134,19 @@ class CMdtuner:
         self.input_width             = mltune.get('input_width', 1440)
         self.total_window_size       = self.input_width + self.shift
 
-        # --- New tuning parameters from file B ---
+        logger.info(f"Tuning parameters: today            : {self.today}")
+        logger.info(f"Tuning parameters: seed             : {self.seed}")
+        logger.info(f"Tuning parameters: input_shape      : {self.input_shape}")
+        logger.info(f"Tuning parameters: data_input_shape : {self.data_input_shape}")
+        logger.info(f"Tuning parameters: multi_inputs     : {self.multi_inputs}")
+        logger.info(f"Tuning parameters: multi_branches   : {self.multi_branches}")
+        logger.info(f"Tuning parameters: multi_outputs    : {self.multi_outputs}")
+        logger.info(f"Tuning parameters: label_columns    : {self.label_columns}")
+        logger.info(f"Tuning parameters: shift            : {self.shift}")
+        logger.info(f"Tuning parameters: input_width      : {self.input_width}")
+        logger.info(f"Tuning parameters: total_window_size: {self.total_window_size}")
+
+        # New tuning parameters from file B
         self.unitmin         = mltune.get('unitmin', 32)
         self.unitmax         = mltune.get('unitmax', 512)
         self.unitstep        = mltune.get('unitstep', 32)
@@ -138,7 +172,32 @@ class CMdtuner:
         self.dense_units_min    = mltune.get('dense_units_min', int(32 // self.dense_modelscale))
         self.dense_units_max    = mltune.get('dense_units_max', int(128 // self.dense_modelscale))
         self.dense_units_step   = mltune.get('dense_units_step', int(32 // self.dense_modelscale))
-        # --- End new tuning parameters ---
+
+        logger.info(f"Tuning parameters: unitmin          : {self.unitmin}")
+        logger.info(f"Tuning parameters: unitmax          : {self.unitmax}")
+        logger.info(f"Tuning parameters: unitstep         : {self.unitstep}")
+        logger.info(f"Tuning parameters: defaultunits     : {self.defaultunits}")
+        logger.info(f"Tuning parameters: all_modelscale   : {self.all_modelscale}")
+        logger.info(f"Tuning parameters: cnn_modelscale   : {self.cnn_modelscale}")
+        logger.info(f"Tuning parameters: lstm_modelscale  : {self.lstm_modelscale}")
+        logger.info(f"Tuning parameters: gru_modelscale   : {self.gru_modelscale}")
+        logger.info(f"Tuning parameters: 'trans_modelscale': {self.trans_modelscale}")
+        logger.info(f"Tuning parameters: 'transh_modelscale': {self.transh_modelscale}")
+        logger.info(f"Tuning parameters: 'transff_modelscale': {self.transff_modelscale}")
+        logger.info(f"Tuning parameters: 'dense_modelscale': {self.dense_modelscale}")
+        logger.info(f"Tuning parameters: 'trans_dim_min': {self.trans_dim_min}")
+        logger.info(f"Tuning parameters: 'trans_dim_max': {self.trans_dim_max}")
+        logger.info(f"Tuning parameters: 'trans_dim_step': {self.trans_dim_step}")
+        logger.info(f"Tuning parameters: 'trans_dim_default': {self.trans_dim_default}")
+        logger.info(f"Tuning parameters: 'trans_heads_min': {self.trans_heads_min}")
+        logger.info(f"Tuning parameters: 'trans_heads_max': {self.trans_heads_max}")
+        logger.info(f"Tuning parameters: 'trans_heads_step': {self.trans_heads_step}")
+        logger.info(f"Tuning parameters: 'trans_ff_min': {self.trans_ff_min}")
+        logger.info(f"Tuning parameters: 'trans_ff_max': {self.trans_ff_max}")
+        logger.info(f"Tuning parameters: 'trans_ff_step': {self.trans_ff_step}")    
+        logger.info(f"Tuning parameters: 'dense_units_min': {self.dense_units_min}")
+        logger.info(f"Tuning parameters: 'dense_units_max': {self.dense_units_max}")
+        logger.info(f"Tuning parameters: 'dense_units_step': {self.dense_units_step}")
 
         logger.info(f"Tuning parameters: tunemode          : {self.tunemode}")
         logger.info(f"Tuning parameters: tunemodeepochs    : {self.tunemodeepochs}")
@@ -151,6 +210,7 @@ class CMdtuner:
         logger.info(f"Tuning parameters: factor            : {self.factor}")
         logger.info(f"Tuning parameters: objective         : {self.objective}")
 
+        # Datasets and cast mode setup
         self.traindataset = kwargs.get('traindataset')
         self.valdataset   = kwargs.get('valdataset')
         self.testdataset  = kwargs.get('testdataset')
@@ -162,15 +222,22 @@ class CMdtuner:
         elif self.castmode == 'float16':
             self.castval = self.cast_to_float16
 
+        # Optimize dataset pipelines: parallel mapping, caching and prefetching.
+        AUTOTUNE = tf.data.AUTOTUNE
         if self.traindataset is not None:
-            self.traindataset = self.traindataset.map(self.castval)
+            self.traindataset = self.traindataset.map(self.castval, num_parallel_calls=AUTOTUNE)\
+                                                 .cache()\
+                                                 .prefetch(buffer_size=AUTOTUNE)
         if self.valdataset is not None:
-            self.valdataset = self.valdataset.map(self.castval)
+            self.valdataset = self.valdataset.map(self.castval, num_parallel_calls=AUTOTUNE)\
+                                             .cache()\
+                                             .prefetch(buffer_size=AUTOTUNE)
         if self.testdataset is not None:
-            self.testdataset = self.testdataset.map(self.castval)
+            self.testdataset = self.testdataset.map(self.castval, num_parallel_calls=AUTOTUNE)\
+                                               .cache()\
+                                               .prefetch(buffer_size=AUTOTUNE)
 
-        tf.config.optimizer.set_jit(True)
-        mixed_precision.set_global_policy('mixed_float16')
+        # Set up distributed training strategy
         self.strategy = tf.distribute.MirroredStrategy()
         logger.info(f"Number of devices: {self.strategy.num_replicas_in_sync}")
 
@@ -224,10 +291,10 @@ class CMdtuner:
         return tuple(data_shape)
 
     def initialize_tuner(self):
+        # Initialize hyperparameters (only once)
         hp = kt.HyperParameters()
         logger.info(f"Initializing tuner with hyperparameters... {hp}")
-        hp = kt.HyperParameters()
-        logger.info(f"Hyperparameters: {hp}")
+
         # Define common hyperparameters
         hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax'])
         hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4, 1e-5])
@@ -242,24 +309,23 @@ class CMdtuner:
             hp.Fixed('epochs', self.min_epochs)
 
         if self.tunemode:
-            # Tuning for CNN branch using defined units and modelscale values
+            # Tuning for CNN branch
             hp.Int('num_cnn_layers', min_value=1, max_value=3, default=1)
             for i in range(3):
                 hp.Int(f'cnn_filters_{i}', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.defaultunits)
-                # Kernel sizes remain in a smaller range
                 hp.Int(f'cnn_kernel_size_{i}', min_value=2, max_value=5, step=1, default=3)
                 hp.Choice(f'cnn_activation_{i}', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
-            # Tuning for LSTM branch using defined units
+            # Tuning for LSTM branch
             hp.Int('num_lstm_layers', min_value=1, max_value=2, default=1)
             for i in range(2):
                 hp.Int(f'lstm_units_{i}', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.defaultunits)
                 hp.Choice(f'lstm_activation_{i}', ['tanh', 'relu'])
-            # Tuning for GRU branch using defined units
+            # Tuning for GRU branch
             hp.Int('num_gru_layers', min_value=1, max_value=2, default=1)
             for i in range(2):
                 hp.Int(f'gru_units_{i}', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.defaultunits)
                 hp.Choice(f'gru_activation_{i}', ['tanh', 'relu'])
-            # Tuning for Transformer branch using defined transformer dimensions
+            # Tuning for Transformer branch
             hp.Int('num_transformer_blocks', min_value=1, max_value=3, default=1)
             for i in range(3):
                 hp.Int(f'key_dim_{i}', min_value=self.trans_dim_min, max_value=self.trans_dim_max, step=self.trans_dim_step, default=self.trans_dim_default)
@@ -270,7 +336,7 @@ class CMdtuner:
             hp.Fixed('cnn_filters', 3)
             hp.Fixed('cnn_kernel_size', 3)
 
-        # Dense layer units tuned using defined dense parameters
+        # Dense layer units
         hp.Int('dense_1_units', min_value=self.dense_units_min, max_value=self.dense_units_max, step=self.dense_units_step)
 
         logger.info(f"Tuning Max epochs between {self.min_epochs} and {self.max_epochs}")
@@ -510,6 +576,26 @@ class CMdtuner:
         except Exception as e:
             logger.error(f"Error during tuning: {e}")
 
+    @tf.function
+    def _predict_graph(self, model, test_data):
+        # Predict on one batch within a tf.function for performance.
+        return model(test_data, training=False)
+
+    def run_prediction(self, test_data, batch_size=None):
+        try:
+            best_model = self.tuner.get_best_models(num_models=1)[0]
+            # If test_data is a tf.data.Dataset, ensure it's mapped with proper casting
+            if isinstance(test_data, tf.data.Dataset):
+                test_data = test_data.map(self.cast_to_float32, num_parallel_calls=tf.data.AUTOTUNE)
+            # Use the compiled model's predict method (or the _predict_graph if preferred)
+            predictions = best_model.predict(test_data, batch_size=batch_size or self.batch_size)
+            return predictions
+        except IndexError:
+            logger.info("No models found. Ensure tuning has been run successfully.")
+        except Exception as e:
+            logger.info(f"Error during prediction: {e}")
+            return None
+
     def export_best_model(self, ftype='tf'):
         try:
             best_model = self.tuner.get_best_models(num_models=1)[0]
@@ -550,17 +636,4 @@ class CMdtuner:
             return self.tuner.get_best_hyperparameters(num_trials=1)[0]
         except Exception as e:
             logger.info(f"Error retrieving best hyperparameters: {e}")
-            return None
-
-    def run_prediction(self, test_data, batch_size=None):
-        try:
-            best_model = self.tuner.get_best_models(num_models=1)[0]
-            if isinstance(test_data, tf.data.Dataset):
-                test_data = test_data.map(self.cast_to_float32)
-            predictions = best_model.predict(test_data, batch_size=batch_size or self.batch_size)
-            return predictions
-        except IndexError:
-            logger.info("No models found. Ensure tuning has been run successfully.")
-        except Exception as e:
-            logger.info(f"Error during prediction: {e}")
             return None
