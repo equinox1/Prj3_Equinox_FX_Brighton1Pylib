@@ -6,7 +6,7 @@ File: tsPyPackages/tsMqlMLTuner/tsMqlMLTuner.py
 Description: The Tuner method for the machine learning model.
 Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
-Version: 1.3 (Optimized to reduce memory usage)
+Version: 1.3 (Optimized to reduce memory usage and updated to tune parameters using defined units/modelscale values)
 License: MIT License
 """
 
@@ -47,7 +47,7 @@ from datetime import date
 
 class CMdtuner:
     def __init__(self, **kwargs):
-        # (Initialization code remains the same as in version 1.2)
+        # (Initialization code remains similar to version 1.2 with additional tuning parameters)
         self.hypermodel_params = kwargs.get('hypermodel_params', {})
         logger.info(f"Hypermodel parameters: {self.hypermodel_params}")
 
@@ -111,6 +111,34 @@ class CMdtuner:
         self.shift                   = mltune.get('shift', 24)
         self.input_width             = mltune.get('input_width', 1440)
         self.total_window_size       = self.input_width + self.shift
+
+        # --- New tuning parameters from file B ---
+        self.unitmin         = mltune.get('unitmin', 32)
+        self.unitmax         = mltune.get('unitmax', 512)
+        self.unitstep        = mltune.get('unitstep', 32)
+        self.defaultunits    = mltune.get('defaultunits', 128)
+        self.all_modelscale  = mltune.get('all_modelscale', 1.0)
+        self.cnn_modelscale  = mltune.get('cnn_modelscale', 1.0)
+        self.lstm_modelscale = mltune.get('lstm_modelscale', 1.0)
+        self.gru_modelscale  = mltune.get('gru_modelscale', 1.0)
+        self.trans_modelscale = mltune.get('trans_modelscale', 1.0)
+        self.transh_modelscale = mltune.get('transh_modelscale', 1.0)
+        self.transff_modelscale = mltune.get('transff_modelscale', 1.0)
+        self.dense_modelscale = mltune.get('dense_modelscale', 1.0)
+        self.trans_dim_min      = mltune.get('trans_dim_min', 32 // self.trans_modelscale)
+        self.trans_dim_max      = mltune.get('trans_dim_max', 256 // self.trans_modelscale)
+        self.trans_dim_step     = mltune.get('trans_dim_step', 32 // self.trans_modelscale)
+        self.trans_dim_default  = mltune.get('trans_dim_default', 64 // self.trans_modelscale)
+        self.trans_heads_min    = mltune.get('trans_heads_min', 2)
+        self.trans_heads_max    = mltune.get('trans_heads_max', 8)
+        self.trans_heads_step   = mltune.get('trans_heads_step', 2)
+        self.trans_ff_min       = mltune.get('trans_ff_min', int(64 // self.transff_modelscale))
+        self.trans_ff_max       = mltune.get('trans_ff_max', int(512 // self.transff_modelscale))
+        self.trans_ff_step      = mltune.get('trans_ff_step', int(64 // self.transff_modelscale))
+        self.dense_units_min    = mltune.get('dense_units_min', int(32 // self.dense_modelscale))
+        self.dense_units_max    = mltune.get('dense_units_max', int(128 // self.dense_modelscale))
+        self.dense_units_step   = mltune.get('dense_units_step', int(32 // self.dense_modelscale))
+        # --- End new tuning parameters ---
 
         logger.info(f"Tuning parameters: tunemode          : {self.tunemode}")
         logger.info(f"Tuning parameters: tunemodeepochs    : {self.tunemodeepochs}")
@@ -214,32 +242,36 @@ class CMdtuner:
             hp.Fixed('epochs', self.min_epochs)
 
         if self.tunemode:
-            # Tuning for CNN branch
+            # Tuning for CNN branch using defined units and modelscale values
             hp.Int('num_cnn_layers', min_value=1, max_value=3, default=1)
             for i in range(3):
-                hp.Int(f'cnn_filters_{i}', min_value=32, max_value=512, step=32, default=128)
+                hp.Int(f'cnn_filters_{i}', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.defaultunits)
+                # Kernel sizes remain in a smaller range
                 hp.Int(f'cnn_kernel_size_{i}', min_value=2, max_value=5, step=1, default=3)
                 hp.Choice(f'cnn_activation_{i}', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
-            # Tuning for LSTM branch
+            # Tuning for LSTM branch using defined units
             hp.Int('num_lstm_layers', min_value=1, max_value=2, default=1)
             for i in range(2):
-                hp.Int(f'lstm_units_{i}', min_value=32, max_value=128, step=32, default=64)
+                hp.Int(f'lstm_units_{i}', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.defaultunits)
                 hp.Choice(f'lstm_activation_{i}', ['tanh', 'relu'])
-            # Tuning for GRU branch
+            # Tuning for GRU branch using defined units
             hp.Int('num_gru_layers', min_value=1, max_value=2, default=1)
             for i in range(2):
-                hp.Int(f'gru_units_{i}', min_value=32, max_value=128, step=32, default=64)
+                hp.Int(f'gru_units_{i}', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.defaultunits)
                 hp.Choice(f'gru_activation_{i}', ['tanh', 'relu'])
-            # Tuning for Transformer branch
+            # Tuning for Transformer branch using defined transformer dimensions
             hp.Int('num_transformer_blocks', min_value=1, max_value=3, default=1)
             for i in range(3):
-                hp.Int(f'key_dim_{i}', min_value=32, max_value=256, step=32, default=64)
-                hp.Int(f'num_heads_{i}', min_value=2, max_value=8, step=2, default=2)
-                hp.Int(f'ff_dim_{i}', min_value=64, max_value=512, step=64, default=64)
+                hp.Int(f'key_dim_{i}', min_value=self.trans_dim_min, max_value=self.trans_dim_max, step=self.trans_dim_step, default=self.trans_dim_default)
+                hp.Int(f'num_heads_{i}', min_value=self.trans_heads_min, max_value=self.trans_heads_max, step=self.trans_heads_step, default=self.trans_heads_min)
+                hp.Int(f'ff_dim_{i}', min_value=self.trans_ff_min, max_value=self.trans_ff_max, step=self.trans_ff_step, default=self.trans_ff_min)
                 hp.Choice(f'transformer_activation_{i}', ['relu', 'tanh', 'gelu'])
         else:
             hp.Fixed('cnn_filters', 3)
             hp.Fixed('cnn_kernel_size', 3)
+
+        # Dense layer units tuned using defined dense parameters
+        hp.Int('dense_1_units', min_value=self.dense_units_min, max_value=self.dense_units_max, step=self.dense_units_step)
 
         logger.info(f"Tuning Max epochs between {self.min_epochs} and {self.max_epochs}")
         logger.info(f"Tuner mode: {self.tunemode}, Tuner mode epochs: {self.tunemodeepochs}")
@@ -363,8 +395,7 @@ class CMdtuner:
                 inputs.append(transformer_input)
             logger.info(f"Input shape transformer: {transformer_input.shape}")
             transformer_branch = transformer_input
-            # ADD: Downsample the sequence length to reduce memory usage.
-            # For example, if input_width is 1440, pooling by factor 16 reduces it to 90.
+            # Downsample sequence length to reduce memory usage.
             transformer_branch = MaxPooling1D(pool_size=16, padding='same')(transformer_branch)
             num_transformer_blocks = hp.get('num_transformer_blocks') if self.tunemode else 1
             for i in range(num_transformer_blocks):
@@ -377,7 +408,7 @@ class CMdtuner:
         # Concatenate branches if multiple are enabled
         concatenated = Concatenate()(branches) if self.multi_branches else branches[0]
         dense_1 = Dense(
-            units=hp.Int('dense_1_units', min_value=32, max_value=128, step=32, default=80),
+            units=hp.get('dense_1_units'),
             activation=hp.get('dense_1_activation') if self.tunemode else 'relu',
             kernel_regularizer=tf.keras.regularizers.l2(hp.get('l2_reg'))
         )(concatenated)
