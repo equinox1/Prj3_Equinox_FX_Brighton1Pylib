@@ -6,7 +6,7 @@ File: tsPyPackages/tsMqlMLTuner/tsMqlMLTuner.py
 Description: The Tuner method for the machine learning model.
 Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
-Version: 1.2 (Updated, Fixed, and Optimized)
+Version: 1.3 (Optimized to reduce memory usage)
 License: MIT License
 """
 
@@ -44,22 +44,13 @@ import keras_tuner as kt
 import numpy as np
 from datetime import date
 
-from tensorflow.keras import mixed_precision
-mixed_precision.set_global_policy('mixed_float16')
-
-
-physical_devices = tf.config.experimental.list_physical_devices('GPU')
-if physical_devices:
-    tf.config.experimental.set_memory_growth(physical_devices[0], True)
-
 
 class CMdtuner:
     def __init__(self, **kwargs):
-        # Initialize hypermodel parameters from kwargs
+        # (Initialization code remains the same as in version 1.2)
         self.hypermodel_params = kwargs.get('hypermodel_params', {})
         logger.info(f"Hypermodel parameters: {self.hypermodel_params}")
 
-        # Set base parameters from hypermodel_params['base']
         base = self.hypermodel_params.get('base', {})
         self.mp_pl_platform_base      = base.get('mp_glob_base_platform_dir', None)
         self.checkpoint_filepath       = base.get('mp_glob_base_ml_checkpoint_filepath', None)
@@ -78,22 +69,18 @@ class CMdtuner:
         logger.info(f"TuneParams: modelname          : {self.modelname}")
         logger.info(f"TuneParams: checkpoint_filepath: {self.checkpoint_filepath}")
 
-        # Validate required base parameters
         if not self.base_path:
             raise ValueError("The 'mp_glob_base_path' parameter must be provided in hypermodel_params.")
         if not self.project_name:
             raise ValueError("The 'mp_glob_base_ml_project_dir' parameter must be provided in hypermodel_params.")
 
-        # Set data parameters from hypermodel_params['data']
         data = self.hypermodel_params.get('data', {})
         self.mp_data_load       = data.get('mp_data_load', True)
         self.mp_data_save       = data.get('mp_data_save', False)
         self.mp_data_rows       = data.get('mp_data_rows', 1000)
         self.mp_data_rowcount   = data.get('mp_data_rowcount', 10000)
         self.df1_mp_data_filter_int = data.get('df1_mp_data_filter_int', False)
-        # (Additional data parameters can be aligned here as needed.)
 
-        # Set ML parameters from hypermodel_params['ml']
         ml = self.hypermodel_params.get('ml', {})
         self.input_keyfeat         = ml.get('mp_ml_input_keyfeat', 'Close')
         self.feature1              = ml.get('feature1', 'Open')
@@ -101,15 +88,13 @@ class CMdtuner:
         self.feature3              = ml.get('feature3', 'Low')
         self.feature4              = ml.get('feature4', 'Close')
         self.feature5              = ml.get('feature5', 'Volume')
-        # (Additional ML parameters can be aligned similarly.)
 
-        # Set Tuning parameters from hypermodel_params['mltune']
         mltune = self.hypermodel_params.get('mltune', {})
         self.today                   = mltune.get('today', '2025-03-16 17:27:46')
         self.seed                    = mltune.get('seed', 42)
         self.tunemode                = mltune.get('tunemode', 'Hyperband')
         self.tunemodeepochs          = mltune.get('tunemodeepochs', 100)
-        self.batch_size              = mltune.get('batch_size', 16)  # Reduced batch size to ease memory load
+        self.batch_size              = mltune.get('batch_size', 16)  # Reduced batch size
         self.epochs                  = mltune.get('epochs', 2)
         self.num_trials              = mltune.get('num_trials', 3)
         self.max_epochs              = mltune.get('max_epochs', 100)
@@ -127,7 +112,6 @@ class CMdtuner:
         self.input_width             = mltune.get('input_width', 1440)
         self.total_window_size       = self.input_width + self.shift
 
-        # Logging Tuning parameters
         logger.info(f"Tuning parameters: tunemode          : {self.tunemode}")
         logger.info(f"Tuning parameters: tunemodeepochs    : {self.tunemodeepochs}")
         logger.info(f"Tuning parameters: batch_size        : {self.batch_size}")
@@ -139,7 +123,6 @@ class CMdtuner:
         logger.info(f"Tuning parameters: factor            : {self.factor}")
         logger.info(f"Tuning parameters: objective         : {self.objective}")
 
-        # Datasets and casting mode
         self.traindataset = kwargs.get('traindataset')
         self.valdataset   = kwargs.get('valdataset')
         self.testdataset  = kwargs.get('testdataset')
@@ -158,21 +141,17 @@ class CMdtuner:
         if self.testdataset is not None:
             self.testdataset = self.testdataset.map(self.castval)
 
-        # TensorFlow setup: Enable XLA and mixed precision
         tf.config.optimizer.set_jit(True)
         mixed_precision.set_global_policy('mixed_float16')
         self.strategy = tf.distribute.MirroredStrategy()
         logger.info(f"Number of devices: {self.strategy.num_replicas_in_sync}")
 
-        # Enable TensorFlow debugging if specified
         self.tf1 = kwargs.get('tf1', False)
         self.tf2 = kwargs.get('tf2', False)
         self.enable_debugging(kwargs)
 
-        # Prepare input shapes (ensure data_input_shape is set and adjusted)
         self.prepare_shapes()
 
-        # Validate that at least one model branch is enabled
         self.cnn_model         = mltune.get('cnn_model', True)
         self.lstm_model        = mltune.get('lstm_model', True)
         self.gru_model         = mltune.get('gru_model', True)
@@ -181,7 +160,6 @@ class CMdtuner:
         if not (self.cnn_model or self.lstm_model or self.gru_model or self.transformer_model):
             raise ValueError("At least one model type (CNN, LSTM, GRU, Transformer) must be enabled.")
 
-        # Initialize the tuner with hyperparameter definitions
         self.modelsummary = self.hypermodel_params.get('modelsummary', False)
         self.initialize_tuner()
 
@@ -223,14 +201,13 @@ class CMdtuner:
         hp = kt.HyperParameters()
         logger.info(f"Hyperparameters: {hp}")
         # Define common hyperparameters
-        hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax'])  # Removed 'ftrl'
+        hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax'])
         hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4, 1e-5])
         hp.Choice('loss', ['binary_crossentropy', 'mse', 'mae', 'mape', 'msle', 'poisson', 'kld', 'cosine_similarity'])
         hp.Choice('dense_1_activation', ['relu', 'tanh'])
         hp.Choice('metric', ['accuracy', 'mae', 'mse', 'mape', 'msle', 'poisson', 'cosine_similarity'])
         hp.Float('l2_reg', min_value=1e-6, max_value=1e-2, sampling='log', default=1e-4)
 
-        # Set epochs tuning based on tunemodeepochs
         if self.tunemodeepochs:
             hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=1)
         else:
@@ -305,7 +282,7 @@ class CMdtuner:
         shared_input = Input(shape=self.main_input_shape, name='shared_input')
         if len(self.main_input_shape) == 3 and None in self.main_input_shape:
             shared_input = Reshape(self.main_input_shape[1:])(shared_input)
-        inputs   = [] if self.multi_inputs else [shared_input]
+        inputs = [] if self.multi_inputs else [shared_input]
         branches = []
         logger.info(f"Shared input shape: {shared_input.shape}, multi_inputs: {self.multi_inputs}")
 
@@ -319,21 +296,21 @@ class CMdtuner:
             if self.tunemode:
                 num_cnn_layers = hp.get('num_cnn_layers')
                 for i in range(num_cnn_layers):
-                    filters     = hp.get(f'cnn_filters_{i}')
+                    filters = hp.get(f'cnn_filters_{i}')
                     kernel_size = hp.get(f'cnn_kernel_size_{i}')
-                    activation  = hp.get(f'cnn_activation_{i}')
-                    cnn_branch  = Conv1D(filters=filters, kernel_size=kernel_size, activation=activation, padding='same')(cnn_branch)
-                    cnn_branch  = MaxPooling1D(pool_size=2)(cnn_branch)
-                    cnn_branch  = LayerNormalization()(cnn_branch)
-                    cnn_branch  = Dropout(0.2)(cnn_branch)
+                    activation = hp.get(f'cnn_activation_{i}')
+                    cnn_branch = Conv1D(filters=filters, kernel_size=kernel_size, activation=activation, padding='same')(cnn_branch)
+                    cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
+                    cnn_branch = LayerNormalization()(cnn_branch)
+                    cnn_branch = Dropout(0.2)(cnn_branch)
             else:
-                filters     = hp.get('cnn_filters')
+                filters = hp.get('cnn_filters')
                 kernel_size = hp.get('cnn_kernel_size')
-                activation  = 'relu'
-                cnn_branch  = Conv1D(filters=filters, kernel_size=kernel_size, activation=activation, padding='same')(cnn_branch)
-                cnn_branch  = MaxPooling1D(pool_size=2)(cnn_branch)
-                cnn_branch  = LayerNormalization()(cnn_branch)
-                cnn_branch  = Dropout(0.2)(cnn_branch)
+                activation = 'relu'
+                cnn_branch = Conv1D(filters=filters, kernel_size=kernel_size, activation=activation, padding='same')(cnn_branch)
+                cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
+                cnn_branch = LayerNormalization()(cnn_branch)
+                cnn_branch = Dropout(0.2)(cnn_branch)
             cnn_branch = Flatten()(cnn_branch)
             branches.append(cnn_branch)
 
@@ -347,7 +324,7 @@ class CMdtuner:
             if self.tunemode:
                 num_lstm_layers = hp.get('num_lstm_layers')
                 for i in range(num_lstm_layers):
-                    units      = hp.get(f'lstm_units_{i}')
+                    units = hp.get(f'lstm_units_{i}')
                     activation = hp.get(f'lstm_activation_{i}')
                     lstm_branch = LSTM(units=units, activation=activation, return_sequences=(i < num_lstm_layers - 1))(lstm_branch)
                     lstm_branch = LayerNormalization()(lstm_branch)
@@ -368,7 +345,7 @@ class CMdtuner:
             if self.tunemode:
                 num_gru_layers = hp.get('num_gru_layers')
                 for i in range(num_gru_layers):
-                    units      = hp.get(f'gru_units_{i}')
+                    units = hp.get(f'gru_units_{i}')
                     activation = hp.get(f'gru_activation_{i}')
                     gru_branch = GRU(units=units, activation=activation, return_sequences=(i < num_gru_layers - 1))(gru_branch)
                     gru_branch = LayerNormalization()(gru_branch)
@@ -386,6 +363,9 @@ class CMdtuner:
                 inputs.append(transformer_input)
             logger.info(f"Input shape transformer: {transformer_input.shape}")
             transformer_branch = transformer_input
+            # ADD: Downsample the sequence length to reduce memory usage.
+            # For example, if input_width is 1440, pooling by factor 16 reduces it to 90.
+            transformer_branch = MaxPooling1D(pool_size=16, padding='same')(transformer_branch)
             num_transformer_blocks = hp.get('num_transformer_blocks') if self.tunemode else 1
             for i in range(num_transformer_blocks):
                 transformer_branch = self.transformer_block(transformer_branch, hp, i, hp.get(f'key_dim_{i}'))
@@ -419,7 +399,6 @@ class CMdtuner:
         logger.info(f"Output shape: {output.shape}")
         logger.info("Model built and compiled.")
 
-        # Compile model with appropriate loss, metric, and optimizer
         if self.tunemode:
             loss_fn   = hp.get('loss')
             metric_fn = hp.get('metric')
@@ -450,7 +429,6 @@ class CMdtuner:
             'adagrad': tf.keras.optimizers.Adagrad,
             'adamax':  tf.keras.optimizers.Adamax
         }
-        # Fallback to Adam if the optimizer is unknown
         optimizer_class = optimizers.get(optimizer_name, Adam)
         return optimizer_class(learning_rate=learning_rate)
 
@@ -468,17 +446,17 @@ class CMdtuner:
         ]
 
     def transformer_block(self, inputs, hp, block_num, dim):
-        key_dim    = hp.get(f'key_dim_{block_num}')
-        num_heads  = hp.get(f'num_heads_{block_num}')
-        ff_dim     = hp.get(f'ff_dim_{block_num}')
+        key_dim = hp.get(f'key_dim_{block_num}')
+        num_heads = hp.get(f'num_heads_{block_num}')
+        ff_dim = hp.get(f'ff_dim_{block_num}')
         activation = hp.get(f'transformer_activation_{block_num}')
-        attn_out   = MultiHeadAttention(num_heads=num_heads, key_dim=key_dim)(inputs, inputs)
-        attn_out   = LayerNormalization()(inputs + attn_out)
-        ffn_out    = Dense(ff_dim, activation=activation)(attn_out)
-        ffn_out    = Dropout(0.2)(ffn_out)
-        ffn_out    = Dense(inputs.shape[-1])(ffn_out)
-        ffn_out    = LayerNormalization()(attn_out + ffn_out)
-        ffn_out    = Dropout(0.2)(ffn_out)
+        attn_out = MultiHeadAttention(num_heads=num_heads, key_dim=key_dim)(inputs, inputs)
+        attn_out = LayerNormalization()(inputs + attn_out)
+        ffn_out = Dense(ff_dim, activation=activation)(attn_out)
+        ffn_out = Dropout(0.2)(ffn_out)
+        ffn_out = Dense(inputs.shape[-1])(ffn_out)
+        ffn_out = LayerNormalization()(attn_out + ffn_out)
+        ffn_out = Dropout(0.2)(ffn_out)
         return ffn_out
 
     def run_search(self):
