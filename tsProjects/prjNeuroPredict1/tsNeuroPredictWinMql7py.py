@@ -257,17 +257,27 @@ def main(logger):
         logger.info("Output shape: %s", output_shape)
 
         # ----- Model Tuning and Setup -----
-        mql_overrides.env.override_params({"app_params": {'mp_app_ml_hard_run': True}})
-        mql_overrides.env.override_params({"ml_params": {'tf_batch_size': 4}})
+    
+        mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': True}})
+        mql_overrides.env.override_params({"ml": {'tf_batch_size': 4}})
+        mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 10}})
+        #scale the model
+        modscale=4
+        mql_overrides.env.override_params({"ml": {'all_modelscale': modscale}})
+        mql_overrides.env.override_params({"ml": {'cnn_modelscale': modscale}})
+        mql_overrides.env.override_params({"ml": {'lstm_modelscale': modscale}})
+        mql_overrides.env.override_params({"ml": {'gru_modelscale': modscale}})
+        mql_overrides.env.override_params({"ml" : { 'trans_modelscale': modscale}})
+        mql_overrides.env.override_params({"ml" : { 'transh_modelscale': modscale}})
+        mql_overrides.env.override_params({"ml" : { 'transff_modelscale': modscale}})
+        mql_overrides.env.override_params({"ml" : { 'dense_modelscale': modscale}})
+  
         
         mp_ml_mbase_path= base_params.get('mp_glob_base_ml_project_dir', None)
         mp_ml_model_name=base_params.get('mp_glob_sub_ml_model_name', None)
-      
         mp_ml_hard_run=app_params.get('mp_app_ml_hard_run', False)
-
         mp_ml_tf_param_epochs=base_params.get('mp_ml_tf_param_epochs', 10)
         ONNX_save=base_params.get('onnx_save', False)
-        
         mp_ml_data_path=base_params.get('mp_ml_data_path', None)
         mp_symbol_primary=base_params.get('lp_app_primary_symbol', 'EURUSD')
 
@@ -275,6 +285,11 @@ def main(logger):
         logger.info("Main Model Check: mp_ml_model_name: %s", mp_ml_model_name)
         logger.info("Main Model Check: mp_ml_hard_run: %s", mp_ml_hard_run)
         logger.info("Main Model Check: mp_ml_tf_param_epochs: %s", mp_ml_tf_param_epochs)
+        logger.info("Main Model Check: ONNX_save: %s", ONNX_save)
+        logger.info("Main Model Check: mp_ml_data_path: %s", mp_ml_data_path)
+        logger.info("Main Model Check: mp_symbol_primary: %s", mp_symbol_primary)
+        logger.info("Main Model Check: all_modelscale: %s", ml_params.get('all_modelscale', 1))
+        
       
         # ----- Uncomment the tuner and model training block below as needed -----
         tuner_config = CMdtuner(
