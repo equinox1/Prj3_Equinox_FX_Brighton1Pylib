@@ -290,6 +290,8 @@ def main(logger):
         logger.info("Main Model Check: mp_symbol_primary: %s", mp_symbol_primary)
         logger.info("Main Model Check: all_modelscale: %s", ml_params.get('all_modelscale', 1))
         
+        logger.info("Main hyperParameters for tuner: %s", mql_overrides.env.all_params())
+             
       
         # ----- Uncomment the tuner and model training block below as needed -----
         tuner_config = CMdtuner(
