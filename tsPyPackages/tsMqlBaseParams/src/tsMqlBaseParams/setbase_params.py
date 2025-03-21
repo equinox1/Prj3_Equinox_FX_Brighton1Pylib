@@ -312,12 +312,12 @@ class CMqlEnvBaseParams(CEnvCore):
 
          self.mql_basepath = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir1
          self.mql_base_connect_path = base_path / self.mql_base_ver
-         self.mql_data_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir2
-         self.mql_include_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir3
-         self.mql_lib_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir4
-         self.mql_script_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir5
-         self.mql_expert_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir6
-         self.mql_indicator_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir7
+         self.mql_data_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir1 / self.mql_dir2
+         self.mql_include_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name /  self.mql_dir1/ self.mql_dir3
+         self.mql_lib_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name /self.mql_dir1/ self.mql_dir4
+         self.mql_script_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name /self.mql_dir1/ self.mql_dir5
+         self.mql_expert_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name /self.mql_dir1/ self.mql_dir6
+         self.mql_indicator_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name /self.mql_dir1/ self.mql_dir7
 
          Logflag = "Base:"
          logger.info(f"{Logflag} MQL base path: {self.mql_basepath}")

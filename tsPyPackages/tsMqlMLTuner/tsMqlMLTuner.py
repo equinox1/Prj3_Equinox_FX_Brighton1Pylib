@@ -146,7 +146,7 @@ class CMdtuner:
         logger.info(f"Tuning parameters: input_width      : {self.input_width}")
         logger.info(f"Tuning parameters: total_window_size: {self.total_window_size}")
 
-        # New tuning parameters from file B
+        # New tuning parameters 
         self.unitmin         = mltune.get('unitmin', 32)
         self.unitmax         = mltune.get('unitmax', 512)
         self.unitstep        = mltune.get('unitstep', 32)
