@@ -9,6 +9,7 @@
 # property version   "1.01"
 # +------------------------------------------------------------------+
 
+import logging
 import os
 import pathlib
 from pathlib import Path
@@ -48,25 +49,37 @@ from tsMqlDataProcess import CDataProcess
 from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
-# ----- Global Logging configuration -----
+# ----- Global Logging Configuration -----
 global_logdir = r"C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
-os.makedirs(global_logdir, exist_ok=True)
+try:
+    os.makedirs(global_logdir, exist_ok=True)
+except OSError as e:
+    print(f"Error creating log directory: {e}")
+    global_logdir = os.getcwd()  # Fallback to current working directory
+
 global_logfile = os.path.join(global_logdir, 'tsneuropredict_app.log')
 
-import logging
-# Remove any existing handlers to ensure our configuration is used.
-for handler in logging.root.handlers[:]:
-    logging.root.removeHandler(handler)
-
-logger = logging.getLogger(__name__)
+# Set up the root logger
+logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
-fh = logging.FileHandler(global_logfile, mode='w')
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s',
-                              datefmt='%Y-%m-%d %H:%M:%S')
+if logger.hasHandlers():
+    logger.handlers.clear()
+
+try:
+    fh = logging.FileHandler(global_logfile, mode='w')
+except OSError as e:
+    print(f"Error creating log file: {e}")
+    fh = logging.FileHandler('fallback.log', mode='w')  # Fallback to a local log file
+
+formatter = logging.Formatter(
+    '%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s', 
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 fh.setFormatter(formatter)
 logger.addHandler(fh)
 logger.info("Logging configured successfully with FileHandler.")
 logger.info("Logfile: %s", global_logfile)
+
 
 # ----- Setup platform -----
 setup_config = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
@@ -261,18 +274,52 @@ def main(logger):
         mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': True}})
         mql_overrides.env.override_params({"ml": {'tf_batch_size': 4}})
         mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 10}})
+
         #scale the model
         modscale=4
-        mql_overrides.env.override_params({"ml": {'all_modelscale': modscale}})
-        mql_overrides.env.override_params({"ml": {'cnn_modelscale': modscale}})
-        mql_overrides.env.override_params({"ml": {'lstm_modelscale': modscale}})
-        mql_overrides.env.override_params({"ml": {'gru_modelscale': modscale}})
-        mql_overrides.env.override_params({"ml" : { 'trans_modelscale': modscale}})
-        mql_overrides.env.override_params({"ml" : { 'transh_modelscale': modscale}})
-        mql_overrides.env.override_params({"ml" : { 'transff_modelscale': modscale}})
-        mql_overrides.env.override_params({"ml" : { 'dense_modelscale': modscale}})
-  
-        
+   
+        mql_overrides.env.override_params({"mltune": {'all_modelscale': modscale}})
+        mql_overrides.env.override_params({"mltune": {'cnn_modelscale': modscale}})
+        mql_overrides.env.override_params({"mltune": {'lstm_modelscale': modscale}})
+        mql_overrides.env.override_params({"mltune": {'gru_modelscale': modscale}})
+        mql_overrides.env.override_params({"mltune" : { 'trans_modelscale': modscale}})
+        mql_overrides.env.override_params({"mltune" : { 'transh_modelscale': modscale}})
+        mql_overrides.env.override_params({"mltune" : { 'transff_modelscale': modscale}})
+        mql_overrides.env.override_params({"mltune" : { 'dense_modelscale': modscale}})
+
+        all_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('all_modelscale', 1)
+        cnn_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('cnn_modelscale', 1)
+        lstm_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('lstm_modelscale', 1)
+        gru_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('gru_modelscale', 1)
+        trans_modelscale = mql_overrides.env.all_params().get('mltune.', {}).get('trans_modelscale', 1)
+        transh_modelscale = mql_overrides.env.all_params().get('mltune.', {}).get('transh_modelscale', 1)
+        transff_modelscale = mql_overrides.env.all_params().get('mltune.', {}).get('transff_modelscale', 1)
+        dense_modelscale = mql_overrides.env.all_params().get('mltune.', {}).get('dense_modelscale', 1)
+
+    
+        # Tune overrides
+        mql_overrides.env.override_params({"mltune" : { 'unitmin': int(32/modscale)}})
+        mql_overrides.env.override_params({"mltune" : { 'unitmax': int(512/modscale)}})
+        mql_overrides.env.override_params({"mltune" : { 'unitstep': int(32/modscale)}})
+        mql_overrides.env.override_params({"mltune" : { 'defaultunits': int(128/modscale)}})
+        mql_overrides.env.override_params({"mltune" : { 'epochs': 2}})
+        mql_overrides.env.override_params({"mltune" : { 'tune_new_entries': True}})
+
+
+        unitmin = mql_overrides.env.all_params().get('mltune', {}).get('unitmin', None)
+        unitmax = mql_overrides.env.all_params().get('mltune', {}).get('unitmax', None)
+        unitstep = mql_overrides.env.all_params().get('mltune', {}).get('unitstep', None)
+        defaultunits = mql_overrides.env.all_params().get('mltune', {}).get('defaultunits', None)
+        epochs = mql_overrides.env.all_params().get('mltune', {}).get('epochs', None)
+        tune_new_entries = mql_overrides.env.all_params().get('mltune', {}).get('tune_new_entries', None)
+
+        logger.info("Main: ML Tuning Parameters: %s",unitmin)
+        logger.info("Main: ML Tuning Parameters: %s",unitmax)
+        logger.info("Main: ML Tuning Parameters: %s",unitstep)
+        logger.info("Main: ML Tuning Parameters: %s",defaultunits)
+        logger.info("Main: ML Tuning Parameters: %s",epochs)
+        logger.info("Main: ML Tuning Parameters: %s",tune_new_entries)
+
         mp_ml_mbase_path= base_params.get('mp_glob_base_ml_project_dir', None)
         mp_ml_model_name=base_params.get('mp_glob_sub_ml_model_name', None)
         mp_ml_hard_run=app_params.get('mp_app_ml_hard_run', False)
@@ -290,9 +337,8 @@ def main(logger):
         logger.info("Main Model Check: mp_symbol_primary: %s", mp_symbol_primary)
         logger.info("Main Model Check: all_modelscale: %s", ml_params.get('all_modelscale', 1))
         
-        logger.info("Main hyperParameters for tuner: %s", mql_overrides.env.all_params())
-             
-      
+        logger.info("Main Model get all_modelscale: %s", mql_overrides.env.all_params().get('mltune', {}).get('all_modelscale', 1))
+        
         # ----- Uncomment the tuner and model training block below as needed -----
         tuner_config = CMdtuner(
             hypermodel_params=mql_overrides.env.all_params(),

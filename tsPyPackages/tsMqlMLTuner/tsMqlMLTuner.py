@@ -16,8 +16,11 @@ import pathlib
 import tensorflow as tf
 from datetime import date
 
-# Configure logging
+
+# Get a logger for this module
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)  # Ensure the logger level is set appropriately
+
 
 # Platform imports
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
@@ -151,14 +154,14 @@ class CMdtuner:
         self.unitmax         = mltune.get('unitmax', 512)
         self.unitstep        = mltune.get('unitstep', 32)
         self.defaultunits    = mltune.get('defaultunits', 128)
-        self.all_modelscale  = mltune.get('all_modelscale', 1.0)
-        self.cnn_modelscale  = mltune.get('cnn_modelscale', 1.0)
-        self.lstm_modelscale = mltune.get('lstm_modelscale', 1.0)
-        self.gru_modelscale  = mltune.get('gru_modelscale', 1.0)
-        self.trans_modelscale = mltune.get('trans_modelscale', 1.0)
-        self.transh_modelscale = mltune.get('transh_modelscale', 1.0)
-        self.transff_modelscale = mltune.get('transff_modelscale', 1.0)
-        self.dense_modelscale = mltune.get('dense_modelscale', 1.0)
+        self.all_modelscale  = mltune.get('all_modelscale', 8.0)
+        self.cnn_modelscale  = mltune.get('cnn_modelscale', 8.0)
+        self.lstm_modelscale = mltune.get('lstm_modelscale', 8.0)
+        self.gru_modelscale  = mltune.get('gru_modelscale', 8.0)
+        self.trans_modelscale = mltune.get('trans_modelscale', 8.0)
+        self.transh_modelscale = mltune.get('transh_modelscale', 8.0)
+        self.transff_modelscale = mltune.get('transff_modelscale', 8.0)
+        self.dense_modelscale = mltune.get('dense_modelscale', 8.0)
         self.trans_dim_min      = mltune.get('trans_dim_min', 32 // self.trans_modelscale)
         self.trans_dim_max      = mltune.get('trans_dim_max', 256 // self.trans_modelscale)
         self.trans_dim_step     = mltune.get('trans_dim_step', 32 // self.trans_modelscale)
@@ -619,7 +622,7 @@ class CMdtuner:
         model_path = os.path.join(lpbase_path, self.project_name)
         logger.info(f"Model path: {model_path}")
         try:
-            if os.path.exists(model_path):
+            if os.path.exists(model_path) and (model_path.endswith('.h5') or model_path.endswith('.keras') or os.path.isdir(model_path)):
                 model = tf.keras.models.load_model(model_path)
                 logger.info(f"Model loaded successfully from {model_path}")
                 model.summary()
