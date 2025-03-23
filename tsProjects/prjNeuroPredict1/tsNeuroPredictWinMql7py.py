@@ -273,10 +273,10 @@ def main(logger):
     
         mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': True}})
         mql_overrides.env.override_params({"ml": {'tf_batch_size': 4}})
-        mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 10}})
+        mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 1}})
 
         #scale the model
-        modscale=4
+        modscale=2
    
         mql_overrides.env.override_params({"mltune": {'all_modelscale': modscale}})
         mql_overrides.env.override_params({"mltune": {'cnn_modelscale': modscale}})
@@ -302,7 +302,9 @@ def main(logger):
         mql_overrides.env.override_params({"mltune" : { 'unitmax': int(512/modscale)}})
         mql_overrides.env.override_params({"mltune" : { 'unitstep': int(32/modscale)}})
         mql_overrides.env.override_params({"mltune" : { 'defaultunits': int(128/modscale)}})
-        mql_overrides.env.override_params({"mltune" : { 'epochs': 2}})
+        mql_overrides.env.override_params({"mltune" : { 'max_epochs': 10}})
+        mql_overrides.env.override_params({"mltune" : { 'min_epochs': 1}})
+        mql_overrides.env.override_params({"mltune" : { 'tunemodeepochs': True}})
         mql_overrides.env.override_params({"mltune" : { 'tune_new_entries': True}})
 
 
@@ -323,7 +325,7 @@ def main(logger):
         mp_ml_mbase_path= base_params.get('mp_glob_base_ml_project_dir', None)
         mp_ml_model_name=base_params.get('mp_glob_sub_ml_model_name', None)
         mp_ml_hard_run=app_params.get('mp_app_ml_hard_run', False)
-        mp_ml_tf_param_epochs=base_params.get('mp_ml_tf_param_epochs', 10)
+        mp_ml_tf_param_epochs=base_params.get('mp_ml_tf_param_epochs', 1)
         ONNX_save=base_params.get('onnx_save', False)
         mp_ml_data_path=base_params.get('mp_ml_data_path', None)
         mp_symbol_primary=base_params.get('lp_app_primary_symbol', 'EURUSD')
@@ -353,23 +355,23 @@ def main(logger):
         logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
         best_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
 
-        mt_obj = tuner_config
+    
         
         if best_model is None:
             logger.info("No best model loaded. Running tuner search (default run).")
-            runtuner = mt_obj.run_search()
-            mt_obj.export_best_model(ftype='tf')
+            runtuner = tuner_config.run_search()
+            tuner_config.export_best_model(ftype='tf')
         elif mp_ml_hard_run:
             logger.info("Running tuner search (hard run).")
-            runtuner = mt_obj.run_search()
-            mt_obj.export_best_model(ftype='tf')
+            runtuner = tuner_config.run_search()
+            tuner_config.export_best_model(ftype='tf')
         else:
             logger.info("Best model loaded successfully.")
             runtuner = True
 
         # ----- Train and Evaluate the Model -----
         logger.info("Model: Loading file from directory %s, Model: filename %s", mp_ml_mbase_path, mp_ml_model_name)
-        load_model = mt_obj.check_and_load_model(mp_ml_mbase_path, ftype='tf')
+        load_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
         if load_model is not None:
             best_model = load_model
             logger.info("Model: Best model: %s", best_model.name)
