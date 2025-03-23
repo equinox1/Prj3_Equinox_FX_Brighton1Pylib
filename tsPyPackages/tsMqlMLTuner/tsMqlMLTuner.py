@@ -118,11 +118,11 @@ class CMdtuner:
         self.today                   = mltune.get('today', '2025-03-16 17:27:46')
         self.seed                    = mltune.get('seed', 42)
         self.tunemode                = mltune.get('tunemode', 'Hyperband')
-        self.tunemodeepochs          = mltune.get('tunemodeepochs', 100)
+        self.tunemodeepochs          = mltune.get('tunemodeepochs', True)
         self.batch_size              = mltune.get('batch_size', 16)  # Reduced batch size
         self.epochs                  = mltune.get('epochs', 2)
         self.num_trials              = mltune.get('num_trials', 3)
-        self.max_epochs              = mltune.get('max_epochs', 100)
+        self.max_epochs              = mltune.get('max_epochs', 120)
         self.min_epochs              = mltune.get('min_epochs', 10)
         self.hyperband_iterations    = mltune.get('hyperband_iterations', 1)
         self.factor                  = mltune.get('factor', 10)
