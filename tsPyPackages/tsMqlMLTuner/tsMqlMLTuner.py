@@ -65,9 +65,10 @@ class CMdtuner:
         self.base_path                 = base.get('mp_glob_base_path', None)
         self.project_dir               = base.get('mp_glob_base_ml_project_dir', None)
         self.baseuniq                  = base.get('mp_glob_sub_ml_baseuniq', None)
-        self.modeldatapath             = base.get('mp_glob_base_ml_modeldir', None)
-        self.modelname                 = base.get('mp_glob_sub_ml_model_name', None)
+        self.modeldatapath             = base.get('mp_glob_sub_ml_src_modeldata', None)
+      
         self.project_name              = base.get('mp_glob_sub_ml_model_name', None)
+        self.modelname                 = base.get('mp_glob_sub_ml_model_name', None)
 
         logger.info(f"TuneParams: mp_pl_platform_base: {self.mp_pl_platform_base}")
         logger.info(f"TuneParams: checkpoint_filepath: {self.checkpoint_filepath}")
@@ -75,8 +76,8 @@ class CMdtuner:
         logger.info(f"TuneParams: project_dir        : {self.project_dir}")
         logger.info(f"TuneParams: baseuniq           : {self.baseuniq}")
         logger.info(f"TuneParams: modeldatapath      : {self.modeldatapath}")
-        logger.info(f"TuneParams: modelname          : {self.modelname}")
         logger.info(f"TuneParams: project_name       : {self.project_name}")
+        logger.info(f"TuneParams: modelname          : {self.modelname}")
        
         if not self.base_path:
             raise ValueError("The 'mp_glob_base_path' parameter must be provided in hypermodel_params.")
@@ -136,6 +137,13 @@ class CMdtuner:
         self.shift                   = mltune.get('shift', 24)
         self.input_width             = mltune.get('input_width', 1440)
         self.total_window_size       = self.input_width + self.shift
+        self.tune_new_entries       = mltune.get('tune_new_entries', True)
+        self.allow_new_entries       = mltune.get('allow_new_entries', True)
+        self.max_retries_per_trial   = mltune.get('max_retries_per_trial', 5)
+        self.max_consecutive_failed_trials = mltune.get('max_consecutive_failed_trials', 3)
+        self.executions_per_trial    = mltune.get('executions_per_trial', 1)
+        self.overwrite               = mltune.get('overwrite', False)
+
 
         logger.info(f"Tuning parameters: today            : {self.today}")
         logger.info(f"Tuning parameters: seed             : {self.seed}")
@@ -148,6 +156,12 @@ class CMdtuner:
         logger.info(f"Tuning parameters: shift            : {self.shift}")
         logger.info(f"Tuning parameters: input_width      : {self.input_width}")
         logger.info(f"Tuning parameters: total_window_size: {self.total_window_size}")
+        logger.info(f"Tuning parameters: tune_new_entries : {self.tune_new_entries}")
+        logger.info(f"Tuning parameters: allow_new_entries: {self.allow_new_entries}")
+        logger.info(f"Tuning parameters: max_retries_per_trial: {self.max_retries_per_trial}")
+        logger.info(f"Tuning parameters: max_consecutive_failed_trials: {self.max_consecutive_failed_trials}")
+        logger.info(f"Tuning parameters: executions_per_trial: {self.executions_per_trial}")
+      
 
         # New tuning parameters 
         self.unitmin         = mltune.get('unitmin', 32)
@@ -212,6 +226,32 @@ class CMdtuner:
         logger.info(f"Tuning parameters: hyperband_iterations: {self.hyperband_iterations}")
         logger.info(f"Tuning parameters: factor            : {self.factor}")
         logger.info(f"Tuning parameters: objective         : {self.objective}")
+
+        #Checkpoint parameters  
+        self.checkpoint_dir = self.checkpoint_filepath
+        self.checkpoint_path = os.path.join(self.checkpoint_dir,self.modelname)
+        self.overwrite               = mltune.get('overwrite', False)
+        self.chk_fullmodel           = mltune.get('chk_fullmodel', True)
+        self.chk_verbosity           = mltune.get('chk_verbosity', 1)
+        self.chk_mode                = mltune.get('chk_mode', 'min')
+        self.chk_monitor             = mltune.get('chk_monitor', 'val_loss')
+        self.chk_sav_freq            = mltune.get('chk_sav_freq', 'epoch')
+        self.chk_patience            = mltune.get('chk_patience', 10)
+        self.save_best_only          = mltune.get('save_best_only', True)
+
+
+        logger.info(f"Checkpoint parameters: checkpoint_dir: {self.checkpoint_dir}")
+        logger.info(f"Checkpoint parameters: checkpoint_path: {self.checkpoint_path}")
+        logger.info(f"Checkpoint parameters: overwrite: {self.overwrite}")
+        logger.info(f"Checkpoint parameters: chk_fullmodel: {self.chk_fullmodel}")
+        logger.info(f"Checkpoint parameters: chk_verbosity: {self.chk_verbosity}")
+        logger.info(f"Checkpoint parameters: chk_mode: {self.chk_mode}")
+        logger.info(f"Checkpoint parameters: chk_monitor: {self.chk_monitor}")
+        logger.info(f"Checkpoint parameters: chk_sav_freq: {self.chk_sav_freq}")
+        logger.info(f"Checkpoint parameters: chk_patience: {self.chk_patience}")
+        logger.info(f"Checkpoint parameters: save_best_only: {self.save_best_only}")
+
+
 
         # Datasets and cast mode setup
         self.traindataset = kwargs.get('traindataset')
@@ -353,6 +393,8 @@ class CMdtuner:
         logger.info(f"Tuner Service Checker: {self.tunemode}")
         if self.tunemode in tuner_classes:
             logger.info(f"Tuner Service is: {self.tunemode}")
+            logger.info(f" Tuner directory is {self.base_path}")
+            logger.info(f" Tuner Project name is {self.modelname}")
         try:
             if self.tunemode in tuner_classes:
                 self.tuner = tuner_classes[self.tunemode](
@@ -362,14 +404,14 @@ class CMdtuner:
                     objective=self.objective,
                     max_epochs=self.max_epochs,
                     factor=self.factor,
-                    directory=self.base_path,
+                    directory=self.project_dir,
                     project_name=self.modelname,
-                    overwrite=True,
-                    tune_new_entries=True,
-                    allow_new_entries=True,
-                    max_retries_per_trial=5,
-                    max_consecutive_failed_trials=3,
-                    executions_per_trial=1,
+                    overwrite=self.overwrite,
+                    tune_new_entries=self.tune_new_entries,
+                    allow_new_entries=self.allow_new_entries,
+                    max_retries_per_trial=self.max_retries_per_trial,
+                    max_consecutive_failed_trials=self.max_consecutive_failed_trials,
+                    executions_per_trial=self.executions_per_trial,
                 )
                 self.tuner.search_space_summary()
             else:
@@ -539,10 +581,10 @@ class CMdtuner:
         if checkpoint_filepath and not checkpoint_filepath.endswith('.keras'):
             checkpoint_filepath += '.keras'
         return [
-            EarlyStopping(monitor=self.objective, patience=3, verbose=1, restore_best_weights=True),
-            ModelCheckpoint(filepath=checkpoint_filepath, save_best_only=True, verbose=1) if checkpoint_filepath else None,
-            TensorBoard(log_dir=os.path.join(self.base_path, 'logs')),
-            ReduceLROnPlateau(monitor=self.objective, factor=0.1, patience=3, min_lr=1e-6, verbose=1)
+            EarlyStopping(monitor=self.objective, patience=self.chk_patience, verbose=self.chk_verbosity, restore_best_weights=True),
+            ModelCheckpoint(filepath=checkpoint_filepath, save_best_only=self.save_best_only, verbose=self.chk_verbosity) if checkpoint_filepath else None,
+            TensorBoard(log_dir=os.path.join(self.modeldatapath, 'tboard_logs')),
+            ReduceLROnPlateau(monitor=self.objective, factor=0.1, patience=self.chk_patience, min_lr=1e-6, verbose=self.chk_verbosity)
         ]
 
     def transformer_block(self, inputs, hp, block_num, dim):
@@ -569,7 +611,7 @@ class CMdtuner:
                 self.traindataset,
                 validation_data=self.valdataset,
                 epochs=self.max_epochs,
-                verbose=1,
+                verbose=self.chk_verbosity,
                 callbacks=self.get_callbacks()
             )
             best_hps = self.tuner.get_best_hyperparameters(num_trials=1)
