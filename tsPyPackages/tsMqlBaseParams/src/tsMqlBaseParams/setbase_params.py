@@ -18,10 +18,8 @@ import json
 from pathlib import Path
 import yaml  # For loading configurations
 
-
 # Initialize logger
 logger = logging.getLogger(__name__)
-
 
 # It’s assumed that these modules provide platform detection, logging, and other utilities.
 from tsMqlPlatform import run_platform, platform_checker, config as global_config
@@ -116,25 +114,34 @@ class CMqlEnvBaseParams(CEnvCore):
         (self.mql_basepath, self.mql_data_path, self.mql_include_path, self.mql_lib_path, self.mql_script_path, 
          self.mql_expert_path, self.mql_indicator_path) = self._get_mql_paths()
 
+        # Ensure required attributes are initialized before use
+        self.mp_glob_sub_ml_src_lib = self.config.get('mp_glob_sub_ml_src_lib', 'PythonLib')
+        self.mp_glob_sub_ml_src_modeldata = self.config.get('mp_glob_sub_ml_src_modeldata', 'tsModelData')
+        self.model_uniq = self.config.get('mp_glob_sub_ml_baseuniq', '1')
+        self.model_name = self.config.get('mp_glob_sub_ml_model_name', 'prjEquinox1_prod.keras')
+
         self.DEFAULT_PARAMS = {
-            # Platform settings
+            # Platform Path settings
             'mp_glob_base_pl_platform_type': self.mp_glob_pl_platform_type,
             'mp_glob_base_platform_dir': self.platform_dir,
             'mp_glob_base_pl_default_platform': self.mp_glob_pl_default_platform,
-            # log settings
-            'mp_glob_base_log_path': self.mp_glob_log_path,
-            # Base paths
-            'mp_glob_base_path': self.mp_glob_base_path,
             'mp_glob_base_connect_path': self.mql_base_connect_path,   
             'mp_glob_base_config_path': self.mp_glob_config_path,
             'mp_glob_base_data_path': self.mp_glob_data_path,
-            'mp_glob_base_ml_modeldir': self.model_base,
-            # ML paths
-            'mp_glob_base_ml_project_dir': self.project_dir,
-            'mp_glob_base_ml_project_name': self.project_name,
+
+            # log settings
+            'mp_glob_base_log_path': self.mp_glob_log_path,
+           
+            # ML Base paths
+            'mp_glob_base_path': self.mp_glob_base_path,
+            'mp_glob_sub_ml_src_lib_lib_path': self.mp_glob_sub_ml_src_lib,
+            'mp_glob_sub_ml_src_modeldata': self.mp_glob_sub_ml_src_modeldata,
+            'mp_glob_base_ml_project_dir':  self.project_dir,
             'mp_glob_sub_ml_baseuniq': self.model_uniq,
+            'mp_glob_sub_ml_model_name': self.model_name,
+
+            # Checkpoint path
             'mp_glob_base_ml_checkpoint_filepath': self.checkpoint_filepath,
-            'mp_glob_sub_ml_model_name' : self.model_name,
             # MQL paths
             'mp_glob_base_mql_basepath': self.mql_basepath,
             'mp_glob_base_mql_data_path': self.mql_data_path,
@@ -143,7 +150,17 @@ class CMqlEnvBaseParams(CEnvCore):
             'mp_glob_base_mql_script_path': self.mql_script_path,
             'mp_glob_base_mql_expert_path': self.mql_expert_path,
             'mp_glob_base_mql_indicator_path': self.mql_indicator_path,
-        }
+            }
+
+        # Log the distinct parameters
+        logger.info("Distinct Base Environment parameters:")
+        logger.info(f"mp_glob_base_path: {self.mp_glob_base_path}")
+        logger.info(f"mp_glob_sub_ml_src_lib: {self.mp_glob_sub_ml_src_lib}")
+        logger.info(f"mp_glob_sub_ml_src_modeldata: {self.mp_glob_sub_ml_src_modeldata}")
+        logger.info(f"mp_glob_base_ml_project_dir: {self.project_dir}")
+        logger.info(f"mp_glob_sub_ml_baseuniq: {self.model_uniq}")
+        logger.info(f"mp_glob_sub_ml_model_name: {self.model_name}")
+
         logger.info("Distinct Base Environment parameters:")
         for key, value in self.DEFAULT_PARAMS.items():
             logger.info(f"{key}: {value}")
@@ -268,30 +285,31 @@ class CMqlEnvBaseParams(CEnvCore):
          base_path = self.base_dir3
          # Define subdirectory names
          self.lib_subdir = self.config.get('mp_glob_sub_ml_src_lib', 'PythonLib')
+         self.mp_glob_sub_ml_src_lib = base_path / self.lib_subdir
          self.model_subdir = self.config.get('mp_glob_sub_ml_src_modeldata', 'tsModelData')
          self.project_dir = self.config.get('mp_glob_sub_ml_directory', 'tshybrid_ensemble_tuning_prod')
-         self.model_name = self.config.get('mp_glob_sub_ml_model_name', 'prjEquinox1_prod.keras')
          self.model_uniq = self.config.get('mp_glob_sub_ml_baseuniq', '1')
-         
+         self.model_name = self.config.get('mp_glob_sub_ml_model_name', 'prjEquinox1_prod.keras')
 
          # Define paths
          self.pybase = self.lib_subdir
          
          self.model_base = base_path / self.pybase / self.model_subdir
          self.project_dir = base_path / self.pybase / self.model_subdir / self.project_dir / self.model_uniq
-         self.project_name = self.project_dir / self.model_name
+         # project_name is intended as a string name, not a directory
+         self.project_name = self.model_name
          self.checkpoint_filepath = self.project_dir 
-        
+         
          Logflag = "Base:"
          logger.info(f"{Logflag} Model base: {self.model_base}")
          logger.info(f"{Logflag} Project directory: {self.project_dir}")
          logger.info(f"{Logflag} Project name: {self.project_name}")
          logger.info(f"{Logflag} Checkpoint path: {self.checkpoint_filepath}")
-        
+         
          # Ensure directories exist.
          self.model_base.mkdir(parents=True, exist_ok=True)
          self.project_dir.mkdir(parents=True, exist_ok=True)
-         self.project_name.mkdir(parents=True, exist_ok=True)
+         # Removed mkdir call for self.project_name since it's a string.
          self.checkpoint_filepath.mkdir(parents=True, exist_ok=True)
 
          return self.model_base, self.project_dir, self.checkpoint_filepath
@@ -313,11 +331,11 @@ class CMqlEnvBaseParams(CEnvCore):
          self.mql_basepath = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir1
          self.mql_base_connect_path = base_path / self.mql_base_ver
          self.mql_data_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir1 / self.mql_dir2
-         self.mql_include_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name /  self.mql_dir1/ self.mql_dir3
-         self.mql_lib_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name /self.mql_dir1/ self.mql_dir4
-         self.mql_script_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name /self.mql_dir1/ self.mql_dir5
-         self.mql_expert_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name /self.mql_dir1/ self.mql_dir6
-         self.mql_indicator_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name /self.mql_dir1/ self.mql_dir7
+         self.mql_include_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir1 / self.mql_dir3
+         self.mql_lib_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir1 / self.mql_dir4
+         self.mql_script_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir1 / self.mql_dir5
+         self.mql_expert_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir1 / self.mql_dir6
+         self.mql_indicator_path = base_path / self.mql_base_ver / self.mql_base_broker / self.mql_base_broker_name / self.mql_dir1 / self.mql_dir7
 
          Logflag = "Base:"
          logger.info(f"{Logflag} MQL base path: {self.mql_basepath}")

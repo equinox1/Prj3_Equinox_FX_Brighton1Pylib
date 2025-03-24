@@ -11,7 +11,7 @@ mp_glob_sub_data: 'Mql5Data'
 mp_glob_sub_ml_src_lib: 'PythonLib'
 mp_glob_sub_ml_src_modeldata: 'tsModelData'
 mp_glob_sub_ml_src_configdata: 'tsConfigData'
-mp_glob_sub_ml_directory: 'tshybrid_ensemble_tuning_prod'
+mp_glob_sub_ml_directory: 'tshybrid_ensemble_tuning_dir'
 mp_glob_sub_ml_model_name: 'prjEquinox1_prod.keras'
 mp_glob_sub_ml_baseuniq: '1'
 

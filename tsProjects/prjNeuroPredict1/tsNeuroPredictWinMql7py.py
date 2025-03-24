@@ -302,7 +302,7 @@ def main(logger):
         mql_overrides.env.override_params({"mltune" : { 'unitmax': int(512/modscale)}})
         mql_overrides.env.override_params({"mltune" : { 'unitstep': int(32/modscale)}})
         mql_overrides.env.override_params({"mltune" : { 'defaultunits': int(128/modscale)}})
-        mql_overrides.env.override_params({"mltune" : { 'max_epochs': 10}})
+        mql_overrides.env.override_params({"mltune" : { 'max_epochs': 2}})
         mql_overrides.env.override_params({"mltune" : { 'min_epochs': 1}})
         mql_overrides.env.override_params({"mltune" : { 'tunemodeepochs': True}})
         mql_overrides.env.override_params({"mltune" : { 'tune_new_entries': True}})
@@ -324,7 +324,7 @@ def main(logger):
 
         mp_ml_mbase_path= base_params.get('mp_glob_base_ml_project_dir', None)
         mp_ml_model_name=base_params.get('mp_glob_sub_ml_model_name', None)
-        mp_ml_hard_run=app_params.get('mp_app_ml_hard_run', False)
+        mp_ml_hard_run=app_params.get('mp_app_ml_hard_run', True)
         mp_ml_tf_param_epochs=base_params.get('mp_ml_tf_param_epochs', 1)
         ONNX_save=base_params.get('onnx_save', False)
         mp_ml_data_path=base_params.get('mp_ml_data_path', None)
