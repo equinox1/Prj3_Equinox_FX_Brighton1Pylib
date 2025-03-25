@@ -579,7 +579,7 @@ class CMdtuner:
         if checkpoint_filepath and isinstance(checkpoint_filepath, pathlib.Path):
             checkpoint_filepath = str(checkpoint_filepath)
         if checkpoint_filepath and not checkpoint_filepath.endswith('.keras'):
-            checkpoint_filepath += '.keras'
+            checkpoint_filepath =self.modelname
         return [
             EarlyStopping(monitor=self.objective, patience=self.chk_patience, verbose=self.chk_verbosity, restore_best_weights=True),
             ModelCheckpoint(filepath=checkpoint_filepath, save_best_only=self.save_best_only, verbose=self.chk_verbosity) if checkpoint_filepath else None,
