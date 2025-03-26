@@ -49,6 +49,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
             "train_dataset": None,
             "val_dataset": None,
             "test_dataset": None,
+            "mp_ml_show_plot": False,
         }
 
         self.INPUT_CONFIG_PARAMS = {

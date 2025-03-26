@@ -62,12 +62,11 @@ class CMdtuner:
         base = self.hypermodel_params.get('base', {})
         self.mp_pl_platform_base      = base.get('mp_glob_base_platform_dir', None)
         self.checkpoint_filepath       = base.get('mp_glob_base_ml_checkpoint_filepath', None)
+        self.modeldatapath            = base.get('mp_glob_sub_ml_src_modeldata', None)
+        #Model path
         self.base_path                 = base.get('mp_glob_base_path', None)
         self.project_dir               = base.get('mp_glob_base_ml_project_dir', None)
         self.baseuniq                  = base.get('mp_glob_sub_ml_baseuniq', None)
-        self.modeldatapath             = base.get('mp_glob_sub_ml_src_modeldata', None)
-      
-        self.project_name              = base.get('mp_glob_sub_ml_model_name', None)
         self.modelname                 = base.get('mp_glob_sub_ml_model_name', None)
 
         logger.info(f"TuneParams: mp_pl_platform_base: {self.mp_pl_platform_base}")
@@ -76,12 +75,11 @@ class CMdtuner:
         logger.info(f"TuneParams: project_dir        : {self.project_dir}")
         logger.info(f"TuneParams: baseuniq           : {self.baseuniq}")
         logger.info(f"TuneParams: modeldatapath      : {self.modeldatapath}")
-        logger.info(f"TuneParams: project_name       : {self.project_name}")
         logger.info(f"TuneParams: modelname          : {self.modelname}")
        
         if not self.base_path:
             raise ValueError("The 'mp_glob_base_path' parameter must be provided in hypermodel_params.")
-        if not self.project_name:
+        if not self.project_dir:
             raise ValueError("The 'mp_glob_base_ml_project_dir' parameter must be provided in hypermodel_params.")
 
         # Data parameters
@@ -644,15 +642,15 @@ class CMdtuner:
     def export_best_model(self, ftype='tf'):
         try:
             best_model = self.tuner.get_best_models(num_models=1)[0]
-            export_path = os.path.join(self.base_path, self.project_name, 'best_model')
+            export_path = os.path.join( self.project_dir)
             os.makedirs(os.path.dirname(export_path), exist_ok=True)
             logger.info(f"Exporting best model to {export_path}")
             if ftype == 'h5':
-                best_model.save(export_path + '.h5')
-                logger.info(f"Model saved to {export_path}.h5")
+                best_model.save(export_path + self.modelname + '.h5')
+                logger.info(f"Model saved to {export_path}{self.modelname}.h5")
             else:
-                best_model.save(export_path + '.keras')
-                logger.info(f"Model saved to {export_path}.keras")
+                best_model.save(export_path + self.modelname +  '.keras')
+                logger.info(f"Model saved to {export_path}{self.modelname}.keras")
         except IndexError:
             logger.info("No models found to export.")
         except Exception as e:
@@ -660,9 +658,16 @@ class CMdtuner:
 
     def check_and_load_model(self, lpbase_path, ftype='tf'):
         logger.info(f"Checking for model file at base_path {lpbase_path}")
-        logger.info(f"Project name: {self.project_name}")
-        model_path = os.path.join(lpbase_path, self.project_name)
-        logger.info(f"Model path: {model_path}")
+        logger.info(f"Model name: {self.modelname}")
+        if ftype == 'h5':
+            localmodel = self.modelname + '.h5'
+            model_path = os.path.join(lpbase_path, localmodel)
+            logger.info(f"Model path h5 : {model_path}")
+        if ftype == 'tf':
+            localmodel = self.modelname + '.keras'
+            model_path = os.path.join(lpbase_path, localmodel)
+            logger.info(f"Model path keras : {model_path}")
+
         try:
             if os.path.exists(model_path) and (model_path.endswith('.h5') or model_path.endswith('.keras') or os.path.isdir(model_path)):
                 model = tf.keras.models.load_model(model_path)
