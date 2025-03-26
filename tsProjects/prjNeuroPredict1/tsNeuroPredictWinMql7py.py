@@ -54,7 +54,7 @@ global_logdir = r"C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\
 try:
     os.makedirs(global_logdir, exist_ok=True)
 except OSError as e:
-    print(f"Error creating log directory: {e}")
+    print(f"Error creating log directory: {e}")  # Use print() here because logger might not be configured yet
     global_logdir = os.getcwd()  # Fallback to current working directory
 
 global_logfile = os.path.join(global_logdir, 'tsneuropredict_app.log')
@@ -66,10 +66,11 @@ if logger.hasHandlers():
     logger.handlers.clear()
 
 try:
-    fh = logging.FileHandler(global_logfile, mode='w')
+    # Specify encoding='utf-8' in FileHandler
+    fh = logging.FileHandler(global_logfile, mode='w', encoding='utf-8')
 except OSError as e:
-    print(f"Error creating log file: {e}")
-    fh = logging.FileHandler('fallback.log', mode='w')  # Fallback to a local log file
+    print(f"Error creating log file: {e}")  # Use print() as fallback
+    fh = logging.FileHandler('fallback.log', mode='w', encoding='utf-8')  # Fallback to a local log file
 
 formatter = logging.Formatter(
     '%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s', 
@@ -77,6 +78,7 @@ formatter = logging.Formatter(
 )
 fh.setFormatter(formatter)
 logger.addHandler(fh)
+
 logger.info("Logging configured successfully with FileHandler.")
 logger.info("Logfile: %s", global_logfile)
 
@@ -271,7 +273,7 @@ def main(logger):
 
         # ----- Model Tuning and Setup -----
     
-        mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': True}})
+        mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
         mql_overrides.env.override_params({"ml": {'tf_batch_size': 4}})
         mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 1}})
 
@@ -306,6 +308,10 @@ def main(logger):
         mql_overrides.env.override_params({"mltune" : { 'min_epochs': 1}})
         mql_overrides.env.override_params({"mltune" : { 'tunemodeepochs': True}})
         mql_overrides.env.override_params({"mltune" : { 'tune_new_entries': True}})
+
+        #plot overrides
+        mql_overrides.env.override_params({"mltune" : { 'mp_ml_show_plot': True}})
+        mql_overrides.env.override_params({"mltune" : { 'onnx_save': True}})
 
 
         unitmin = mql_overrides.env.all_params().get('mltune', {}).get('unitmin', None)
@@ -355,8 +361,6 @@ def main(logger):
         logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
         best_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
 
-    
-        
         if best_model is None:
             logger.info("No best model loaded. Running tuner search (default run).")
             runtuner = tuner_config.run_search()
@@ -382,7 +386,7 @@ def main(logger):
             best_model.fit(
                 train_dataset,
                 validation_data=val_dataset,
-                batch_size=batch_size,
+                batch_size=tf_batch_size,
                 epochs=mp_ml_tf_param_epochs
             )
             logger.info("Training completed.")
@@ -393,8 +397,8 @@ def main(logger):
             logger.info("Validation Metrics - Loss: %.4f, Accuracy: %.4f", val_metrics[0], val_metrics[1])
             logger.info("Test Metrics - Loss: %.4f, Accuracy: %.4f", test_metrics[0], test_metrics[1])
 
-            label_scaler.fit(y_train.reshape(-1, 1))
-            logger.info("Running predictions and scaling...")
+            #label_scaler.fit(y_train.reshape(-1, 1))
+            #logger.info("Running predictions and scaling...")
             predicted_fx_price = best_model.predict(test_dataset)
             predicted_fx_price = label_scaler.inverse_transform(predicted_fx_price)
             real_fx_price = label_scaler.inverse_transform(y_test.reshape(-1, 1))
@@ -420,7 +424,7 @@ def main(logger):
             plt.xlabel('Time')
             plt.ylabel('FX Price')
             plt.legend()
-            plot_filepath = os.path.join(mp_ml_base_path, 'plot.png')
+            plot_filepath = os.path.join(mp_ml_mbase_path, 'plot.png')
             plt.savefig(plot_filepath)
             if mql_overrides.env.all_params().get("mp_ml_show_plot", False):
                 plt.show()

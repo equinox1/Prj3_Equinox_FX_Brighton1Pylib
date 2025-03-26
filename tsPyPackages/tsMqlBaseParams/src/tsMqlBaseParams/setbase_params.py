@@ -118,7 +118,7 @@ class CMqlEnvBaseParams(CEnvCore):
         self.mp_glob_sub_ml_src_lib = self.config.get('mp_glob_sub_ml_src_lib', 'PythonLib')
         self.mp_glob_sub_ml_src_modeldata = self.config.get('mp_glob_sub_ml_src_modeldata', 'tsModelData')
         self.model_uniq = self.config.get('mp_glob_sub_ml_baseuniq', '1')
-        self.model_name = self.config.get('mp_glob_sub_ml_model_name', 'prjEquinox1_prod.keras')
+        self.model_name = self.config.get('mp_glob_sub_ml_model_name', 'prjEquinox1_model')
 
         self.DEFAULT_PARAMS = {
             # Platform Path settings
@@ -289,7 +289,7 @@ class CMqlEnvBaseParams(CEnvCore):
          self.model_subdir = self.config.get('mp_glob_sub_ml_src_modeldata', 'tsModelData')
          self.project_dir = self.config.get('mp_glob_sub_ml_directory', 'tshybrid_ensemble_tuning_prod')
          self.model_uniq = self.config.get('mp_glob_sub_ml_baseuniq', '1')
-         self.model_name = self.config.get('mp_glob_sub_ml_model_name', 'prjEquinox1_prod.keras')
+         self.model_name = self.config.get('mp_glob_sub_ml_model_name', 'prjEquinox1_model')
 
          # Define paths
          self.pybase = self.lib_subdir
