@@ -151,6 +151,9 @@ def main(logger):
         logger.info(f"Timezone: {TIMEZONE}")
         logger.info(f"Timeframe: {TIMEFRAME}")
 
+        mql_overrides.env.override_params({"data": {"mp_data_rows": 1000}})
+        mql_overrides.env.override_params({"data": {"mp_data_rowcount": 200000}})
+       
         rows = data_params.get('mp_data_rows', 1000)
         rowcount = data_params.get('mp_data_rowcount', 10000)
         logger.info(f"Timeframe Name: {lp_timeframe_name}, Rows: {rows}, Rowcount: {rowcount}")
@@ -389,16 +392,21 @@ def main(logger):
             # Clear any previous session to free up resources
             tf.keras.backend.clear_session()
 
+ 
+
             try:
                 # Set up callbacks (e.g., early stopping) if desired
                 callbacks = [
                     tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
                 ]
                 logger.info("Training the best model...")
+
+                logger.info("Best Epochs: %s, tf_epochs: %s", epochs, mp_ml_tf_param_epochs)
+
                 best_model.fit(
                     train_dataset,
                     validation_data=val_dataset,
-                    epochs=mp_ml_tf_param_epochs,
+                    epochs=epochs,
                     callbacks=callbacks
                 )
                 logger.info("Training completed.")
