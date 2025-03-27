@@ -311,7 +311,7 @@ def main(logger):
 
         #plot overrides
         mql_overrides.env.override_params({"mltune" : { 'mp_ml_show_plot': True}})
-        mql_overrides.env.override_params({"mltune" : { 'onnx_save': True}})
+        mql_overrides.env.override_params({"mltune" : { 'ONNX_save': True}})
 
 
         unitmin = mql_overrides.env.all_params().get('mltune', {}).get('unitmin', None)
@@ -333,7 +333,7 @@ def main(logger):
         mp_ml_hard_run=app_params.get('mp_app_ml_hard_run', True)
         mp_ml_tf_param_epochs=base_params.get('mp_ml_tf_param_epochs', 1)
         ONNX_save=base_params.get('onnx_save', False)
-        mp_ml_data_path=base_params.get('mp_ml_data_path', None)
+        mp_glob_sub_ml_src_modeldata=base_params.get('mp_glob_sub_ml_src_modeldata', None)
         mp_symbol_primary=base_params.get('lp_app_primary_symbol', 'EURUSD')
 
         logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
@@ -341,13 +341,13 @@ def main(logger):
         logger.info("Main Model Check: mp_ml_hard_run: %s", mp_ml_hard_run)
         logger.info("Main Model Check: mp_ml_tf_param_epochs: %s", mp_ml_tf_param_epochs)
         logger.info("Main Model Check: ONNX_save: %s", ONNX_save)
-        logger.info("Main Model Check: mp_ml_data_path: %s", mp_ml_data_path)
+        logger.info("Main Model Check: mp_glob_sub_ml_src_modeldata: %s", mp_glob_sub_ml_src_modeldata)
         logger.info("Main Model Check: mp_symbol_primary: %s", mp_symbol_primary)
         logger.info("Main Model Check: all_modelscale: %s", ml_params.get('all_modelscale', 1))
         
         logger.info("Main Model get all_modelscale: %s", mql_overrides.env.all_params().get('mltune', {}).get('all_modelscale', 1))
         
-        # ----- Uncomment the tuner and model training block below as needed -----
+        # ----- Model Tuning and Setup -----
         tuner_config = CMdtuner(
             hypermodel_params=mql_overrides.env.all_params(),
             traindataset=train_dataset,
@@ -374,79 +374,96 @@ def main(logger):
             runtuner = True
 
         # ----- Train and Evaluate the Model -----
-        logger.info("Model: Loading file from directory %s, Model: filename %s", mp_ml_mbase_path, mp_ml_model_name)
+        logger.info("Model: Loading file from directory %s, filename: %s", mp_ml_mbase_path, mp_ml_model_name)
         load_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
         if load_model is not None:
             best_model = load_model
             logger.info("Model: Best model: %s", best_model.name)
             best_model.summary(print_fn=lambda x: logger.info(x))
+            
+            # Clear any previous session to free up resources
             tf.keras.backend.clear_session()
 
-            logger.info("Training the best model...")
-            best_model.fit(
-                train_dataset,
-                validation_data=val_dataset,
-                batch_size=tf_batch_size,
-                epochs=mp_ml_tf_param_epochs
-            )
-            logger.info("Training completed.")
-        
-            logger.info("Evaluating the model...")
-            val_metrics = best_model.evaluate(val_dataset, verbose=1)
-            test_metrics = best_model.evaluate(test_dataset, verbose=1)
-            logger.info("Validation Metrics - Loss: %.4f, Accuracy: %.4f", val_metrics[0], val_metrics[1])
-            logger.info("Test Metrics - Loss: %.4f, Accuracy: %.4f", test_metrics[0], test_metrics[1])
+            try:
+                # Set up callbacks (e.g., early stopping) if desired
+                callbacks = [
+                    tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+                ]
+                logger.info("Training the best model...")
+                best_model.fit(
+                    train_dataset,
+                    validation_data=val_dataset,
+                    epochs=mp_ml_tf_param_epochs,
+                    callbacks=callbacks
+                )
+                logger.info("Training completed.")
 
-            #label_scaler.fit(y_train.reshape(-1, 1))
-            #logger.info("Running predictions and scaling...")
-            predicted_fx_price = best_model.predict(test_dataset)
-            predicted_fx_price = label_scaler.inverse_transform(predicted_fx_price)
-            real_fx_price = label_scaler.inverse_transform(y_test.reshape(-1, 1))
-            logger.info("Predictions and scaling completed.")
+                
+                # ----- Model Evaluation -----
+                # Predict on the test dataset
+                y_pred = best_model.predict(test_dataset)
+                # Combine the batched true labels into a single array
+                y_test_true = np.concatenate([y for _, y in test_dataset], axis=0)
+                
+                # Compute evaluation metrics
+                mse_value = mean_squared_error(y_test_true, y_pred)
+                mae_value = mean_absolute_error(y_test_true, y_pred)
+                r2_value = r2_score(y_test_true, y_pred)
+                
+                logger.info("Evaluation on Test Data:")
+                logger.info("MSE: %s", mse_value)
+                logger.info("MAE: %s", mae_value)
+                logger.info("R2 Score: %s", r2_value)
+                
+                # ----- Plotting Predictions vs Actuals -----
+                plt.figure(figsize=(10, 6))
+                plt.plot(y_test_true, label='Actual Price')
+                plt.plot(y_pred, label='Predicted Price')
+                plt.xlabel("Sample Index")
+                plt.ylabel("Price Value")
+                plt.title("Price Prediction Evaluation")
+                plt.legend()
+                # Save the plot to the specified path
+                logger.info("PLOT: mp_glob_sub_ml_src_modeldata: %s", mp_glob_sub_ml_src_modeldata)
+                logger.info("PLOT: mp_symbol_primary: %s", mp_symbol_primary)
 
-            if np.isnan(real_fx_price).any() or np.isnan(predicted_fx_price).any():
-                logger.info("Warning: NaN values found; removing corresponding entries.")
-                mask = ~np.isnan(real_fx_price) & ~np.isnan(predicted_fx_price)
-                real_fx_price = real_fx_price[mask]
-                predicted_fx_price = predicted_fx_price[mask]
+                print("PLOT: mp_symbol_primary: %s", mp_symbol_primary)
+                print("PLOT: mp_ml_mbase_path: %s", mp_ml_mbase_path)
+                print("PLOT: mp_glob_sub_ml_src_modeldata: %s", mp_glob_sub_ml_src_modeldata)
 
-            mse = mean_squared_error(real_fx_price, predicted_fx_price)
-            mae = mean_absolute_error(real_fx_price, predicted_fx_price)
-            r2 = r2_score(real_fx_price, predicted_fx_price)
-            logger.info("MSE: %s, MAE: %s, R2: %s", mse, mae, r2)
-            logger.info("Mean Squared Error: %s", mse)
-            logger.info("Mean Absolute Error: %s", mae)
-            logger.info("R2 Score: %s", r2)
-
-            plt.plot(real_fx_price, color='red', label='Real FX Price')
-            plt.plot(predicted_fx_price, color='blue', label='Predicted FX Price')
-            plt.title('FX Price Prediction')
-            plt.xlabel('Time')
-            plt.ylabel('FX Price')
-            plt.legend()
-            plot_filepath = os.path.join(mp_ml_mbase_path, 'plot.png')
-            plt.savefig(plot_filepath)
-            if mql_overrides.env.all_params().get("mp_ml_show_plot", False):
+                plot_path = os.path.join(mp_ml_mbase_path, f"price_prediction_plot_{mp_symbol_primary}.png")
+                logger.info("Plot Path: %s", plot_path)
+                print("Plot Path: %s", plot_path)
+                plt.savefig(plot_path)
                 plt.show()
-            logger.info("Plot saved to %s", plot_filepath)
-
-            if ONNX_save:
-                mp_output_path = os.path.join(mp_ml_data_path, f"model_{mp_symbol_primary}_{mp_ml_data_type}.onnx")
-                logger.info("Output Path: %s", mp_output_path)
-                opset_version = 17
-                spec = [tf.TensorSpec(input_shape, tf.float32, name="input")]
-                onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature=spec, opset=opset_version)
-                onnx.save_model(onnx_model, mp_output_path)
-                logger.info("Model saved to %s", mp_output_path)
-                checker.check_model(onnx_model)
-                logger.info("ONNX model is valid.")
-                logger.info("ONNX Runtime version: %s", ort.__version__)
-            mt5.shutdown()
-            logger.info("Finished.")
+                # Close the plot to free up memory
+                plt.close()
+                logger.info("Price prediction plot saved at: %s", plot_path)
+                
+                # ----- ONNX Model Export -----
+                if ONNX_save:
+                    try:
+                        # Ensure mp_ml_data_type is defined (defaulting to 'data' if not provided)
+                        mp_ml_data_type = base_params.get('mp_ml_data_type', 'data')
+                        mp_output_path = os.path.join(mp_glob_sub_ml_src_modeldata, f"model_{mp_symbol_primary}_{mp_ml_data_type}.onnx")
+                        logger.info("Output Path: %s", mp_output_path)
+                        opset_version = 17
+                        spec = [tf.TensorSpec(best_model.input_shape, tf.float32, name="input")]
+                        onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature=spec, opset=opset_version)
+                        onnx.save_model(onnx_model, mp_output_path)
+                        logger.info("Model saved to %s", mp_output_path)
+                        checker.check_model(onnx_model)
+                        logger.info("ONNX model is valid. ONNX Runtime version: %s", ort.__version__)
+                    except Exception as e:
+                        logger.error("ONNX conversion failed: %s", str(e))
+            finally:
+                mt5.shutdown()
+                logger.info("Finished.")
         else:
             logger.info("No data loaded; exiting.")
             mt5.shutdown()
             logger.info("Finished.")
+
       
 if __name__ == "__main__":
     main(logger)
