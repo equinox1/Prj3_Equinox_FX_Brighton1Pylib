@@ -16,11 +16,9 @@ import pathlib
 import tensorflow as tf
 from datetime import date
 
-
 # Get a logger for this module
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)  # Ensure the logger level is set appropriately
-
 
 # Platform imports
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
@@ -63,7 +61,7 @@ class CMdtuner:
         self.mp_pl_platform_base      = base.get('mp_glob_base_platform_dir', None)
         self.checkpoint_filepath       = base.get('mp_glob_base_ml_checkpoint_filepath', None)
         self.modeldatapath            = base.get('mp_glob_sub_ml_src_modeldata', None)
-        #Model path
+        # Model path
         self.base_path                 = base.get('mp_glob_base_path', None)
         self.project_dir               = base.get('mp_glob_base_ml_project_dir', None)
         self.baseuniq                  = base.get('mp_glob_sub_ml_baseuniq', None)
@@ -142,7 +140,6 @@ class CMdtuner:
         self.executions_per_trial    = mltune.get('executions_per_trial', 1)
         self.overwrite               = mltune.get('overwrite', False)
 
-
         logger.info(f"Tuning parameters: today            : {self.today}")
         logger.info(f"Tuning parameters: seed             : {self.seed}")
         logger.info(f"Tuning parameters: input_shape      : {self.input_shape}")
@@ -159,7 +156,6 @@ class CMdtuner:
         logger.info(f"Tuning parameters: max_retries_per_trial: {self.max_retries_per_trial}")
         logger.info(f"Tuning parameters: max_consecutive_failed_trials: {self.max_consecutive_failed_trials}")
         logger.info(f"Tuning parameters: executions_per_trial: {self.executions_per_trial}")
-      
 
         # New tuning parameters 
         self.unitmin         = mltune.get('unitmin', 32)
@@ -225,18 +221,17 @@ class CMdtuner:
         logger.info(f"Tuning parameters: factor            : {self.factor}")
         logger.info(f"Tuning parameters: objective         : {self.objective}")
 
-        #Checkpoint parameters  
+        # Checkpoint parameters  
         self.checkpoint_dir = self.checkpoint_filepath
-        self.checkpoint_path = os.path.join(self.checkpoint_dir,self.modelname)
-        self.overwrite               = mltune.get('overwrite', False)
-        self.chk_fullmodel           = mltune.get('chk_fullmodel', True)
-        self.chk_verbosity           = mltune.get('chk_verbosity', 1)
-        self.chk_mode                = mltune.get('chk_mode', 'min')
-        self.chk_monitor             = mltune.get('chk_monitor', 'val_loss')
-        self.chk_sav_freq            = mltune.get('chk_sav_freq', 'epoch')
-        self.chk_patience            = mltune.get('chk_patience', 10)
-        self.save_best_only          = mltune.get('save_best_only', True)
-
+        self.checkpoint_path = os.path.join(self.checkpoint_dir, self.modelname)
+        self.overwrite = mltune.get('overwrite', False)
+        self.chk_fullmodel = mltune.get('chk_fullmodel', True)
+        self.chk_verbosity = mltune.get('chk_verbosity', 1)
+        self.chk_mode = mltune.get('chk_mode', 'min')
+        self.chk_monitor = mltune.get('chk_monitor', 'val_loss')
+        self.chk_sav_freq = mltune.get('chk_sav_freq', 'epoch')
+        self.chk_patience = mltune.get('chk_patience', 10)
+        self.save_best_only = mltune.get('save_best_only', True)
 
         logger.info(f"Checkpoint parameters: checkpoint_dir: {self.checkpoint_dir}")
         logger.info(f"Checkpoint parameters: checkpoint_path: {self.checkpoint_path}")
@@ -248,8 +243,6 @@ class CMdtuner:
         logger.info(f"Checkpoint parameters: chk_sav_freq: {self.chk_sav_freq}")
         logger.info(f"Checkpoint parameters: chk_patience: {self.chk_patience}")
         logger.info(f"Checkpoint parameters: save_best_only: {self.save_best_only}")
-
-
 
         # Datasets and cast mode setup
         self.traindataset = kwargs.get('traindataset')
@@ -577,7 +570,7 @@ class CMdtuner:
         if checkpoint_filepath and isinstance(checkpoint_filepath, pathlib.Path):
             checkpoint_filepath = str(checkpoint_filepath)
         if checkpoint_filepath and not checkpoint_filepath.endswith('.keras'):
-            checkpoint_filepath =self.modelname
+            checkpoint_filepath = self.modelname
         return [
             EarlyStopping(monitor=self.objective, patience=self.chk_patience, verbose=self.chk_verbosity, restore_best_weights=True),
             ModelCheckpoint(filepath=checkpoint_filepath, save_best_only=self.save_best_only, verbose=self.chk_verbosity) if checkpoint_filepath else None,
@@ -616,6 +609,14 @@ class CMdtuner:
             if not best_hps:
                 raise ValueError("No hyperparameters found. Ensure tuning has been run successfully.")
             logger.info(f"Best hyperparameters: {best_hps[0].values}")
+            
+            # If tunemodeepochs is enabled, retrieve the best epoch value and update the mltune overrides
+            if self.tunemodeepochs:
+                best_epochs = best_hps[0].values.get('epochs', self.min_epochs)
+                logger.info(f"Best epochs from tuning: {best_epochs}")
+                if 'mltune' in self.hypermodel_params:
+                    self.hypermodel_params['mltune']['epochs'] = best_epochs
+                    logger.info("Updated mltune overrides with best epochs value.")
         except Exception as e:
             logger.error(f"Error during tuning: {e}")
 
@@ -642,14 +643,14 @@ class CMdtuner:
     def export_best_model(self, ftype='tf'):
         try:
             best_model = self.tuner.get_best_models(num_models=1)[0]
-            export_path = os.path.join( self.project_dir)
+            export_path = os.path.join(self.project_dir)
             os.makedirs(os.path.dirname(export_path), exist_ok=True)
             logger.info(f"Exporting best model to {export_path}")
             if ftype == 'h5':
                 best_model.save(export_path + self.modelname + '.h5')
                 logger.info(f"Model saved to {export_path}{self.modelname}.h5")
             else:
-                best_model.save(export_path + self.modelname +  '.keras')
+                best_model.save(export_path + self.modelname + '.keras')
                 logger.info(f"Model saved to {export_path}{self.modelname}.keras")
         except IndexError:
             logger.info("No models found to export.")
