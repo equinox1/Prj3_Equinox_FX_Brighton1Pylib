@@ -25,9 +25,10 @@ import pandas as pd
 
 # Machine Learning packages
 import tensorflow as tf
-from sklearn.preprocessing import MinMaxScaler
+
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler  # Added for scaling
 
 # Extra modules needed for ONNX conversion and MetaTrader5 (adjust if not used)
 import tf2onnx
@@ -73,7 +74,7 @@ except OSError as e:
     fh = logging.FileHandler('fallback.log', mode='w', encoding='utf-8')  # Fallback to a local log file
 
 formatter = logging.Formatter(
-    '%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s', 
+    '%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 fh.setFormatter(formatter)
@@ -82,7 +83,6 @@ logger.addHandler(fh)
 logger.info("Logging configured successfully with FileHandler.")
 logger.info("Logfile: %s", global_logfile)
 
-
 # ----- Setup platform -----
 setup_config = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
 strategy = setup_config.get_computation_strategy()
@@ -90,10 +90,6 @@ pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
-
-# Set package options
-feature_scaler = MinMaxScaler()
-label_scaler = MinMaxScaler()
 
 # ----- Main Function -----
 def main(logger):
@@ -119,7 +115,7 @@ def main(logger):
         logger.info("Main Base Parameters:")
         for key, value in base_params.items():
             logger.info(f"  {key}: {value}")
-        logger.info("Main Data Parameters:")   
+        logger.info("Main Data Parameters:")
         for key, value in data_params.items():
             logger.info(f"  {key}: {value}")
         logger.info("Main ML Parameters:")
@@ -226,7 +222,6 @@ def main(logger):
         logger.info("OverRidden: Label Width: %s", mltune_overrides.get("Label Width", forward_window))
         logger.info("OverRidden: Shift: %s", mltune_overrides.get("Shift", pred_width))
 
-        
         # ----- Select Features and Labels -----
         features = ml_params.get("mp_ml_input_keyfeat", "Close")
         features_scaled = ml_params.get("mp_ml_input_keyfeat_scaled", "Close_Scaled")
@@ -239,12 +234,28 @@ def main(logger):
         )
         logger.info("Input shape: %s, Target shape: %s", datafile_X.shape, datafile_y.shape)
 
-        # ----- Split Data -----
+        # ----- Scaling the Input Features -----
+        # Reshape X from (n_samples, back_window, n_features) to 2D for scaling
+        nsamples, nsteps, nfeatures = datafile_X.shape
+        X_reshaped = datafile_X.reshape((nsamples * nsteps, nfeatures))
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X_reshaped)
+        # Reshape back to the original 3D shape
+        datafile_X_scaled = X_scaled.reshape(datafile_X.shape)
+
+        # Optionally, scale the targets (uncomment if desired)
+        y_reshaped = datafile_y.reshape((-1, 1))
+        y_scaled = scaler.fit_transform(y_reshaped)
+        datafile_y_scaled = y_scaled.reshape(datafile_y.shape)
+
+        # ----- Split Data (using scaled inputs) -----
         seed = mltune_params.get('seed', 42)
-        n_samples = len(datafile_X)
+        n_samples = len(datafile_X_scaled)
         train_end = int(0.7 * n_samples)
         val_end = int(0.85 * n_samples)
-        X_train, X_val, X_test, y_train, y_val, y_test = ml_process_config.manual_split_data(datafile_X, datafile_y, train_end, val_end)
+        X_train, X_val, X_test, y_train, y_val, y_test = ml_process_config.manual_split_data(
+            datafile_X_scaled, datafile_y, train_end, val_end
+        )
         logger.info("Train samples: %s", X_train.shape[0])
         logger.info("Validation samples: %s", X_val.shape[0])
         logger.info("Test samples: %s", X_test.shape[0])
@@ -272,22 +283,20 @@ def main(logger):
         logger.info("Output shape: %s", output_shape)
 
         # ----- Model Tuning and Setup -----
-    
         mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
         mql_overrides.env.override_params({"ml": {'tf_batch_size': 4}})
         mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 1}})
 
-        #scale the model
-        modscale=2
-   
+        # Scale the model
+        modscale = 2
         mql_overrides.env.override_params({"mltune": {'all_modelscale': modscale}})
         mql_overrides.env.override_params({"mltune": {'cnn_modelscale': modscale}})
         mql_overrides.env.override_params({"mltune": {'lstm_modelscale': modscale}})
         mql_overrides.env.override_params({"mltune": {'gru_modelscale': modscale}})
-        mql_overrides.env.override_params({"mltune" : { 'trans_modelscale': modscale}})
-        mql_overrides.env.override_params({"mltune" : { 'transh_modelscale': modscale}})
-        mql_overrides.env.override_params({"mltune" : { 'transff_modelscale': modscale}})
-        mql_overrides.env.override_params({"mltune" : { 'dense_modelscale': modscale}})
+        mql_overrides.env.override_params({"mltune": {'trans_modelscale': modscale}})
+        mql_overrides.env.override_params({"mltune": {'transh_modelscale': modscale}})
+        mql_overrides.env.override_params({"mltune": {'transff_modelscale': modscale}})
+        mql_overrides.env.override_params({"mltune": {'dense_modelscale': modscale}})
 
         all_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('all_modelscale', 1)
         cnn_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('cnn_modelscale', 1)
@@ -298,21 +307,19 @@ def main(logger):
         transff_modelscale = mql_overrides.env.all_params().get('mltune.', {}).get('transff_modelscale', 1)
         dense_modelscale = mql_overrides.env.all_params().get('mltune.', {}).get('dense_modelscale', 1)
 
-    
         # Tune overrides
-        mql_overrides.env.override_params({"mltune" : { 'unitmin': int(32/modscale)}})
-        mql_overrides.env.override_params({"mltune" : { 'unitmax': int(512/modscale)}})
-        mql_overrides.env.override_params({"mltune" : { 'unitstep': int(32/modscale)}})
-        mql_overrides.env.override_params({"mltune" : { 'defaultunits': int(128/modscale)}})
-        mql_overrides.env.override_params({"mltune" : { 'max_epochs': 2}})
-        mql_overrides.env.override_params({"mltune" : { 'min_epochs': 1}})
-        mql_overrides.env.override_params({"mltune" : { 'tunemodeepochs': True}})
-        mql_overrides.env.override_params({"mltune" : { 'tune_new_entries': True}})
+        mql_overrides.env.override_params({"mltune": {'unitmin': int(32/modscale)}})
+        mql_overrides.env.override_params({"mltune": {'unitmax': int(512/modscale)}})
+        mql_overrides.env.override_params({"mltune": {'unitstep': int(32/modscale)}})
+        mql_overrides.env.override_params({"mltune": {'defaultunits': int(128/modscale)}})
+        mql_overrides.env.override_params({"mltune": {'max_epochs': 2}})
+        mql_overrides.env.override_params({"mltune": {'min_epochs': 1}})
+        mql_overrides.env.override_params({"mltune": {'tunemodeepochs': True}})
+        mql_overrides.env.override_params({"mltune": {'tune_new_entries': True}})
 
-        #plot overrides
-        mql_overrides.env.override_params({"mltune" : { 'mp_ml_show_plot': True}})
-        mql_overrides.env.override_params({"mltune" : { 'ONNX_save': True}})
-
+        # Plot overrides
+        mql_overrides.env.override_params({"mltune": {'mp_ml_show_plot': True}})
+        mql_overrides.env.override_params({"mltune": {'ONNX_save': True}})
 
         unitmin = mql_overrides.env.all_params().get('mltune', {}).get('unitmin', None)
         unitmax = mql_overrides.env.all_params().get('mltune', {}).get('unitmax', None)
@@ -321,20 +328,20 @@ def main(logger):
         epochs = mql_overrides.env.all_params().get('mltune', {}).get('epochs', None)
         tune_new_entries = mql_overrides.env.all_params().get('mltune', {}).get('tune_new_entries', None)
 
-        logger.info("Main: ML Tuning Parameters: %s",unitmin)
-        logger.info("Main: ML Tuning Parameters: %s",unitmax)
-        logger.info("Main: ML Tuning Parameters: %s",unitstep)
-        logger.info("Main: ML Tuning Parameters: %s",defaultunits)
-        logger.info("Main: ML Tuning Parameters: %s",epochs)
-        logger.info("Main: ML Tuning Parameters: %s",tune_new_entries)
+        logger.info("Main: ML Tuning Parameters: %s", unitmin)
+        logger.info("Main: ML Tuning Parameters: %s", unitmax)
+        logger.info("Main: ML Tuning Parameters: %s", unitstep)
+        logger.info("Main: ML Tuning Parameters: %s", defaultunits)
+        logger.info("Main: ML Tuning Parameters: %s", epochs)
+        logger.info("Main: ML Tuning Parameters: %s", tune_new_entries)
 
-        mp_ml_mbase_path= base_params.get('mp_glob_base_ml_project_dir', None)
-        mp_ml_model_name=base_params.get('mp_glob_sub_ml_model_name', None)
-        mp_ml_hard_run=app_params.get('mp_app_ml_hard_run', True)
-        mp_ml_tf_param_epochs=base_params.get('mp_ml_tf_param_epochs', 1)
-        ONNX_save=base_params.get('onnx_save', False)
-        mp_glob_sub_ml_src_modeldata=base_params.get('mp_glob_sub_ml_src_modeldata', None)
-        mp_symbol_primary=base_params.get('lp_app_primary_symbol', 'EURUSD')
+        mp_ml_mbase_path = base_params.get('mp_glob_base_ml_project_dir', None)
+        mp_ml_model_name = base_params.get('mp_glob_sub_ml_model_name', None)
+        mp_ml_hard_run = app_params.get('mp_app_ml_hard_run', True)
+        mp_ml_tf_param_epochs = base_params.get('mp_ml_tf_param_epochs', 1)
+        ONNX_save = base_params.get('onnx_save', False)
+        mp_glob_sub_ml_src_modeldata = base_params.get('mp_glob_sub_ml_src_modeldata', None)
+        mp_symbol_primary = base_params.get('lp_app_primary_symbol', 'EURUSD')
 
         logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
         logger.info("Main Model Check: mp_ml_model_name: %s", mp_ml_model_name)
@@ -343,8 +350,6 @@ def main(logger):
         logger.info("Main Model Check: ONNX_save: %s", ONNX_save)
         logger.info("Main Model Check: mp_glob_sub_ml_src_modeldata: %s", mp_glob_sub_ml_src_modeldata)
         logger.info("Main Model Check: mp_symbol_primary: %s", mp_symbol_primary)
-        logger.info("Main Model Check: all_modelscale: %s", ml_params.get('all_modelscale', 1))
-        
         logger.info("Main Model get all_modelscale: %s", mql_overrides.env.all_params().get('mltune', {}).get('all_modelscale', 1))
         
         # ----- Model Tuning and Setup -----
@@ -398,7 +403,6 @@ def main(logger):
                 )
                 logger.info("Training completed.")
 
-                
                 # ----- Model Evaluation -----
                 # Predict on the test dataset
                 y_pred = best_model.predict(test_dataset)
@@ -464,6 +468,5 @@ def main(logger):
             mt5.shutdown()
             logger.info("Finished.")
 
-      
 if __name__ == "__main__":
     main(logger)
