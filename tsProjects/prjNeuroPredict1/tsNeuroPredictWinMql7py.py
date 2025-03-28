@@ -286,7 +286,7 @@ def main(logger):
         logger.info("Output shape: %s", output_shape)
 
         # ----- Model Tuning and Setup -----
-        mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
+        mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': True}})
         mql_overrides.env.override_params({"ml": {'tf_batch_size': 4}})
         mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 1}})
 
@@ -315,7 +315,7 @@ def main(logger):
         mql_overrides.env.override_params({"mltune": {'unitmax': int(512/modscale)}})
         mql_overrides.env.override_params({"mltune": {'unitstep': int(32/modscale)}})
         mql_overrides.env.override_params({"mltune": {'defaultunits': int(128/modscale)}})
-        mql_overrides.env.override_params({"mltune": {'max_epochs': 2}})
+        mql_overrides.env.override_params({"mltune": {'max_epochs': 250}})
         mql_overrides.env.override_params({"mltune": {'min_epochs': 1}})
         mql_overrides.env.override_params({"mltune": {'tunemodeepochs': True}})
         mql_overrides.env.override_params({"mltune": {'tune_new_entries': True}})
