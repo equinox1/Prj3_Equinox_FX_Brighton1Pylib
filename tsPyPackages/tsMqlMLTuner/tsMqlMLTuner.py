@@ -66,6 +66,7 @@ class CMdtuner:
         self.project_dir               = base.get('mp_glob_base_ml_project_dir', None)
         self.baseuniq                  = base.get('mp_glob_sub_ml_baseuniq', None)
         self.modelname                 = base.get('mp_glob_sub_ml_model_name', None)
+        self.modelpath                 = os.path.join(self.project_dir, self.baseuniq, self.modelname)
 
         logger.info(f"TuneParams: mp_pl_platform_base: {self.mp_pl_platform_base}")
         logger.info(f"TuneParams: checkpoint_filepath: {self.checkpoint_filepath}")
@@ -74,6 +75,7 @@ class CMdtuner:
         logger.info(f"TuneParams: baseuniq           : {self.baseuniq}")
         logger.info(f"TuneParams: modeldatapath      : {self.modeldatapath}")
         logger.info(f"TuneParams: modelname          : {self.modelname}")
+        logger.info(f"TuneParams: modelpath          : {self.modelpath}")
        
         if not self.base_path:
             raise ValueError("The 'mp_glob_base_path' parameter must be provided in hypermodel_params.")
@@ -226,7 +228,6 @@ class CMdtuner:
 
         # Checkpoint parameters  
         self.checkpoint_dir = self.checkpoint_filepath
-        self.checkpoint_path = os.path.join(self.checkpoint_dir, self.modelname)
         self.overwrite = mltune.get('overwrite', False)
         self.chk_fullmodel = mltune.get('chk_fullmodel', True)
         self.chk_verbosity = mltune.get('chk_verbosity', 1)
@@ -237,7 +238,6 @@ class CMdtuner:
         self.save_best_only = mltune.get('save_best_only', True)
 
         logger.info(f"Checkpoint parameters: checkpoint_dir: {self.checkpoint_dir}")
-        logger.info(f"Checkpoint parameters: checkpoint_path: {self.checkpoint_path}")
         logger.info(f"Checkpoint parameters: overwrite: {self.overwrite}")
         logger.info(f"Checkpoint parameters: chk_fullmodel: {self.chk_fullmodel}")
         logger.info(f"Checkpoint parameters: chk_verbosity: {self.chk_verbosity}")
@@ -570,11 +570,14 @@ class CMdtuner:
 
     def get_callbacks(self):
         checkpoint_filepath = self.checkpoint_filepath
+        logger.info(f"Checkpoint filepath: {checkpoint_filepath}")
+        # Ensure the checkpoint filepath is a string
         if checkpoint_filepath and isinstance(checkpoint_filepath, pathlib.Path):
             checkpoint_filepath = str(checkpoint_filepath)
+            logger.info(f"Converted checkpoint filepath to string: {checkpoint_filepath}")
         # Ensure the checkpoint filepath ends with ".keras"
-        if checkpoint_filepath and not checkpoint_filepath.endswith('.keras'):
-            checkpoint_filepath = checkpoint_filepath + '.keras'
+        if checkpoint_filepath and not os.path.join(checkpoint_filepath,self.modelname).endswith('.keras'):
+            checkpoint_filepath = self.modelpath + '.keras'
         return [
             EarlyStopping(monitor=self.objective, patience=self.chk_patience, verbose=self.chk_verbosity, restore_best_weights=True),
             ModelCheckpoint(filepath=checkpoint_filepath, save_best_only=self.save_best_only, verbose=self.chk_verbosity) if checkpoint_filepath else None,
