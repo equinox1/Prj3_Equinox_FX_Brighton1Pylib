@@ -142,20 +142,32 @@ class CMdtuner:
 
         logger.info(f"Tuning parameters: today            : {self.today}")
         logger.info(f"Tuning parameters: seed             : {self.seed}")
+        logger.info(f"Tuning parameters: tunemode         : {self.tunemode}")
+        logger.info(f"Tuning parameters: tunemodeepochs   : {self.tunemodeepochs}")
+        logger.info(f"Tuning parameters: batch_size       : {self.batch_size}")
+        logger.info(f"Tuning parameters: epochs           : {self.epochs}")
+        logger.info(f"Tuning parameters: num_trials       : {self.num_trials}")
+        logger.info(f"Tuning parameters: max_epochs       : {self.max_epochs}")
+        logger.info(f"Tuning parameters: min_epochs       : {self.min_epochs}")
+        logger.info(f"Tuning parameters: hyperband_iterations: {self.hyperband_iterations}")
+        logger.info(f"Tuning parameters: factor           : {self.factor}")
+        logger.info(f"Tuning parameters: objective        : {self.objective}")
         logger.info(f"Tuning parameters: input_shape      : {self.input_shape}")
         logger.info(f"Tuning parameters: data_input_shape : {self.data_input_shape}")
         logger.info(f"Tuning parameters: multi_inputs     : {self.multi_inputs}")
         logger.info(f"Tuning parameters: multi_branches   : {self.multi_branches}")
         logger.info(f"Tuning parameters: multi_outputs    : {self.multi_outputs}")
         logger.info(f"Tuning parameters: label_columns    : {self.label_columns}")
-        logger.info(f"Tuning parameters: shift            : {self.shift}")
-        logger.info(f"Tuning parameters: input_width      : {self.input_width}")
+        logger.info(f"Tuning parameters: shift           : {self.shift}")
+        logger.info(f"Tuning parameters: input_width     : {self.input_width}")
         logger.info(f"Tuning parameters: total_window_size: {self.total_window_size}")
         logger.info(f"Tuning parameters: tune_new_entries : {self.tune_new_entries}")
         logger.info(f"Tuning parameters: allow_new_entries: {self.allow_new_entries}")
         logger.info(f"Tuning parameters: max_retries_per_trial: {self.max_retries_per_trial}")
         logger.info(f"Tuning parameters: max_consecutive_failed_trials: {self.max_consecutive_failed_trials}")
         logger.info(f"Tuning parameters: executions_per_trial: {self.executions_per_trial}")
+        logger.info(f"Tuning parameters: overwrite        : {self.overwrite}")
+
 
         # New tuning parameters 
         self.unitmin         = mltune.get('unitmin', 32)
@@ -210,16 +222,7 @@ class CMdtuner:
         logger.info(f"Tuning parameters: 'dense_units_max': {self.dense_units_max}")
         logger.info(f"Tuning parameters: 'dense_units_step': {self.dense_units_step}")
 
-        logger.info(f"Tuning parameters: tunemode          : {self.tunemode}")
-        logger.info(f"Tuning parameters: tunemodeepochs    : {self.tunemodeepochs}")
-        logger.info(f"Tuning parameters: batch_size        : {self.batch_size}")
-        logger.info(f"Tuning parameters: epochs            : {self.epochs}")
-        logger.info(f"Tuning parameters: num_trials        : {self.num_trials}")
-        logger.info(f"Tuning parameters: max_epochs        : {self.max_epochs}")
-        logger.info(f"Tuning parameters: min_epochs        : {self.min_epochs}")
-        logger.info(f"Tuning parameters: hyperband_iterations: {self.hyperband_iterations}")
-        logger.info(f"Tuning parameters: factor            : {self.factor}")
-        logger.info(f"Tuning parameters: objective         : {self.objective}")
+       
 
         # Checkpoint parameters  
         self.checkpoint_dir = self.checkpoint_filepath
@@ -569,8 +572,9 @@ class CMdtuner:
         checkpoint_filepath = self.checkpoint_filepath
         if checkpoint_filepath and isinstance(checkpoint_filepath, pathlib.Path):
             checkpoint_filepath = str(checkpoint_filepath)
+        # Ensure the checkpoint filepath ends with ".keras"
         if checkpoint_filepath and not checkpoint_filepath.endswith('.keras'):
-            checkpoint_filepath = self.modelname
+            checkpoint_filepath = checkpoint_filepath + '.keras'
         return [
             EarlyStopping(monitor=self.objective, patience=self.chk_patience, verbose=self.chk_verbosity, restore_best_weights=True),
             ModelCheckpoint(filepath=checkpoint_filepath, save_best_only=self.save_best_only, verbose=self.chk_verbosity) if checkpoint_filepath else None,
@@ -643,15 +647,18 @@ class CMdtuner:
     def export_best_model(self, ftype='tf'):
         try:
             best_model = self.tuner.get_best_models(num_models=1)[0]
-            export_path = os.path.join(self.project_dir)
+            export_path = os.path.join(self.project_dir, self.modelname)
             os.makedirs(os.path.dirname(export_path), exist_ok=True)
             logger.info(f"Exporting best model to {export_path}")
             if ftype == 'h5':
-                best_model.save(export_path + self.modelname + '.h5')
-                logger.info(f"Model saved to {export_path}{self.modelname}.h5")
+                export_filepath = export_path + '.h5'
+                best_model.save(export_filepath)
+                logger.info(f"Model saved to {export_filepath}")
             else:
-                best_model.save(export_path + self.modelname + '.keras')
-                logger.info(f"Model saved to {export_path}{self.modelname}.keras")
+                # Ensure .keras extension is used for TensorFlow format exports
+                export_filepath = export_path + '.keras'
+                best_model.save(export_filepath)
+                logger.info(f"Model saved to {export_filepath}")
         except IndexError:
             logger.info("No models found to export.")
         except Exception as e:
@@ -688,3 +695,4 @@ class CMdtuner:
         except Exception as e:
             logger.info(f"Error retrieving best hyperparameters: {e}")
             return None
+
