@@ -387,7 +387,7 @@ class CMdtuner:
         logger.info(f"Tuner Service Checker: {self.tunemode}")
         if self.tunemode in tuner_classes:
             logger.info(f"Tuner Service is: {self.tunemode}")
-            logger.info(f" Tuner directory is {self.base_path}")
+            logger.info(f" Tuner directory is {self.project_dir}")
             logger.info(f" Tuner Project name is {self.modelname}")
         try:
             if self.tunemode in tuner_classes:
