@@ -1,0 +1,17 @@
+[project]
+name = "tsmqlreference"
+version = "2.3.27"
+authors = [
+  { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
+]
+description = "MQL API Data setup for ML"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/blob/icm/tsPyPackages/tsmqlreference"
