@@ -1,16 +1,19 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-#!/usr/bin/env python3 - uncomment for linux run
-# -*- coding: utf-8 -*-  - uncomment for linux run
 Filename: run_platform.py
 File: tsPyPackages/tsMqlPlatform/src/tsMqlPlatform/run_platform.py
 Description: Run platform checker.
 Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
 Version: 1.0
-License: (Optional) e.g., MIT License
+License: MIT License
 """
+import logging
 
-from tsMqlPlatform import platform_checker, PLATFORM_DEPENDENCIES, logger, config
+from tsMqlPlatform import platform_checker, PLATFORM_DEPENDENCIES, config
+
+logger = logging.getLogger(__name__)
 
 logger.info("Starting application...")
 
@@ -50,11 +53,9 @@ class RunPlatform:
     def get_onnx(self):
         return self.onnx
 
-    def check_mql_state(self):  # Fixed method name to be consistent
-        if self.mt5 is None or self.onnx is None:
-            return False
-        else:
-            return True
+    def check_mql_state(self):
+        """Return True if both MetaTrader5 and ONNX are available."""
+        return self.mt5 is not None and self.onnx is not None
 
-
-
+if __name__ == "__main__":
+    rp = RunPlatform()

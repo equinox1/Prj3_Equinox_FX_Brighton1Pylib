@@ -1,6 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-#!/usr/bin/env python3 - uncomment for linux run
-# -*- coding: utf-8 -*-  - uncomment for linux run
 Filename: environment_managers.py
 File: tsPyPackages/tsMqlGlobalParams/src/tsMqlGlobalParams/environment_managers.py
 Description: Set global environment parameters.
@@ -10,9 +10,7 @@ Version: 1.0
 License: (Optional) e.g., MIT License
 """
 import logging
-logger = logging.getLogger("environment_managers")
-logging.basicConfig(level=logging.INFO)
-
+logger = logging.getLogger(__name__)
 from tsMqlBaseParams.setbase_params import CMqlEnvBaseParams
 from tsMqlDataParams import CMqlEnvDataParams
 from tsMqlMLParams import CMqlEnvMLParams
@@ -22,11 +20,10 @@ from tsMqlAppParams import CMqlEnvAppParams
 class CMqlEnvMgr:
     """Central manager for environment parameters."""
     def __init__(self, custom_params=None):
-
         self.base = CMqlEnvBaseParams()
         self.data = CMqlEnvDataParams()
         self.ml = CMqlEnvMLParams()
-        self.mltune = CMqlEnvMLTunerParams()
+        self.mltune = CMqlEnvMLTunerParams()  # Import tuner parameters
         self.app = CMqlEnvAppParams()
         
         self.env_params = {
@@ -49,8 +46,10 @@ class CMqlEnvMgr:
     def override_params(self, new_params):
         """Override parameters with a new dictionary."""
         for category, params in new_params.items():
+            logger.info(f"Overriding {category} parameters: {params}")
             if category in self.env_params:
                 self.env_params[category].update(params)
+                logger.info(f"Overridden {category} parameters: {self.env_params[category]}")
 
     def split_params(self, *categories):
         """Retrieve only selected parameter categories."""

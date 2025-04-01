@@ -1,24 +1,23 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-#!/usr/bin/env python3 - uncomment for linux run
-# -*- coding: utf-8 -*-  - uncomment for linux run
 Filename: platform_checker.py
 File: tsPyPackages/tsMqlPlatform/src/tsMqlPlatform/platform_checker.py
 Description: Platform Checker
 Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
 Version: 1.0
-License: (Optional) e.g., MIT License
+License: MIT License
 """
 
 import sys
 import platform
-
-import pip
-from .logger import logger
-from .config import config
 import os
+import logging
+from .config import config
 
-
+# Configure the logger (adjust configuration as needed)
+logger = logging.getLogger(__name__)
 
 class PlatformChecker:
     def __init__(self):
@@ -56,18 +55,18 @@ class PlatformChecker:
         """Imports platform-specific dependencies."""
         if self.is_windows():
             try:
-               import MetaTrader5 as mt5
-               import onnx
-               import tf2onnx
-               import onnxruntime as ort
-               import onnxruntime.backend as backend
-               import onnxruntime.tools.symbolic_shape_infer as symbolic_shape_infer
-               from onnx import checker
-               logger.info("Windows detected. Successfully imported MetaTrader5 and ONNX.")
-               return {"mt5": mt5, "onnx": onnx}
+                import MetaTrader5 as mt5
+                import onnx
+                import tf2onnx
+                import onnxruntime as ort
+                import onnxruntime.backend as backend
+                import onnxruntime.tools.symbolic_shape_infer as symbolic_shape_infer
+                from onnx import checker
+                logger.info("Windows detected. Successfully imported MetaTrader5 and ONNX.")
+                return {"mt5": mt5, "onnx": onnx}
             except ImportError as e:
-               logger.error(f"Failed to import MetaTrader5 or ONNX: {e}")
-               sys.exit("[ERROR] Missing dependencies for Windows: MetaTrader5 or ONNX.")
+                logger.error(f"Failed to import MetaTrader5 or ONNX: {e}")
+                sys.exit("[ERROR] Missing dependencies for Windows: MetaTrader5 or ONNX.")
         else:
             logger.info("Non-Windows platform detected. No additional imports required.")
             return None

@@ -19,15 +19,22 @@ License: (Optional) e.g., MIT License
 # related to machine learning.
 
 from tsMqlEnvCore import CEnvCore
+import logging
+logger = logging.getLogger(__name__)
 
 class CMqlEnvDataParams(CEnvCore):
    def __init__(self, **kwargs):
         super().__init__(custom_params=kwargs)  # Ensure proper initialization
+      
 
    DEFAULT_PARAMS = {
+            'mp_data_load': False,
+            'mp_data_save': False,
+            'mp_data_savefile': False,
+            'mp_data_rownumber': True,
             'mp_data_data_label': 3,
             'mp_data_history_size': 5,
-            'mp_data_timeframe': 'H4',
+            'mp_data_timeframe': 'mt5.TIMEFRAME_H4',
             'mp_data_tab_rows': 10,
             'mp_data_tab_width': 30,
             'mp_data_rownumber': False,
@@ -46,5 +53,41 @@ class CMqlEnvDataParams(CEnvCore):
             'mp_data_rowcount': 10000,
             'mp_data_filename1':  'tickdata1',
             'mp_data_filename2': 'ratesdata1',
+            'df1_mp_data_filter_int' : False,
+            'df1_mp_data_filter_flt' : False,
+            'df1_mp_data_filter_obj' : False,
+            'df1_mp_data_filter_dtmi' : False,
+            'df1_mp_data_filter_dtmf' : False,
+            'df1_mp_data_dropna' : False,
+            'df1_mp_data_merge' : False,
+            'df1_mp_data_convert' : False,
+            'df1_mp_data_drop' : False,
+            'df2_mp_data_filter_int' : False,
+            'df2_mp_data_filter_flt' : False,
+            'df2_mp_data_filter_obj' : False,
+            'df2_mp_data_filter_dtmi' : False,
+            'df2_mp_data_filter_dtmf' : False,
+            'df2_mp_data_dropna' : False,
+            'df2_mp_data_merge' : False,
+            'df2_mp_data_convert' : False,
+            'df2_mp_data_drop' : False,
+            'df3_mp_data_filter_int' : False,
+            'df3_mp_data_filter_flt' : False,
+            'df3_mp_data_filter_obj' : False,
+            'df3_mp_data_filter_dtmi' : False,
+            'df3_mp_data_filter_dtmf' : False,
+            'df3_mp_data_dropna' : False,
+            'df3_mp_data_merge' : False,
+            'df3_mp_data_convert' : False,
+            'df3_mp_data_drop' : False,
+            'df4_mp_data_filter_int' : False,
+            'df4_mp_data_filter_flt' : False,
+            'df4_mp_data_filter_obj' : False,
+            'df4_mp_data_filter_dtmi' : False,
+            'df4_mp_data_filter_dtmf' : False,
+            'df4_mp_data_dropna' : False,
+            'df4_mp_data_merge' : False,
+            'df4_mp_data_convert' : False,
+            'df4_mp_data_drop' : False,
          }
-
+   

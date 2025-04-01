@@ -1,6 +1,6 @@
 [project]
-name = "tsMqlBaseParams"
-version = "2.5.24"
+name = "tsmqlbaseparams"
+version = "2.6.14"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
@@ -18,7 +18,7 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://github.com/equinoxtsM1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsMqlBaseParams"
+homepage = "https://github.com/equinoxtsM1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsmqlbasebarams"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

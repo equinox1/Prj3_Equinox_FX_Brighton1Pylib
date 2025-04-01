@@ -1,26 +1,53 @@
-# config.yaml
-# Configuration file for tsMqlGlobals
-# User and Project Information
-mp_glob_win_drive: 'C://'
-mp_glob_wsl_drive: '/mnt/c/'
-mp_glob_lin_drive: '/home'
+# MODEL SECTION
+mp_glob_sub_win_drive: 'C://'
+mp_glob_sub_wsl_drive: '/mnt/c/'
+mp_glob_sub_lin_drive: '/home'
 mp_glob_mac_drive: '/Users/'
-mp_glob_user: 'shepa'
-mp_glob_netdrive: 'OneDrive'
+mp_glob_sub_user: 'shepa'
+mp_glob_sub_netdrive: 'OneDrive'
+mp_glob_sub_dir1: '8.0 Projects'
+mp_glob_sub_dir2: '8.3 ProjectModelsEquinox'
+mp_glob_sub_data: 'Mql5Data'
+mp_glob_sub_ml_src_lib: 'PythonLib'
+mp_glob_sub_ml_src_modeldata: 'tsModelData'
+mp_glob_sub_ml_src_configdata: 'tsConfigData'
+mp_glob_sub_ml_directory: 'tshybrid_ensemble_tuning_dir'
+mp_glob_sub_ml_model_name: 'prjEquinox1_prod.keras'
+mp_glob_sub_ml_baseuniq: '1'
 
-mp_glob_dir1: '8.0 Projects'
-mp_glob_dir2: '8.3 ProjectModelsEquinox'
-mp_glob_data_subdir: 'Mql5Data'
 
-# Project Information
+#Logs
+mp_glob_sub_ml_logs: 'Logdir'
+mp_glob_sub_ml_logs_file: 'prjEquinox1.txt'
 
-# Machine Learning Paths
-mp_glob_ml_src_lib: 'PythonLib'
-mp_glob_ml_src_modeldata: 'tsModelData'
-mp_glob_ml_directory: 'tshybrid_ensemble_tuning_prod'
-mp_glob_ml_model_name: 'prjEquinox1_prod.keras'
-mp_glob_ml_baseuniq: '1'
+#MQL SECTION
+mp_glob_mql5_base_ver: 'MQL5'
+mp_glob_mql5_base_broker: 'Brokers'
+mp_glob_mql5_base_broker_name: 'Metaquotes'
+mp_glob_sub_mql_dir1: 'MQL5'
+mp_glob_sub_mql_dir2: 'Files'
+mp_glob_sub_mql_dir3: 'Include'
+mp_glob_sub_mql_dir4: 'Libraries'
+mp_glob_sub_mql_dir5: 'Scripts'
+mp_glob_sub_mql_dir6: 'Experts'
+mp_glob_sub_mql_dir7: 'Indicators'
 
-# MQL5 Paths
-mp_glob_mql_dir1: 'Mql5'
-mp_glob_mql_dir2: 'Files'
+# PATH SECTION
+mp_glob_project_base: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox'
+mp_glob_full_platform_win_base: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN'
+mp_glob_full_platform_lin_base: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUNLIN'
+mp_glob_full_platform_mac_base: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUNLMAC'
+mp_glob_config_data: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\ConfigData'
+mp_glob_full_data_base: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Mql5Data'
+
+mp_glob_full_python_base: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib'
+mp_glob_full_model_data: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\tsModelData'
+mp_glob_full_model_project: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\tsModelData\tshybrid_ensemble_tuning_prod'
+mp_glob_full_model_sequence: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\tsModelData\tshybrid_ensemble_tuning_prod\1'
+mp_glob_full_model_logs: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\tsModelData\tshybrid_ensemble_tuning_prod\1\logs'
+mp_glob_full_log_model: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir'
+
+mp_glob_full_mql5_base: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\MQL5\Brokers\Metaquotes\MQL5'
+mp_glob_full_mql5_files: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\MQL5\Brokers\Metaquotes\MQL5\Files'
+mp_glob_full_mql5_include: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\MQL5\Brokers\Metaquotes\MQL5\Include'
+mp_glob_full_mql5_lib: 'C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\MQL5\Brokers\Metaquotes\MQL5\Libraries'

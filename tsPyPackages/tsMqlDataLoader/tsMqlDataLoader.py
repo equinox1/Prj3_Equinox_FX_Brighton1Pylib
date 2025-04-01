@@ -7,14 +7,17 @@
 # Version: 1.1
 # License: MIT License (Optional)
 
+
 import logging
 import pandas as pd
 import numpy as np
 import pytz
 import os
 from datetime import datetime
-from tsMqlPlatform import run_platform, platform_checker, logger, config
+from tsMqlPlatform import run_platform, platform_checker, config
 from tsMqlEnvMgr import CMqlEnvMgr
+import logging
+logger = logging.getLogger(__name__)
 
 class CDataLoader:
     """Class to manage and load market data with override capability."""
@@ -36,8 +39,18 @@ class CDataLoader:
         self.lp_utc_from = kwargs.get('lp_utc_from', default_utc_from)
         self.lp_utc_to = kwargs.get('lp_utc_to', default_utc_to)
         self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
-        self.lp_app_rows = kwargs.get('lp_app_rows', self.params.get('app', {}).get('mp_app_rows', 1000))
-        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('app', {}).get('mp_app_timeframe', 'H4'))
+        self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('"mp_data_rows', 1000))
+        self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
+        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('app', {}).get('mp_app_timeframe', 'mt5.TIMEFRAME_H4'))
+       
+
+        logger.info(f"UTC from: {self.lp_utc_from}")
+        logger.info(f"UTC to: {self.lp_utc_to}")
+        logger.info(f"Timeframe: {self.lp_timeframe}")
+        logger.info(f"Primary symbol: {self.lp_app_primary_symbol}")
+        logger.info(f"Rows to fetch: {self.lp_data_rows}")
+        logger.info(f"Row count: {self.lp_data_rowcount}")
+        logger.info(f"Timeframe: {self.lp_timeframe}")
 
         self._set_global_parameters(kwargs)  # Now safe to call
 
@@ -49,7 +62,7 @@ class CDataLoader:
         logger.info(f"UTC to: {self.lp_utc_to}")
         logger.info(f"Timeframe: {self.lp_timeframe}")
         logger.info(f"Primary symbol: {self.lp_app_primary_symbol}")
-        logger.info(f"Rows to fetch: {self.lp_app_rows}")
+        logger.info(f"Rows to fetch: {self.lp_data_rows}")
 
     def _initialize_mql(self):
         """Initialize MetaTrader5 module and check platform."""
@@ -73,7 +86,8 @@ class CDataLoader:
         for section in param_sections:
             setattr(self, f"{section}_params", self.params.get(section, {}))
 
-        self.mp_glob_data_path = kwargs.get('mp_glob_data_path', self.params.get('base', {}).get('mp_glob_data_path', 'Mql5Data'))
+  
+        self.mp_glob_base_data_path = self.params.get('base', {}).get('mp_glob_base_data_path', 'Mql5Data')
 
         self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
         self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
@@ -82,7 +96,7 @@ class CDataLoader:
         self.mp_data_loadfileticks = kwargs.get('mp_data_loadfileticks', self.params.get('data', {}).get('mp_data_loadfileticks', True))
         self.mp_data_loadfilerates = kwargs.get('mp_data_loadfilerates', self.params.get('data', {}).get('mp_data_loadfilerates', True))
 
-        logger.info(f"Data path: {self.mp_glob_data_path}")
+        logger.info(f"Data path: {self.mp_glob_base_data_path}")
         logger.info(f"Data filename1: {self.mp_data_filename1_merge}")
         logger.info(f"Data filename2: {self.mp_data_filename2_merge}")
         logger.info(f"Load API ticks: {self.mp_data_loadapiticks}")
@@ -92,16 +106,18 @@ class CDataLoader:
 
     def load_data(self, **kwargs):
         """Load market data from API or files and return all DataFrames."""
-        
-        df_api_ticks = self._fetch_api_data('ticks') if self.mp_data_loadapiticks else pd.DataFrame()
-        df_api_rates = self._fetch_api_data('rates') if self.mp_data_loadapirates else pd.DataFrame()
-        df_file_ticks = self._load_from_file(self.mp_data_filename1_merge) if self.mp_data_loadfileticks else pd.DataFrame()
-        df_file_rates = self._load_from_file(self.mp_data_filename2_merge) if self.mp_data_loadfilerates else pd.DataFrame()
+        self.df = kwargs.get('df', pd.DataFrame())
+        self.df_name = kwargs.get('df_name', 'df_name')
 
-        if all(df.empty for df in [df_api_ticks, df_api_rates, df_file_ticks, df_file_rates]):
-            logger.error("No data loaded from API or files.")
-
-        return df_api_ticks, df_api_rates, df_file_ticks, df_file_rates
+        if self.df_name == 'df_api_ticks':
+            self.df = self._fetch_api_data('ticks') if self.mp_data_loadapiticks else pd.DataFrame()
+        elif self.df_name == 'df_api_rates':
+            self.df = self._fetch_api_data('rates') if self.mp_data_loadapirates else pd.DataFrame()
+        elif self.df_name == 'df_file_ticks':
+            self.df = self._load_from_file(self.mp_data_filename1_merge) if self.mp_data_loadfileticks else pd.DataFrame()
+        elif self.df_name == 'df_file_rates':
+            self.df = self._load_from_file(self.mp_data_filename2_merge) if self.mp_data_loadfilerates else pd.DataFrame()
+        return self.df
 
     def _fetch_api_data(self, apitype=''):
         """Fetch data from MetaTrader5 API."""
@@ -110,13 +126,17 @@ class CDataLoader:
                 logger.error("MetaTrader5 module not initialized.")
                 return pd.DataFrame()
 
-            valid_timeframe = getattr(mt5, f"TIMEFRAME_{self.lp_timeframe}", mt5.TIMEFRAME_M1)
-
             logger.info(f"Fetching {apitype} data from MetaTrader5 API")
             if apitype == 'ticks':
-                data = mt5.copy_ticks_from(self.lp_app_primary_symbol, self.lp_utc_from, self.lp_app_rows, mt5.COPY_TICKS_ALL)
+                logger.info(f"Api ticks: Fetching Symbol {self.lp_app_primary_symbol} with rows {self.lp_data_rows} of ticks from {self.lp_utc_from} to {self.lp_utc_to}")
+                logger.info(f"Api ticks: FetchingTimeframe {self.lp_timeframe} ")
+                #Tested ok:  ticks2=mt5.copy_ticks_from(lp_app_primary_symbol, lp_utc_from, lp_data_rows, mt5.COPY_TICKS_ALL)
+                data = mt5.copy_ticks_from(self.lp_app_primary_symbol, self.lp_utc_from, self.lp_data_rows, mt5.COPY_TICKS_ALL)
             elif apitype == 'rates':
-                data = mt5.copy_rates_from(self.lp_app_primary_symbol, valid_timeframe, self.lp_utc_from, self.lp_app_rows)
+                logger.info(f"Api rates: Fetching Symbol {self.lp_app_primary_symbol} with rows {self.lp_data_rows} of rates from {self.lp_utc_from} to {self.lp_utc_to}")
+                logger.info(f"Api rates: FetchingTimeframe {self.lp_timeframe} ")
+                #Tested ok:  rates2 = mt5.copy_rates_from(lp_app_primary_symbol, mt5.TIMEFRAME_H4, lp_utc_from, lp_data_rows)
+                data = mt5.copy_rates_from(self.lp_app_primary_symbol,mt5.TIMEFRAME_H4, self.lp_utc_from, self.lp_data_rows)
             df = pd.DataFrame(data)
             return df
         except Exception as e:
@@ -125,12 +145,12 @@ class CDataLoader:
 
     def _load_from_file(self, filename):
         """Load data from a CSV file."""
-        filepath = os.path.join(self.mp_glob_data_path, filename)
+        filepath = os.path.join(self.mp_glob_base_data_path, filename)
         if not os.path.exists(filepath):
             logger.error(f"File not found: {filepath}")
             return pd.DataFrame()
         try:
-            return pd.read_csv(filepath)
+            return pd.read_csv(filepath,nrows=self.lp_data_rowcount)
         except Exception as e:
             logger.error(f"Error reading file {filename}: {e}")
             return pd.DataFrame()
@@ -143,6 +163,32 @@ class CDataLoader:
             except Exception as e:
                   logger.error(f"Timezone conversion error: {e}")
                   return None
+
+    def reduce_data(self, df):
+        """Reduce data to a specific number of rows."""
+        return df.head(self.lp_data_rows)
+
+    def run_dataloader_services(self):
+        """Run the data loader services."""
+        logger.info("Running data loader services...")
+        # Define the dataframes
+        df_api_ticks = pd.DataFrame()
+        df_api_rates = pd.DataFrame()
+        df_file_ticks = pd.DataFrame()
+        df_file_rates = pd.DataFrame()
+        
+        for df, df_name in [(df_api_ticks, "df_api_ticks"), (df_api_rates, "df_api_rates"), (df_file_ticks, "df_file_ticks"), (df_file_rates, "df_file_rates")]:
+            logger.info(f"Data Load Data start: {df_name}")
+            if df_name == "df_api_ticks":
+                df_api_ticks = self.load_data(df=df, df_name=df_name)
+            elif df_name == "df_api_rates":
+                df_api_rates = self.load_data(df=df, df_name=df_name)
+            elif df_name == "df_file_ticks":
+                df_file_ticks = self.load_data(df=df, df_name=df_name)
+            elif df_name == "df_file_rates":
+                df_file_rates = self.load_data(df=df, df_name=df_name)
+
+        return df_api_ticks, df_api_rates, df_file_ticks, df_file_rates 
 
 
     

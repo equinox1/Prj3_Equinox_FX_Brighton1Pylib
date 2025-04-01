@@ -2,7 +2,10 @@ import json
 import yaml
 import os
 import logging
-from .logger import logger
+
+# Setup logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 # Define paths for configuration files
 CONFIG_JSON_FILE = os.path.join(os.path.dirname(__file__), "config.json")
@@ -15,6 +18,8 @@ class Config:
 
     def load_config(self):
         """Loads configuration from JSON and YAML files."""
+        logger.info(f"EnvMgr: Looking for CONFIG_JSON_FILE: {CONFIG_JSON_FILE}")
+        logger.info(f"EnvMgr: Looking for CONFIG_YAML_FILE: {CONFIG_YAML_FILE}")
         # Load JSON config if available
         if os.path.exists(CONFIG_JSON_FILE):
             try:
