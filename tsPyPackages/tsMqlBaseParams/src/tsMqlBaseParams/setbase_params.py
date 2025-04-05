@@ -172,7 +172,7 @@ class CMqlEnvBaseParams(CEnvCore):
         """
         Retrieve the main data path based on configuration settings.
         Uses the keys:
-              mp_glob_sub_netdrive (default 'OneDrive')
+              mp_glob_sub_netdrive (default 'OneDrive' or WinRunMnt1)
             - mp_glob_sub_dir1 (default '8.0 Projects')
             - mp_glob_sub_dir2 (default '8.3 ProjectModelsEquinox')
             - mp_glob_sub_data (default 'Mql5Data')
