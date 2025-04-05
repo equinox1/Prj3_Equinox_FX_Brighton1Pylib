@@ -1,5 +1,5 @@
 # MODEL SECTION
-mp_glob_sub_win_drive: 'C://'
+mp_glob_sub_win_drive: 'C://WinRunMnt1//'
 mp_glob_sub_wsl_drive: '/mnt/c/'
 mp_glob_sub_lin_drive: '/home'
 mp_glob_mac_drive: '/Users/'
