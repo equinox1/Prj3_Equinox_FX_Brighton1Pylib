@@ -51,7 +51,7 @@ from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
 # ----- Global Logging Configuration -----
-global_logdir = r"C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
+global_logdir = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
 try:
     os.makedirs(global_logdir, exist_ok=True)
 except OSError as e:
