@@ -1,0 +1,1 @@
+pip install pandas numpy datetime scipy scikit-learn torch tensorflow pandas keyring tabulate keras_tuner tensorflow-datasets tensorboard os-toolkit MetaTrader5 scikeras keras tf_keras wheel matplotlib sys pydot graphviz seaborn
