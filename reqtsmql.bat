@@ -1,0 +1,17 @@
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqlappparams
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqlbaseparams==2.6.14
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqlconnect==2.5.37
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqldataLoader==2.6.24
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqldataparams==2.5.28
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqldataprocess==2.7.59
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqlenvcore==2.5.14
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqlenvmgr==2.7.16
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqlmlparams==2.5.8
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqlmlprocess==2.7.55
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqlmltuner==2.4.73
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqlmltunerparams==2.5.25
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqloverrides==2.7.32
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqlplatform==2.3.29
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqlreference==2.3.26
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqlsetup==2.4.1
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgradetsmqlutilities==2.8.29

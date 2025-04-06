@@ -1,0 +1,17 @@
+tsmqlappparams==2.5.16
+tsmqlbaseparams==2.6.14
+tsmqlconnect==2.5.37
+tsmqldataLoader==2.6.24
+tsmqldataparams==2.5.28
+tsmqldataprocess==2.7.59
+tsmqlenvcore==2.5.14
+tsmqlenvmgr==2.7.16
+tsmqlmlparams==2.5.8
+tsmqlmlprocess==2.7.55
+tsmqlmltuner==2.4.73
+tsmqlmltunerparams==2.5.25
+tsmqloverrides==2.7.32
+tsmqlplatform==2.3.29
+tsmqlreference==2.3.26
+tsmqlsetup==2.4.1
+tsmqlutilities==2.8.29
