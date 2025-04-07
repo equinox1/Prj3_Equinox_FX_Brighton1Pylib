@@ -7,11 +7,11 @@ mp_glob_mac_drive: '/Users/'
 mp_glob_sub_user: 'shepa'
 mp_glob_sub_netdrive: 'OneDrive' # or WinRunmnt1
 
-#Common SECTION
+# Common SECTION
 mp_glob_sub_dir1: '8.0 Projects'
 mp_glob_sub_dir2: '8.3 ProjectModelsEquinox'
 
-#Subdirectories
+# Subdirectories
 mp_glob_sub_data: 'Mql5Data'
 mp_glob_sub_ml_src_lib: 'PythonLib'
 mp_glob_sub_ml_src_modeldata: 'tsModelData'
