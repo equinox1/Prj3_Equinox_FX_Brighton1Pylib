@@ -1,13 +1,15 @@
 # ROOTS SECTION
-mp_glob_sub_win_drive: 'C://'
+mp_glob_sub_win_drive: 'C:/'
 mp_glob_sub_wsl_drive: '/mnt/c/'
-mp_glob_sub_lin_drive: '//'
-mp_glob_mac_drive: '//'
+mp_glob_sub_lin_drive: '/'
+mp_glob_mac_drive: '/'
+
 #Use Mounted WSL drive for Linux and Mac
 mp_glob_sub_win_user_mnt: 'Users'
 mp_glob_sub_wsl_user_mnt: 'home'
 mp_glob_sub_lin_user_mnt: 'home'
 mp_glob_mac_user_mnt: 'Users'
+
 # Hard Coded Username override with get username
 mp_glob_sub_win_user: 'shepa'
 mp_glob_sub_wsl_user: 'shepa'
@@ -15,9 +17,10 @@ mp_glob_sub_lin_user: 'shepa'
 mp_glob_sub_mac_user: 'shepa'
 mp_glob_sub_user: 'shepa'
 
+
 #Mount Point 
-mp_glob_sub_netdrive: 'OneDrive' 
-mp_glob_sub_localdrive: 'WinRunmnt1' # or WinRunmnt1
+mp_glob_runtype: 'onedrive' # localdrive, onedrive, or wsl
+mp_glob_sub_netdrive: 'OneDrive' # WinRunmnt1, OneDrive, or WinRunmnt2
 
 #Common SECTION onedrive and localdrive
 mp_glob_sub_dir1: '8.0 Projects'
@@ -34,8 +37,8 @@ mp_glob_sub_ml_src_lib: 'PythonLib'
 mp_glob_sub_ml_src_modeldata: 'tsModelData'
 mp_glob_sub_ml_src_configdata: 'tsConfigData'
 mp_glob_sub_ml_directory: 'tshybrid_ensemble_tuning_dir'
-mp_glob_sub_ml_model_name: 'prjEquinox1_prod.keras'
-mp_glob_sub_ml_baseuniq: '2'
+mp_glob_sub_ml_model_name: 'prjEquinox1_prod'
+mp_glob_sub_ml_baseuniq: '1'
 
 #Logs
 mp_glob_sub_ml_logs: 'Logdir'
