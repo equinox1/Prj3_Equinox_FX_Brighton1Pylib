@@ -19,7 +19,7 @@ from pathlib import Path
 import yaml  # For loading configurations
 
 # Initialize logger
-logger = logging.getLogger(__name__)
+
 
 # It’s assumed that these modules provide platform detection, logging, and other utilities.
 from tsMqlPlatform import run_platform, platform_checker, config as global_config
