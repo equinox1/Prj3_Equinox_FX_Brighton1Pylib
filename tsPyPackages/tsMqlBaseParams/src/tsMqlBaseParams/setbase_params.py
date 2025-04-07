@@ -22,7 +22,9 @@ import yaml  # For loading configurations
 logger = logging.getLogger(__name__)
 
 # It’s assumed that these modules provide platform detection, logging, and other utilities.
-from tsMqlPlatform import run_platform, platform_checker, config as global_config
+from tsMqlPlatform import run_platform, platform_checker, get_config
+from tsMqlBaseParams.config import BaseConfig
+
 from tsMqlEnvCore import CEnvCore
 
 class CMqlEnvBaseParams(CEnvCore):
@@ -41,29 +43,10 @@ class CMqlEnvBaseParams(CEnvCore):
             config_file (str, optional): Path to a YAML or JSON configuration file.
             **kwargs: Keyword arguments to override configuration settings.
         """
-        # Load configuration from file if provided; otherwise use global_config if available.
-        if config_file:
-            try:
-                # Determine file extension
-                _, ext = os.path.splitext(config_file)
-                if ext.lower() == '.json':
-                    with open(config_file, 'r') as f:
-                        file_config = json.load(f)
-                else:
-                    with open(config_file, 'r') as f:
-                        file_config = yaml.safe_load(f) or {}
-            except Exception as e:
-                logger.error(f"Error loading config from {config_file}: {e}")
-                file_config = {}
-        else:
-            # Use global_config if provided and is a dict, otherwise an empty dict.
-            file_config = global_config if isinstance(global_config, dict) else {}
-
-        # Merge file configuration with keyword arguments (kwargs take precedence)
-        self.config = {**file_config, **kwargs}
-        
-        # Call parent initializer with custom parameters.
-        super().__init__(custom_params=self.config)
+        self.config = BaseConfig()
+        logger.info("BaseParams: Loading configuration...")
+        logger.info(f"BaseParams: Looking for config file: {self.config.config_file}")
+        # Load configuration from the provided file if it exists
 
         # Default platform directories based on OS
         self.DEFAULT_PLATFORM = {
@@ -117,7 +100,7 @@ class CMqlEnvBaseParams(CEnvCore):
         # Ensure required attributes are initialized before use
         self.mp_glob_sub_ml_src_lib = self.config.get('mp_glob_sub_ml_src_lib', 'PythonLib')
         self.mp_glob_sub_ml_src_modeldata = self.config.get('mp_glob_sub_ml_src_modeldata', 'tsModelData')
-        self.model_uniq = self.config.get('mp_glob_sub_ml_baseuniq', '1')
+        self.model_uniq = self.config.get('mp_glob_sub_ml_baseuniq', '3')
         self.model_name = self.config.get('mp_glob_sub_ml_model_name', 'prjEquinox1_model')
 
         self.DEFAULT_PARAMS = {

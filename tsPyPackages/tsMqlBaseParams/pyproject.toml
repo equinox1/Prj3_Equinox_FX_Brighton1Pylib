@@ -1,6 +1,6 @@
 [project]
 name = "tsmqlbaseparams"
-version = "2.6.15"
+version = "2.6.32"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
@@ -18,13 +18,16 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://github.com/equinoxtsM1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsmqlbasebarams"
+homepage = "https://github.com/equinoxtsM1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsmqlbaseparams"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.setuptools.package-data]
-tsMqlGlobals = ["config.json"]
+tsmqlbaseparams = ["config.json"]
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel", "setuptools_scm[toml]>=6.2"]

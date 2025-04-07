@@ -11,7 +11,8 @@ License: MIT License
 """
 import logging
 
-from tsMqlPlatform import platform_checker, PLATFORM_DEPENDENCIES, config
+from tsMqlPlatform import platform_checker, PLATFORM_DEPENDENCIES, get_config
+
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,9 @@ logger.info("Starting application...")
 
 class RunPlatform:
     def __init__(self):
+        config = get_config()
         self.debug = config.get("debug", False)
+        # Add other configuration as needed
         self.platform_name = platform_checker.get_platform()
 
         if self.debug:

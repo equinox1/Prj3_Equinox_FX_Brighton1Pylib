@@ -1,3 +1,5 @@
+# tsMqlPlatform/config.py
+
 import json
 import yaml
 import os
@@ -7,20 +9,18 @@ import logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Define paths for configuration files
 CONFIG_JSON_FILE = os.path.join(os.path.dirname(__file__), "config.json")
 CONFIG_YAML_FILE = os.path.join(os.path.dirname(__file__), "config.yaml")
 
-class Config:
+class PlatConfig:
     def __init__(self):
         self.config = {}
         self.load_config()
 
     def load_config(self):
-        """Loads configuration from JSON and YAML files."""
         logger.info(f"Platform: Looking for CONFIG_JSON_FILE: {CONFIG_JSON_FILE}")
         logger.info(f"Platform: Looking for CONFIG_YAML_FILE: {CONFIG_YAML_FILE}")
-        # Load JSON config if available
+        
         if os.path.exists(CONFIG_JSON_FILE):
             try:
                 with open(CONFIG_JSON_FILE, "r") as f:
@@ -29,8 +29,7 @@ class Config:
                 logger.info("Config JSON file loaded successfully.")
             except Exception as e:
                 logger.error(f"Error loading config.json: {e}")
-        
-        # Load YAML config if available
+
         if os.path.exists(CONFIG_YAML_FILE):
             try:
                 with open(CONFIG_YAML_FILE, "r") as f:
@@ -42,8 +41,13 @@ class Config:
                 logger.error(f"Error loading config.yaml: {e}")
 
     def get(self, key, default=None):
-        """Gets a configuration value with a fallback default."""
         return self.config.get(key, default)
 
-# Create a config instance
-config = Config()
+# Singleton instance
+_config_instance = None
+
+def get_config():
+    global _config_instance
+    if _config_instance is None:
+        _config_instance = PlatConfig()
+    return _config_instance

@@ -14,7 +14,8 @@ import sys
 import platform
 import os
 import logging
-from .config import config
+from .config import get_config
+config = get_config()
 
 # Configure the logger (adjust configuration as needed)
 logger = logging.getLogger(__name__)
