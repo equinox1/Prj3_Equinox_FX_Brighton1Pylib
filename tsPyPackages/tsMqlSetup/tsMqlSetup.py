@@ -35,7 +35,7 @@ class CMqlSetup:
         self.warn = warn
         self.precision = precision
         self.tfdebug = tfdebug
-        self.num_cores=cores # Number of CPU cores to use def 24
+        self.num_cores=num_cores # Number of CPU cores to use def 24
         self.kwargs = kwargs
 
         # Set the TensorFlow logging level
@@ -49,7 +49,7 @@ class CMqlSetup:
         self.__set_gpu_memory_growth()  # Set GPU memory growth
      
          # Set the TF Debug
-        self.set_setup_tfdebug()  # Call debugging setup if enabled
+        self.__set_setup_tfdebug()  # Call debugging setup if enabled
         # Set Multi-threading
         self.__set_multi_threading()
     
@@ -57,10 +57,10 @@ class CMqlSetup:
 
     def __set_multi_threading(self):
         # Set the number of threads for OpenMP and TensorFlow operations
-        os.environ["OMP_NUM_THREADS"] = self.num_cores
-        os.environ["TF_NUM_INTRAOP_THREADS"] = self.num_cores
-        os.environ["TF_NUM_INTEROP_THREADS"] = self.num_threads
-        os.environ["MKL_NUM_THREADS"] = self.num_cores
+        os.environ["OMP_NUM_THREADS"] = str(self.num_cores)
+        os.environ["TF_NUM_INTRAOP_THREADS"] = str(self.num_cores)
+        os.environ["TF_NUM_INTEROP_THREADS"] = str(self.num_cores)
+        os.environ["MKL_NUM_THREADS"] = str(self.num_cores)
         os.environ["KMP_BLOCKTIME"] = "1"
         os.environ["KMP_SETTINGS"] = "1"
         os.environ["KMP_AFFINITY"] = "granularity=fine,compact,1,0"
