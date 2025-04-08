@@ -25,6 +25,7 @@ import pandas as pd
 
 # Machine Learning packages
 import tensorflow as tf
+import intel_extension_for_tensorflow as itex
 
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
@@ -50,8 +51,11 @@ from tsMqlDataProcess import CDataProcess
 from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
+
 # ----- Global Logging Configuration -----
+#global_logdir = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
 global_logdir = r"C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
+
 try:
     os.makedirs(global_logdir, exist_ok=True)
 except OSError as e:
@@ -84,7 +88,9 @@ logger.info("Logging configured successfully with FileHandler.")
 logger.info("Logfile: %s", global_logfile)
 
 # ----- Setup platform -----
-setup_config = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
+setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=24,num_threads = 2)
+# End Setup
+
 strategy = setup_config.get_computation_strategy()
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
@@ -263,9 +269,11 @@ def main(logger):
         logger.info("Validation samples: %s", X_val.shape[0])
         logger.info("Test samples: %s", X_test.shape[0])
 
-        # ----- Convert to TensorFlow Dataset -----
-        tf_batch_size = ml_params.get('tf_batch_size', 8)
+         # ----- Convert to TensorFlow Dataset -----
+        tf_batch_size = ml_params.get('tf_batch_size', 256)
         buffer_size = 1000
+        buffer_size = ml_params.get('buffer_size', 10000)
+        logger.info("Buffer size: %s", buffer_size)
         train_dataset, val_dataset, test_dataset = ml_process_config.create_simple_tf_dataset(
             X_train, y_train, X_val, y_val, X_test, y_test, batch_size=tf_batch_size, buffer_size=buffer_size
         )
@@ -287,7 +295,7 @@ def main(logger):
 
         # ----- Model Tuning and Setup -----
         mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': True}})
-        mql_overrides.env.override_params({"ml": {'tf_batch_size': 4}})
+        mql_overrides.env.override_params({"ml": {'tf_batch_size': 256}})
         mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 1}})
 
         # Scale the model
@@ -407,7 +415,10 @@ def main(logger):
                     train_dataset,
                     validation_data=val_dataset,
                     epochs=epochs,
-                    callbacks=callbacks
+                    batch_size=tf_batch_size,
+                    callbacks=callbacks,
+                    workers=8,
+                    use_multiprocessing=True
                 )
                 logger.info("Training completed.")
 

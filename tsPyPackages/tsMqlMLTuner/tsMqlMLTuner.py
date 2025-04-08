@@ -198,6 +198,10 @@ class CMdtuner:
         self.dense_units_max    = mltune.get('dense_units_max', int(128 // self.dense_modelscale))
         self.dense_units_step   = mltune.get('dense_units_step', int(32 // self.dense_modelscale))
 
+        #Threading parameters
+        self.use_multi_processing = mltune.get('use_multi_processing', TRUE)
+        self.workers = mltune.get('workers', 8)
+      
         logger.info(f"Tuning parameters: unitmin          : {self.unitmin}")
         logger.info(f"Tuning parameters: unitmax          : {self.unitmax}")
         logger.info(f"Tuning parameters: unitstep         : {self.unitstep}")
@@ -223,6 +227,8 @@ class CMdtuner:
         logger.info(f"Tuning parameters: 'dense_units_min': {self.dense_units_min}")
         logger.info(f"Tuning parameters: 'dense_units_max': {self.dense_units_max}")
         logger.info(f"Tuning parameters: 'dense_units_step': {self.dense_units_step}")
+        logger.info(f"Tuning parameters: 'use_multi_processing': {self.use_multi_processing}")
+        logger.info(f"Tuning parameters: 'workers': {self.workers}")
 
        
 
@@ -610,7 +616,11 @@ class CMdtuner:
                 validation_data=self.valdataset,
                 epochs=self.max_epochs,
                 verbose=self.chk_verbosity,
-                callbacks=self.get_callbacks()
+                callbacks=self.get_callbacks(),
+                batch_size=self.batch_size,
+                use_multiprocessing=self.use_multiprocessing,
+                workers=self.workers,
+                initial_epoch=self.epochs,
             )
             best_hps = self.tuner.get_best_hyperparameters(num_trials=1)
             if not best_hps:
