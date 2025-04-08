@@ -1,3 +1,3 @@
 from .setbase_params import CMqlEnvBaseParams
-from .config import config
-__all__ = ["CMqlEnvBaseParams", "config"]
+from .config import BaseConfig  # ✅ avoids circular import
+__all__ = ["CMqlEnvBaseParams", "BaseConfig"]

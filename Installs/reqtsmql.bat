@@ -1,0 +1,16 @@
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqlappparams
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqlconnect
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqldataLoader
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqldataparams
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqldataprocess
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqlenvcore
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqlenvmgr
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqlmlparams
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqlmlprocess
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqlmltuner
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqlmltunerparams
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqloverrides
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqlplatform
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqlreference
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqlsetup
+py -m pip install --index-url https://test.pypi.org/simple/ --no-deps --upgrade tsmqlutilities
