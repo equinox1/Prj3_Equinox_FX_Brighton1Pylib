@@ -41,7 +41,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
             "tunemode": "hyperband",
             "tunemodeepochs": 100,
             "modelsummary": False,
-            "keras_tuner": "hyperband",
+            "keras_tuner": "bayesian", # Options: "hyperband", "randomsearch", "bayesian"
             "hyperband_iterations": 1,
         }
 
