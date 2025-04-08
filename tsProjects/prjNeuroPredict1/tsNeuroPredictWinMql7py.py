@@ -50,8 +50,11 @@ from tsMqlDataProcess import CDataProcess
 from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
+
 # ----- Global Logging Configuration -----
-global_logdir = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
+#global_logdir = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
+global_logdir = r"C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
+
 try:
     os.makedirs(global_logdir, exist_ok=True)
 except OSError as e:
@@ -84,7 +87,9 @@ logger.info("Logging configured successfully with FileHandler.")
 logger.info("Logfile: %s", global_logfile)
 
 # ----- Setup platform -----
-setup_config = CMqlSetup(loglevel='INFO', warn='ignore', tfdebug=False)
+setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=24,num_threads = 2)
+# End Setup
+
 strategy = setup_config.get_computation_strategy()
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
@@ -127,6 +132,18 @@ def main(logger):
         logger.info("Main App Parameters:")
         for key, value in app_params.items():
             logger.info(f"  {key}: {value}")
+
+         # ----- Model Tuning and Setup -----
+        mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': True}})
+        mql_overrides.env.override_params({"ml": {'tf_batch_size': 1024}})
+        mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 1}})
+        logger.info("Main: mp_app_ml_hard_run: %s", app_params.get('mp_app_ml_hard_run', True))
+        logger.info("Main: mp_ml_tf_param_epochs: %s", base_params.get('mp_ml_tf_param_epochs', 1))
+        logger.info("Main: mp_ml_mbase_path: %s", base_params.get('mp_glob_base_ml_project_dir', None))
+
+        # Scale the model
+        modscale = 2
+        logger.info("Main: Model Scale: %s", modscale)
     
         # ----- Load Reference class and time variables -----
         lp_timeframe_name = data_params.get('mp_data_timeframe', 'H4')
@@ -263,9 +280,11 @@ def main(logger):
         logger.info("Validation samples: %s", X_val.shape[0])
         logger.info("Test samples: %s", X_test.shape[0])
 
-        # ----- Convert to TensorFlow Dataset -----
-        tf_batch_size = ml_params.get('tf_batch_size', 8)
-        buffer_size = 1000
+         # ----- Convert to TensorFlow Dataset -----
+        tf_batch_size = ml_params.get('tf_batch_size', 1024)
+     
+        buffer_size = ml_params.get('buffer_size', 10000)
+        logger.info("Buffer size: %s", buffer_size)
         train_dataset, val_dataset, test_dataset = ml_process_config.create_simple_tf_dataset(
             X_train, y_train, X_val, y_val, X_test, y_test, batch_size=tf_batch_size, buffer_size=buffer_size
         )
@@ -285,13 +304,7 @@ def main(logger):
         logger.info("Input shape: %s", input_shape)
         logger.info("Output shape: %s", output_shape)
 
-        # ----- Model Tuning and Setup -----
-        mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': True}})
-        mql_overrides.env.override_params({"ml": {'tf_batch_size': 4}})
-        mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 1}})
-
-        # Scale the model
-        modscale = 2
+        # ----- Model Scale ----- see start of file for model scale
         mql_overrides.env.override_params({"mltune": {'all_modelscale': modscale}})
         mql_overrides.env.override_params({"mltune": {'cnn_modelscale': modscale}})
         mql_overrides.env.override_params({"mltune": {'lstm_modelscale': modscale}})
@@ -328,6 +341,8 @@ def main(logger):
         unitmax = mql_overrides.env.all_params().get('mltune', {}).get('unitmax', None)
         unitstep = mql_overrides.env.all_params().get('mltune', {}).get('unitstep', None)
         defaultunits = mql_overrides.env.all_params().get('mltune', {}).get('defaultunits', None)
+
+        # Note Epochs is extracted once the model has tuned and found best epoch this a declare of defaults
         epochs = mql_overrides.env.all_params().get('mltune', {}).get('epochs', None)
         tune_new_entries = mql_overrides.env.all_params().get('mltune', {}).get('tune_new_entries', None)
 
@@ -392,8 +407,6 @@ def main(logger):
             # Clear any previous session to free up resources
             tf.keras.backend.clear_session()
 
- 
-
             try:
                 # Set up callbacks (e.g., early stopping) if desired
                 callbacks = [
@@ -407,7 +420,8 @@ def main(logger):
                     train_dataset,
                     validation_data=val_dataset,
                     epochs=epochs,
-                    callbacks=callbacks
+                    batch_size=tf_batch_size,
+                    callbacks=callbacks,
                 )
                 logger.info("Training completed.")
 
