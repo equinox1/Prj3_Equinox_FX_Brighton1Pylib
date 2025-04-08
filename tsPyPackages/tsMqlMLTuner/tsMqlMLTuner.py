@@ -199,7 +199,7 @@ class CMdtuner:
         self.dense_units_step   = mltune.get('dense_units_step', int(32 // self.dense_modelscale))
 
         #Threading parameters
-        self.use_multi_processing = mltune.get('use_multi_processing', True)
+        self.use_multiprocessing = mltune.get('use_multiprocessing', True)
         self.workers = mltune.get('workers', 8)
       
         logger.info(f"Tuning parameters: unitmin          : {self.unitmin}")
@@ -227,7 +227,7 @@ class CMdtuner:
         logger.info(f"Tuning parameters: 'dense_units_min': {self.dense_units_min}")
         logger.info(f"Tuning parameters: 'dense_units_max': {self.dense_units_max}")
         logger.info(f"Tuning parameters: 'dense_units_step': {self.dense_units_step}")
-        logger.info(f"Tuning parameters: 'use_multi_processing': {self.use_multi_processing}")
+        logger.info(f"Tuning parameters: 'use_multiprocessing': {self.use_multiprocessing}")
         logger.info(f"Tuning parameters: 'workers': {self.workers}")
 
        
@@ -618,7 +618,7 @@ class CMdtuner:
                 verbose=self.chk_verbosity,
                 callbacks=self.get_callbacks(),
                 batch_size=self.batch_size,
-                use_multi_processing=self.use_multi_processing,
+                use_multiprocessing=self.use_multiprocessing,
                 workers=self.workers,
                 initial_epoch=self.epochs,
             )
