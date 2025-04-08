@@ -87,7 +87,7 @@ logger.info("Logging configured successfully with FileHandler.")
 logger.info("Logfile: %s", global_logfile)
 
 # ----- Setup platform -----
-setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=24,num_threads = 2)
+setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=8,num_threads = 1)
 # End Setup
 
 strategy = setup_config.get_computation_strategy()

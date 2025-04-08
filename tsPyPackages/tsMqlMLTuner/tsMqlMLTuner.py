@@ -618,9 +618,9 @@ class CMdtuner:
                 verbose=self.chk_verbosity,
                 callbacks=self.get_callbacks(),
                 batch_size=self.batch_size,
-                use_multiprocessing=self.use_multiprocessing,
-                workers=self.workers,
-                initial_epoch=self.epochs,
+                #use_multiprocessing=self.use_multiprocessing,
+                #workers=self.workers,
+                #initial_epoch=self.epochs,
             )
             best_hps = self.tuner.get_best_hyperparameters(num_trials=1)
             if not best_hps:
