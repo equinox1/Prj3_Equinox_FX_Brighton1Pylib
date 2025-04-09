@@ -135,7 +135,7 @@ def main(logger):
 
          # ----- Model Tuning and Setup -----
         mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': True}})
-        mql_overrides.env.override_params({"ml": {'tf_batch_size': 1024}})
+        mql_overrides.env.override_params({"ml": {'tf_batch_size': 64}})
         mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 1}})
         logger.info("Main: mp_app_ml_hard_run: %s", app_params.get('mp_app_ml_hard_run', True))
         logger.info("Main: mp_ml_tf_param_epochs: %s", base_params.get('mp_ml_tf_param_epochs', 1))
@@ -169,7 +169,7 @@ def main(logger):
         logger.info(f"Timeframe: {TIMEFRAME}")
 
         mql_overrides.env.override_params({"data": {"mp_data_rows": 1000}})
-        mql_overrides.env.override_params({"data": {"mp_data_rowcount": 200000}})
+        mql_overrides.env.override_params({"data": {"mp_data_rowcount": 100000}})
        
         rows = data_params.get('mp_data_rows', 1000)
         rowcount = data_params.get('mp_data_rowcount', 10000)
