@@ -270,7 +270,7 @@ def main(logger):
 
          # ----- Convert to TensorFlow Dataset -----
         tf_batch_size = ml_params.get('tf_batch_size', 256)
-        buffer_size = 1000
+      
         buffer_size = ml_params.get('buffer_size', 10000)
         logger.info("Buffer size: %s", buffer_size)
         train_dataset, val_dataset, test_dataset = ml_process_config.create_simple_tf_dataset(
@@ -416,8 +416,6 @@ def main(logger):
                     epochs=epochs,
                     batch_size=tf_batch_size,
                     callbacks=callbacks,
-                    workers=8,
-                    use_multiprocessing=True
                 )
                 logger.info("Training completed.")
 
