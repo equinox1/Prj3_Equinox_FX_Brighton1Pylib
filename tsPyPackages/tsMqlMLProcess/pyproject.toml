@@ -1,6 +1,6 @@
 [project]
 name = "tsmqlmlprocess"
-version = "2.7.55"
+version = "2.7.57"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
@@ -9,9 +9,10 @@ readme = "README.md"
 requires-python = ">=3.8"
 
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
 ]
 
 [project.urls]

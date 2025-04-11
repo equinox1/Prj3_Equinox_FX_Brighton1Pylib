@@ -1,6 +1,6 @@
 [project]
 name = "tsmqlbaseparams"
-version = "2.7.5"
+version = "2.8.3"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]
@@ -13,7 +13,6 @@ classifiers = [
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
- 
 ]
 
 [project.urls]
