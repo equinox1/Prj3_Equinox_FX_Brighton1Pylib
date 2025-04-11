@@ -5,7 +5,9 @@ import os
 
 # Define global log directory
 global_logdir = r"C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
+global_logdir=r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\tsModelData\tboard_logs"
 logdir = os.path.join(global_logdir, "hparams_tuning")
+logdir=global_logdir
 
 # Ensure the log directory exists
 os.makedirs(logdir, exist_ok=True)

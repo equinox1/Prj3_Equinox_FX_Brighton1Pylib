@@ -50,25 +50,17 @@ from tsMqlDataProcess import CDataProcess
 from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
-
-# ----- Global Logging Configuration -----
-#global_logdir = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
-global_logdir = r"C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
-
-try:
-    os.makedirs(global_logdir, exist_ok=True)
-except OSError as e:
-    print(f"Error creating log directory: {e}")  # Use print() here because logger might not be configured yet
-    global_logdir = os.getcwd()  # Fallback to current working directory
-
-global_logfile = os.path.join(global_logdir, 'tsneuropredict_app.log')
+# ----- Setup platform -----
+setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=8,num_threads = 1)
+xerces_server = 'WINSVRXERCES01'
+xerces_logfile = 'tsneuropredict_app.log'
+global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_server)
 
 # Set up the root logger
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 if logger.hasHandlers():
     logger.handlers.clear()
-
 try:
     # Specify encoding='utf-8' in FileHandler
     fh = logging.FileHandler(global_logfile, mode='w', encoding='utf-8')
@@ -85,10 +77,6 @@ logger.addHandler(fh)
 
 logger.info("Logging configured successfully with FileHandler.")
 logger.info("Logfile: %s", global_logfile)
-
-# ----- Setup platform -----
-setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=24,num_threads = 2)
-# End Setup
 
 strategy = setup_config.get_computation_strategy()
 pchk = run_platform.RunPlatform()
