@@ -8,7 +8,6 @@
 # property link      "https://www.xercescloud.co.uk"
 # property version   "1.01"
 # +------------------------------------------------------------------+
-
 import logging
 import os
 import pathlib
@@ -16,27 +15,22 @@ from pathlib import Path
 import json
 from datetime import datetime, date
 import pytz
-
 # Data packages
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
-
 # Machine Learning packages
 import tensorflow as tf
-
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler  # Added for scaling
-
 # Extra modules needed for ONNX conversion and MetaTrader5 (adjust if not used)
 import tf2onnx
 import onnx
 from onnx import checker
 import onnxruntime as ort
 import MetaTrader5 as mt5
-
 # Custom modules
 from tsMqlSetup import CMqlSetup
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
@@ -50,25 +44,16 @@ from tsMqlDataProcess import CDataProcess
 from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
-
-# ----- Global Logging Configuration -----
-#global_logdir = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
-global_logdir = r"C:\Users\shepa\OneDrive\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir"
-
-try:
-    os.makedirs(global_logdir, exist_ok=True)
-except OSError as e:
-    print(f"Error creating log directory: {e}")  # Use print() here because logger might not be configured yet
-    global_logdir = os.getcwd()  # Fallback to current working directory
-
-global_logfile = os.path.join(global_logdir, 'tsneuropredict_app.log')
-
+# ----- Setup platform -----
+setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=8,num_threads = 1)
+xerces_server = 'WINSVRXERCES01'
+xerces_logfile = 'tsneuropredict_app.log'
+global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_server)
 # Set up the root logger
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 if logger.hasHandlers():
     logger.handlers.clear()
-
 try:
     # Specify encoding='utf-8' in FileHandler
     fh = logging.FileHandler(global_logfile, mode='w', encoding='utf-8')
@@ -85,10 +70,10 @@ logger.addHandler(fh)
 
 logger.info("Logging configured successfully with FileHandler.")
 logger.info("Logfile: %s", global_logfile)
+# logfile
+logger.info( "LOG: global_logdir: %s", global_logdir)
+logger.info( "LOG: global_logfile: %s", global_logfile)
 
-# ----- Setup platform -----
-setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=8,num_threads = 1)
-# End Setup
 
 strategy = setup_config.get_computation_strategy()
 pchk = run_platform.RunPlatform()
@@ -98,6 +83,7 @@ logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
 # ----- Main Function -----
 def main(logger):
+   
     with strategy.scope():
         # Setup environment and retrieve parameters
         utils_config = CUtilities()
@@ -110,29 +96,13 @@ def main(logger):
         mltune_params = mql_overrides.env.all_params().get("mltune", {})
         app_params = mql_overrides.env.all_params().get("app", {})
 
-        # Log the logfile location; ensure logdir is not None.
-        logdir = base_params.get('mp_glob_base_log_path') or 'logs'
-        os.makedirs(logdir, exist_ok=True)
-        logfile = os.path.join(logdir, 'tsneuropredict_app.log')
-        logger.info(f"Logfile: {logfile}")
+        # Set Overrides
+        #Data Rows and Rowcount
+        mql_overrides.env.override_params({"data": {"mp_data_rows": 1000}})
+        mql_overrides.env.override_params({"data": {"mp_data_rowcount": 200000}})
+        rows = data_params.get('mp_data_rows', 1000)
+        rowcount = data_params.get('mp_data_rowcount', 10000)
 
-        # Log parameter details
-        logger.info("Main Base Parameters:")
-        for key, value in base_params.items():
-            logger.info(f"  {key}: {value}")
-        logger.info("Main Data Parameters:")
-        for key, value in data_params.items():
-            logger.info(f"  {key}: {value}")
-        logger.info("Main ML Parameters:")
-        for key, value in ml_params.items():
-            logger.info(f"  {key}: {value}")
-        logger.info("Main ML Tuning Parameters:")
-        for key, value in mltune_params.items():
-            logger.info(f"  {key}: {value}")
-        logger.info("Main App Parameters:")
-        for key, value in app_params.items():
-            logger.info(f"  {key}: {value}")
-    
         # ----- Load Reference class and time variables -----
         lp_timeframe_name = data_params.get('mp_data_timeframe', 'H4')
         reference_config = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
@@ -155,12 +125,6 @@ def main(logger):
         timeval = HOUR  # used for window creation
         logger.info(f"Timezone: {TIMEZONE}")
         logger.info(f"Timeframe: {TIMEFRAME}")
-
-        mql_overrides.env.override_params({"data": {"mp_data_rows": 1000}})
-        mql_overrides.env.override_params({"data": {"mp_data_rowcount": 200000}})
-       
-        rows = data_params.get('mp_data_rows', 1000)
-        rowcount = data_params.get('mp_data_rowcount', 10000)
         logger.info(f"Timeframe Name: {lp_timeframe_name}, Rows: {rows}, Rowcount: {rowcount}")
 
         # ----- Broker Login -----
@@ -398,8 +362,6 @@ def main(logger):
             
             # Clear any previous session to free up resources
             tf.keras.backend.clear_session()
-
- 
 
             try:
                 # Set up callbacks (e.g., early stopping) if desired
