@@ -51,17 +51,32 @@ from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
 # ----- Setup platform -----
-setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=8,num_threads = 1)
+setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=24,num_threads = 2)
 xerces_server = 'WINSVRXERCES01'
 xerces_logfile = 'tsneuropredict_app.log'
 global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_server)
 #paralell setup
-tuner_id = 'tuner2' # chief for master the tuner01, worker
-# Set the Keras parallelism environment variables Chief
-os.environ["KERASTUNER_TUNER_ID"] = tuner_id
-os.environ["KERASTUNER_ORACLE_IP"] = xerces_server
+tuner_id = 'chief' # chief for master the tuner01, worker
+# -------- Chief Configuration --------
+os.environ["KERASTUNER_TUNER_ID"] = "chief"  # Usually 'chief'
+os.environ["KERASTUNER_ORACLE_IP"] = "localhost"
 os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
+os.environ["GRPC_VERBOSITY"] = "DEBUG"
+os.environ["GRPC_TRACE"] = "all"
 
+# Uncomment the following if running the Chief:
+os.environ["KERASTUNER_ORACLE_WORKER"] = "True"
+os.environ["KERASTUNER_ORACLE_WORKER_ID"] = "chief_worker"
+os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = "8001"
+
+# -------- Worker Configuration --------
+# Uncomment the following block when running a worker:
+# os.environ["KERASTUNER_TUNER_ID"] = "tuner01"
+# os.environ["KERASTUNER_ORACLE_IP"] = "localhost"
+# os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
+# os.environ["KERASTUNER_ORACLE_WORKER"] = "True"
+# os.environ["KERASTUNER_ORACLE_WORKER_ID"] = "tuner01"
+# os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = "8002"
 
 # Set up the root logger
 logger = logging.getLogger()

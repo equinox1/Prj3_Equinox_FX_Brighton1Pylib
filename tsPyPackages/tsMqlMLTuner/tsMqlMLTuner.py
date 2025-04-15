@@ -58,9 +58,9 @@ class CMdtuner:
         logger.info(f"Hypermodel parameters: {self.hypermodel_params}")
 
         base = self.hypermodel_params.get('base', {})
-        self.mp_pl_platform_base      = base.get('mp_glob_base_platform_dir', None)
+        self.mp_pl_platform_base       = base.get('mp_glob_base_platform_dir', None)
         self.checkpoint_filepath       = base.get('mp_glob_base_ml_checkpoint_filepath', None)
-        self.modeldatapath            = base.get('mp_glob_sub_ml_src_modeldata', None)
+        self.modeldatapath             = base.get('mp_glob_sub_ml_src_modeldata', None)
         # Model path
         self.base_path                 = base.get('mp_glob_base_path', None)
         self.project_dir               = base.get('mp_glob_base_ml_project_dir', None)
@@ -619,11 +619,8 @@ class CMdtuner:
                 verbose=self.chk_verbosity,
                 callbacks=self.get_callbacks(),
                 batch_size=self.batch_size,
-                distribution_strategy=tf.distribute.MirroredStrategy(),
-                overwrite=self.overwrite,
-                use_multiprocessing=self.use_multiprocessing,
             )
-            best_hps = self.tuner.get_best_hyperparameters(num_trials=1)
+            best_hps = self.tuner.get_best_hyperparameters(num_trials=1)[0]
             if not best_hps:
                 raise ValueError("No hyperparameters found. Ensure tuning has been run successfully.")
             logger.info(f"Best hyperparameters: {best_hps[0].values}")

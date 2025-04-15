@@ -55,13 +55,31 @@ setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat1
 xerces_server = 'WINSVRXERCES01'
 xerces_logfile = 'tsneuropredict_app.log'
 global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_server)
-#paralell setup
-tuner_id = 'chief' # chief for master the tuner01, worker
-# Set the Keras parallelism environment variables Chief
-os.environ["KERASTUNER_TUNER_ID"] = tuner_id
-os.environ["KERASTUNER_ORACLE_IP"] = xerces_server
-os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
+# Parallel setup
+runchiefandworker=False
+tuner_id = 'chief'  # chief for master, tuner01 for worker
 
+if runchiefandworker:
+    # -------- Chief Configuration --------
+    os.environ["KERASTUNER_TUNER_ID"] = tuner_id  # Usually 'chief'
+    os.environ["KERASTUNER_ORACLE_IP"] = "localhost"
+    os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
+
+    # Uncomment the following if running the Chief:
+    os.environ["KERASTUNER_ORACLE_WORKER"] = "true"  # Fixed: Use lowercase "true" as a string
+    os.environ["KERASTUNER_ORACLE_WORKER_ID"] = "chief_worker"
+    os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = "8001"
+
+    # -------- Worker Configuration --------
+    # Uncomment the following block when running a worker:
+    # os.environ["KERASTUNER_TUNER_ID"] = "tuner01"
+    # os.environ["KERASTUNER_ORACLE_IP"] = "localhost"
+    # os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
+    # os.environ["KERASTUNER_ORACLE_WORKER"] = "true"  # Fixed: Use lowercase "true" as a string
+    # os.environ["KERASTUNER_ORACLE_WORKER_ID"] = "tuner01"
+    # os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = "8002"
+else:
+    print("Running in non-parallel mode.")
 
 # Set up the root logger
 logger = logging.getLogger()

@@ -76,7 +76,7 @@ class CMqlEnvBaseParams(CEnvCore):
             'mp_glob_base_log_path': self.mp_glob_log_path,
             'mp_glob_base_path': self.mp_glob_base_path,
             'mp_glob_sub_ml_src_lib_lib_path': self.mp_glob_sub_ml_src_lib,
-            'mp_glob_sub_ml_src_modeldata': self.mp_glob_sub_ml_src_modeldata,
+            'mp_glob_sub_ml_src_modeldata': self.model_base,
             'mp_glob_base_ml_project_dir': self.project_dir,
             'mp_glob_sub_ml_baseuniq': self.model_uniq,
             'mp_glob_sub_ml_model_name': self.model_name,
