@@ -201,7 +201,7 @@ class CMdtuner:
 
         #Threading parameters
         self.use_multiprocessing = mltune.get('use_multiprocessing', True)
-        self.workers = mltune.get('workers', 8)
+        self.workers = mltune.get('workers', 32)
       
         logger.info(f"Tuning parameters: unitmin          : {self.unitmin}")
         logger.info(f"Tuning parameters: unitmax          : {self.unitmax}")
@@ -283,6 +283,7 @@ class CMdtuner:
 
         # Set up distributed training strategy
         self.strategy = tf.distribute.MirroredStrategy()
+
         logger.info(f"Number of devices: {self.strategy.num_replicas_in_sync}")
 
         self.tf1 = kwargs.get('tf1', False)
@@ -619,6 +620,8 @@ class CMdtuner:
                 verbose=self.chk_verbosity,
                 callbacks=self.get_callbacks(),
                 batch_size=self.batch_size,
+                #use_multiprocessing=self.use_multiprocessing,
+                #workers=self.workers,
             )
             best_hps = self.tuner.get_best_hyperparameters(num_trials=1)[0]
             if not best_hps:

@@ -51,32 +51,56 @@ from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
 # ----- Setup platform -----
-setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=24,num_threads = 2)
+setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4)
 xerces_server = 'WINSVRXERCES01'
 xerces_logfile = 'tsneuropredict_app.log'
 global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_server)
-#paralell setup
-tuner_id = 'chief' # chief for master the tuner01, worker
-# -------- Chief Configuration --------
-os.environ["KERASTUNER_TUNER_ID"] = "chief"  # Usually 'chief'
-os.environ["KERASTUNER_ORACLE_IP"] = "localhost"
-os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
-os.environ["GRPC_VERBOSITY"] = "DEBUG"
-os.environ["GRPC_TRACE"] = "all"
+# Parallel setup
+runchiefandworker=False
+parallel_tuning=False
+runchief=False
+runworker=False
+runchiefandworkerdebug=True
+tuner_id = 'chief'  # chief for master, tuner01 for worker
+worker_id = 'tuner01'  # worker id for worker
+worker_port = '8001'  # worker port for worker
 
-# Uncomment the following if running the Chief:
-os.environ["KERASTUNER_ORACLE_WORKER"] = "True"
-os.environ["KERASTUNER_ORACLE_WORKER_ID"] = "chief_worker"
-os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = "8001"
 
-# -------- Worker Configuration --------
-# Uncomment the following block when running a worker:
-# os.environ["KERASTUNER_TUNER_ID"] = "tuner01"
-# os.environ["KERASTUNER_ORACLE_IP"] = "localhost"
-# os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
-# os.environ["KERASTUNER_ORACLE_WORKER"] = "True"
-# os.environ["KERASTUNER_ORACLE_WORKER_ID"] = "tuner01"
-# os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = "8002"
+if runchiefandworker:
+    # -------- Chief Configuration --------
+    if parallel_tuning:
+        os.environ["KERASTUNER_TUNER_ID"] = tuner_id  # Usually 'chief'
+        os.environ["KERASTUNER_ORACLE_IP"] = "localhost"
+        os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
+
+        if runchief:
+            # Configuration for the Chief (which also acts as a worker in this setup)
+            os.environ["KERASTUNER_ORACLE_WORKER"] = "true"  # Chief also performs work
+            os.environ["KERASTUNER_ORACLE_WORKER_ID"] = "chief_worker"
+            os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = "8000" # not sure if 8001 or 8000
+
+            if runchiefandworkerdebug:
+                os.environ["KERASTUNER_ORACLE_WORKER_DEBUG"] = "true"
+                os.environ["GRPC_VERBOSITY"] = "NONE"
+                os.environ["GRPC_TRACE"] = ""
+
+        
+            print("Chief node configured for parallel tuning.")
+
+        elif runworker:
+            # -------- Worker Configuration --------
+            os.environ["KERASTUNER_TUNER_ID"] = tuner_id  # e.g., "tuner01"
+            os.environ["KERASTUNER_ORACLE_IP"] = "localhost"
+            os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
+            os.environ["KERASTUNER_ORACLE_WORKER"] = "true"
+            os.environ["KERASTUNER_ORACLE_WORKER_ID"] = worker_id  # e.g., "tuner01"
+            os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = worker_port  # e.g., "8002"
+            print(f"Worker node '{worker_id}' configured for parallel tuning.")
+
+        else:
+            print("Parallel tuning enabled, but neither Chief nor Worker configuration was explicitly run.")
+else:
+    print("Running in non-parallel mode.")
 
 # Set up the root logger
 logger = logging.getLogger()
@@ -102,6 +126,10 @@ logger.info("Logging configured successfully with FileHandler.")
 print("Logdir: %s", global_logdir)
 logger.info("Logdir: %s", global_logdir)
 logger.info("Logfile: %s", global_logfile)
+
+tboardlogdir = os.path.join(global_logdir, 'tboard_logs')
+
+tf.debugging.experimental.enable_dump_debug_info(tboardlogdir, tensor_debug_mode="FULL_HEALTH", circular_buffer_size=-1)
 
 strategy = setup_config.get_computation_strategy()
 pchk = run_platform.RunPlatform()
