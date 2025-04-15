@@ -9,7 +9,7 @@
 # property version   "1.01"
 # +------------------------------------------------------------------+
 import os
-tuner_id = 'chief' # chief for master the tuner01, worker
+tuner_id = 'tuner1' # chief for master the tuner01, worker
 # Set the Keras parallelism environment variables Chief
 os.environ["KERASTUNER_TUNER_ID"] = tuner_id
 os.environ["KERASTUNER_ORACLE_IP"] = "127.0.0.1"
