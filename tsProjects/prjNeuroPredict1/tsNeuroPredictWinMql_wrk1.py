@@ -8,29 +8,35 @@
 # property link      "https://www.xercescloud.co.uk"
 # property version   "1.01"
 # +------------------------------------------------------------------+
-import logging
 import os
+import logging
+
 import pathlib
 from pathlib import Path
 import json
 from datetime import datetime, date
 import pytz
+
 # Data packages
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
+
 # Machine Learning packages
 import tensorflow as tf
+
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler  # Added for scaling
+
 # Extra modules needed for ONNX conversion and MetaTrader5 (adjust if not used)
 import tf2onnx
 import onnx
 from onnx import checker
 import onnxruntime as ort
 import MetaTrader5 as mt5
+
 # Custom modules
 from tsMqlSetup import CMqlSetup
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
@@ -49,7 +55,14 @@ setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat1
 xerces_server = 'WINSVRXERCES01'
 xerces_logfile = 'tsneuropredict_app.log'
 global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_server)
-print(f"Logfile: {global_logfile}")
+#paralell setup
+tuner_id = 'tuner1' # chief for master the tuner01, worker
+# Set the Keras parallelism environment variables Chief
+os.environ["KERASTUNER_TUNER_ID"] = tuner_id
+os.environ["KERASTUNER_ORACLE_IP"] = xerces_server
+os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
+
+
 # Set up the root logger
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -70,11 +83,10 @@ fh.setFormatter(formatter)
 logger.addHandler(fh)
 
 logger.info("Logging configured successfully with FileHandler.")
-logger.info("Logfile: %s", global_logfile)
-# logfile
-logger.info( "LOG: global_logdir: %s", global_logdir)
-logger.info( "LOG: global_logfile: %s", global_logfile)
 
+print("Logdir: %s", global_logdir)
+logger.info("Logdir: %s", global_logdir)
+logger.info("Logfile: %s", global_logfile)
 
 strategy = setup_config.get_computation_strategy()
 pchk = run_platform.RunPlatform()
@@ -84,7 +96,6 @@ logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
 # ----- Main Function -----
 def main(logger):
-   
     with strategy.scope():
         # Setup environment and retrieve parameters
         utils_config = CUtilities()
@@ -97,13 +108,41 @@ def main(logger):
         mltune_params = mql_overrides.env.all_params().get("mltune", {})
         app_params = mql_overrides.env.all_params().get("app", {})
 
-        # Set Overrides
-        #Data Rows and Rowcount
-        mql_overrides.env.override_params({"data": {"mp_data_rows": 1000}})
-        mql_overrides.env.override_params({"data": {"mp_data_rowcount": 200000}})
-        rows = data_params.get('mp_data_rows', 1000)
-        rowcount = data_params.get('mp_data_rowcount', 10000)
+        # Log the logfile location; ensure logdir is not None.
+        logdir = base_params.get('mp_glob_base_log_path') or 'logs'
+        os.makedirs(logdir, exist_ok=True)
+        logfile = os.path.join(logdir, 'tsneuropredict_app.log')
+        logger.info(f"Logfile: {logfile}")
 
+        # Log parameter details
+        logger.info("Main Base Parameters:")
+        for key, value in base_params.items():
+            logger.info(f"  {key}: {value}")
+        logger.info("Main Data Parameters:")
+        for key, value in data_params.items():
+            logger.info(f"  {key}: {value}")
+        logger.info("Main ML Parameters:")
+        for key, value in ml_params.items():
+            logger.info(f"  {key}: {value}")
+        logger.info("Main ML Tuning Parameters:")
+        for key, value in mltune_params.items():
+            logger.info(f"  {key}: {value}")
+        logger.info("Main App Parameters:")
+        for key, value in app_params.items():
+            logger.info(f"  {key}: {value}")
+
+         # ----- Model Tuning and Setup -----
+        mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': True}})
+        mql_overrides.env.override_params({"ml": {'tf_batch_size': 64}})
+        mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 1}})
+        logger.info("Main: mp_app_ml_hard_run: %s", app_params.get('mp_app_ml_hard_run', True))
+        logger.info("Main: mp_ml_tf_param_epochs: %s", base_params.get('mp_ml_tf_param_epochs', 1))
+        logger.info("Main: mp_ml_mbase_path: %s", base_params.get('mp_glob_base_ml_project_dir', None))
+
+        # Scale the model
+        modscale = 2
+        logger.info("Main: Model Scale: %s", modscale)
+    
         # ----- Load Reference class and time variables -----
         lp_timeframe_name = data_params.get('mp_data_timeframe', 'H4')
         reference_config = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
@@ -126,6 +165,12 @@ def main(logger):
         timeval = HOUR  # used for window creation
         logger.info(f"Timezone: {TIMEZONE}")
         logger.info(f"Timeframe: {TIMEFRAME}")
+
+        mql_overrides.env.override_params({"data": {"mp_data_rows": 1000}})
+        mql_overrides.env.override_params({"data": {"mp_data_rowcount": 100000}})
+       
+        rows = data_params.get('mp_data_rows', 1000)
+        rowcount = data_params.get('mp_data_rowcount', 10000)
         logger.info(f"Timeframe Name: {lp_timeframe_name}, Rows: {rows}, Rowcount: {rowcount}")
 
         # ----- Broker Login -----
@@ -234,8 +279,8 @@ def main(logger):
         logger.info("Test samples: %s", X_test.shape[0])
 
          # ----- Convert to TensorFlow Dataset -----
-        tf_batch_size = ml_params.get('tf_batch_size', 256)
-      
+        tf_batch_size = ml_params.get('tf_batch_size', 1024)
+     
         buffer_size = ml_params.get('buffer_size', 10000)
         logger.info("Buffer size: %s", buffer_size)
         train_dataset, val_dataset, test_dataset = ml_process_config.create_simple_tf_dataset(
@@ -257,13 +302,7 @@ def main(logger):
         logger.info("Input shape: %s", input_shape)
         logger.info("Output shape: %s", output_shape)
 
-        # ----- Model Tuning and Setup -----
-        mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': True}})
-        mql_overrides.env.override_params({"ml": {'tf_batch_size': 256}})
-        mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 1}})
-
-        # Scale the model
-        modscale = 2
+        # ----- Model Scale ----- see start of file for model scale
         mql_overrides.env.override_params({"mltune": {'all_modelscale': modscale}})
         mql_overrides.env.override_params({"mltune": {'cnn_modelscale': modscale}})
         mql_overrides.env.override_params({"mltune": {'lstm_modelscale': modscale}})
@@ -287,24 +326,23 @@ def main(logger):
         mql_overrides.env.override_params({"mltune": {'unitmax': int(512/modscale)}})
         mql_overrides.env.override_params({"mltune": {'unitstep': int(32/modscale)}})
         mql_overrides.env.override_params({"mltune": {'defaultunits': int(128/modscale)}})
-        mql_overrides.env.override_params({"mltune": {'max_epochs': 250}})
+        mql_overrides.env.override_params({"mltune": {'max_epochs': 10}})
         mql_overrides.env.override_params({"mltune": {'min_epochs': 1}})
         mql_overrides.env.override_params({"mltune": {'tunemodeepochs': True}})
         mql_overrides.env.override_params({"mltune": {'tune_new_entries': True}})
 
-        # trials and epochs
-        mql_overrides.env.override_params({"mltune": {'trials': 1}})
-        mql_overrides.env.override_params({"mltune": {'epochs': 1}})
-        mql_overrides.env.override_params({"mltune": {'max_epochs': 1}})
-
-        # Plot overrides
+        # Misc overrides
         mql_overrides.env.override_params({"mltune": {'mp_ml_show_plot': True}})
         mql_overrides.env.override_params({"mltune": {'ONNX_save': True}})
-
+        mql_overrides.env.override_params({"mltune": {'overwrite': False}})
+        mql_overrides.env.override_params({"mltune": {'tuner_id': tuner_id}})
+        
         unitmin = mql_overrides.env.all_params().get('mltune', {}).get('unitmin', None)
         unitmax = mql_overrides.env.all_params().get('mltune', {}).get('unitmax', None)
         unitstep = mql_overrides.env.all_params().get('mltune', {}).get('unitstep', None)
         defaultunits = mql_overrides.env.all_params().get('mltune', {}).get('defaultunits', None)
+
+        # Note Epochs is extracted once the model has tuned and found best epoch this a declare of defaults
         epochs = mql_overrides.env.all_params().get('mltune', {}).get('epochs', None)
         tune_new_entries = mql_overrides.env.all_params().get('mltune', {}).get('tune_new_entries', None)
 

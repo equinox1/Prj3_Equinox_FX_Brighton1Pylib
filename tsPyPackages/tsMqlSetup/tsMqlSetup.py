@@ -86,9 +86,7 @@ class CMqlSetup:
         logger.info(f"KMP_WARNINGS: {os.environ['KMP_WARNINGS']}")
         logger.info(f"KMP_FORCE_USE_OPENMP: {os.environ['KMP_FORCE_USE_OPENMP']}")
         logger.info(f"KMP_USE_ITT_NOTIFY: {os.environ['KMP_USE_ITT_NOTIFY']}")
-        logger.info(f"NumPy Version: {np.__version__}")
-        logger.info(f"TensorFlow Version: {tf.__version__}")
-       
+        
 
         # Set the number of threads for TensorFlow operations
         tf.config.threading.set_intra_op_parallelism_threads(self.num_cores)
