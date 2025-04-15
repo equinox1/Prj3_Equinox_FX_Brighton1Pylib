@@ -9,13 +9,6 @@
 # property version   "1.01"
 # +------------------------------------------------------------------+
 import os
-tuner_id = 'chief' # chief for master the tuner01, worker
-# Set the Keras parallelism environment variables Chief
-os.environ["KERASTUNER_TUNER_ID"] = tuner_id
-os.environ["KERASTUNER_ORACLE_IP"] = "127.0.0.1"
-os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
-
-# Imports
 import logging
 
 import pathlib
@@ -58,10 +51,17 @@ from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
 # ----- Setup platform -----
-setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=8,num_threads = 1)
+setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=24,num_threads = 2)
 xerces_server = 'WINSVRXERCES01'
 xerces_logfile = 'tsneuropredict_app.log'
 global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_server)
+#paralell setup
+tuner_id = 'chief' # chief for master the tuner01, worker
+# Set the Keras parallelism environment variables Chief
+os.environ["KERASTUNER_TUNER_ID"] = tuner_id
+os.environ["KERASTUNER_ORACLE_IP"] = xerces_server
+os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
+
 
 # Set up the root logger
 logger = logging.getLogger()
@@ -83,6 +83,9 @@ fh.setFormatter(formatter)
 logger.addHandler(fh)
 
 logger.info("Logging configured successfully with FileHandler.")
+
+print("Logdir: %s", global_logdir)
+logger.info("Logdir: %s", global_logdir)
 logger.info("Logfile: %s", global_logfile)
 
 strategy = setup_config.get_computation_strategy()
