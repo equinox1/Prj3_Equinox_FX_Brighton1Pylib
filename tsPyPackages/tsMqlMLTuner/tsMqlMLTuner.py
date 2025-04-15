@@ -66,7 +66,8 @@ class CMdtuner:
         self.project_dir               = base.get('mp_glob_base_ml_project_dir', None)
         self.baseuniq                  = base.get('mp_glob_sub_ml_baseuniq', None)
         self.modelname                 = base.get('mp_glob_sub_ml_model_name', None)
-        self.modelpath                 = os.path.join(self.project_dir, self.baseuniq, self.modelname)
+        self.modelpath                 = os.path.join(self.project_dir, self.modelname)
+
 
         logger.info(f"TuneParams: mp_pl_platform_base: {self.mp_pl_platform_base}")
         logger.info(f"TuneParams: checkpoint_filepath: {self.checkpoint_filepath}")
@@ -618,9 +619,9 @@ class CMdtuner:
                 verbose=self.chk_verbosity,
                 callbacks=self.get_callbacks(),
                 batch_size=self.batch_size,
-                #use_multiprocessing=self.use_multiprocessing,
-                #workers=self.workers,
-                #initial_epoch=self.epochs,
+                distribution_strategy=tf.distribute.MirroredStrategy(),
+                overwrite=self.overwrite,
+                use_multiprocessing=self.use_multiprocessing,
             )
             best_hps = self.tuner.get_best_hyperparameters(num_trials=1)
             if not best_hps:
