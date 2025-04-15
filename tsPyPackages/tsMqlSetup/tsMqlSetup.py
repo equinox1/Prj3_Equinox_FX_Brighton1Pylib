@@ -160,7 +160,7 @@ class CMqlSetup:
 
         if logdir is None:
             if self.hostname == servername and os_platform == 'Windows':
-                self.global_logdir = os.path.join('C:', 'WinRunMnt1', '8.0 Projects', '8.3 ProjectModelsEquinox', 'EQUINRUN', 'Logdir')
+                self.global_logdir = os.path.join(r'C:', '\\', 'WinRunMnt1', '8.0 Projects', '8.3 ProjectModelsEquinox', 'EQUINRUN', 'Logdir')
                 self.global_logfile = os.path.join(self.global_logdir, logfile)
                 if not os.path.exists(self.global_logdir):
                     os.makedirs(self.global_logdir)
@@ -184,7 +184,7 @@ class CMqlSetup:
                     with open(self.global_logfile, 'w') as f:
                         f.write("Log file created successfully.")
             else:
-                self.global_logdir = os.path.join('C:','/Users', 'shepa', 'OneDrive', '8.0 Projects', '8.3 ProjectModelsEquinox', 'EQUINRUN', 'Logdir')
+                self.global_logdir = os.path.join(r'C:', '\\','/Users', 'shepa', 'OneDrive', '8.0 Projects', '8.3 ProjectModelsEquinox', 'EQUINRUN', 'Logdir')
                 self.global_logfile = os.path.join(self.global_logdir, logfile)
                 if not os.path.exists(self.global_logdir):
                     os.makedirs(self.global_logdir) 
