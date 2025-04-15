@@ -58,8 +58,7 @@ class CMqlSetup:
         # Set Multi-threading
         self.__set_multi_threading()
     
-       
-
+    
     def __set_multi_threading(self):
         # Set the number of threads for OpenMP and TensorFlow operations
         os.environ["OMP_NUM_THREADS"] = str(self.num_cores)
