@@ -39,7 +39,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
 
         self.TUNER_MODE_PARAMS = {
             "tunemode": "hyperband",
-            "tunemodeepochs": 100,
+            "tunemodeepochs": 10,
             "modelsummary": False,
             "keras_tuner": "hyperband",
             "hyperband_iterations": 1,
@@ -78,8 +78,8 @@ class CMqlEnvMLTunerParams(CEnvCore):
         }
 
         self.EPOCH_PARAMS = {
-            "max_epochs": 100,
-            "min_epochs": 10,
+            "max_epochs": 10,
+            "min_epochs": 1,
             "tf_param_epochs": 10,
             "epochs": 2,
             "tune_new_entries": True,
@@ -90,9 +90,9 @@ class CMqlEnvMLTunerParams(CEnvCore):
             "num_trials": 3,
             "max_retries_per_trial": 5,
             "max_consecutive_failed_trials": 3,
-            "steps_per_execution": 50,
+            "steps_per_execution": 1,
             "executions_per_trial": 1,
-            "overwrite": True,
+            "overwrite": False,
             "max_retries_per_trial": 5,
             "max_consecutive_failed_trials": 3,
             "executions_per_trial": 1,

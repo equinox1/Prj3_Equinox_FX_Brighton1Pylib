@@ -323,7 +323,7 @@ def main(logger):
         mql_overrides.env.override_params({"mltune": {'unitmax': int(512/modscale)}})
         mql_overrides.env.override_params({"mltune": {'unitstep': int(32/modscale)}})
         mql_overrides.env.override_params({"mltune": {'defaultunits': int(128/modscale)}})
-        mql_overrides.env.override_params({"mltune": {'max_epochs': 250}})
+        mql_overrides.env.override_params({"mltune": {'max_epochs': 10}})
         mql_overrides.env.override_params({"mltune": {'min_epochs': 1}})
         mql_overrides.env.override_params({"mltune": {'tunemodeepochs': True}})
         mql_overrides.env.override_params({"mltune": {'tune_new_entries': True}})
