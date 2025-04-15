@@ -171,7 +171,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
             "dense_units_max": 128,
             "dense_units_step": 32,
             "use_multiprocessing": True,
-            "workers": 8,
+            "workers": 32,
         }
 
         self.FILE_PATH_PARAMS = {
