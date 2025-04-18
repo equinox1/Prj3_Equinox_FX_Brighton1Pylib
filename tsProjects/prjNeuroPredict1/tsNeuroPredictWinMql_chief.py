@@ -129,7 +129,7 @@ logger.info("Logfile: %s", global_logfile)
 
 tboardlogdir = os.path.join(global_logdir, 'tboard_logs')
 
-tf.debugging.experimental.enable_dump_debug_info(tboardlogdir, tensor_debug_mode="FULL_HEALTH", circular_buffer_size=-1)
+#tf.debugging.experimental.enable_dump_debug_info(tboardlogdir, tensor_debug_mode="FULL_HEALTH", circular_buffer_size=-1)
 
 strategy = setup_config.get_computation_strategy()
 pchk = run_platform.RunPlatform()
@@ -183,7 +183,7 @@ def main(logger):
         logger.info("Main: mp_ml_mbase_path: %s", base_params.get('mp_glob_base_ml_project_dir', None))
 
         # Scale the model
-        modscale = 2
+        modscale = 4
         logger.info("Main: Model Scale: %s", modscale)
     
         # ----- Load Reference class and time variables -----
@@ -371,7 +371,7 @@ def main(logger):
         mql_overrides.env.override_params({"mltune": {'defaultunits': int(128/modscale)}})
         mql_overrides.env.override_params({"mltune": {'max_epochs': 10}})
         mql_overrides.env.override_params({"mltune": {'min_epochs': 1}})
-        mql_overrides.env.override_params({"mltune": {'tunemodeepochs': True}})
+        mql_overrides.env.override_params({"mltune": {'tunemodeepochs': False}})
         mql_overrides.env.override_params({"mltune": {'tune_new_entries': True}})
 
         # Misc overrides
