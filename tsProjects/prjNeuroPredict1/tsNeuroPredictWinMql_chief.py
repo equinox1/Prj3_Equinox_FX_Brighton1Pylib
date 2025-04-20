@@ -458,11 +458,11 @@ def main(logger):
                 logger.info("Training the best model...")
 
                 logger.info("Best Epochs: %s, tf_epochs: %s", epochs, mp_ml_tf_param_epochs)
-
+                fitepochs=100
                 best_model.fit(
                     train_dataset,
                     validation_data=val_dataset,
-                    epochs=epochs,
+                    epochs=fitepochs,
                     batch_size=tf_batch_size,
                     callbacks=callbacks,
                 )
