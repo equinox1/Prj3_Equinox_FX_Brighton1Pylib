@@ -16,6 +16,7 @@ from pathlib import Path
 import json
 from datetime import datetime, date
 import pytz
+import socket
 
 # Data packages
 import matplotlib.pyplot as plt
@@ -98,7 +99,6 @@ else:
 print(f"Running as {'Chief' if is_chief else 'Worker'} with ID: {tuner_id}")
 print(f"Oracle at {os.environ['KERASTUNER_ORACLE_IP']}:{os.environ['KERASTUNER_ORACLE_PORT']}")
 print(f"Worker ID: {os.environ['KERASTUNER_ORACLE_WORKER_ID']}, Port: {os.environ['KERASTUNER_ORACLE_WORKER_PORT']}")
-
 
 
 # Set up the root logger
