@@ -57,7 +57,7 @@ class CMqlSetup:
         self.__set_setup_tfdebug()  # Call debugging setup if enabled
         # Set Multi-threading
         self.__set_multi_threading()
-    
+
        
 
     def __set_multi_threading(self):
@@ -220,4 +220,4 @@ class CMqlSetup:
             return logger
 
 
-
+   
