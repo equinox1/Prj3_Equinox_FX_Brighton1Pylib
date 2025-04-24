@@ -3,13 +3,14 @@ import sys
 import subprocess
 import time
 import socket
+import json
 
 # ==== CONFIGURATION ====
 chief_script = "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_chief.py"
 worker_script = "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_worker.py"
-oracle_ip = "192.168.1.103"  # Use actual IP
+oracle_ip = "192.168.1.103"  # Set to your actual IP address
 oracle_port = "8000"
-chief_base_port ="8001"
+chief_base_port = 8001
 worker_base_port = 8002
 num_workers = 1
 log_dir = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir"
@@ -17,9 +18,22 @@ log_dir = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir"
 os.makedirs(log_dir, exist_ok=True)
 
 # ==== FUNCTIONS ====
-def launch_process(script, env_vars, name):
+
+def build_tf_config(role, index, num_workers):
+    cluster = {
+        "chief": [f"{oracle_ip}:{chief_base_port}"],
+        "worker": [f"{oracle_ip}:{worker_base_port + i}" for i in range(num_workers)]
+    }
+    return json.dumps({
+        "cluster": cluster,
+        "task": {"type": role, "index": index}
+    })
+
+def launch_process(script, env_vars, name, tf_config=None):
     full_env = os.environ.copy()
     full_env.update(env_vars)
+    if tf_config:
+        full_env["TF_CONFIG"] = tf_config
 
     logfile = os.path.join(log_dir, f"{name}.log")
     errfile = os.path.join(log_dir, f"{name}_err.log")
@@ -46,6 +60,7 @@ def wait_for_port(ip, port, timeout=45):
     return False
 
 # ==== LAUNCH CHIEF ====
+
 print("🚀 Launching CHIEF...")
 chief_env = {
     "TUNER_ID": "chief",
@@ -54,16 +69,20 @@ chief_env = {
     "KERASTUNER_ORACLE_PORT": oracle_port,
     "KERASTUNER_ORACLE_WORKER": "True",
     "KERASTUNER_ORACLE_WORKER_ID": "chief_worker",
-    "KERASTUNER_ORACLE_WORKER_PORT": chief_base_port,
+    "KERASTUNER_ORACLE_WORKER_PORT": str(chief_base_port),
 }
-chief_proc = launch_process(chief_script, chief_env, "chief")
+
+chief_tf_config = build_tf_config("chief", 0, num_workers)
+chief_proc = launch_process(chief_script, chief_env, "chief", tf_config=chief_tf_config)
 
 # ==== WAIT FOR ORACLE TO BECOME AVAILABLE ====
+
 if not wait_for_port(oracle_ip, oracle_port, timeout=30):
     chief_proc.terminate()
     raise SystemExit("❌ Chief failed to start. Aborting worker launch.")
 
 # ==== LAUNCH WORKERS ====
+
 workers = []
 for i in range(num_workers):
     tuner_id = f"tuner{i+1}"
@@ -81,7 +100,8 @@ for i in range(num_workers):
         "KERASTUNER_ORACLE_WORKER_PORT": port,
     }
 
-    worker_proc = launch_process(worker_script, worker_env, tuner_id)
+    worker_tf_config = build_tf_config("worker", i, num_workers)
+    worker_proc = launch_process(worker_script, worker_env, tuner_id, tf_config=worker_tf_config)
     workers.append((tuner_id, worker_proc))
 
-print(f"✅ All tuners launched. Logs in {log_dir}/")
+print(f"✅ All tuners launched. Logs in:\n  {log_dir}")
