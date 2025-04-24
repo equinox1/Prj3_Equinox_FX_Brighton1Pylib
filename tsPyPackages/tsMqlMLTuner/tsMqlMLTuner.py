@@ -414,6 +414,7 @@ class CMdtuner:
                     max_retries_per_trial=self.max_retries_per_trial,
                     max_consecutive_failed_trials=self.max_consecutive_failed_trials,
                     executions_per_trial=self.executions_per_trial,
+                    #tune_new_trial_rpc_timeout=600 ,  # critical to avoid deadline errors
                 )
                 self.tuner.search_space_summary()
             else:
