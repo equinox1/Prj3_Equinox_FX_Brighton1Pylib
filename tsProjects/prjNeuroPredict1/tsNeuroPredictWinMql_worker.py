@@ -78,30 +78,6 @@ global_logdir, global_logfile = setup_config.set_log_dir(
     servername=xerces_server
 )
 
-# ---- Common KerasTuner Config ----
-os.environ["KERASTUNER_TUNER_ID"] = tuner_id
-os.environ["KERASTUNER_ORACLE_IP"] = xerces_server
-os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
-
-# GRPC debugging (can be verbose)
-os.environ["GRPC_VERBOSITY"] = "ERROR"
-os.environ["GRPC_TRACE"] = "api,connectivity_state"
-
-# ---- Chief/Worker Setup ----
-if is_chief:
-    os.environ["KERASTUNER_ORACLE_WORKER"] = "True"
-    os.environ["KERASTUNER_ORACLE_WORKER_ID"] = "chief_worker"
-    os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = "8001"
-else:
-    os.environ["KERASTUNER_ORACLE_WORKER"] = "True"
-    os.environ["KERASTUNER_ORACLE_WORKER_ID"] = tuner_id
-    os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = "8002"  # Adjust per worker
-
-# Debug info (optional)
-print(f"Running as {'Chief' if is_chief else 'Worker'} with ID: {tuner_id}")
-print(f"Oracle at {os.environ['KERASTUNER_ORACLE_IP']}:{os.environ['KERASTUNER_ORACLE_PORT']}")
-print(f"Worker ID: {os.environ['KERASTUNER_ORACLE_WORKER_ID']}, Port: {os.environ['KERASTUNER_ORACLE_WORKER_PORT']}")
-
 
 # Set up the root logger
 logger = logging.getLogger()
