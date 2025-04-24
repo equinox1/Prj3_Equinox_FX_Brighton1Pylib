@@ -147,21 +147,9 @@ class CMqlSetup:
                 tf.tpu.experimental.initialize_tpu_system(tpu)
                 print("✅ Running on TPU")
                 return tf.distribute.TPUStrategy(tpu)
-            except (ValueError, tf.errors.NotFoundError):
-                print("⚠️ TPU not found, trying MultiWorkerMirroredStrategy")
-
-            try:
-                strategy = tf.distribute.MultiWorkerMirroredStrategy()
-                print("✅ Running on MultiWorker GPU/CPU")
-                return strategy
-            except ValueError:
-                print("⚠️ MultiWorker strategy failed, falling back to default")
-
-            # Fallback
-            print("⚠️ Using default strategy (likely CPU)")
-            return tf.distribute.get_strategy()
-
-
+            except ValueError: # Catch the specific error when TPU is not found
+                print("⚠️ TPU not found, using GPU/CPU")
+                return tf.distribute.get_strategy()
 
 
     def set_log_dir(self, logdir=None,logfile= 'tslog', servername=None):
@@ -233,4 +221,3 @@ class CMqlSetup:
             return logger
 
 
-   
