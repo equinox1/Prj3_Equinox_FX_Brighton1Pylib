@@ -10,12 +10,13 @@
 # +------------------------------------------------------------------+
 import os
 import logging
-
+import subprocess
 import pathlib
 from pathlib import Path
 import json
 from datetime import datetime, date
 import pytz
+import socket
 
 # Data packages
 import matplotlib.pyplot as plt
@@ -50,57 +51,57 @@ from tsMqlDataProcess import CDataProcess
 from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
 
-# ----- Setup platform -----
-setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4)
+
+# ---- Configuration ----
+tuner_id = os.environ.get("TUNER_ID", "tuner01")  # 'chief' or 'tuner01', etc.
+tuner_id = "tuner01"
+is_chief = tuner_id == "chief"
+
+
+# System/server setup
 xerces_server = 'WINSVRXERCES01'
-xerces_logfile = 'tsneuropredict_app.log'
-global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_server)
-# Parallel setup
-runchiefandworker=False
-parallel_tuning=False
-runchief=False
-runworker=False
-runchiefandworkerdebug=True
-tuner_id = 'chief'  # chief for master, tuner01 for worker
-worker_id = 'tuner01'  # worker id for worker
-worker_port = '8001'  # worker port for worker
+xerces_logfile = f'tsneuropredict_app_{tuner_id}.log'  # Unique logfile per tuner
 
+# Setup platform
+setup_config = CMqlSetup(
+    loglevel='INFO',
+    warn='ignore',
+    precision='mixed_bfloat16',  # Confirm CPU compatibility
+    tfdebug=False,
+    num_cores=24,
+    num_threads=2
+)
 
-if runchiefandworker:
-    # -------- Chief Configuration --------
-    if parallel_tuning:
-        os.environ["KERASTUNER_TUNER_ID"] = tuner_id  # Usually 'chief'
-        os.environ["KERASTUNER_ORACLE_IP"] = "localhost"
-        os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
+global_logdir, global_logfile = setup_config.set_log_dir(
+    logdir=None,
+    logfile=xerces_logfile,
+    servername=xerces_server
+)
 
-        if runchief:
-            # Configuration for the Chief (which also acts as a worker in this setup)
-            os.environ["KERASTUNER_ORACLE_WORKER"] = "true"  # Chief also performs work
-            os.environ["KERASTUNER_ORACLE_WORKER_ID"] = "chief_worker"
-            os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = "8000" # not sure if 8001 or 8000
+# ---- Common KerasTuner Config ----
+os.environ["KERASTUNER_TUNER_ID"] = tuner_id
+os.environ["KERASTUNER_ORACLE_IP"] = xerces_server
+os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
 
-            if runchiefandworkerdebug:
-                os.environ["KERASTUNER_ORACLE_WORKER_DEBUG"] = "true"
-                os.environ["GRPC_VERBOSITY"] = "NONE"
-                os.environ["GRPC_TRACE"] = ""
+# GRPC debugging (can be verbose)
+os.environ["GRPC_VERBOSITY"] = "ERROR"
+os.environ["GRPC_TRACE"] = "api,connectivity_state"
 
-        
-            print("Chief node configured for parallel tuning.")
-
-        elif runworker:
-            # -------- Worker Configuration --------
-            os.environ["KERASTUNER_TUNER_ID"] = tuner_id  # e.g., "tuner01"
-            os.environ["KERASTUNER_ORACLE_IP"] = "localhost"
-            os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
-            os.environ["KERASTUNER_ORACLE_WORKER"] = "true"
-            os.environ["KERASTUNER_ORACLE_WORKER_ID"] = worker_id  # e.g., "tuner01"
-            os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = worker_port  # e.g., "8002"
-            print(f"Worker node '{worker_id}' configured for parallel tuning.")
-
-        else:
-            print("Parallel tuning enabled, but neither Chief nor Worker configuration was explicitly run.")
+# ---- Chief/Worker Setup ----
+if is_chief:
+    os.environ["KERASTUNER_ORACLE_WORKER"] = "True"
+    os.environ["KERASTUNER_ORACLE_WORKER_ID"] = "chief_worker"
+    os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = "8001"
 else:
-    print("Running in non-parallel mode.")
+    os.environ["KERASTUNER_ORACLE_WORKER"] = "True"
+    os.environ["KERASTUNER_ORACLE_WORKER_ID"] = tuner_id
+    os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = "8002"  # Adjust per worker
+
+# Debug info (optional)
+print(f"Running as {'Chief' if is_chief else 'Worker'} with ID: {tuner_id}")
+print(f"Oracle at {os.environ['KERASTUNER_ORACLE_IP']}:{os.environ['KERASTUNER_ORACLE_PORT']}")
+print(f"Worker ID: {os.environ['KERASTUNER_ORACLE_WORKER_ID']}, Port: {os.environ['KERASTUNER_ORACLE_WORKER_PORT']}")
+
 
 # Set up the root logger
 logger = logging.getLogger()
@@ -126,10 +127,6 @@ logger.info("Logging configured successfully with FileHandler.")
 print("Logdir: %s", global_logdir)
 logger.info("Logdir: %s", global_logdir)
 logger.info("Logfile: %s", global_logfile)
-
-tboardlogdir = os.path.join(global_logdir, 'tboard_logs')
-
-tf.debugging.experimental.enable_dump_debug_info(tboardlogdir, tensor_debug_mode="FULL_HEALTH", circular_buffer_size=-1)
 
 strategy = setup_config.get_computation_strategy()
 pchk = run_platform.RunPlatform()
@@ -175,7 +172,7 @@ def main(logger):
             logger.info(f"  {key}: {value}")
 
          # ----- Model Tuning and Setup -----
-        mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': True}})
+        mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
         mql_overrides.env.override_params({"ml": {'tf_batch_size': 64}})
         mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 1}})
         logger.info("Main: mp_app_ml_hard_run: %s", app_params.get('mp_app_ml_hard_run', True))

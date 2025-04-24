@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # +------------------------------------------------------------------+
-# |                                                 neuropredict2.py |
+# |                                    tsNeuroPredictWinMql_chief.py |
 # |                                                    Tony Shepherd |
 # |                                    https://www.xercescloud.co.uk |
 # +------------------------------------------------------------------+
@@ -10,7 +10,7 @@
 # +------------------------------------------------------------------+
 import os
 import logging
-
+import subprocess
 import pathlib
 from pathlib import Path
 import json
@@ -54,10 +54,13 @@ from tsMqlMLProcess import CDMLProcess
 
 # ---- Configuration ----
 tuner_id = os.environ.get("TUNER_ID", "chief")  # 'chief' or 'tuner01', etc.
+tuner_id = "chief"  # Set to 'chief' for the main process
 is_chief = tuner_id == "chief"
+
 
 # System/server setup
 xerces_server = 'WINSVRXERCES01'
+xerces_server = '192.168.1.103'  # For local testing
 xerces_logfile = f'tsneuropredict_app_{tuner_id}.log'  # Unique logfile per tuner
 
 # Setup platform
@@ -82,8 +85,8 @@ os.environ["KERASTUNER_ORACLE_IP"] = xerces_server
 os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
 
 # GRPC debugging (can be verbose)
-os.environ["GRPC_VERBOSITY"] = "DEBUG"
-os.environ["GRPC_TRACE"] = "all"
+os.environ["GRPC_VERBOSITY"] = "ERROR"
+os.environ["GRPC_TRACE"] = "api,connectivity_state"
 
 # ---- Chief/Worker Setup ----
 if is_chief:
@@ -170,7 +173,7 @@ def main(logger):
             logger.info(f"  {key}: {value}")
 
          # ----- Model Tuning and Setup -----
-        mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': True}})
+        mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
         mql_overrides.env.override_params({"ml": {'tf_batch_size': 64}})
         mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 1}})
         logger.info("Main: mp_app_ml_hard_run: %s", app_params.get('mp_app_ml_hard_run', True))

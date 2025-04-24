@@ -1,0 +1,87 @@
+import os
+import sys
+import subprocess
+import time
+import socket
+
+# ==== CONFIGURATION ====
+chief_script = "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_chief.py"
+worker_script = "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_worker.py"
+oracle_ip = "192.168.1.103"  # Use actual IP
+oracle_port = "8000"
+chief_base_port ="8001"
+worker_base_port = 8002
+num_workers = 1
+log_dir = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir"
+
+os.makedirs(log_dir, exist_ok=True)
+
+# ==== FUNCTIONS ====
+def launch_process(script, env_vars, name):
+    full_env = os.environ.copy()
+    full_env.update(env_vars)
+
+    logfile = os.path.join(log_dir, f"{name}.log")
+    errfile = os.path.join(log_dir, f"{name}_err.log")
+
+    with open(logfile, "w") as stdout, open(errfile, "w") as stderr:
+        return subprocess.Popen(
+            [sys.executable, script],
+            env=full_env,
+            stdout=stdout,
+            stderr=stderr
+        )
+
+def wait_for_port(ip, port, timeout=45):
+    print(f"\u23f3 Waiting for Oracle at {ip}:{port}...")
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            with socket.create_connection((ip, int(port)), timeout=2):
+                print(f"✅ Oracle available at {ip}:{port}")
+                return True
+        except Exception:
+            time.sleep(1)
+    print(f"❌ Timed out waiting for Oracle at {ip}:{port}")
+    return False
+
+# ==== LAUNCH CHIEF ====
+print("🚀 Launching CHIEF...")
+chief_env = {
+    "TUNER_ID": "chief",
+    "KERASTUNER_TUNER_ID": "chief",
+    "KERASTUNER_ORACLE_IP": oracle_ip,
+    "KERASTUNER_ORACLE_PORT": oracle_port,
+    "KERASTUNER_ORACLE_WORKER": "True",
+    "KERASTUNER_ORACLE_WORKER_ID": "chief_worker",
+    "KERASTUNER_ORACLE_WORKER_PORT": chief_base_port,
+}
+chief_proc = launch_process(chief_script, chief_env, "chief")
+
+# ==== WAIT FOR ORACLE TO BECOME AVAILABLE ====
+if not wait_for_port(oracle_ip, oracle_port, timeout=30):
+    chief_proc.terminate()
+    raise SystemExit("❌ Chief failed to start. Aborting worker launch.")
+
+# ==== LAUNCH WORKERS ====
+workers = []
+for i in range(num_workers):
+    tuner_id = f"tuner{i+1}"
+    port = str(worker_base_port + i)
+
+    print(f"🧵 Launching WORKER {tuner_id} on port {port}...")
+
+    worker_env = {
+        "TUNER_ID": tuner_id,
+        "KERASTUNER_TUNER_ID": tuner_id,
+        "KERASTUNER_ORACLE_IP": oracle_ip,
+        "KERASTUNER_ORACLE_PORT": oracle_port,
+        "KERASTUNER_ORACLE_WORKER": "True",
+        "KERASTUNER_ORACLE_WORKER_ID": tuner_id,
+        "KERASTUNER_ORACLE_WORKER_PORT": port,
+    }
+
+    worker_proc = launch_process(worker_script, worker_env, tuner_id)
+    workers.append((tuner_id, worker_proc))
+
+print(f"✅ All tuners launched. Logs in {log_dir}/")
