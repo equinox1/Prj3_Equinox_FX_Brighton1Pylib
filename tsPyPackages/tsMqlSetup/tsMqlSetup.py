@@ -140,7 +140,7 @@ class CMqlSetup:
             tf.keras.backend.clear_session()
             gc.collect()
 
-    def get_computation_strategy(self):
+    def get_computation_strategy_base(self):
             try:
                 tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
                 tf.config.experimental_connect_to_cluster(tpu)
@@ -150,6 +150,34 @@ class CMqlSetup:
             except ValueError: # Catch the specific error when TPU is not found
                 print("⚠️ TPU not found, using GPU/CPU")
                 return tf.distribute.get_strategy()
+
+    def get_computation_strategy(self):
+        try:
+            tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
+            tf.config.experimental_connect_to_cluster(tpu)
+            tf.tpu.experimental.initialize_tpu_system(tpu)
+            print("✅ Running on TPU")
+            return tf.distribute.TPUStrategy(tpu)
+        except (ValueError, tf.errors.NotFoundError) as e:
+            print(f"⚠️ TPU not found or initialization failed: {e}")
+            print("⚠️ Trying MultiWorkerMirroredStrategy")
+
+        try:
+            strategy = tf.distribute.MultiWorkerMirroredStrategy()
+            print("✅ Running on MultiWorker GPU/CPU")
+            return strategy
+        except (tf.errors.InternalError, tf.errors.UnavailableError) as e:
+            print(f"⚠️ MultiWorker strategy failed: {e}")
+            print("⚠️ Falling back to default strategy")
+
+        # Fallback
+        try:
+            strategy = tf.distribute.get_strategy()
+            print("⚠️ Using default strategy (likely CPU)")
+            return strategy
+        except Exception as e:
+            print(f"❌ Failed to initialize any strategy: {e}")
+            raise RuntimeError("No valid computation strategy could be initialized.")
 
 
     def set_log_dir(self, logdir=None,logfile= 'tslog', servername=None):

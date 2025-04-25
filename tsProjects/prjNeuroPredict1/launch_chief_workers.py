@@ -15,7 +15,7 @@ oracle_ip = '192.168.1.103'  # Replace with your actual IP
 oracle_port = '8000'
 chief_base_port = 8001
 worker_base_port = 8002
-num_workers = 1
+num_workers = 48
 log_dir = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir"
 
 os.makedirs(log_dir, exist_ok=True)

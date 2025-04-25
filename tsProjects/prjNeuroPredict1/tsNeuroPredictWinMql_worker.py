@@ -128,11 +128,13 @@ print("Logdir: %s", global_logdir)
 logger.info("Logdir: %s", global_logdir)
 logger.info("Logfile: %s", global_logfile)
 
-strategy = setup_config.get_computation_strategy()
+strategy = setup_config.get_computation_strategy_base()
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
+
+logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
 
 # ----- Main Function -----
 def main(logger):
@@ -501,7 +503,7 @@ def main(logger):
                 logger.info("Plot Path: %s", plot_path)
                 print("Plot Path: %s", plot_path)
                 plt.savefig(plot_path)
-                plt.show()
+                #plt.show()
                 # Close the plot to free up memory
                 plt.close()
                 logger.info("Price prediction plot saved at: %s", plot_path)
