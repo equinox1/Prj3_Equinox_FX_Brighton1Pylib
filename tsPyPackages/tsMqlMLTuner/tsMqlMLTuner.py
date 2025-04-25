@@ -142,6 +142,7 @@ class CMdtuner:
         self.max_consecutive_failed_trials = mltune.get('max_consecutive_failed_trials', 3)
         self.executions_per_trial    = mltune.get('executions_per_trial', 1)
         self.overwrite               = mltune.get('overwrite', False)
+        self.distribution_strategy = mltune.get('distribution_strategy', tf.distribute.MirroredStrategy())
 
         logger.info(f"Tuning parameters: today            : {self.today}")
         logger.info(f"Tuning parameters: seed             : {self.seed}")
@@ -170,6 +171,7 @@ class CMdtuner:
         logger.info(f"Tuning parameters: max_consecutive_failed_trials: {self.max_consecutive_failed_trials}")
         logger.info(f"Tuning parameters: executions_per_trial: {self.executions_per_trial}")
         logger.info(f"Tuning parameters: overwrite        : {self.overwrite}")
+        logger.info(f"Tuning parameters: distribution_strategy: {self.distribution_strategy}")
 
 
         # New tuning parameters 
@@ -414,7 +416,7 @@ class CMdtuner:
                     max_retries_per_trial=self.max_retries_per_trial,
                     max_consecutive_failed_trials=self.max_consecutive_failed_trials,
                     executions_per_trial=self.executions_per_trial,
-                    #tune_new_trial_rpc_timeout=600 ,  # critical to avoid deadline errors
+                    distribution_strategy=self.distribution_strategy,
                 )
                 self.tuner.search_space_summary()
             else:

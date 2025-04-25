@@ -96,10 +96,12 @@ class CMqlEnvMLTunerParams(CEnvCore):
             "max_retries_per_trial": 5,
             "max_consecutive_failed_trials": 3,
             "executions_per_trial": 1,
+            "distribution_strategy": "auto",
+            "tuner_id": None,
         }
 
         self.EXTRA_TUNER_PARAMS = {
-            "factor": 10,
+            "factor": 10,y
             "objective": "val_loss",
         }
 
