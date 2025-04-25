@@ -1,9 +1,14 @@
+#!/usr/bin/env python3
+# +------------------------------------------------------------------+
+# | launch_chief_workers_parallel.py                                 |
+# +------------------------------------------------------------------+
+
 import os
 import sys
 import subprocess
 import time
-import socket
 import json
+import threading
 
 # ==== CONFIGURATION ====
 base_path = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/PythonLib"
@@ -11,8 +16,7 @@ base_path = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Pytho
 chief_script = os.path.join(base_path, "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_chief.py")
 worker_script = os.path.join(base_path, "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_worker.py")
 
-oracle_ip = '192.168.1.103'  # Replace with your actual IP
-oracle_port = '8000'
+oracle_ip = '192.168.1.103'
 chief_base_port = 8001
 worker_base_port = 8002
 num_workers = 48
@@ -34,19 +38,15 @@ def build_tf_config(role, index, num_workers):
 
 def launch_process(script, env_vars, name, tf_config=None):
     full_env = os.environ.copy()
-    # Convert all environment values to strings
     full_env.update({str(k): str(v) for k, v in env_vars.items()})
     if tf_config:
-        full_env["TF_CONFIG"] = str(tf_config)
+        full_env["TF_CONFIG"] = tf_config
 
     logfile = os.path.join(log_dir, f"{name}.log")
-    errfile = os.path.join(log_dir, f"{name}_err.log")
-    print(f"📜 Logging to: {logfile} and {errfile}")
-    print(f"system: {sys.executable}")
-    print(f"script: {script}")
-    print(f"TF_CONFIG: {tf_config}")
+    infofile = os.path.join(log_dir, f"{name}_info.log")
+    print(f"📜 Launching {name} -> log: {logfile}")
 
-    with open(logfile, "w") as stdout, open(errfile, "w") as stderr:
+    with open(logfile, "w") as stdout, open(infofile, "w") as stderr:
         return subprocess.Popen(
             [sys.executable, script],
             env=full_env,
@@ -54,62 +54,40 @@ def launch_process(script, env_vars, name, tf_config=None):
             stderr=stderr
         )
 
-def wait_for_port(ip, port, timeout=45):
-    print(f"\u23f3 Waiting for Oracle at {ip}:{port}...")
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        try:
-            with socket.create_connection((ip, int(port)), timeout=2):
-                print(f"✅ Oracle available at {ip}:{port}")
-                return True
-        except Exception:
-            time.sleep(1)
-    print(f"❌ Timed out waiting for Oracle at {ip}:{port}")
-    return False
+def threaded_launch(script, env_vars, name, tf_config=None):
+    def target():
+        launch_process(script, env_vars, name, tf_config)
+    thread = threading.Thread(target=target)
+    thread.start()
+    return thread
 
-# ==== LAUNCH CHIEF ====
+# ==== LAUNCH CHIEF FIRST ====
 
 print("🚀 Launching CHIEF...")
-chief_env = {
-    "TUNER_ID": "chief",
-    "KERASTUNER_TUNER_ID": "chief",
-    "KERASTUNER_ORACLE_IP": oracle_ip,
-    "KERASTUNER_ORACLE_PORT": oracle_port,
-    "KERASTUNER_ORACLE_WORKER": "True",
-    "KERASTUNER_ORACLE_WORKER_ID": "chief_worker",
-    "KERASTUNER_ORACLE_WORKER_PORT": str(chief_base_port),
-}
-
+chief_env = {"TUNER_ID": "chief"}
 chief_tf_config = build_tf_config("chief", 0, num_workers)
-chief_proc = launch_process(chief_script, chief_env, "chief", tf_config=chief_tf_config)
-print(f"chief_proc: {chief_proc}")
-# ==== WAIT FOR ORACLE TO BECOME AVAILABLE ====
+chief_thread = threaded_launch(chief_script, chief_env, "chief", tf_config=chief_tf_config)
 
-if not wait_for_port(oracle_ip, oracle_port, timeout=30):
-    chief_proc.terminate()
-    raise SystemExit("❌ Chief failed to start. Aborting worker launch.")
+# Optional: Tiny delay just to make sure chief gets priority
+time.sleep(2)
 
-# ==== LAUNCH WORKERS ====
+# ==== LAUNCH WORKERS IN PARALLEL ====
 
-workers = []
+print("🧵 Launching WORKERS in parallel...")
+worker_threads = []
 for i in range(num_workers):
     tuner_id = f"tuner{i+1}"
-    port = str(worker_base_port + i)
+    port = worker_base_port + i
 
-    print(f"🧵 Launching WORKER {tuner_id} on port {port}...")
-
-    worker_env = {
-        "TUNER_ID": tuner_id,
-        "KERASTUNER_TUNER_ID": tuner_id,
-        "KERASTUNER_ORACLE_IP": oracle_ip,
-        "KERASTUNER_ORACLE_PORT": oracle_port,
-        "KERASTUNER_ORACLE_WORKER": "True",
-        "KERASTUNER_ORACLE_WORKER_ID": tuner_id,
-        "KERASTUNER_ORACLE_WORKER_PORT": port,
-    }
-
+    worker_env = {"TUNER_ID": tuner_id}
     worker_tf_config = build_tf_config("worker", i, num_workers)
-    worker_proc = launch_process(worker_script, worker_env, tuner_id, tf_config=worker_tf_config)
-    workers.append((tuner_id, worker_proc))
+    thread = threaded_launch(worker_script, worker_env, tuner_id, tf_config=worker_tf_config)
+    worker_threads.append(thread)
 
-print(f"\n✅ All tuners launched.\n📂 Logs stored in: {log_dir}")
+# ==== WAIT FOR ALL THREADS TO START ====
+
+print("\n⏳ Waiting for all workers to launch...")
+for thread in worker_threads:
+    thread.join(timeout=3)  # Give each thread some startup time
+
+print(f"\n✅ All tuners launched FAST.\n📂 Logs stored in: {log_dir}")

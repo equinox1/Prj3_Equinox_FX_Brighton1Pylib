@@ -50,60 +50,6 @@ from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
 from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
-
-
-# ---- Configuration ----
-tuner_id = os.environ.get("TUNER_ID", "chief")  # 'chief' or 'tuner01', etc.
-tuner_id = "chief"  # Set to 'chief' for the main process
-is_chief = tuner_id == "chief"
-
-
-# System/server setup
-xerces_server = 'WINSVRXERCES01'
-xerces_server = '192.168.1.103'  # For local testing
-xerces_logfile = f'tsneuropredict_app_{tuner_id}.log'  # Unique logfile per tuner
-
-# Setup platform
-setup_config = CMqlSetup(
-    loglevel='INFO',
-    warn='ignore',
-    precision='mixed_bfloat16',  # Confirm CPU compatibility
-    tfdebug=False,
-    num_cores=24,
-    num_threads=2
-)
-
-global_logdir, global_logfile = setup_config.set_log_dir(
-    logdir=None,
-    logfile=xerces_logfile,
-    servername=xerces_server
-)
-
-# ---- Common KerasTuner Config ----
-os.environ["KERASTUNER_TUNER_ID"] = tuner_id
-os.environ["KERASTUNER_ORACLE_IP"] = xerces_server
-os.environ["KERASTUNER_ORACLE_PORT"] = "8000"
-
-# GRPC debugging (can be verbose)
-os.environ["GRPC_VERBOSITY"] = "ERROR"
-os.environ["GRPC_TRACE"] = "api,connectivity_state"
-
-# ---- Chief/Worker Setup ----
-if is_chief:
-    os.environ["KERASTUNER_ORACLE_WORKER"] = "True"
-    os.environ["KERASTUNER_ORACLE_WORKER_ID"] = "chief_worker"
-    os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = "8001"
-else:
-    os.environ["KERASTUNER_ORACLE_WORKER"] = "True"
-    os.environ["KERASTUNER_ORACLE_WORKER_ID"] = tuner_id
-    os.environ["KERASTUNER_ORACLE_WORKER_PORT"] = "8002"  # Adjust per worker
-
-# Debug info (optional)
-print(f"Running as {'Chief' if is_chief else 'Worker'} with ID: {tuner_id}")
-print(f"Oracle at {os.environ['KERASTUNER_ORACLE_IP']}:{os.environ['KERASTUNER_ORACLE_PORT']}")
-print(f"Worker ID: {os.environ['KERASTUNER_ORACLE_WORKER_ID']}, Port: {os.environ['KERASTUNER_ORACLE_WORKER_PORT']}")
-
-
 # Set up the root logger
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -128,14 +74,25 @@ logger.info("Logging configured successfully with FileHandler.")
 print("Logdir: %s", global_logdir)
 logger.info("Logdir: %s", global_logdir)
 logger.info("Logfile: %s", global_logfile)
+# End Set up the root logger
+logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
+logging.getLogger('tensorflow').setLevel(logging.WARNING)
+# ---- Configuration ----
+tuner_id = os.environ.get("TUNER_ID", "chief")
+is_chief = tuner_id == "chief"
 
-strategy = setup_config.get_computation_strategy_base()
+# ==== STRATEGY SETUP ==== #
+print(f"Running as {'Chief' if is_chief else 'Worker'} with ID: {tuner_id}")
+# IMPORTANT: THIS IS THE CORRECT STRATEGY CREATION
+strategy = tf.distribute.MultiWorkerMirroredStrategy()
+print("Distribution strategy:", strategy)
+
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
-logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
+
 
 
 # ----- Main Function -----
@@ -179,12 +136,13 @@ def main(logger):
         mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
         mql_overrides.env.override_params({"ml": {'tf_batch_size': 64}})
         mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 1}})
+        mql_overrides.env.override_params({"ml": {'distribution_strategy': diststrategy}})
         logger.info("Main: mp_app_ml_hard_run: %s", app_params.get('mp_app_ml_hard_run', True))
         logger.info("Main: mp_ml_tf_param_epochs: %s", base_params.get('mp_ml_tf_param_epochs', 1))
         logger.info("Main: mp_ml_mbase_path: %s", base_params.get('mp_glob_base_ml_project_dir', None))
 
         # Scale the model
-        modscale = 2
+        modscale = 1
         logger.info("Main: Model Scale: %s", modscale)
     
         # ----- Load Reference class and time variables -----
