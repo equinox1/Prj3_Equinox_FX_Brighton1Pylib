@@ -10,10 +10,10 @@ Version: 1.3.1 (Optimized for reduced memory usage and increased execution perfo
 License: MIT License
 """
 
+
 import logging
 import os
 import pathlib
-import tensorflow as tf
 from datetime import date
 
 # Get a logger for this module
@@ -28,6 +28,8 @@ loadmql      = pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
 # TensorFlow/Keras imports
+import tensorflow as tf
+import tensorflow.distribute as tfd
 from tensorflow.keras.layers import (
     Input, Conv1D, MaxPooling1D, Flatten, Dense, LSTM, GRU, Dropout,
     Concatenate, LayerNormalization, MultiHeadAttention, GlobalAveragePooling1D, Reshape
@@ -44,6 +46,12 @@ from tensorflow.keras.metrics import (MSE, MAE, MAPE, MSLE, Poisson, KLDivergenc
                                       CosineSimilarity, Accuracy)
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, ReduceLROnPlateau
 import keras_tuner as kt
+
+from keras_tuner import Oracle
+from keras_tuner.tuners import RandomSearch, Hyperband, BayesianOptimization
+
+
+
 import numpy as np
 
 # Enable mixed precision and XLA JIT compilation for performance
@@ -115,9 +123,12 @@ class CMdtuner:
 
         # Tuning parameters
         mltune = self.hypermodel_params.get('mltune', {})
+        self.tuner_id                = mltune.get('tuner_id', 'chief') # 'chief' or 'worker'
         self.today                   = mltune.get('today', '2025-03-16 17:27:46')
         self.seed                    = mltune.get('seed', 42)
-        self.tunemode                = mltune.get('tunemode', 'Hyperband')
+        self.tunemode                = mltune.get('tunemode', 'hyperband') # 'random', 'hyperband', 'bayesian'
+        self.tunertype               = mltune.get('tunertype', 'distributed') # 'distributed' or 'local'
+        self.valid_tuner_modes       = ['random', 'hyperband', 'bayesian']
         self.tunemodeepochs          = mltune.get('tunemodeepochs', True)
         self.batch_size              = mltune.get('batch_size', 16)  # Reduced batch size
         self.epochs                  = mltune.get('epochs', 2)
@@ -144,9 +155,12 @@ class CMdtuner:
         self.overwrite               = mltune.get('overwrite', False)
         self.distribution_strategy = mltune.get('distribution_strategy', tf.distribute.MirroredStrategy())
 
+        logger.info(f"Tuning parameters: tuner_id         : {self.tuner_id}")
         logger.info(f"Tuning parameters: today            : {self.today}")
         logger.info(f"Tuning parameters: seed             : {self.seed}")
         logger.info(f"Tuning parameters: tunemode         : {self.tunemode}")
+        logger.info(f"Tuning parameters: valid_tuner_modes: {self.valid_tuner_modes}")
+        logger.info(f"Tuning parameters: tunertype        : {self.tunertype}")
         logger.info(f"Tuning parameters: tunemodeepochs   : {self.tunemodeepochs}")
         logger.info(f"Tuning parameters: batch_size       : {self.batch_size}")
         logger.info(f"Tuning parameters: epochs           : {self.epochs}")
@@ -268,6 +282,9 @@ class CMdtuner:
         elif self.castmode == 'float16':
             self.castval = self.cast_to_float16
 
+        self.tuner = None
+        self.oracle = None
+
         # Optimize dataset pipelines: parallel mapping, caching and prefetching.
         AUTOTUNE = tf.data.AUTOTUNE
         if self.traindataset is not None:
@@ -283,10 +300,9 @@ class CMdtuner:
                                                .cache()\
                                                .prefetch(buffer_size=AUTOTUNE)
 
-        # Set up distributed training strategy
-        self.strategy = tf.distribute.MirroredStrategy()
+        
 
-        logger.info(f"Number of devices: {self.strategy.num_replicas_in_sync}")
+        #logger.info(f"Number of devices: {self.strategy.num_replicas_in_sync}")
 
         self.tf1 = kwargs.get('tf1', False)
         self.tf2 = kwargs.get('tf2', False)
@@ -350,12 +366,15 @@ class CMdtuner:
         hp.Choice('metric', ['accuracy', 'mae', 'mse', 'mape', 'msle', 'poisson', 'cosine_similarity'])
         hp.Float('l2_reg', min_value=1e-6, max_value=1e-2, sampling='log', default=1e-4)
 
+        if self.tunemode not in self.valid_tuner_modes:
+            raise ValueError(f"Unsupported tuner mode: {self.tunemode}. Must be one of {self.valid_tuner_modes}")
+
         if self.tunemodeepochs:
             hp.Int('epochs', min_value=self.min_epochs, max_value=self.max_epochs, step=1)
         else:
             hp.Fixed('epochs', self.min_epochs)
 
-        if self.tunemode:
+        if self.tunemode in self.valid_tuner_modes:
             # Tuning for CNN branch
             hp.Int('num_cnn_layers', min_value=1, max_value=3, default=1)
             for i in range(3):
@@ -395,35 +414,85 @@ class CMdtuner:
             'bayesian':  kt.BayesianOptimization
         }
         logger.info(f"Tuner Service Checker: {self.tunemode}")
+       
         if self.tunemode in tuner_classes:
             logger.info(f"Tuner Service is: {self.tunemode}")
             logger.info(f" Tuner directory is {self.project_dir}")
             logger.info(f" Tuner Project name is {self.modelname}")
+            self.tunerexists = True
         try:
-            if self.tunemode in tuner_classes:
-                self.tuner = tuner_classes[self.tunemode](
-                    hypermodel=self.build_model,
-                    hyperparameters=hp,
-                    hyperband_iterations=self.hyperband_iterations,
-                    objective=self.objective,
-                    max_epochs=self.max_epochs,
-                    factor=self.factor,
-                    directory=self.project_dir,
-                    project_name=self.modelname,
-                    overwrite=self.overwrite,
-                    tune_new_entries=self.tune_new_entries,
-                    allow_new_entries=self.allow_new_entries,
-                    max_retries_per_trial=self.max_retries_per_trial,
-                    max_consecutive_failed_trials=self.max_consecutive_failed_trials,
-                    executions_per_trial=self.executions_per_trial,
-                    distribution_strategy=self.distribution_strategy,
-                )
-                self.tuner.search_space_summary()
+            if self.tunertype == 'local':
+                logger.info(f"Initializing local tuner: {self.tunemode}")
+                self.local_initialize_tuner(hp, tuner_classes)
+            elif self.tunertype == 'distributed':
+                logger.info(f"Initializing distributed tuner: {self.tunemode}")
+                self.multitune_initialize_tuner(hp)
             else:
-                raise ValueError(f"Unsupported keras_tuner type: {self.tunemode}")
+                raise ValueError(f"Unsupported tuner type: {self.tunemode}")
         except Exception as e:
             logger.error(f"Error initializing tuner: {e}")
             self.tuner = None
+
+    def local_initialize_tuner(self, hp, tuner_classes):
+        self.tuner = tuner_classes[self.tunemode](
+            hypermodel=self.build_model,
+            hyperparameters=hp,
+            hyperband_iterations=self.hyperband_iterations,
+            objective=self.objective,
+            max_epochs=self.max_epochs,
+            factor=self.factor,
+            directory=self.project_dir,
+            project_name=self.modelname,
+            overwrite=self.overwrite,
+            tune_new_entries=self.tune_new_entries,
+            allow_new_entries=self.allow_new_entries,
+            max_retries_per_trial=self.max_retries_per_trial,
+            max_consecutive_failed_trials=self.max_consecutive_failed_trials,
+            executions_per_trial=self.executions_per_trial,
+        )
+        self.tuner.search_space_summary()
+
+    def multitune_initialize_tuner(self, hp):
+        tuner_id = self.tuner_id
+        project_dir = self.hypermodel_params.get('base', {}).get('mp_glob_base_ml_project_dir', './tuner_project')
+        oracle_server_ip = os.environ.get('ORACLE_SERVER_IP', '192.168.1.103')
+        oracle_server_port = int(os.environ.get('ORACLE_SERVER_PORT', '9000'))
+
+        if tuner_id == 'chief':
+            logger.info(f"Initializing Chief with Remote Oracle Server on port {oracle_server_port}")
+            self.tuner = RandomSearch(
+                hypermodel=self.build_model,
+                hyperparameters=hp,
+                objective=self.objective,
+                directory=self.project_dir,
+                project_name=self.modelname,
+                overwrite=True,
+                tune_new_entries=self.tune_new_entries,
+                allow_new_entries=self.allow_new_entries,
+                max_retries_per_trial=self.max_retries_per_trial,
+                max_consecutive_failed_trials=self.max_consecutive_failed_trials,
+                executions_per_trial=self.executions_per_trial,
+                tuner_id=self.tuner_id,
+                )
+            logger.info(f"Chief started Oracle server at {oracle_server_ip}:{oracle_server_port}")
+        else:
+            logger.info(f"Initializing Worker connecting to {oracle_server_ip}:{oracle_server_port}")
+            self.oracle = OracleClient(f"http://{oracle_server_ip}:{oracle_server_port}")
+            self.tuner = RandomSearch(
+                hypermodel=self.build_model,
+                hyperparameters=hp,
+                objective=self.objective,
+                directory=self.project_dir,
+                project_name=self.modelname,
+                overwrite=True,
+                tune_new_entries=self.tune_new_entries,
+                allow_new_entries=self.allow_new_entries,
+                max_retries_per_trial=self.max_retries_per_trial,
+                max_consecutive_failed_trials=self.max_consecutive_failed_trials,
+                executions_per_trial=self.executions_per_trial,
+                tuner_id=self.tuner_id,
+                )
+            logger.info(f"Worker connected to Oracle server at {oracle_server_ip}:{oracle_server_port}")
 
     def build_model(self, hp):
         # Shared input setup
@@ -441,7 +510,7 @@ class CMdtuner:
                 inputs.append(cnn_input)
             logger.info(f"Input shape cnn: {cnn_input.shape}")
             cnn_branch = cnn_input
-            if self.tunemode:
+            if self.tunerexists:
                 num_cnn_layers = hp.get('num_cnn_layers')
                 for i in range(num_cnn_layers):
                     filters = hp.get(f'cnn_filters_{i}')
@@ -469,7 +538,7 @@ class CMdtuner:
                 inputs.append(lstm_input)
             logger.info(f"Input shape lstm: {lstm_input.shape}")
             lstm_branch = lstm_input
-            if self.tunemode:
+            if self.tunerexists:
                 num_lstm_layers = hp.get('num_lstm_layers')
                 for i in range(num_lstm_layers):
                     units = hp.get(f'lstm_units_{i}')
@@ -490,7 +559,7 @@ class CMdtuner:
                 inputs.append(gru_input)
             logger.info(f"Input shape gru: {gru_input.shape}")
             gru_branch = gru_input
-            if self.tunemode:
+            if self.tunerexists:
                 num_gru_layers = hp.get('num_gru_layers')
                 for i in range(num_gru_layers):
                     units = hp.get(f'gru_units_{i}')
@@ -546,7 +615,7 @@ class CMdtuner:
         logger.info(f"Output shape: {output.shape}")
         logger.info("Model built and compiled.")
 
-        if self.tunemode:
+        if self.tunerexists:
             loss_fn   = hp.get('loss')
             metric_fn = hp.get('metric')
             optimizer = self.get_optimizer(hp.get('optimizer'), hp.get('learning_rate'))
@@ -566,6 +635,8 @@ class CMdtuner:
             model.summary()
         return model
 
+
+    
     def get_optimizer(self, optimizer_name, learning_rate):
         optimizers = {
             'adam':    Adam,
@@ -623,8 +694,6 @@ class CMdtuner:
                 verbose=self.chk_verbosity,
                 callbacks=self.get_callbacks(),
                 batch_size=self.batch_size,
-                #use_multiprocessing=self.use_multiprocessing,
-                #workers=self.workers,
             )
             best_hps = self.tuner.get_best_hyperparameters(num_trials=1)[0]
             if not best_hps:
@@ -713,3 +782,9 @@ class CMdtuner:
             logger.info(f"Error retrieving best hyperparameters: {e}")
             return None
 
+    def create_oracle(self):
+            return RandomSearchOracle(
+                objective='val_loss',
+                max_trials=self.hypermodel_params.get('mltune', {}).get('max_trials', 50),
+                seed=self.hypermodel_params.get('mltune', {}).get('seed', 42),
+            )

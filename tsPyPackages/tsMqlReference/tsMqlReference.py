@@ -67,15 +67,20 @@ class CMqlRefConfig:
         """
         constants = self.TIME_CONSTANTS["TIMEVALUE"]
 
+        # Validate `basedatatime` and `loaded_data_type`
         if self.basedatatime not in constants:
+            logger.error(f"Invalid time unit for basedatatime: {self.basedatatime}")
             raise ValueError(f"Invalid time unit for basedatatime: {self.basedatatime}")
         if self.loaded_data_type not in constants:
+            logger.error(f"Invalid time unit for loaded_data_type: {self.loaded_data_type}")
             raise ValueError(f"Invalid time unit for loaded_data_type: {self.loaded_data_type}")
 
         base_value = constants[self.basedatatime]
         loaded_value = constants[self.loaded_data_type]
 
+        # Validate the requested unit
         if unit not in constants:
+            logger.error(f"Invalid time unit requested: {unit}")
             raise ValueError(f"Invalid time unit requested: {unit}")
 
         return constants[unit] / (loaded_value / base_value)
@@ -84,29 +89,37 @@ class CMqlRefConfig:
         """
         Retrieve the current time-related constants.
         """
-        return {
-            "MINUTE": int(self.get_timevalue('MINUTE')),
-            "HOUR": int(self.get_timevalue('HOUR')),
-            "DAY": int(self.get_timevalue('DAY')),
-            "TIMEZONE": self.local_timezone,
-            "TIMEFRAME": self.TIME_CONSTANTS['TIMEFRAME'].get(self.required_data_type, "TIMEFRAME_H4"),
-            "CURRENTYEAR": datetime.now().year,
-            "CURRENTDAY": datetime.now().day,
-            "CURRENTMONTH": datetime.now().month
-        }
+        try:
+            return {
+                "MINUTE": int(self.get_timevalue('MINUTE')),
+                "HOUR": int(self.get_timevalue('HOUR')),
+                "DAY": int(self.get_timevalue('DAY')),
+                "TIMEZONE": self.local_timezone,
+                "TIMEFRAME": self.TIME_CONSTANTS['TIMEFRAME'].get(self.required_data_type, "TIMEFRAME_H4"),
+                "CURRENTYEAR": datetime.now().year,
+                "CURRENTDAY": datetime.now().day,
+                "CURRENTMONTH": datetime.now().month
+            }
+        except Exception as e:
+            logger.error(f"Error retrieving current time: {e}")
+            raise
 
     def run_service(self):
         """
         Run the reference script and log the results.
         """
-        time_data = self.get_current_time()
+        try:
+            time_data = self.get_current_time()
 
-        for key, value in time_data.items():
-            logging.info(f"{key}: {value}")
+            for key, value in time_data.items():
+                logger.info(f"{key}: {value}")
 
-        # Get time values for all defined units
-        for unit in self.TIME_CONSTANTS["TIMEVALUE"].keys():
-            time_value = self.get_timevalue(unit)
-            logging.info(f"Time value for '{unit}': {time_value}")
+            # Get time values for all defined units
+            for unit in self.TIME_CONSTANTS["TIMEVALUE"].keys():
+                time_value = self.get_timevalue(unit)
+                logger.info(f"Time value for '{unit}': {time_value}")
 
-        return time_data
+            return time_data
+        except Exception as e:
+            logger.error(f"Error running service: {e}")
+            raise

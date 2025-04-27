@@ -1,8 +1,4 @@
-#!/usr/bin/env python3
-# +------------------------------------------------------------------+
-# | launch_chief_workers_parallel.py                                 |
-# +------------------------------------------------------------------+
-
+# File: launch_chief_workers_parallel.py
 import os
 import sys
 import subprocess
@@ -19,6 +15,7 @@ worker_script = os.path.join(base_path, "tsProjects/prjNeuroPredict1/tsNeuroPred
 oracle_ip = '192.168.1.103'
 chief_base_port = 8001
 worker_base_port = 8002
+oracle_server_port = 9000  # <-- Added for Oracle Server
 num_workers = 48
 log_dir = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir"
 
@@ -64,30 +61,36 @@ def threaded_launch(script, env_vars, name, tf_config=None):
 # ==== LAUNCH CHIEF FIRST ====
 
 print("🚀 Launching CHIEF...")
-chief_env = {"TUNER_ID": "chief"}
+chief_env = {
+    "TUNER_ID": "chief",
+    "ORACLE_SERVER_IP": oracle_ip,
+    "ORACLE_SERVER_PORT": str(oracle_server_port)
+}
 chief_tf_config = build_tf_config("chief", 0, num_workers)
 chief_thread = threaded_launch(chief_script, chief_env, "chief", tf_config=chief_tf_config)
 
-# Optional: Tiny delay just to make sure chief gets priority
 time.sleep(2)
 
-# ==== LAUNCH WORKERS IN PARALLEL ====
+# ==== LAUNCH WORKERS ====
 
 print("🧵 Launching WORKERS in parallel...")
 worker_threads = []
 for i in range(num_workers):
     tuner_id = f"tuner{i+1}"
     port = worker_base_port + i
-
-    worker_env = {"TUNER_ID": tuner_id}
+    worker_env = {
+        "TUNER_ID": tuner_id,
+        "ORACLE_SERVER_IP": oracle_ip,
+        "ORACLE_SERVER_PORT": str(oracle_server_port)
+    }
     worker_tf_config = build_tf_config("worker", i, num_workers)
     thread = threaded_launch(worker_script, worker_env, tuner_id, tf_config=worker_tf_config)
     worker_threads.append(thread)
 
-# ==== WAIT FOR ALL THREADS TO START ====
+# ==== WAIT FOR ALL THREADS ====
 
 print("\n⏳ Waiting for all workers to launch...")
 for thread in worker_threads:
-    thread.join(timeout=3)  # Give each thread some startup time
+    thread.join(timeout=3)
 
 print(f"\n✅ All tuners launched FAST.\n📂 Logs stored in: {log_dir}")
