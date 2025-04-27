@@ -429,7 +429,8 @@ class CDataProcess:
                 self.df[col] = pd.to_numeric(self.df[col].view('float64'))
                 logger.info("DF: 1.4 Converted datetime columns to float64 if enabled")
         if self.mp_dropna:
-            self.df.fillna(0, inplace=True)
+            numeric_cols = self.df.select_dtypes(include=['number']).columns
+            self.df[numeric_cols] = self.df[numeric_cols].fillna(0)
             logger.info("DF: 1.5 Filled NaN values with 0")
             
         
@@ -442,6 +443,7 @@ class CDataProcess:
 
     def run_average_columns(self, df: pd.DataFrame, df_name: str) -> pd.DataFrame:
         """Compute moving average, log returns, future returns, and optionally log stationarity."""
+        df = df.copy(deep=True)  # <--- FIX 2: Safe copy
         try:
             config = self.COLUMN_PARAMS.get(df_name, {})
             col_in = config.get("column_in")
@@ -449,35 +451,31 @@ class CDataProcess:
                 logger.error(f"Column {col_in} not found in DataFrame.")
                 return df
 
-            # Moving average
             if self.ma_window and config.get("ma_col"):
-                df[config["ma_col"]] = df[col_in].rolling(window=self.ma_window, min_periods=1).mean().fillna(method="bfill")
+                df.loc[:, config["ma_col"]] = df[col_in].rolling(window=self.ma_window, min_periods=1).mean().bfill()
                 logger.info(f"Moving average calculated in column {config['ma_col']}.")
 
-            # Log returns (ensuring no non-positive values)
             if self.shift_in and config.get("returns_col"):
-                df[col_in] = df[col_in].fillna(method='ffill')
+                df.loc[:, col_in] = df[col_in].ffill()
                 if (df[col_in] <= 0).any():
                     raise ValueError(f"Non-positive values found in {col_in}, cannot compute log returns.")
-                df[config["returns_col"]] = np.log(df[col_in] / df[col_in].shift(self.shift_in)).dropna()
+                df.loc[:, config["returns_col"]] = np.log(df[col_in] / df[col_in].shift(self.shift_in)).dropna()
                 logger.info(f"Log returns computed in column {config['returns_col']}.")
 
-            # Log stationary transformation if enabled
             if self.log_stationary and config.get("ma_col") in df.columns:
-                df[config["ma_col"]] = np.log(df[config["ma_col"]]).diff().fillna(0)
+                df.loc[:, config["ma_col"]] = np.log(df[config["ma_col"]]).diff().fillna(0)
                 logger.info(f"Log stationary transformation applied on {config['ma_col']}.")
 
-            # Future returns (percentage change)
             if self.lookahead_periods and config.get("returns_col"):
-                df[config["returns_col"]] = df[col_in].pct_change(periods=self.lookahead_periods).fillna(0)
+                df.loc[:, config["returns_col"]] = df[col_in].pct_change(periods=self.lookahead_periods).fillna(0)
                 logger.info(f"Future returns computed in column {config['returns_col']}.")
 
-            # Optionally remove rows with zero returns
             if self.remove_zeros and config.get("returns_col") in df.columns:
                 df = df[df[config["returns_col"]] != 0]
                 logger.info("Rows with zero returns removed.")
 
             return df
+
         except Exception as e:
             logger.error(f"Error in run_average_columns: {e}")
             return df
@@ -520,31 +518,37 @@ class CDataProcess:
 
     def establish_common_feat_col(self, df: pd.DataFrame, df_name: str) -> pd.DataFrame:
         """Establish a common feature column for tick (bid-ask average) or OHLC (close)."""
+        df = df.copy(deep=True)  # <--- FIX 1: Always copy at the start
         config = self.COLUMN_PARAMS.get(df_name, {})
+
         if df_name in ["df_api_ticks", "df_file_ticks"]:
             bid, ask, out = config.get("bid_column"), config.get("ask_column"), config.get("column_out1")
             if not (bid and ask and out):
                 raise ValueError(f"Missing definitions for {df_name}")
-            df[out] = (df[bid] + df[ask]) / 2
+            df.loc[:, out] = (df[bid] + df[ask]) / 2  # Safe assignment
             if self.run_avg and config.get("hl_avg_col"):
-                df[config["hl_avg_col"]] = df[out]
+                df.loc[:, config["hl_avg_col"]] = df[out]  # Safe assignment
             logger.info("Bid-ask average computed for tick data.")
+
         elif df_name in ["df_api_rates", "df_file_rates"]:
             close = config.get("close_column")
             if not close:
                 raise ValueError("`close_column` must be provided for OHLC data.")
-            df[config.get("column_out1")] = df[close]
+            df.loc[:, config.get("column_out1")] = df[close]  # Safe assignment
             logger.info("Common feature column established for OHLC data.")
+
         return df
+
 
     def establish_common_feat_col_scaled(self, df: pd.DataFrame, df_name: str) -> pd.DataFrame:
         """Establish a scaled version of the common feature column."""
+        df = df.copy(deep=True)  # <--- FIX 3: Always copy before operations
         config = self.COLUMN_PARAMS.get(df_name, {})
         out, out_scaled = config.get("column_out1"), config.get("column_out2")
         if not (out and out_scaled):
             raise ValueError(f"Missing output column definitions for {df_name}")
         if out in df.columns:
-            df[out_scaled] = df[out].pct_change().fillna(0)
+            df.loc[:, out_scaled] = df[out].pct_change().fillna(0)
             logger.info(f"Scaled feature column {out_scaled} created.")
         return df
 

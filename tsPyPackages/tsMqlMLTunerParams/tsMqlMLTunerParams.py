@@ -40,6 +40,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
         self.TUNER_MODE_PARAMS = {
             "tunemode": "hyperband",
             "tunemodeepochs": 10,
+            "tunertype": "local",
             "modelsummary": False,
             "keras_tuner": "hyperband",
             "hyperband_iterations": 1,
@@ -101,7 +102,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
         }
 
         self.EXTRA_TUNER_PARAMS = {
-            "factor": 10,y
+            "factor": 10,
             "objective": "val_loss",
         }
 

@@ -50,6 +50,15 @@ from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
 from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
+
+# ----- Setup platform -----
+tuner_id = os.environ.get("TUNER_ID", "tuner01")
+setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4)
+xerces_server = 'WINSVRXERCES01'
+xerces_logfile = 'tsneuropredict_app.log'
+global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_server)
+
+
 # Set up the root logger
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -71,40 +80,34 @@ logger.addHandler(fh)
 
 logger.info("Logging configured successfully with FileHandler.")
 
-print("Logdir: %s", global_logdir)
+print(f"Logdir: {global_logdir}")
+print(f"Logfile: {global_logfile}")
 logger.info("Logdir: %s", global_logdir)
 logger.info("Logfile: %s", global_logfile)
-# End Set up the root logger
-logging.getLogger('matplotlib.font_manager').setLevel(logging.WARNING)
-logging.getLogger('tensorflow').setLevel(logging.WARNING)
+
+tboardlogdir = os.path.join(global_logdir, 'tboard_logs')
 
 # ---- Configuration ----
-tuner_id = os.environ.get("TUNER_ID", "tuner01")
+
 is_chief = tuner_id == "chief"
 
-# ==== Setup Logging etc. (your existing code) ==== #
-
-# ==== STRATEGY SETUP ==== #
-print(f"Running as {'Chief' if is_chief else 'Worker'} with ID: {tuner_id}")
-
-# IMPORTANT: THIS IS THE CORRECT STRATEGY CREATION
-strategy = tf.distribute.MultiWorkerMirroredStrategy()
-
-print("Distribution strategy:", strategy)
-
-
+# strategy setup
+strategy = setup_config.get_computation_strategy()
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
-
+# tune multi strategy
+diststrategy = 'tf.distribute.MultiWorkerMirroredStrategy'
+print("Distribution strategy:", diststrategy)
 
 
 # ----- Main Function -----
 def main(logger):
     with strategy.scope():
         # Setup environment and retrieve parameters
+        print("Start Main Setting up environment...")
         utils_config = CUtilities()
         mql_overrides = CMqlOverrides()  # Uses defaults if no config.yaml provided
 
@@ -114,9 +117,10 @@ def main(logger):
         ml_params = mql_overrides.env.all_params().get("ml", {})
         mltune_params = mql_overrides.env.all_params().get("mltune", {})
         app_params = mql_overrides.env.all_params().get("app", {})
-
+        
         # Log the logfile location; ensure logdir is not None.
-        logdir = base_params.get('mp_glob_base_log_path') or 'logs'
+        logdir = base_params.get('mp_glob_base_log_path') or global_logdir
+        logdir = global_logdir if logdir is None else logdir
         os.makedirs(logdir, exist_ok=True)
         logfile = os.path.join(logdir, 'tsneuropredict_app.log')
         logger.info(f"Logfile: {logfile}")
@@ -138,6 +142,7 @@ def main(logger):
         for key, value in app_params.items():
             logger.info(f"  {key}: {value}")
 
+
          # ----- Model Tuning and Setup -----
         mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
         mql_overrides.env.override_params({"ml": {'tf_batch_size': 64}})
@@ -147,6 +152,7 @@ def main(logger):
         logger.info("Main: mp_ml_tf_param_epochs: %s", base_params.get('mp_ml_tf_param_epochs', 1))
         logger.info("Main: mp_ml_mbase_path: %s", base_params.get('mp_glob_base_ml_project_dir', None))
 
+        
         # Scale the model
         modscale = 1
         logger.info("Main: Model Scale: %s", modscale)
@@ -159,7 +165,8 @@ def main(logger):
         time_constants = reference_config.TIME_CONSTANTS
         if isinstance(time_constants, list):
             time_constants = time_constants[0]
-        
+
+        # Extract time constants
         UNIT = time_constants["UNIT"]["SECOND"]
         MINUTE = reference_config.get_timevalue('MINUTE')
         HOUR = reference_config.get_timevalue('HOUR')
@@ -202,6 +209,7 @@ def main(logger):
         logger.info(f"Main: UTC From: {mv_data_utc_from}")
         logger.info(f"Main: UTC To: {mv_data_utc_to}")
 
+      
         data_loader_config = CDataLoader(
             lp_utc_from=mv_data_utc_from,
             lp_utc_to=mv_data_utc_to,
@@ -377,7 +385,7 @@ def main(logger):
         logger.info("Main Model Check: mp_glob_sub_ml_src_modeldata: %s", mp_glob_sub_ml_src_modeldata)
         logger.info("Main Model Check: mp_symbol_primary: %s", mp_symbol_primary)
         logger.info("Main Model get all_modelscale: %s", mql_overrides.env.all_params().get('mltune', {}).get('all_modelscale', 1))
-        
+   
         # ----- Model Tuning and Setup -----
         tuner_config = CMdtuner(
             hypermodel_params=mql_overrides.env.all_params(),
@@ -386,7 +394,7 @@ def main(logger):
             testdataset=test_dataset,
             castmode='float32',
         )
-      
+
         tuner_config.initialize_tuner()
 
         logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
