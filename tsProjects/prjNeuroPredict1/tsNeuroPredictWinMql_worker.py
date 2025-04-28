@@ -48,16 +48,17 @@ from tsMqlReference import CMqlRefConfig
 from tsMqlConnect import CMqlBrokerConfig
 from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
-from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
-
+from tsMqlMLTuner import CMdtuner
 # ----- Setup platform -----
-tuner_id = os.environ.get("TUNER_ID", "tuner01")
+tuner_id = os.environ.get("TUNER_ID", "worker")
 setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4)
 xerces_server = 'WINSVRXERCES01'
 xerces_logfile = 'tsneuropredict_app.log'
 global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_server)
-
+# Set Oracle connection
+os.environ['ORACLE_SERVER_IP'] = '192.168.1.103'   # your chief server IP
+os.environ['ORACLE_SERVER_PORT'] = '9000'
 
 # Set up the root logger
 logger = logging.getLogger()
@@ -102,6 +103,11 @@ logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 diststrategy = 'tf.distribute.MultiWorkerMirroredStrategy'
 print("Distribution strategy:", diststrategy)
 
+#Tuner options
+gtuner_type = 'distributed' #'distributed'  # local, distributed, or tpu
+gtuner_mode ='random' # 'random', 'bayesian', 'greedy', 'hyperband', or 'local'
+print("Tuner type:", gtuner_type) # local, distributed, or tpu
+print("Tuner mode:", gtuner_mode)
 
 # ----- Main Function -----
 def main(logger):
@@ -145,13 +151,12 @@ def main(logger):
 
          # ----- Model Tuning and Setup -----
         mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
-        mql_overrides.env.override_params({"ml": {'tf_batch_size': 64}})
-        mql_overrides.env.override_params({"ml": {'mp_ml_tf_param_epochs': 1}})
-        mql_overrides.env.override_params({"ml": {'distribution_strategy': diststrategy}})
+        mql_overrides.env.override_params({"mltune": {'batch_size': 64}})
         logger.info("Main: mp_app_ml_hard_run: %s", app_params.get('mp_app_ml_hard_run', True))
-        logger.info("Main: mp_ml_tf_param_epochs: %s", base_params.get('mp_ml_tf_param_epochs', 1))
         logger.info("Main: mp_ml_mbase_path: %s", base_params.get('mp_glob_base_ml_project_dir', None))
+        logger.info("Main: batch_size: %s", base_params.get('batch_size', None))
 
+        
         
         # Scale the model
         modscale = 1
@@ -248,6 +253,10 @@ def main(logger):
         mql_overrides.env.override_params({"mltune": {"input_width": back_window}})
         mql_overrides.env.override_params({"mltune": {"label_width": forward_window}})
         mql_overrides.env.override_params({"mltune": {"shift": pred_width}})
+        mql_overrides.env.override_params({"mltune": {'tf_param_epochs': 1}})
+        mql_overrides.env.override_params({"mltune": {'distribution_strategy': diststrategy}})
+        mql_overrides.env.override_params({"mltune": {'tunertype': gtuner_type}})
+        mql_overrides.env.override_params({"mltune": {'tunemode': gtuner_mode}})
 
         mltune_overrides = mql_overrides.env.all_params().get("mltune", {})
         logger.info("OverRidden: ML Tuning Parameters: %s", mltune_overrides)
@@ -255,6 +264,10 @@ def main(logger):
         logger.info("OverRidden: Input Width: %s", mltune_overrides.get("Input Width", back_window))
         logger.info("OverRidden: Label Width: %s", mltune_overrides.get("Label Width", forward_window))
         logger.info("OverRidden: Shift: %s", mltune_overrides.get("Shift", pred_width))
+        logger.info("OverRidden: Distribution Strategy: %s", mltune_overrides.get("distribution_strategy", diststrategy))
+        logger.info("OverRidden: Tuner Type: %s", mltune_overrides.get("tunertype", gtuner_type))
+        logger.info("OverRidden: Tuner Mode: %s", mltune_overrides.get("tunemode", gtuner_mode))
+
 
         # ----- Select Features and Labels -----
         features = ml_params.get("mp_ml_input_keyfeat", "Close")
@@ -295,12 +308,12 @@ def main(logger):
         logger.info("Test samples: %s", X_test.shape[0])
 
          # ----- Convert to TensorFlow Dataset -----
-        tf_batch_size = ml_params.get('tf_batch_size', 1024)
+        batch_size = ml_params.get('batch_size', 1024)
      
         buffer_size = ml_params.get('buffer_size', 10000)
         logger.info("Buffer size: %s", buffer_size)
         train_dataset, val_dataset, test_dataset = ml_process_config.create_simple_tf_dataset(
-            X_train, y_train, X_val, y_val, X_test, y_test, batch_size=tf_batch_size, buffer_size=buffer_size
+            X_train, y_train, X_val, y_val, X_test, y_test, batch_size=batch_size, buffer_size=buffer_size
         )
         logger.info("Train dataset: %s", train_dataset)
         logger.info("Validation dataset: %s", val_dataset)
@@ -394,8 +407,10 @@ def main(logger):
             testdataset=test_dataset,
             castmode='float32',
         )
+        # Connect to Oracle and start worker loop
+        tuner_config.run_search()
 
-        tuner_config.initialize_tuner()
+        #tuner_config.initialize_tuner()
 
         logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
         best_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
@@ -436,7 +451,7 @@ def main(logger):
                     train_dataset,
                     validation_data=val_dataset,
                     epochs=epochs,
-                    batch_size=tf_batch_size,
+                    batch_size=batch_size,
                     callbacks=callbacks,
                 )
                 logger.info("Training completed.")

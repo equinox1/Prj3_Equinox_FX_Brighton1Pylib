@@ -16,7 +16,7 @@ oracle_ip = '192.168.1.103'
 chief_base_port = 8001
 worker_base_port = 8002
 oracle_server_port = 9000  # <-- Added for Oracle Server
-num_workers = 48
+num_workers = 1
 log_dir = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir"
 
 os.makedirs(log_dir, exist_ok=True)

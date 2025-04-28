@@ -48,8 +48,13 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoa
 import keras_tuner as kt
 
 from keras_tuner import Oracle
-from keras_tuner.tuners import RandomSearch, Hyperband, BayesianOptimization
+from keras_tuner.tuners import RandomSearch, Hyperband, BayesianOptimization 
 
+#ts oracle client
+from keras_tuner.engine import oracle
+
+from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
+from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 
 
 import numpy as np
@@ -64,6 +69,13 @@ class CMdtuner:
         # Extract hypermodel parameters
         self.hypermodel_params = kwargs.get('hypermodel_params', {})
         logger.info(f"Hypermodel parameters: {self.hypermodel_params}")
+
+        oracle_server_ip = os.environ.get('ORACLE_SERVER_IP', '192.168.1.103')
+        oracle_server_port = int(os.environ.get('ORACLE_SERVER_PORT', 9000))
+        self.oracle = OracleClient(f"http://{oracle_server_ip}:{oracle_server_port}")
+        logger.info(f"Oracle server: {oracle_server_ip}:{oracle_server_port}")
+
+
 
         base = self.hypermodel_params.get('base', {})
         self.mp_pl_platform_base       = base.get('mp_glob_base_platform_dir', None)
@@ -454,45 +466,37 @@ class CMdtuner:
 
     def multitune_initialize_tuner(self, hp):
         tuner_id = self.tuner_id
-        project_dir = self.hypermodel_params.get('base', {}).get('mp_glob_base_ml_project_dir', './tuner_project')
         oracle_server_ip = os.environ.get('ORACLE_SERVER_IP', '192.168.1.103')
-        oracle_server_port = int(os.environ.get('ORACLE_SERVER_PORT', '9000'))
+        oracle_server_port = int(os.environ.get('ORACLE_SERVER_PORT', 9000))
+
+        logger.info(f"Multitune initialize: tuner_id={tuner_id}, Oracle IP={oracle_server_ip}, port={oracle_server_port}")
 
         if tuner_id == 'chief':
-            logger.info(f"Initializing Chief with Remote Oracle Server on port {oracle_server_port}")
-            self.tuner = RandomSearch(
-                hypermodel=self.build_model,
-                hyperparameters=hp,
-                objective=self.objective,
-                directory=self.project_dir,
-                project_name=self.modelname,
-                overwrite=True,
-                tune_new_entries=self.tune_new_entries,
-                allow_new_entries=self.allow_new_entries,
-                max_retries_per_trial=self.max_retries_per_trial,
-                max_consecutive_failed_trials=self.max_consecutive_failed_trials,
-                executions_per_trial=self.executions_per_trial,
-                tuner_id=self.tuner_id,
-                )
-            logger.info(f"Chief started Oracle server at {oracle_server_ip}:{oracle_server_port}")
-        else:
-            logger.info(f"Initializing Worker connecting to {oracle_server_ip}:{oracle_server_port}")
+            # Chief node starts Oracle server.
+
+            logger.info("Creating Oracle for Chief...")
+            oracle = self.create_oracle()
+
+            logger.info("Initializing Oracle Server...")
+            self.oracle_server = OracleServer(oracle)
+
+            logger.info(f"Starting Oracle server on port {oracle_server_port}...")
+            self.oracle_server.start(port=oracle_server_port)
+            logger.info(f"Oracle server started successfully.")
+
             self.oracle = OracleClient(f"http://{oracle_server_ip}:{oracle_server_port}")
-            self.tuner = RandomSearch(
-                hypermodel=self.build_model,
-                hyperparameters=hp,
-                objective=self.objective,
-                directory=self.project_dir,
-                project_name=self.modelname,
-                overwrite=True,
-                tune_new_entries=self.tune_new_entries,
-                allow_new_entries=self.allow_new_entries,
-                max_retries_per_trial=self.max_retries_per_trial,
-                max_consecutive_failed_trials=self.max_consecutive_failed_trials,
-                executions_per_trial=self.executions_per_trial,
-                tuner_id=self.tuner_id,
-                )
-            logger.info(f"Worker connected to Oracle server at {oracle_server_ip}:{oracle_server_port}")
+            logger.info(f"Chief also initializes OracleClient to communicate.")
+
+        else:
+            # Worker node uses OracleClient
+            logger.info("Initializing OracleClient for Worker...")
+            self.oracle = OracleClient(f"http://{oracle_server_ip}:{oracle_server_port}")
+            logger.info(f"Worker connected to Oracle Server at {oracle_server_ip}:{oracle_server_port}.")
+
+        self.tunerexists = True
+        logger.info(f"Multitune initialization complete for tuner_id {tuner_id}")
+
+
 
     def build_model(self, hp):
         # Shared input setup
@@ -681,7 +685,7 @@ class CMdtuner:
         ffn_out = Dropout(0.2)(ffn_out)
         return ffn_out
 
-    def run_search(self):
+    def run_search_keras(self):
         if self.tuner is None:
             logger.error("Tuner not initialized. Aborting search.")
             return
@@ -709,6 +713,50 @@ class CMdtuner:
                     logger.info("Updated mltune overrides with best epochs value.")
         except Exception as e:
             logger.error(f"Error during tuning: {e}")
+
+    def run_search(self):
+        if self.oracle is None:
+            logger.error("OracleClient not initialized. Aborting search.")
+            return
+        
+        logger.info("Starting distributed hyperparameter search with Oracle...")
+        
+        for _ in range(self.num_trials):
+            trial = self.oracle.get_trial()
+            trial_id = trial["trial_id"]
+            hyperparameters = trial["hyperparameters"]
+
+            logger.info(f"Received Trial ID: {trial_id}")
+            logger.info(f"Hyperparameters: {hyperparameters}")
+
+            try:
+                # Build and train model
+                model = self.build_model(hyperparameters)
+                history = model.fit(
+                    self.traindataset,
+                    validation_data=self.valdataset,
+                    epochs=self.epochs,
+                    verbose=1,
+                    batch_size=self.batch_size,
+                )
+                val_loss = history.history["val_loss"][-1]
+                logger.info(f"Trial {trial_id} finished. Validation loss: {val_loss}")
+
+                # Report results
+                self.oracle.report_result(trial_id, val_loss)
+
+                # Save best model
+                model_save_path = f"{self.modelpath}_{trial_id}.keras"
+                model.save(model_save_path)
+                self.oracle.upload_model(trial_id, model_save_path)
+
+                logger.info(f"Model saved and uploaded for trial {trial_id}.")
+
+            except Exception as e:
+                logger.error(f"Error during trial {trial_id}: {str(e)}")
+                self.oracle.report_result(trial_id, float('inf'))  # Mark trial as bad
+
+    
 
     @tf.function
     def _predict_graph(self, model, test_data):
@@ -782,9 +830,4 @@ class CMdtuner:
             logger.info(f"Error retrieving best hyperparameters: {e}")
             return None
 
-    def create_oracle(self):
-            return RandomSearchOracle(
-                objective='val_loss',
-                max_trials=self.hypermodel_params.get('mltune', {}).get('max_trials', 50),
-                seed=self.hypermodel_params.get('mltune', {}).get('seed', 42),
-            )
+    

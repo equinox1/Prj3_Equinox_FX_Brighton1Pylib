@@ -48,8 +48,8 @@ from tsMqlReference import CMqlRefConfig
 from tsMqlConnect import CMqlBrokerConfig
 from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
-from tsMqlMLTuner import CMdtuner
 from tsMqlMLProcess import CDMLProcess
+from tsMqlMLTuner import CMdtuner
 
 # ----- Setup platform -----
 tuner_id = os.environ.get("TUNER_ID", "chief")
@@ -57,7 +57,9 @@ setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat1
 xerces_server = 'WINSVRXERCES01'
 xerces_logfile = 'tsneuropredict_app.log'
 global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_server)
-
+# Set role as chief
+os.environ['ORACLE_SERVER_IP'] = '192.168.1.103'   # your chief server IP
+os.environ['ORACLE_SERVER_PORT'] = '9000'          # your chosen port
 
 # Set up the root logger
 logger = logging.getLogger()
@@ -401,13 +403,17 @@ def main(logger):
         # ----- Model Tuning and Setup -----
         tuner_config = CMdtuner(
             hypermodel_params=mql_overrides.env.all_params(),
-            traindataset=train_dataset,
-            valdataset=val_dataset,
-            testdataset=test_dataset,
+            traindataset=None,
+            valdataset=None,
+            testdataset=None,
             castmode='float32',
         )
-
-        tuner_config.initialize_tuner()
+        
+        #Oracle server setup
+        # Start Oracle server
+        tuner_config.multitune_initialize_tuner(hp=None)
+        # Chief usually does not do training
+        #tuner_config.initialize_tuner()
 
         logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
         best_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
