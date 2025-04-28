@@ -5,7 +5,7 @@ import os
 
 app = Flask(__name__)
 
-ORACLE_SERVER_IP = os.environ.get('ORACLE_SERVER_IP', '127.0.0.1')
+ORACLE_SERVER_IP = os.environ.get('ORACLE_SERVER_IP', '192.168.1.103')
 ORACLE_SERVER_PORT = int(os.environ.get('ORACLE_SERVER_PORT', 9000))
 
 @app.route('/')
