@@ -94,11 +94,6 @@ oracle = CustomOracle(objective="val_loss", max_trials=50)
 # --- Step 2: Pass oracle ONLY into OracleServer (no host, no port here!) ---
 oracle_server = OracleServer(oracle)
 
-# --- Step 3: Start OracleServer separately ---
-
-# --- Step 4: Attach OracleClient to tuner_config ---
-
-
 
 # Set up the root logger
 logger = logging.getLogger()
