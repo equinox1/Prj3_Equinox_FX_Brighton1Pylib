@@ -147,7 +147,7 @@ print("Distribution strategy:", diststrategy)
 #Tuner options
 gtuner_type = 'distributed' #'distributed'  # local, distributed, or tpu
 gtuner_mode ='random' # 'random', 'bayesian', 'greedy', 'hyperband', or 'local'
-gmodscale=1 # Model scale factor for tuning
+gmodscale=8 # Model scale factor for tuning
 print("Tuner type:", gtuner_type) # local, distributed, or tpu
 print("Tuner mode:", gtuner_mode)
 
@@ -193,7 +193,7 @@ def main(logger):
 
          # ----- Model Tuning and Setup -----
         mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
-        mql_overrides.env.override_params({"mltune": {'batch_size': 64}})
+        mql_overrides.env.override_params({"mltune": {'batch_size': 32}})
         logger.info("Main: mp_app_ml_hard_run: %s", app_params.get('mp_app_ml_hard_run', True))
         logger.info("Main: mp_ml_mbase_path: %s", base_params.get('mp_glob_base_ml_project_dir', None))
         logger.info("Main: batch_size: %s", base_params.get('batch_size', None))
@@ -454,7 +454,7 @@ def main(logger):
             traindataset=train_dataset,
             valdataset=val_dataset,
             testdataset=test_dataset,
-            castmode='float32',
+            castmode='float16',
         )
         
         
@@ -559,7 +559,7 @@ def main(logger):
                         mp_output_path = os.path.join(mp_glob_sub_ml_src_modeldata, f"model_{mp_symbol_primary}_{mp_ml_data_type}.onnx")
                         logger.info("Output Path: %s", mp_output_path)
                         opset_version = 17
-                        spec = [tf.TensorSpec(best_model.input_shape, tf.float32, name="input")]
+                        spec = [tf.TensorSpec(best_model.input_shape, tf.float16, name="input")]
                         onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature=spec, opset=opset_version)
                         onnx.save_model(onnx_model, mp_output_path)
                         logger.info("Model saved to %s", mp_output_path)

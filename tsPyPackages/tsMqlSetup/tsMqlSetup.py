@@ -58,7 +58,7 @@ class CMqlSetup:
 
         tf.config.threading.set_intra_op_parallelism_threads(self.sumthreads)
         tf.config.threading.set_inter_op_parallelism_threads(self.num_threads)
-        tf.config.optimizer.set_jit(True)
+        
         tf.config.optimizer.set_experimental_options({
             "auto_mixed_precision": True,
             "layout_optimizer": True,
@@ -79,7 +79,7 @@ class CMqlSetup:
         if self.tfdebug:
             tf.debugging.set_log_device_placement(True)
             tf.config.run_functions_eagerly(True)
-            tf.config.optimizer.set_jit(True)
+            tf.config.optimizer.set_jit(False)
 
             gpus = tf.config.list_physical_devices('GPU')
             logger.info(f"GPUs Available: {gpus}")
