@@ -95,7 +95,6 @@ oracle = CustomOracle(objective="val_loss", max_trials=50)
 oracle_server = OracleServer(oracle)
 
 # --- Step 3: Start OracleServer separately ---
-oracle_server.start(host=oracle_host, port=oracle_port)
 
 # --- Step 4: Attach OracleClient to tuner_config ---
 
@@ -120,6 +119,10 @@ formatter = logging.Formatter(
 fh.setFormatter(formatter)
 logger.addHandler(fh)
 
+sh = logging.StreamHandler()
+sh.setFormatter(formatter)
+logger.addHandler(sh)
+
 logger.info("Logging configured successfully with FileHandler.")
 
 print(f"Logdir: {global_logdir}")
@@ -133,7 +136,7 @@ tensorboard_cb = tf.keras.callbacks.TensorBoard(log_dir=tboardlogdir, histogram_
 
 # ---- Configuration ----
 
-is_chief = tuner_id == "chief"
+is_chief = tuner_id.lower() == "chief"
 
 # strategy setup
 strategy = setup_config.get_computation_strategy()
@@ -389,10 +392,10 @@ def main(logger):
         cnn_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('cnn_modelscale', 1)
         lstm_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('lstm_modelscale', 1)
         gru_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('gru_modelscale', 1)
-        trans_modelscale = mql_overrides.env.all_params().get('mltune.', {}).get('trans_modelscale', 1)
-        transh_modelscale = mql_overrides.env.all_params().get('mltune.', {}).get('transh_modelscale', 1)
-        transff_modelscale = mql_overrides.env.all_params().get('mltune.', {}).get('transff_modelscale', 1)
-        dense_modelscale = mql_overrides.env.all_params().get('mltune.', {}).get('dense_modelscale', 1)
+        trans_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('trans_modelscale', 1)
+        transh_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('transh_modelscale', 1)
+        transff_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('transff_modelscale', 1)
+        dense_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('dense_modelscale', 1)
 
         # Tune overrides
         mql_overrides.env.override_params({"mltune": {'unitmin': int(32/modscale)}})
@@ -447,8 +450,6 @@ def main(logger):
 
         # --- Start Oracle Server ---
         logger.info(f"Starting Oracle Server at {oracle_host}:{oracle_port}...")
-        
-        oracle_server.start()
         logger.info("Oracle Server started successfully.")
    
         # ----- Model Tuning and Setup -----
@@ -498,6 +499,7 @@ def main(logger):
             try:
                 # Set up callbacks (e.g., early stopping) if desired
                 callbacks = [
+    tensorboard_cb,
                     tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
                 ]
                 logger.info("Training the best model...")
