@@ -143,6 +143,21 @@ class CMqlSetup:
             print(f"❌ Failed to initialize any strategy: {e}")
             raise RuntimeError("No valid computation strategy could be initialized.")
 
+        try:
+            strategy = tf.distribute.experimental.ParameterServerStrategy()
+            print("✅ Running on Parameter Server")
+            return strategy
+        except (tf.errors.InternalError, tf.errors.UnavailableError) as e:
+            print(f"⚠️ Parameter Server strategy failed: {e}")
+
+        try:
+            strategy = tf.distribute.experimental.CentralStorageStrategy()
+            print("✅ Running on Central Storage")
+            return strategy 
+        except (tf.errors.InternalError, tf.errors.UnavailableError) as e:
+            print(f"⚠️ Central Storage strategy failed: {e}")
+
+
     def set_log_dir(self, logdir=None, logfile='tslog', servername=None):
         import socket
         hostname = os.getenv('HOSTNAME', socket.gethostname())
