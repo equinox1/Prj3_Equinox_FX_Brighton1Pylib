@@ -47,8 +47,10 @@ import keras_tuner as kt
 import numpy as np
 
 # Enable mixed precision and XLA JIT compilation for performance
-tf.config.optimizer.set_jit(True)
+
 mixed_precision.set_global_policy('mixed_float16')
+import gc
+gc.collect()
 
 
 class CMdtuner:
