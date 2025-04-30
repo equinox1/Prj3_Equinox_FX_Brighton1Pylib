@@ -128,6 +128,8 @@ logger.info("Logdir: %s", global_logdir)
 logger.info("Logfile: %s", global_logfile)
 
 tboardlogdir = os.path.join(global_logdir, 'tboard_logs')
+tensorboard_cb = tf.keras.callbacks.TensorBoard(log_dir=tboardlogdir, histogram_freq=1)
+
 
 # ---- Configuration ----
 
@@ -147,6 +149,7 @@ print("Distribution strategy:", diststrategy)
 #Tuner options
 gtuner_type = 'distributed' #'distributed'  # local, distributed, or tpu
 gtuner_mode ='random' # 'random', 'bayesian', 'greedy', 'hyperband', or 'local'
+gmodscale=1 # Model scale factor for tuning
 print("Tuner type:", gtuner_type) # local, distributed, or tpu
 print("Tuner mode:", gtuner_mode)
 
@@ -200,7 +203,7 @@ def main(logger):
         
         
         # Scale the model
-        modscale = 1
+        modscale = gmodscale
         logger.info("Main: Model Scale: %s", modscale)
     
         # ----- Load Reference class and time variables -----
