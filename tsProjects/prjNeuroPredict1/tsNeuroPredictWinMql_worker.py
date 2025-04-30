@@ -120,6 +120,10 @@ formatter = logging.Formatter(
 fh.setFormatter(formatter)
 logger.addHandler(fh)
 
+sh = logging.StreamHandler()
+sh.setFormatter(formatter)
+logger.addHandler(sh)
+
 logger.info("Logging configured successfully with FileHandler.")
 
 print(f"Logdir: {global_logdir}")
@@ -133,7 +137,7 @@ tensorboard_cb = tf.keras.callbacks.TensorBoard(log_dir=tboardlogdir, histogram_
 
 # ---- Configuration ----
 
-is_chief = tuner_id == "chief"
+is_chief = tuner_id.lower() == "chief"
 
 # strategy setup
 strategy = setup_config.get_computation_strategy()
@@ -389,10 +393,10 @@ def main(logger):
         cnn_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('cnn_modelscale', 1)
         lstm_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('lstm_modelscale', 1)
         gru_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('gru_modelscale', 1)
-        trans_modelscale = mql_overrides.env.all_params().get('mltune.', {}).get('trans_modelscale', 1)
-        transh_modelscale = mql_overrides.env.all_params().get('mltune.', {}).get('transh_modelscale', 1)
-        transff_modelscale = mql_overrides.env.all_params().get('mltune.', {}).get('transff_modelscale', 1)
-        dense_modelscale = mql_overrides.env.all_params().get('mltune.', {}).get('dense_modelscale', 1)
+        trans_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('trans_modelscale', 1)
+        transh_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('transh_modelscale', 1)
+        transff_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('transff_modelscale', 1)
+        dense_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('dense_modelscale', 1)
 
         # Tune overrides
         mql_overrides.env.override_params({"mltune": {'unitmin': int(32/modscale)}})
@@ -493,6 +497,7 @@ def main(logger):
             try:
                 # Set up callbacks (e.g., early stopping) if desired
                 callbacks = [
+    tensorboard_cb,
                     tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
                 ]
                 logger.info("Training the best model...")
@@ -573,19 +578,6 @@ def main(logger):
             mt5.shutdown()
             logger.info("Finished.")
 
-    oracle_client = OracleClient(host=oracle_host, port=oracle_port)
-    trial = oracle_client.get_trial()
-
-    # Example placeholder for model training
-    hp_values = trial["hyperparameters"]
-    trial_id = trial["trial_id"]
-
-    # [BUILD AND TRAIN MODEL USING hp_values HERE...]
-    result = 0.1234  # Example loss
-
-    # Report results back to Oracle
-    oracle_client.report_trial_result(trial_id, result)
-    oracle_client.update_trial_status(trial_id, status="COMPLETED")
-
+   
 if __name__ == "__main__":
     main(logger)
