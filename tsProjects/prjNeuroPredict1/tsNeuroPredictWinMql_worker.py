@@ -50,6 +50,8 @@ from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
 from tsMqlMLProcess import CDMLProcess
 from tsMqlMLTuner import CMdtuner
+
+from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 # ----- Setup platform -----
 tuner_id = os.environ.get("TUNER_ID", "worker")
 setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4)
@@ -407,6 +409,11 @@ def main(logger):
             testdataset=test_dataset,
             castmode='float32',
         )
+
+        # Set up the Oracle client
+        # Attach OracleClient to reach the Chief OracleServer
+        tuner_config.oracle = OracleClient(host="192.168.1.103", port=9000)
+
         # Connect to Oracle and start worker loop
         tuner_config.run_search()
 

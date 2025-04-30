@@ -51,6 +51,31 @@ from tsMqlDataProcess import CDataProcess
 from tsMqlMLProcess import CDMLProcess
 from tsMqlMLTuner import CMdtuner
 
+#Oracle imports
+from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
+from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
+from keras_tuner.engine.oracle import Oracle
+from keras_tuner.engine.trial import Trial
+from keras_tuner.engine.hyperparameters import HyperParameters
+from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
+
+
+
+# --- Define Simple Oracle ---
+class SimpleOracle(Oracle):
+    def __init__(self):
+        super().__init__(objective="val_loss", max_trials=20, seed=42)
+
+    def populate_space(self):
+        hp = HyperParameters()
+        hp.Choice("units", [32, 64, 128])
+        return {"status": Trial.Status.RUNNING, "values": hp.values, "hyperparameters": hp}
+
+    def score_trial(self, trial_id, result):
+        self._trials[trial_id].score = result
+        self._trials[trial_id].status = Trial.Status.COMPLETED
+
+
 # ----- Setup platform -----
 tuner_id = os.environ.get("TUNER_ID", "chief")
 setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4)
@@ -58,8 +83,23 @@ xerces_server = 'WINSVRXERCES01'
 xerces_logfile = 'tsneuropredict_app.log'
 global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_server)
 # Set role as chief
-os.environ['ORACLE_SERVER_IP'] = '192.168.1.103'   # your chief server IP
-os.environ['ORACLE_SERVER_PORT'] = '9000'          # your chosen port
+
+oracle_host = "192.168.1.103"
+oracle_port = 9000
+oracle_url = f"http://{oracle_host}:{oracle_port}"
+
+# --- Step 1: Create the Oracle ---
+oracle = CustomOracle(objective="val_loss", max_trials=50)
+
+# --- Step 2: Pass oracle ONLY into OracleServer (no host, no port here!) ---
+oracle_server = OracleServer(oracle)
+
+# --- Step 3: Start OracleServer separately ---
+oracle_server.start(host=oracle_host, port=oracle_port)
+
+# --- Step 4: Attach OracleClient to tuner_config ---
+
+
 
 # Set up the root logger
 logger = logging.getLogger()
@@ -399,21 +439,32 @@ def main(logger):
         logger.info("Main Model Check: mp_glob_sub_ml_src_modeldata: %s", mp_glob_sub_ml_src_modeldata)
         logger.info("Main Model Check: mp_symbol_primary: %s", mp_symbol_primary)
         logger.info("Main Model get all_modelscale: %s", mql_overrides.env.all_params().get('mltune', {}).get('all_modelscale', 1))
+
+
+
+        # --- Start Oracle Server ---
+        logger.info(f"Starting Oracle Server at {oracle_host}:{oracle_port}...")
+        
+        oracle_server.start()
+        logger.info("Oracle Server started successfully.")
    
         # ----- Model Tuning and Setup -----
         tuner_config = CMdtuner(
+            oracle=oracle,
             hypermodel_params=mql_overrides.env.all_params(),
-            traindataset=None,
-            valdataset=None,
-            testdataset=None,
+            traindataset=train_dataset,
+            valdataset=val_dataset,
+            testdataset=test_dataset,
             castmode='float32',
         )
         
-        #Oracle server setup
-        # Start Oracle server
-        tuner_config.multitune_initialize_tuner(hp=None)
-        # Chief usually does not do training
-        #tuner_config.initialize_tuner()
+        
+       
+        tuner_config.oracle = OracleClient(host="192.168.1.103", port=9000)
+        # --- Now run tuning normally ---
+        runtuner = tuner_config.run_search()
+        tuner_config.export_best_model(ftype='tf')
+
 
         logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
         best_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')

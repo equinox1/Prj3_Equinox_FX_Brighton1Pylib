@@ -300,7 +300,6 @@ class CMdtuner:
         if not (self.cnn_model or self.lstm_model or self.gru_model or self.transformer_model):
             raise ValueError("At least one model type (CNN, LSTM, GRU, Transformer) must be enabled.")
 
-        # run commands
         self.modelsummary = self.hypermodel_params.get('modelsummary', False)
         self.initialize_tuner()
 
@@ -336,11 +335,12 @@ class CMdtuner:
             raise ValueError(f"Unsupported input shape: {data_shape}. Must be 2D or 3D.")
         return tuple(data_shape)
 
-
     def initialize_tuner(self):
+        # Initialize hyperparameters (only once)
         hp = kt.HyperParameters()
         logger.info(f"Initializing tuner with hyperparameters... {hp}")
 
+        # Define common hyperparameters
         hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam', 'adadelta', 'adagrad', 'adamax'])
         hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4, 1e-5])
         hp.Choice('loss', ['binary_crossentropy', 'mse', 'mae', 'mape', 'msle', 'poisson', 'kld', 'cosine_similarity'])
@@ -354,22 +354,23 @@ class CMdtuner:
             hp.Fixed('epochs', self.min_epochs)
 
         if self.tunemode:
+            # Tuning for CNN branch
             hp.Int('num_cnn_layers', min_value=1, max_value=3, default=1)
             for i in range(3):
                 hp.Int(f'cnn_filters_{i}', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.defaultunits)
                 hp.Int(f'cnn_kernel_size_{i}', min_value=2, max_value=5, step=1, default=3)
                 hp.Choice(f'cnn_activation_{i}', ['relu', 'tanh', 'selu', 'elu', 'linear', 'sigmoid', 'softmax', 'softplus'])
-
+            # Tuning for LSTM branch
             hp.Int('num_lstm_layers', min_value=1, max_value=2, default=1)
             for i in range(2):
                 hp.Int(f'lstm_units_{i}', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.defaultunits)
                 hp.Choice(f'lstm_activation_{i}', ['tanh', 'relu'])
-
+            # Tuning for GRU branch
             hp.Int('num_gru_layers', min_value=1, max_value=2, default=1)
             for i in range(2):
                 hp.Int(f'gru_units_{i}', min_value=self.unitmin, max_value=self.unitmax, step=self.unitstep, default=self.defaultunits)
                 hp.Choice(f'gru_activation_{i}', ['tanh', 'relu'])
-
+            # Tuning for Transformer branch
             hp.Int('num_transformer_blocks', min_value=1, max_value=3, default=1)
             for i in range(3):
                 hp.Int(f'key_dim_{i}', min_value=self.trans_dim_min, max_value=self.trans_dim_max, step=self.trans_dim_step, default=self.trans_dim_default)
@@ -380,49 +381,47 @@ class CMdtuner:
             hp.Fixed('cnn_filters', 3)
             hp.Fixed('cnn_kernel_size', 3)
 
+        # Dense layer units
         hp.Int('dense_1_units', min_value=self.dense_units_min, max_value=self.dense_units_max, step=self.dense_units_step)
 
+        logger.info(f"Tuning Max epochs between {self.min_epochs} and {self.max_epochs}")
+        logger.info(f"Tuner mode: {self.tunemode}, Tuner mode epochs: {self.tunemodeepochs}")
+
         tuner_classes = {
-            'random': kt.RandomSearch,
+            'random':    kt.RandomSearch,
             'hyperband': kt.Hyperband,
-            'bayesian': kt.BayesianOptimization
+            'bayesian':  kt.BayesianOptimization
         }
-
-        if self.tunemode not in tuner_classes:
-            logger.error(f"Unsupported tuner type: {self.tunemode}")
-            self.tuner = None
-            return
-
+        logger.info(f"Tuner Service Checker: {self.tunemode}")
+        if self.tunemode in tuner_classes:
+            logger.info(f"Tuner Service is: {self.tunemode}")
+            logger.info(f" Tuner directory is {self.project_dir}")
+            logger.info(f" Tuner Project name is {self.modelname}")
         try:
-            tuner_args = {
-                "hypermodel": self.build_model,
-                "hyperparameters": hp,
-                "objective": self.objective,
-                "directory": self.project_dir,
-                "project_name": self.modelname,
-                "overwrite": self.overwrite,
-                "tune_new_entries": self.tune_new_entries,
-                "allow_new_entries": self.allow_new_entries,
-                "max_retries_per_trial": self.max_retries_per_trial,
-                "max_consecutive_failed_trials": self.max_consecutive_failed_trials,
-                "executions_per_trial": self.executions_per_trial,
-            }
-
-            if self.tunemode == 'hyperband':
-                tuner_args.update({
-                    "max_epochs": self.max_epochs,
-                    "factor": self.factor,
-                    "hyperband_iterations": self.hyperband_iterations
-                })
-
-            self.tuner = tuner_classes[self.tunemode](**tuner_args)
-            logger.info(f"Tuner initialized: {self.tunemode}")
-            self.tuner.search_space_summary()
-
+            if self.tunemode in tuner_classes:
+                self.tuner = tuner_classes[self.tunemode](
+                    hypermodel=self.build_model,
+                    hyperparameters=hp,
+                    hyperband_iterations=self.hyperband_iterations,
+                    objective=self.objective,
+                    max_epochs=self.max_epochs,
+                    factor=self.factor,
+                    directory=self.project_dir,
+                    project_name=self.modelname,
+                    overwrite=self.overwrite,
+                    tune_new_entries=self.tune_new_entries,
+                    allow_new_entries=self.allow_new_entries,
+                    max_retries_per_trial=self.max_retries_per_trial,
+                    max_consecutive_failed_trials=self.max_consecutive_failed_trials,
+                    executions_per_trial=self.executions_per_trial,
+                    #tune_new_trial_rpc_timeout=600 ,  # critical to avoid deadline errors
+                )
+                self.tuner.search_space_summary()
+            else:
+                raise ValueError(f"Unsupported keras_tuner type: {self.tunemode}")
         except Exception as e:
             logger.error(f"Error initializing tuner: {e}")
             self.tuner = None
-
 
     def build_model(self, hp):
         # Shared input setup
