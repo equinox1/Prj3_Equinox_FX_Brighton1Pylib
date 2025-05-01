@@ -2,50 +2,71 @@ import os
 import warnings
 import gc
 import logging
+
+os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
+os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 import tensorflow as tf
-import intel_tensorflow as itex
 from tensorflow.keras.mixed_precision import Policy
 
 from tsMqlPlatform import run_platform, platform_checker
 
+# -- Base Env Setup --
+os.environ.update({
+    "TF_FORCE_UNIFIED_MEMORY": "1",
+    "TF_DISABLE_POOL_ALLOCATOR": "1",
+    "TF_ENABLE_ONEDNN_OPTS": "0",
+    "TF_FORCE_GPU_ALLOW_GROWTH": "true",
+    "TF_DISABLE_MKL": "1",
+    "TF_CPU_ALLOCATOR_MAX_BYTES": str(128 * 1024**3),
+    "TF_GPU_ALLOCATOR_MAX_BYTES": str(128 * 1024**3),
+})
+
+# -- Platform Info --
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
 
 logger = logging.getLogger(__name__)
-logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
+logger.setLevel(logging.INFO)
+logger.info(f"Running on: {os_platform} | MQL Load State: {loadmql}")
+
 
 class CMqlSetup:
-    def __init__(self, tflog='2', warn='ignore', precision='mixed_float16', tfdebug=False, num_cores=24, num_threads=2, **kwargs):
+    def __init__(self, tflog='2', warn='ignore', precision='mixed_float16',
+                 tfdebug=False, num_cores=28, num_threads=2, **kwargs):
+
         self.tflog = tflog
         self.warn = warn
         self.precision = precision
         self.tfdebug = tfdebug
-        self.num_cores = num_cores
+        self.num_cores = num_cores  # Physical cores
         self.num_threads = num_threads
         self.sumthreads = self.num_cores * self.num_threads
         self.kwargs = kwargs
 
+        self._setup_warnings()
+        self._setup_tf_logging()
+        self._set_precision_policy()
+        self._configure_tf()
+        self._configure_debug()
+
+    def _setup_warnings(self):
         warnings.filterwarnings(self.warn)
+
+    def _setup_tf_logging(self):
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = self.tflog
-        os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
-        logger.info(f"TF_CPP_MIN_LOG_LEVEL: {os.environ['TF_CPP_MIN_LOG_LEVEL']}")
-        logger.info(f"TF_ENABLE_ONEDNN_OPTS: {os.environ['TF_ENABLE_ONEDNN_OPTS']}")
-
-        print(f"TensorFlow Version: {tf.__version__}")
+    def _set_precision_policy(self):
         tf.keras.mixed_precision.set_global_policy(Policy(self.precision))
 
-        self.__set_gpu_memory_growth()
-        self.__set_setup_tfdebug()
-        self.__set_multi_threading()
-
-    def __set_multi_threading(self):
+    def _configure_tf(self):
         os.environ.update({
-            "OMP_NUM_THREADS": str(self.num_cores),
-            "TF_NUM_INTRAOP_THREADS": str(self.num_cores),
-            "TF_NUM_INTEROP_THREADS": str(self.num_cores),
-            "MKL_NUM_THREADS": str(self.num_cores),
+            "OMP_NUM_THREADS": str(self.sumthreads),
+            "TF_NUM_INTRAOP_THREADS": str(self.sumthreads),
+            "TF_NUM_INTEROP_THREADS": str(self.num_threads),
+            "MKL_NUM_THREADS": str(self.sumthreads),
             "KMP_BLOCKTIME": "1",
             "KMP_SETTINGS": "1",
             "KMP_AFFINITY": "granularity=fine,compact,1,0",
@@ -58,143 +79,109 @@ class CMqlSetup:
 
         tf.config.threading.set_intra_op_parallelism_threads(self.sumthreads)
         tf.config.threading.set_inter_op_parallelism_threads(self.num_threads)
-        
+
         tf.config.optimizer.set_experimental_options({
             "auto_mixed_precision": True,
             "layout_optimizer": True,
-            "mkl": True,
-            "onednn": True
+            "mkl": False,
+            "onednn": False
         })
 
-    def __set_gpu_memory_growth(self):
+        self._enable_gpu_memory_growth()
+
+    def _enable_gpu_memory_growth(self):
+        try:
+            for gpu in tf.config.list_physical_devices('GPU'):
+                tf.config.experimental.set_memory_growth(gpu, True)
+        except RuntimeError as e:
+            logger.warning(f"Failed to set memory growth: {e}")
+
+    def _configure_debug(self):
+        if not self.tfdebug:
+            return
+
+        tf.debugging.set_log_device_placement(True)
+        tf.config.run_functions_eagerly(True)
+        tf.config.optimizer.set_jit(False)
+
         gpus = tf.config.list_physical_devices('GPU')
+        logger.info(f"GPUs available: {gpus}")
+
         if gpus:
             try:
-                for gpu in gpus:
-                    tf.config.experimental.set_memory_growth(gpu, True)
-            except RuntimeError as e:
-                print(e)
+                mem_info = tf.config.experimental.get_memory_info('GPU:0')
+                print("GPU Memory Info:", mem_info)
+            except Exception as e:
+                logger.warning(f"GPU memory info not available: {e}")
 
-    def __set_setup_tfdebug(self):
-        if self.tfdebug:
-            tf.debugging.set_log_device_placement(True)
-            tf.config.run_functions_eagerly(True)
-            tf.config.optimizer.set_jit(False)
+        import psutil
+        print("RAM Used:", psutil.virtual_memory().used / 1e9, "GB")
 
-            gpus = tf.config.list_physical_devices('GPU')
-            logger.info(f"GPUs Available: {gpus}")
-
-            for gpu in gpus:
-                tf.config.experimental.set_memory_growth(gpu, True)
-
-            if gpus:
-                try:
-                    memory_info = tf.config.experimental.get_memory_info('GPU:0')
-                    print("Current GPU Memory Usage:", memory_info)
-                except Exception as e:
-                    print(f"Error getting GPU memory info: {e}")
-
-            import psutil
-            print("RAM Usage:", psutil.virtual_memory().used / 1e9, "GB")
-
-            tf.keras.backend.clear_session()
-            gc.collect()
-
-    def get_computation_strategy_base(self):
-        try:
-            tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
-            tf.config.experimental_connect_to_cluster(tpu)
-            tf.tpu.experimental.initialize_tpu_system(tpu)
-            print("✅ Running on TPU")
-            return tf.distribute.TPUStrategy(tpu)
-        except ValueError:
-            print("⚠️ TPU not found, using default strategy")
-            return tf.distribute.get_strategy()
+        tf.keras.backend.clear_session()
+        gc.collect()
 
     def get_computation_strategy(self):
         try:
             tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
             tf.config.experimental_connect_to_cluster(tpu)
             tf.tpu.experimental.initialize_tpu_system(tpu)
-            print("✅ Running on TPU")
+            print("✅ Using TPU")
             return tf.distribute.TPUStrategy(tpu)
-        except (ValueError, tf.errors.NotFoundError) as e:
-            print(f"⚠️ TPU not found: {e}")
+        except Exception:
+            pass
 
-        try:
-            strategy = tf.distribute.MultiWorkerMirroredStrategy()
-            print("✅ Running on MultiWorker GPU/CPU")
-            return strategy
-        except (tf.errors.InternalError, tf.errors.UnavailableError) as e:
-            print(f"⚠️ MultiWorker strategy failed: {e}")
+        for strategy_cls, label in [
+            (tf.distribute.MultiWorkerMirroredStrategy, "MultiWorker GPU/CPU"),
+            (tf.distribute.MirroredStrategy, "Mirrored GPU/CPU"),
+            (lambda: tf.distribute.OneDeviceStrategy("/cpu:0"), "CPU (OneDevice)"),
+            (tf.distribute.experimental.ParameterServerStrategy, "Parameter Server"),
+            (tf.distribute.experimental.CentralStorageStrategy, "Central Storage"),
+        ]:
+            try:
+                strategy = strategy_cls()
+                print(f"✅ Using {label}")
+                return strategy
+            except Exception as e:
+                logger.warning(f"{label} failed: {e}")
 
-        try:
-            strategy = tf.distribute.MirroredStrategy()
-            print("✅ Running on Mirrored GPU/CPU")
-            return strategy
-        except (tf.errors.InternalError, tf.errors.UnavailableError) as e:
-            print(f"⚠️ Mirrored strategy failed: {e}")
-
-        try:
-            strategy = tf.distribute.OneDeviceStrategy(device="/cpu:0")
-            print("✅ Running on CPU")
-            return strategy
-        except Exception as e:
-            print(f"❌ Failed to initialize any strategy: {e}")
-            raise RuntimeError("No valid computation strategy could be initialized.")
-
-        try:
-            strategy = tf.distribute.experimental.ParameterServerStrategy()
-            print("✅ Running on Parameter Server")
-            return strategy
-        except (tf.errors.InternalError, tf.errors.UnavailableError) as e:
-            print(f"⚠️ Parameter Server strategy failed: {e}")
-
-        try:
-            strategy = tf.distribute.experimental.CentralStorageStrategy()
-            print("✅ Running on Central Storage")
-            return strategy 
-        except (tf.errors.InternalError, tf.errors.UnavailableError) as e:
-            print(f"⚠️ Central Storage strategy failed: {e}")
-
+        raise RuntimeError("❌ No valid strategy available.")
 
     def set_log_dir(self, logdir=None, logfile='tslog', servername=None):
         import socket
         hostname = os.getenv('HOSTNAME', socket.gethostname())
-        print(f"Set log: Hostname: {hostname}")
+        print(f"Hostname: {hostname}")
 
         if logdir is None:
             if hostname == servername and os_platform == 'Windows':
-                base_path = r'C:\\WinRunMnt1\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\\Logdir'
+                base_path = r'C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir'
             elif os_platform == 'Linux':
                 base_path = '/mnt/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir'
             elif os_platform == 'Darwin':
                 base_path = '/Users/shepa/OneDrive/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir'
             else:
-                base_path = r'C:\\Users\\shepa\\OneDrive\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\\Logdir'
+                base_path = os.path.expanduser('~/EQUINRUN/Logdir')
 
-            os.makedirs(base_path, exist_ok=True)
-            self.global_logdir = base_path
-            self.global_logfile = os.path.join(base_path, logfile)
-            if not os.path.exists(self.global_logfile):
-                with open(self.global_logfile, 'w') as f:
-                    f.write("Log file created successfully.")
+        os.makedirs(base_path, exist_ok=True)
+        self.global_logdir = base_path
+        self.global_logfile = os.path.join(base_path, logfile)
+
+        if not os.path.exists(self.global_logfile):
+            with open(self.global_logfile, 'w') as f:
+                f.write("Log file created.")
 
         return self.global_logdir, self.global_logfile
 
     def set_logger(self, global_logfile):
         logger = logging.getLogger(__name__)
         logger.setLevel(logging.DEBUG)
-
         if logger.hasHandlers():
             logger.handlers.clear()
 
         try:
             fh = logging.FileHandler(global_logfile, mode='w', encoding='utf-8')
         except OSError as e:
-            print(f"Error creating log file: {e}")
+            print(f"Failed to open logfile: {e}")
             fh = logging.FileHandler('fallback.log', mode='w', encoding='utf-8')
-            print("Fallback log file created: fallback.log")
 
         formatter = logging.Formatter(
             '%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s',
@@ -202,6 +189,5 @@ class CMqlSetup:
         )
         fh.setFormatter(formatter)
         logger.addHandler(fh)
-        logger.info("Logging configured successfully.")
-        logger.info("Logfile: %s", global_logfile)
+        logger.info("Logger initialized.")
         return logger

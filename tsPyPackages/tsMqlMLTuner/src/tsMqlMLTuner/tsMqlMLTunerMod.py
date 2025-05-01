@@ -13,6 +13,10 @@ License: MIT License
 import logging
 import os
 import pathlib
+# Machine Learning packages
+os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
+os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 import tensorflow as tf
 from datetime import date
 
@@ -624,23 +628,26 @@ class CMdtuner:
                 verbose=self.chk_verbosity,
                 callbacks=self.get_callbacks(),
                 batch_size=self.batch_size,
-                #use_multiprocessing=self.use_multiprocessing,
-                #workers=self.workers,
             )
             best_hps = self.tuner.get_best_hyperparameters(num_trials=1)[0]
             if not best_hps:
                 raise ValueError("No hyperparameters found. Ensure tuning has been run successfully.")
             logger.info(f"Best hyperparameters: {best_hps[0].values}")
-            
-            # If tunemodeepochs is enabled, retrieve the best epoch value and update the mltune overrides
+
             if self.tunemodeepochs:
                 best_epochs = best_hps[0].values.get('epochs', self.min_epochs)
                 logger.info(f"Best epochs from tuning: {best_epochs}")
                 if 'mltune' in self.hypermodel_params:
                     self.hypermodel_params['mltune']['epochs'] = best_epochs
                     logger.info("Updated mltune overrides with best epochs value.")
+        except tf.errors.ResourceExhaustedError as oom_err:
+            logger.error(f"OOM Error: {oom_err}")
+            logger.info("Consider lowering batch size or input width.")
+            raise
         except Exception as e:
             logger.error(f"Error during tuning: {e}")
+            raise
+
 
     @tf.function
     def _predict_graph(self, model, test_data):
