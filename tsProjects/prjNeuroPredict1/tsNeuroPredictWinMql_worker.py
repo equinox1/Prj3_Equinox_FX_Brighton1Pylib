@@ -24,7 +24,11 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 
-# Machine Learning packages
+## Machine Learning packages
+os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
+os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 import tensorflow as tf
 
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
