@@ -681,37 +681,34 @@ class CMdtuner:
         return ffn_out
 
     def run_search(self):
-        if self.tuner is None:
-            logger.error("Tuner not initialized. Aborting search.")
-            return
-        logger.info("Running tuner search...")
         try:
-            self.tuner.search(
-                self.traindataset,
-                validation_data=self.valdataset,
-                epochs=self.max_epochs,
-                verbose=self.chk_verbosity,
-                callbacks=self.get_callbacks(),
-                batch_size=self.batch_size,
-            )
-            best_hps = self.tuner.get_best_hyperparameters(num_trials=1)[0]
-            if not best_hps:
-                raise ValueError("No hyperparameters found. Ensure tuning has been run successfully.")
-            logger.info(f"Best hyperparameters: {best_hps[0].values}")
+            logger = self.logger if hasattr(self, 'logger') else logging.getLogger(__name__)
+            logger.info("Running tuner search...")
 
-            if self.tunemodeepochs:
-                best_epochs = best_hps[0].values.get('epochs', self.min_epochs)
-                logger.info(f"Best epochs from tuning: {best_epochs}")
-                if 'mltune' in self.hypermodel_params:
-                    self.hypermodel_params['mltune']['epochs'] = best_epochs
-                    logger.info("Updated mltune overrides with best epochs value.")
-        except tf.errors.ResourceExhaustedError as oom_err:
-            logger.error(f"OOM Error: {oom_err}")
-            logger.info("Consider lowering batch size or input width.")
-            raise
+            # Run the tuner search
+            self.tuner.search(self.traindataset,
+                            validation_data=self.valdataset,
+                            epochs=self.epochs,
+                            callbacks=self.get_callbacks(),
+                            verbose=1)
+
+            logger.info("Tuner search completed.")
+
+            # Get best hyperparameters
+            best_hps_list = self.tuner.get_best_hyperparameters(num_trials=1)
+            if not best_hps_list:
+                logger.warning("No best hyperparameters found.")
+                return False
+
+            best_hps = best_hps_list[0]
+            logger.info(f"Best hyperparameters: {best_hps.values}")
+
+            return True
+
         except Exception as e:
-            logger.error(f"Error during tuning: {e}")
-            raise
+            logger.error(f"Error during tuning: {e}", exc_info=True)
+            return False
+
 
 
     @tf.function

@@ -508,7 +508,7 @@ def main(logger):
             try:
                 # Set up callbacks (e.g., early stopping) if desired
                 callbacks = [
-    tensorboard_cb,
+                    tensorboard_cb,
                     tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
                 ]
                 logger.info("Training the best model...")
