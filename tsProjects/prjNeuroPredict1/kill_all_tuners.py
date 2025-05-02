@@ -1,8 +1,9 @@
 import psutil
 import os
 import signal
+import platform
 
-# List of script names to kill (customize this list as needed)
+# List of script names to kill
 SCRIPT_NAMES = [
     "chief_script.py",
     "worker_script.py",
@@ -10,18 +11,31 @@ SCRIPT_NAMES = [
     "oracle_client.py"
 ]
 
+def is_windows():
+    return platform.system().lower() == "windows"
+
 def kill_by_script_name(script_names):
+    killed = []
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
         try:
             cmdline = proc.info.get('cmdline') or []
             cmdline_str = ' '.join(cmdline)
+
             for script_name in script_names:
                 if script_name in cmdline_str:
-                    print(f"Killing PID {proc.pid} with command line: {cmdline_str}")
-                    os.kill(proc.pid, signal.SIGTERM)
-                    break  # No need to check other script names for this process
+                    print(f"[INFO] Killing PID {proc.pid} | CMD: {cmdline_str}")
+                    
+                    if is_windows():
+                        proc.terminate()  # os.kill with signal.SIGTERM isn't always reliable on Windows
+                    else:
+                        os.kill(proc.pid, signal.SIGTERM)
+
+                    killed.append((proc.pid, script_name))
+                    break  # Skip checking other script names
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            continue  # Skip processes that no longer exist or can't be accessed
+            continue
+    return killed
 
 if __name__ == "__main__":
-    kill_by_script_name(SCRIPT_NAMES)
+    killed_procs = kill_by_script_name(SCRIPT_NAMES)
+    print(f"[DONE] Killed {len(killed_procs)} matching processes.")

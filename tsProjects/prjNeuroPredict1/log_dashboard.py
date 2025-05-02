@@ -1,21 +1,40 @@
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import os
 import requests
-
-app = FastAPI()
+import logging
 
 # Configuration
 LOG_FILE = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir/tsneuropredict_app.log"
 ORACLE_API = "http://192.168.1.103:9000"
 
+# Initialize FastAPI app
+app = FastAPI(title="Tuner Dashboard")
+
+# Enable CORS (optional, helps with frontend access)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+
 @app.get("/", response_class=HTMLResponse)
 def read_logs():
+    """Display the latest 300 lines of the log file as HTML."""
     if not os.path.exists(LOG_FILE):
-        return "<h3>No log file found.</h3>"
+        return HTMLResponse("<h3>No log file found.</h3>", status_code=404)
+
     with open(LOG_FILE, "r", encoding="utf-8") as f:
         lines = f.readlines()[-300:]
+
     html_lines = "<br>".join(line.replace(" ", "&nbsp;") for line in lines)
+
     return f"""
     <html>
         <head>
@@ -32,14 +51,17 @@ def read_logs():
     </html>
     """
 
+
 @app.get("/trials", response_class=HTMLResponse)
 def show_trials():
+    """Render a table of current trials from the Oracle API."""
     try:
         response = requests.get(f"{ORACLE_API}/list_trials", timeout=5)
         response.raise_for_status()
         trials = response.json().get("trials", [])
     except Exception as e:
-        return f"<h3>Error fetching trials from Oracle server: {e}</h3>"
+        logging.error(f"Failed to fetch trials: {e}")
+        return HTMLResponse(f"<h3>Error fetching trials from Oracle server: {e}</h3>", status_code=502)
 
     rows = ""
     for trial in trials:
@@ -65,6 +87,29 @@ def show_trials():
         </body>
     </html>
     """
+
+
+@app.get("/api/logs", response_class=JSONResponse)
+def get_logs_json():
+    """Serve the last 300 lines of the log as JSON."""
+    if not os.path.exists(LOG_FILE):
+        return JSONResponse(content={"error": "Log file not found"}, status_code=404)
+
+    with open(LOG_FILE, "r", encoding="utf-8") as f:
+        lines = f.readlines()[-300:]
+    return {"log": lines}
+
+
+@app.get("/api/trials", response_class=JSONResponse)
+def get_trials_json():
+    """Serve trials data from the Oracle API as JSON."""
+    try:
+        response = requests.get(f"{ORACLE_API}/list_trials", timeout=5)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=502)
+
 
 if __name__ == "__main__":
     import uvicorn

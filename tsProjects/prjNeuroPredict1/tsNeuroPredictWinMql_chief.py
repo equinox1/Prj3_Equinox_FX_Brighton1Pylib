@@ -11,6 +11,7 @@
 import os
 import logging
 import subprocess
+import threading
 import pathlib
 from pathlib import Path
 import json
@@ -462,7 +463,12 @@ def main(logger):
             castmode='float16',
         )
         
+        def run_oracle_server():
+            oracle_server.start(host=oracle_host, port=oracle_port)
         
+        threading.Thread(target=run_oracle_server, daemon=True).start()
+        logger.info(f"Oracle Server started on {oracle_host}:{oracle_port}")
+
        
         tuner_config.oracle = OracleClient(host="192.168.1.103", port=9000)
         # --- Now run tuning normally ---
