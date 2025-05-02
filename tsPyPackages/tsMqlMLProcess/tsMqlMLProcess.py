@@ -394,10 +394,13 @@ class CDMLProcess:
          # Create training dataset
          train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
          train_dataset = train_dataset.shuffle(buffer_size=buffer_size).batch(batch_size)
+         #train_dataset = train_dataset.batch(batch_size, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
          # Create validation dataset
          val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(batch_size)
+         #val_dataset = val_dataset.batch(batch_size, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
          # Create test dataset
          test_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(batch_size)
+         #test_dataset = test_dataset.batch(batch_size, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
          return train_dataset, val_dataset, test_dataset
 
 

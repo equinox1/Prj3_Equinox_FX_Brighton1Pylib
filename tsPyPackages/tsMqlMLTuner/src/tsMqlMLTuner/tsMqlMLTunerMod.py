@@ -13,6 +13,7 @@ License: MIT License
 import logging
 import os
 import pathlib
+import uuid  # Ensure uuid is imported for use in get_callbacks
 # Machine Learning packages
 os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
 os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
@@ -431,6 +432,8 @@ class CMdtuner:
             self.tuner = None
 
 
+   
+
     def build_model(self, hp):
         # Shared input setup
         shared_input = Input(shape=self.main_input_shape, name='shared_input')
@@ -595,19 +598,73 @@ class CMdtuner:
     def get_callbacks(self):
         checkpoint_filepath = self.checkpoint_filepath
         logger.info(f"Checkpoint filepath: {checkpoint_filepath}")
-        # Ensure the checkpoint filepath is a string
         if checkpoint_filepath and isinstance(checkpoint_filepath, pathlib.Path):
             checkpoint_filepath = str(checkpoint_filepath)
             logger.info(f"Converted checkpoint filepath to string: {checkpoint_filepath}")
-        # Ensure the checkpoint filepath ends with ".keras"
-        if checkpoint_filepath and not os.path.join(checkpoint_filepath,self.modelname).endswith('.keras'):
-            checkpoint_filepath = self.modelpath + '.keras'
-        return [
+
+        tuner_id = os.environ.get("TUNER_ID", f"worker_{uuid.uuid4().hex[:6]}")
+        checkpoint_filepath = os.path.join(self.modeldatapath, f"{self.modelname}_{tuner_id}.keras")
+
+        callbacks = [
             EarlyStopping(monitor=self.objective, patience=self.chk_patience, verbose=self.chk_verbosity, restore_best_weights=True),
-            ModelCheckpoint(filepath=checkpoint_filepath, save_best_only=self.save_best_only, verbose=self.chk_verbosity) if checkpoint_filepath else None,
             TensorBoard(log_dir=os.path.join(self.modeldatapath, 'tboard_logs')),
             ReduceLROnPlateau(monitor=self.objective, factor=0.1, patience=self.chk_patience, min_lr=1e-6, verbose=self.chk_verbosity)
         ]
+
+        if tuner_id.lower() == "chief":
+            callbacks.insert(1, ModelCheckpoint(filepath=checkpoint_filepath, save_best_only=self.save_best_only, verbose=self.chk_verbosity))
+        else:
+            logger.info(f"Skipping ModelCheckpoint on worker: {tuner_id}")
+
+        return callbacks
+
+    def export_best_model(self, ftype='tf'):
+        try:
+            tuner_id = os.environ.get("TUNER_ID", "worker")
+            if tuner_id.lower() != "chief":
+                logger.info(f"Skipping export_best_model: not chief (TUNER_ID={tuner_id})")
+                return
+
+            best_model = self.tuner.get_best_models(num_models=1)[0]
+            export_path = os.path.join(self.project_dir, self.modelname)
+            os.makedirs(os.path.dirname(export_path), exist_ok=True)
+            logger.info(f"Exporting best model to {export_path}")
+            if ftype == 'h5':
+                export_filepath = export_path + '.h5'
+                best_model.save(export_filepath)
+                logger.info(f"Model saved to {export_filepath}")
+            else:
+                export_filepath = export_path + '.keras'
+                best_model.save(export_filepath)
+                logger.info(f"Model saved to {export_filepath}")
+        except IndexError:
+            logger.info("No models found to export.")
+        except Exception as e:
+            logger.info(f"Error saving the model: {e}")
+
+
+    def transformer_block_new(self, inputs, hp, block_num, dim):
+        key_dim = hp.get(f'key_dim_{block_num}')
+        num_heads = hp.get(f'num_heads_{block_num}')
+        ff_dim = hp.get(f'ff_dim_{block_num}')
+        activation = hp.get(f'transformer_activation_{block_num}')
+
+        # Step 1: Project to expected feature dim = num_heads * key_dim
+        projected_dim = num_heads * key_dim
+        x = Dense(projected_dim)(inputs)
+
+        # Step 2: Multi-Head Attention
+        attn_out = MultiHeadAttention(num_heads=num_heads, key_dim=key_dim)(x, x)
+        x = LayerNormalization()(x + attn_out)
+
+        # Step 3: Feed-forward
+        ffn_out = Dense(ff_dim, activation=activation)(x)
+        ffn_out = Dropout(0.2)(ffn_out)
+        ffn_out = Dense(projected_dim)(ffn_out)
+        x = LayerNormalization()(x + ffn_out)
+        x = Dropout(0.2)(x)
+
+        return x
 
     def transformer_block(self, inputs, hp, block_num, dim):
         key_dim = hp.get(f'key_dim_{block_num}')
@@ -677,34 +734,19 @@ class CMdtuner:
             logger.info(f"Error during prediction: {e}")
             return None
 
-    def export_best_model(self, ftype='tf'):
-        try:
-            best_model = self.tuner.get_best_models(num_models=1)[0]
-            export_path = os.path.join(self.project_dir, self.modelname)
-            os.makedirs(os.path.dirname(export_path), exist_ok=True)
-            logger.info(f"Exporting best model to {export_path}")
-            if ftype == 'h5':
-                export_filepath = export_path + '.h5'
-                best_model.save(export_filepath)
-                logger.info(f"Model saved to {export_filepath}")
-            else:
-                # Ensure .keras extension is used for TensorFlow format exports
-                export_filepath = export_path + '.keras'
-                best_model.save(export_filepath)
-                logger.info(f"Model saved to {export_filepath}")
-        except IndexError:
-            logger.info("No models found to export.")
-        except Exception as e:
-            logger.info(f"Error saving the model: {e}")
-
     def check_and_load_model(self, lpbase_path, ftype='tf'):
+        tuner_id = os.environ.get("TUNER_ID", "worker")
+        if tuner_id.lower() != "chief":
+            logger.info(f"Skipping check_and_load_model: not chief (TUNER_ID={tuner_id})")
+            return None
+
         logger.info(f"Checking for model file at base_path {lpbase_path}")
         logger.info(f"Model name: {self.modelname}")
         if ftype == 'h5':
             localmodel = self.modelname + '.h5'
             model_path = os.path.join(lpbase_path, localmodel)
             logger.info(f"Model path h5 : {model_path}")
-        if ftype == 'tf':
+        elif ftype == 'tf':
             localmodel = self.modelname + '.keras'
             model_path = os.path.join(lpbase_path, localmodel)
             logger.info(f"Model path keras : {model_path}")
