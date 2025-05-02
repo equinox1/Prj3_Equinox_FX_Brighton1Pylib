@@ -2,6 +2,7 @@ from keras_tuner.engine.oracle import Oracle
 from keras_tuner.engine.trial import Trial
 from keras_tuner.engine.hyperparameters import HyperParameters
 
+
 class CustomOracle(Oracle):
     def __init__(self, objective="val_loss", max_trials=50, seed=42):
         super().__init__(
@@ -9,9 +10,10 @@ class CustomOracle(Oracle):
             max_trials=max_trials,
             seed=seed,
         )
-        # Manually add what is missing:
+        # Required for directory/project structure (though unused in your setup)
         self._directory = "oracle_dir"
         self._project_name = "oracle_project"
+        self._trials = {}  # ✅ Initialize the trials dictionary
 
     def populate_space(self, trial_id):
         hp = HyperParameters()
