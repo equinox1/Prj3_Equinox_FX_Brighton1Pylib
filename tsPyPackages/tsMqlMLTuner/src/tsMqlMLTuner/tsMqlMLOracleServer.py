@@ -45,6 +45,18 @@ class OracleServer:
                 return {"message": f"Status updated to {update.status}"}
             raise HTTPException(status_code=404, detail="Trial not found")
 
+        @self.app.get("/list_trials")
+        def list_trials():
+            trials = []
+            for trial_id, trial in self.oracle._trials.items():
+                trials.append({
+                    "trial_id": trial_id,
+                    "status": trial.status,
+                    "score": getattr(trial, "score", None),
+                    "hyperparameters": trial.hyperparameters.values
+                })
+            return {"trials": trials}
+
 
 
     def start(self, host="0.0.0.0", port=9000):
