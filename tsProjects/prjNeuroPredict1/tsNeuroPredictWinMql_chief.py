@@ -469,11 +469,14 @@ def main(logger):
         threading.Thread(target=run_oracle_server, daemon=True).start()
         logger.info(f"Oracle Server started on {oracle_host}:{oracle_port}")
 
-       
+        # --- Disable model weight saving globally to prevent Windows file lock errors ---
+        tuner_config.tuner._save_model = lambda: None
+
         tuner_config.oracle = OracleClient(host="192.168.1.103", port=9000)
         # --- Now run tuning normally ---
         runtuner = tuner_config.run_search()
         tuner_config.export_best_model(ftype='tf')
+
 
 
         logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
