@@ -422,6 +422,7 @@ class CMdtuner:
                 })
 
             self.tuner = tuner_classes[self.tunemode](**tuner_args)
+            self.tuner._save_model = lambda: None  # Disable weight-saving to avoid file lock issues on Windows
             logger.info(f"Tuner initialized: {self.tunemode}")
             self.tuner.search_space_summary()
 
@@ -527,12 +528,19 @@ class CMdtuner:
             branches.append(transformer_branch)
 
         # Concatenate branches if multiple are enabled
+        for i, b in enumerate(branches):
+            logger.info(f"Branch {i} output shape: {b.shape}")
+
         concatenated = Concatenate()(branches) if self.multi_branches else branches[0]
+
+        # NEW: Compress concatenated vector to control final tensor size
+        merged = Dense(512, activation='relu')(concatenated)
+
         dense_1 = Dense(
             units=hp.get('dense_1_units'),
             activation=hp.get('dense_1_activation') if self.tunemode else 'relu',
             kernel_regularizer=tf.keras.regularizers.l2(hp.get('l2_reg'))
-        )(concatenated)
+        )(merged)
         dense_dropout = Dropout(0.2)(dense_1)
         output = Dense(1, activation="sigmoid")(dense_dropout)
 
