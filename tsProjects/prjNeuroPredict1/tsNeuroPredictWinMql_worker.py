@@ -464,8 +464,10 @@ def main(logger):
             castmode='float16',
         )
         
+        # --- Disable model weight saving globally to prevent Windows file lock errors ---
+        tuner_config.tuner._save_model = lambda: None
+
         
-       
         tuner_config.oracle = OracleClient(host="192.168.1.103", port=9000)
         # --- Now run tuning normally ---
         runtuner = tuner_config.run_search()
