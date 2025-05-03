@@ -680,36 +680,41 @@ class CMdtuner:
         ffn_out = Dropout(0.2)(ffn_out)
         return ffn_out
 
+
     def run_search(self):
-        try:
-            logger = self.logger if hasattr(self, 'logger') else logging.getLogger(__name__)
-            logger.info("Running tuner search...")
+        strategy = tf.distribute.get_strategy()
+        with strategy.scope():
+            try:
+                logger = self.logger if hasattr(self, 'logger') else logging.getLogger(__name__)
+                logger.info("Running tuner search...")
 
-            # Run the tuner search
-            self.tuner.search(self.traindataset,
-                            validation_data=self.valdataset,
-                            epochs=self.epochs,
-                            callbacks=self.get_callbacks(),
-                            verbose=1)
+                # Run the tuner search
+                self.tuner.search(self.traindataset,
+                                validation_data=self.valdataset,
+                                epochs=self.epochs,
+                                callbacks=self.get_callbacks(),
+                                verbose=1)
 
-            logger.info("Tuner search completed.")
+                logger.info("Tuner search completed.")
 
-            # Get best hyperparameters
-            best_hps_list = self.tuner.get_best_hyperparameters(num_trials=1)
-            if not best_hps_list:
-                logger.warning("No best hyperparameters found.")
+                # Get best hyperparameters
+                best_hps_list = self.tuner.get_best_hyperparameters(num_trials=1)
+                if not best_hps_list:
+                    logger.warning("No best hyperparameters found.")
+                    return False
+
+                best_hps = best_hps_list[0]
+                logger.info(f"Best hyperparameters: {best_hps.values}")
+
+                return True
+
+            except Exception as e:
+                logger.error(f"Error during tuning: {e}", exc_info=True)
                 return False
-
-            best_hps = best_hps_list[0]
-            logger.info(f"Best hyperparameters: {best_hps.values}")
-
-            return True
-
-        except Exception as e:
-            logger.error(f"Error during tuning: {e}", exc_info=True)
-            return False
-
-
+            finally:
+                if hasattr(self, 'tuner'):
+                    self.tuner.search_space_summary()
+                    self.tuner.results_summary()    
 
     @tf.function
     def _predict_graph(self, model, test_data):
