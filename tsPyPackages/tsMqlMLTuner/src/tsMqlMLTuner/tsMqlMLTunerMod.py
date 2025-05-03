@@ -435,152 +435,138 @@ class CMdtuner:
    
 
     def build_model(self, hp):
-        # Shared input setup
-        shared_input = Input(shape=self.main_input_shape, name='shared_input')
-        if len(self.main_input_shape) == 3 and None in self.main_input_shape:
-            shared_input = Reshape(self.main_input_shape[1:])(shared_input)
-        inputs = [] if self.multi_inputs else [shared_input]
-        branches = []
-        logger.info(f"Shared input shape: {shared_input.shape}, multi_inputs: {self.multi_inputs}")
+            # Shared input setup
+            shared_input = Input(shape=self.main_input_shape, name='shared_input')
+            
+            # Handle possible (None, timesteps, features, 1) input
+            if len(self.main_input_shape) == 3 and self.main_input_shape[-1] == 1:
+                shared_input = Reshape(self.main_input_shape[:2])(shared_input)
+            
+            inputs = [] if self.multi_inputs else [shared_input]
+            branches = []
+            logger.info(f"Shared input shape: {shared_input.shape}, multi_inputs: {self.multi_inputs}")
 
-        # CNN Branch
-        if self.cnn_model:
-            cnn_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='cnn_input')
-            if self.multi_inputs:
-                inputs.append(cnn_input)
-            logger.info(f"Input shape cnn: {cnn_input.shape}")
-            cnn_branch = cnn_input
-            if self.tunemode:
-                num_cnn_layers = hp.get('num_cnn_layers')
-                for i in range(num_cnn_layers):
-                    filters = hp.get(f'cnn_filters_{i}')
-                    kernel_size = hp.get(f'cnn_kernel_size_{i}')
-                    activation = hp.get(f'cnn_activation_{i}')
+            # CNN Branch
+            if self.cnn_model:
+                cnn_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='cnn_input')
+                if self.multi_inputs:
+                    inputs.append(cnn_input)
+                logger.info(f"Input shape cnn: {cnn_input.shape}")
+                cnn_branch = cnn_input
+                if len(cnn_branch.shape) == 4:
+                    cnn_branch = Reshape(target_shape=cnn_branch.shape[1:3])(cnn_branch)
+
+                if self.tunemode:
+                    num_cnn_layers = hp.get('num_cnn_layers')
+                    for i in range(num_cnn_layers):
+                        filters = hp.get(f'cnn_filters_{i}')
+                        kernel_size = hp.get(f'cnn_kernel_size_{i}')
+                        activation = hp.get(f'cnn_activation_{i}')
+                        cnn_branch = Conv1D(filters=filters, kernel_size=kernel_size, activation=activation, padding='same')(cnn_branch)
+                        cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
+                        cnn_branch = LayerNormalization()(cnn_branch)
+                        cnn_branch = Dropout(0.2)(cnn_branch)
+                else:
+                    filters = hp.get('cnn_filters')
+                    kernel_size = hp.get('cnn_kernel_size')
+                    activation = 'relu'
                     cnn_branch = Conv1D(filters=filters, kernel_size=kernel_size, activation=activation, padding='same')(cnn_branch)
                     cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
                     cnn_branch = LayerNormalization()(cnn_branch)
                     cnn_branch = Dropout(0.2)(cnn_branch)
-            else:
-                filters = hp.get('cnn_filters')
-                kernel_size = hp.get('cnn_kernel_size')
-                activation = 'relu'
-                cnn_branch = Conv1D(filters=filters, kernel_size=kernel_size, activation=activation, padding='same')(cnn_branch)
-                cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
-                cnn_branch = LayerNormalization()(cnn_branch)
-                cnn_branch = Dropout(0.2)(cnn_branch)
-            cnn_branch = Flatten()(cnn_branch)
-            branches.append(cnn_branch)
+                cnn_branch = Flatten()(cnn_branch)
+                branches.append(cnn_branch)
 
-        # LSTM Branch
-        if self.lstm_model:
-            lstm_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='lstm_input')
-            if self.multi_inputs:
-                inputs.append(lstm_input)
-            logger.info(f"Input shape lstm: {lstm_input.shape}")
-            lstm_branch = lstm_input
-            if self.tunemode:
-                num_lstm_layers = hp.get('num_lstm_layers')
-                for i in range(num_lstm_layers):
-                    units = hp.get(f'lstm_units_{i}')
-                    activation = hp.get(f'lstm_activation_{i}')
-                    lstm_branch = LSTM(units=units, activation=activation, return_sequences=(i < num_lstm_layers - 1))(lstm_branch)
+            # LSTM Branch
+            if self.lstm_model:
+                lstm_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='lstm_input')
+                if self.multi_inputs:
+                    inputs.append(lstm_input)
+                logger.info(f"Input shape lstm: {lstm_input.shape}")
+                lstm_branch = lstm_input
+                if self.tunemode:
+                    num_lstm_layers = hp.get('num_lstm_layers')
+                    for i in range(num_lstm_layers):
+                        units = hp.get(f'lstm_units_{i}')
+                        activation = hp.get(f'lstm_activation_{i}')
+                        lstm_branch = LSTM(units=units, activation=activation, return_sequences=(i < num_lstm_layers - 1))(lstm_branch)
+                        lstm_branch = LayerNormalization()(lstm_branch)
+                        lstm_branch = Dropout(0.2)(lstm_branch)
+                else:
+                    lstm_branch = LSTM(units=128, activation='tanh', return_sequences=False)(lstm_branch)
                     lstm_branch = LayerNormalization()(lstm_branch)
                     lstm_branch = Dropout(0.2)(lstm_branch)
-            else:
-                lstm_branch = LSTM(units=128, activation='tanh', return_sequences=False)(lstm_branch)
-                lstm_branch = LayerNormalization()(lstm_branch)
-                lstm_branch = Dropout(0.2)(lstm_branch)
-            branches.append(lstm_branch)
+                branches.append(lstm_branch)
 
-        # GRU Branch
-        if self.gru_model:
-            gru_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='gru_input')
-            if self.multi_inputs:
-                inputs.append(gru_input)
-            logger.info(f"Input shape gru: {gru_input.shape}")
-            gru_branch = gru_input
-            if self.tunemode:
-                num_gru_layers = hp.get('num_gru_layers')
-                for i in range(num_gru_layers):
-                    units = hp.get(f'gru_units_{i}')
-                    activation = hp.get(f'gru_activation_{i}')
-                    gru_branch = GRU(units=units, activation=activation, return_sequences=(i < num_gru_layers - 1))(gru_branch)
+            # GRU Branch
+            if self.gru_model:
+                gru_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='gru_input')
+                if self.multi_inputs:
+                    inputs.append(gru_input)
+                logger.info(f"Input shape gru: {gru_input.shape}")
+                gru_branch = gru_input
+                if self.tunemode:
+                    num_gru_layers = hp.get('num_gru_layers')
+                    for i in range(num_gru_layers):
+                        units = hp.get(f'gru_units_{i}')
+                        activation = hp.get(f'gru_activation_{i}')
+                        gru_branch = GRU(units=units, activation=activation, return_sequences=(i < num_gru_layers - 1))(gru_branch)
+                        gru_branch = LayerNormalization()(gru_branch)
+                        gru_branch = Dropout(0.2)(gru_branch)
+                else:
+                    gru_branch = GRU(units=128, activation='tanh', return_sequences=False)(gru_branch)
                     gru_branch = LayerNormalization()(gru_branch)
                     gru_branch = Dropout(0.2)(gru_branch)
+                branches.append(gru_branch)
+
+            # Transformer Branch
+            if self.transformer_model:
+                transformer_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='transformer_input')
+                if self.multi_inputs:
+                    inputs.append(transformer_input)
+                logger.info(f"Input shape transformer: {transformer_input.shape}")
+                transformer_branch = transformer_input
+                transformer_branch = MaxPooling1D(pool_size=16, padding='same')(transformer_branch)
+                num_transformer_blocks = hp.get('num_transformer_blocks') if self.tunemode else 1
+                for i in range(num_transformer_blocks):
+                    transformer_branch = self.transformer_block(transformer_branch, hp, i, hp.get(f'key_dim_{i}'))
+                transformer_branch = GlobalAveragePooling1D()(transformer_branch)
+                transformer_branch = Dense(64, activation=hp.get('dense_1_activation') if self.tunemode else 'relu')(transformer_branch)
+                transformer_branch = Dropout(0.2)(transformer_branch)
+                branches.append(transformer_branch)
+
+            # Combine branches
+            for i, b in enumerate(branches):
+                logger.info(f"Branch {i} output shape: {b.shape}")
+            concatenated = Concatenate()(branches) if self.multi_branches else branches[0]
+            merged = Dense(512, activation='relu')(concatenated)
+            dense_1 = Dense(
+                units=hp.get('dense_1_units'),
+                activation=hp.get('dense_1_activation') if self.tunemode else 'relu',
+                kernel_regularizer=tf.keras.regularizers.l2(hp.get('l2_reg'))
+            )(merged)
+            dense_dropout = Dropout(0.2)(dense_1)
+            output = Dense(1, activation="sigmoid")(dense_dropout)
+
+            logger.info(f"Including {len(inputs)} input(s) and {len(branches)} branch(es).")
+            model = Model(inputs=inputs if self.multi_inputs else inputs[0], outputs=output)
+
+            if self.tunemode:
+                loss_fn = hp.get('loss')
+                metric_fn = hp.get('metric')
+                optimizer = self.get_optimizer(hp.get('optimizer'), hp.get('learning_rate'))
             else:
-                gru_branch = GRU(units=128, activation='tanh', return_sequences=False)(gru_branch)
-                gru_branch = LayerNormalization()(gru_branch)
-                gru_branch = Dropout(0.2)(gru_branch)
-            branches.append(gru_branch)
+                loss_fn = 'mse'
+                metric_fn = 'mse'
+                optimizer = self.get_optimizer('adam', 1e-3)
 
-        # Transformer Branch
-        if self.transformer_model:
-            transformer_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='transformer_input')
-            if self.multi_inputs:
-                inputs.append(transformer_input)
-            logger.info(f"Input shape transformer: {transformer_input.shape}")
-            transformer_branch = transformer_input
-            # Downsample sequence length to reduce memory usage.
-            transformer_branch = MaxPooling1D(pool_size=16, padding='same')(transformer_branch)
-            num_transformer_blocks = hp.get('num_transformer_blocks') if self.tunemode else 1
-            for i in range(num_transformer_blocks):
-                transformer_branch = self.transformer_block(transformer_branch, hp, i, hp.get(f'key_dim_{i}'))
-            transformer_branch = GlobalAveragePooling1D()(transformer_branch)
-            transformer_branch = Dense(64, activation=hp.get('dense_1_activation') if self.tunemode else 'relu')(transformer_branch)
-            transformer_branch = Dropout(0.2)(transformer_branch)
-            branches.append(transformer_branch)
+            model.compile(optimizer=optimizer, loss=loss_fn, steps_per_execution=50, metrics=[metric_fn])
 
-        # Concatenate branches if multiple are enabled
-        for i, b in enumerate(branches):
-            logger.info(f"Branch {i} output shape: {b.shape}")
+            if self.modelsummary:
+                model.summary()
 
-        concatenated = Concatenate()(branches) if self.multi_branches else branches[0]
+            return model
 
-        # NEW: Compress concatenated vector to control final tensor size
-        merged = Dense(512, activation='relu')(concatenated)
-
-        dense_1 = Dense(
-            units=hp.get('dense_1_units'),
-            activation=hp.get('dense_1_activation') if self.tunemode else 'relu',
-            kernel_regularizer=tf.keras.regularizers.l2(hp.get('l2_reg'))
-        )(merged)
-        dense_dropout = Dropout(0.2)(dense_1)
-        output = Dense(1, activation="sigmoid")(dense_dropout)
-
-        logger.info(f"Including {len(inputs)} input(s) and {len(branches)} branch(es).")
-        if len(inputs) == 1:
-            logger.info(f"Input shape: {inputs[0].shape}")
-            model = Model(inputs=inputs, outputs=output)
-        else:
-            logger.info("Input shapes: " + ", ".join(str(inp.shape) for inp in inputs))
-            model = Model(inputs=inputs, outputs=output)
-
-        if len(branches) == 1:
-            logger.info(f"Branch shape: {branches[0].shape}")
-        else:
-            logger.info("Branch shapes: " + ", ".join(str(branch.shape) for branch in branches))
-        logger.info(f"Output shape: {output.shape}")
-        logger.info("Model built and compiled.")
-
-        if self.tunemode:
-            loss_fn   = hp.get('loss')
-            metric_fn = hp.get('metric')
-            optimizer = self.get_optimizer(hp.get('optimizer'), hp.get('learning_rate'))
-        else:
-            loss_fn   = 'mse'
-            metric_fn = 'mse'
-            optimizer = self.get_optimizer('adam', 1e-3)
-
-        model.compile(
-            optimizer=optimizer,
-            loss=loss_fn,
-            steps_per_execution=50,
-            metrics=[metric_fn]
-        )
-
-        if self.modelsummary:
-            model.summary()
-        return model
 
     def get_optimizer(self, optimizer_name, learning_rate):
         optimizers = {
@@ -643,43 +629,45 @@ class CMdtuner:
             logger.info(f"Error saving the model: {e}")
 
 
-    def transformer_block_new(self, inputs, hp, block_num, dim):
-        key_dim = hp.get(f'key_dim_{block_num}')
-        num_heads = hp.get(f'num_heads_{block_num}')
-        ff_dim = hp.get(f'ff_dim_{block_num}')
-        activation = hp.get(f'transformer_activation_{block_num}')
+    def transformer_block(self, inputs, hp, block_num, dim, use_positional_encoding=True, use_causal_mask=False):
+            key_dim = hp.get(f'key_dim_{block_num}')
+            num_heads = hp.get(f'num_heads_{block_num}')
+            ff_dim = hp.get(f'ff_dim_{block_num}')
+            activation = hp.get(f'transformer_activation_{block_num}')
+            projected_dim = num_heads * key_dim
 
-        # Step 1: Project to expected feature dim = num_heads * key_dim
-        projected_dim = num_heads * key_dim
-        x = Dense(projected_dim)(inputs)
+            x = inputs
 
-        # Step 2: Multi-Head Attention
-        attn_out = MultiHeadAttention(num_heads=num_heads, key_dim=key_dim)(x, x)
-        x = LayerNormalization()(x + attn_out)
+            # Optional: Positional Encoding (sinusoidal)
+            if use_positional_encoding:
+                seq_len = tf.shape(x)[1]
+                pos_encoding = self.get_positional_encoding(seq_len, projected_dim)
+                x = Dense(projected_dim)(x)
+                x += pos_encoding
+            else:
+                x = Dense(projected_dim)(x)
 
-        # Step 3: Feed-forward
-        ffn_out = Dense(ff_dim, activation=activation)(x)
-        ffn_out = Dropout(0.2)(ffn_out)
-        ffn_out = Dense(projected_dim)(ffn_out)
-        x = LayerNormalization()(x + ffn_out)
-        x = Dropout(0.2)(x)
+            # Multi-head attention with optional causal masking
+            attn_out = MultiHeadAttention(
+                num_heads=num_heads,
+                key_dim=key_dim,
+                dropout=0.1,
+                use_causal_mask=use_causal_mask
+            )(x, x)
+            x = LayerNormalization()(x + attn_out)
 
-        return x
+            # Feed-forward
+            ffn_out = Dense(ff_dim, activation=activation)(x)
+            ffn_out = Dropout(0.2)(ffn_out)
+            ffn_out = Dense(projected_dim)(ffn_out)
 
-    def transformer_block(self, inputs, hp, block_num, dim):
-        key_dim = hp.get(f'key_dim_{block_num}')
-        num_heads = hp.get(f'num_heads_{block_num}')
-        ff_dim = hp.get(f'ff_dim_{block_num}')
-        activation = hp.get(f'transformer_activation_{block_num}')
-        attn_out = MultiHeadAttention(num_heads=num_heads, key_dim=key_dim)(inputs, inputs)
-        attn_out = LayerNormalization()(inputs + attn_out)
-        ffn_out = Dense(ff_dim, activation=activation)(attn_out)
-        ffn_out = Dropout(0.2)(ffn_out)
-        ffn_out = Dense(inputs.shape[-1])(ffn_out)
-        ffn_out = LayerNormalization()(attn_out + ffn_out)
-        ffn_out = Dropout(0.2)(ffn_out)
-        return ffn_out
+            x = LayerNormalization()(x + ffn_out)
+            x = Dropout(0.2)(x)
 
+            return x
+
+
+    
 
     def run_search(self):
         strategy = tf.distribute.get_strategy()
@@ -772,3 +760,12 @@ class CMdtuner:
         except Exception as e:
             logger.info(f"Error retrieving best hyperparameters: {e}")
             return None
+
+    def get_positional_encoding(self, seq_len, dim):
+        position = tf.range(seq_len, dtype=tf.float32)[:, tf.newaxis]
+        div_term = tf.exp(tf.range(0, dim, 2, dtype=tf.float32) * (-tf.math.log(10000.0) / dim))
+        pe = tf.zeros((seq_len, dim))
+        pe[:, 0::2] = tf.math.sin(position * div_term)
+        pe[:, 1::2] = tf.math.cos(position * div_term)
+        pe = tf.expand_dims(pe, axis=0)
+        return tf.cast(pe, dtype=tf.float16 if mixed_precision.global_policy().compute_dtype == 'float16' else tf.float32)
