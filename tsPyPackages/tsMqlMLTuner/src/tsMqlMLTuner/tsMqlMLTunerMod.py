@@ -20,6 +20,10 @@ os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 import tensorflow as tf
 from datetime import date
+import numpy as np
+from keras_tuner.engine.hyperparameters import HyperParameters
+from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
+from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
@@ -56,6 +60,7 @@ import numpy as np
 mixed_precision.set_global_policy('mixed_float16')
 import gc
 gc.collect()
+
 
 
 class CMdtuner:
@@ -332,10 +337,17 @@ class CMdtuner:
     def prepare_shapes(self):
         if not self.data_input_shape:
             raise ValueError("Data input shape must be specified.")
+        # Normalize 4D input shape (batch, time, features, channels) to 3D (time, features)
         if len(self.data_input_shape) == 4:
-            self.data_input_shape = self.data_input_shape[1:]
-            logger.info(f"Adjusted data input shape to: {self.data_input_shape}")
+            self.data_input_shape = self.data_input_shape[1:3]  # Remove batch and channel dimensions
+            logger.info(f"Adjusted 4D data input shape to 3D: {self.data_input_shape}")
+        elif len(self.data_input_shape) == 2:
+            self.data_input_shape = (*self.data_input_shape, 1)
+        elif len(self.data_input_shape) == 3:
+            self.data_input_shape = self.data_input_shape[1:]  # Remove batch dimension if present
+            logger.info(f"Adjusted 3D data input shape: {self.data_input_shape}")
         self.main_input_shape = self.get_shape(self.data_input_shape)
+
 
     @staticmethod
     def get_shape(data_shape):
@@ -432,141 +444,126 @@ class CMdtuner:
             self.tuner = None
 
 
-   
-
     def build_model(self, hp):
-            # Shared input setup
-            shared_input = Input(shape=self.main_input_shape, name='shared_input')
-            
-            # Handle possible (None, timesteps, features, 1) input
-            if len(self.main_input_shape) == 3 and self.main_input_shape[-1] == 1:
-                shared_input = Reshape(self.main_input_shape[:2])(shared_input)
-            
-            inputs = [] if self.multi_inputs else [shared_input]
-            branches = []
-            logger.info(f"Shared input shape: {shared_input.shape}, multi_inputs: {self.multi_inputs}")
+        shared_input = Input(shape=self.main_input_shape, name='shared_input')
+        inputs = [] if self.multi_inputs else [shared_input]
+        branches = []
+        logger.info(f"Shared input shape: {shared_input.shape}, multi_inputs: {self.multi_inputs}")
 
-            # CNN Branch
-            if self.cnn_model:
-                cnn_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='cnn_input')
-                if self.multi_inputs:
-                    inputs.append(cnn_input)
-                logger.info(f"Input shape cnn: {cnn_input.shape}")
-                cnn_branch = cnn_input
-                if len(cnn_branch.shape) == 4:
-                    cnn_branch = Reshape(target_shape=cnn_branch.shape[1:3])(cnn_branch)
+        from tensorflow.keras.backend import int_shape
 
-                if self.tunemode:
-                    num_cnn_layers = hp.get('num_cnn_layers')
-                    for i in range(num_cnn_layers):
-                        filters = hp.get(f'cnn_filters_{i}')
-                        kernel_size = hp.get(f'cnn_kernel_size_{i}')
-                        activation = hp.get(f'cnn_activation_{i}')
-                        cnn_branch = Conv1D(filters=filters, kernel_size=kernel_size, activation=activation, padding='same')(cnn_branch)
-                        cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
-                        cnn_branch = LayerNormalization()(cnn_branch)
-                        cnn_branch = Dropout(0.2)(cnn_branch)
-                else:
-                    filters = hp.get('cnn_filters')
-                    kernel_size = hp.get('cnn_kernel_size')
-                    activation = 'relu'
-                    cnn_branch = Conv1D(filters=filters, kernel_size=kernel_size, activation=activation, padding='same')(cnn_branch)
+        # CNN Branch
+        if self.cnn_model:
+            cnn_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='cnn_input')
+            if self.multi_inputs:
+                inputs.append(cnn_input)
+            cnn_branch = cnn_input
+
+            shape = int_shape(cnn_branch)
+            if len(shape) == 4:
+                cnn_branch = Reshape((shape[1], shape[2]))(cnn_branch)
+        elif len(shape) == 2:
+            cnn_branch = Reshape((shape[1], 1))(cnn_branch)
+            if len(shape) == 3 and shape[-1] != 1:
+                cnn_branch = Dense(1)(cnn_branch)
+
+            if self.tunemode:
+                for i in range(hp.values.get('num_cnn_layers')):
+                    cnn_branch = Conv1D(
+                        filters=hp.get(f'cnn_filters_{i}'), kernel_size=hp.get(f'cnn_kernel_size_{i}'),
+                        activation=hp.values.get(f'cnn_activation_{i}'), padding='same')(cnn_branch)
                     cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
                     cnn_branch = LayerNormalization()(cnn_branch)
                     cnn_branch = Dropout(0.2)(cnn_branch)
-                cnn_branch = Flatten()(cnn_branch)
-                branches.append(cnn_branch)
-
-            # LSTM Branch
-            if self.lstm_model:
-                lstm_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='lstm_input')
-                if self.multi_inputs:
-                    inputs.append(lstm_input)
-                logger.info(f"Input shape lstm: {lstm_input.shape}")
-                lstm_branch = lstm_input
-                if self.tunemode:
-                    num_lstm_layers = hp.get('num_lstm_layers')
-                    for i in range(num_lstm_layers):
-                        units = hp.get(f'lstm_units_{i}')
-                        activation = hp.get(f'lstm_activation_{i}')
-                        lstm_branch = LSTM(units=units, activation=activation, return_sequences=(i < num_lstm_layers - 1))(lstm_branch)
-                        lstm_branch = LayerNormalization()(lstm_branch)
-                        lstm_branch = Dropout(0.2)(lstm_branch)
-                else:
-                    lstm_branch = LSTM(units=128, activation='tanh', return_sequences=False)(lstm_branch)
-                    lstm_branch = LayerNormalization()(lstm_branch)
-                    lstm_branch = Dropout(0.2)(lstm_branch)
-                branches.append(lstm_branch)
-
-            # GRU Branch
-            if self.gru_model:
-                gru_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='gru_input')
-                if self.multi_inputs:
-                    inputs.append(gru_input)
-                logger.info(f"Input shape gru: {gru_input.shape}")
-                gru_branch = gru_input
-                if self.tunemode:
-                    num_gru_layers = hp.get('num_gru_layers')
-                    for i in range(num_gru_layers):
-                        units = hp.get(f'gru_units_{i}')
-                        activation = hp.get(f'gru_activation_{i}')
-                        gru_branch = GRU(units=units, activation=activation, return_sequences=(i < num_gru_layers - 1))(gru_branch)
-                        gru_branch = LayerNormalization()(gru_branch)
-                        gru_branch = Dropout(0.2)(gru_branch)
-                else:
-                    gru_branch = GRU(units=128, activation='tanh', return_sequences=False)(gru_branch)
-                    gru_branch = LayerNormalization()(gru_branch)
-                    gru_branch = Dropout(0.2)(gru_branch)
-                branches.append(gru_branch)
-
-            # Transformer Branch
-            if self.transformer_model:
-                transformer_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='transformer_input')
-                if self.multi_inputs:
-                    inputs.append(transformer_input)
-                logger.info(f"Input shape transformer: {transformer_input.shape}")
-                transformer_branch = transformer_input
-                transformer_branch = MaxPooling1D(pool_size=16, padding='same')(transformer_branch)
-                num_transformer_blocks = hp.get('num_transformer_blocks') if self.tunemode else 1
-                for i in range(num_transformer_blocks):
-                    transformer_branch = self.transformer_block(transformer_branch, hp, i, hp.get(f'key_dim_{i}'))
-                transformer_branch = GlobalAveragePooling1D()(transformer_branch)
-                transformer_branch = Dense(64, activation=hp.get('dense_1_activation') if self.tunemode else 'relu')(transformer_branch)
-                transformer_branch = Dropout(0.2)(transformer_branch)
-                branches.append(transformer_branch)
-
-            # Combine branches
-            for i, b in enumerate(branches):
-                logger.info(f"Branch {i} output shape: {b.shape}")
-            concatenated = Concatenate()(branches) if self.multi_branches else branches[0]
-            merged = Dense(512, activation='relu')(concatenated)
-            dense_1 = Dense(
-                units=hp.get('dense_1_units'),
-                activation=hp.get('dense_1_activation') if self.tunemode else 'relu',
-                kernel_regularizer=tf.keras.regularizers.l2(hp.get('l2_reg'))
-            )(merged)
-            dense_dropout = Dropout(0.2)(dense_1)
-            output = Dense(1, activation="sigmoid")(dense_dropout)
-
-            logger.info(f"Including {len(inputs)} input(s) and {len(branches)} branch(es).")
-            model = Model(inputs=inputs if self.multi_inputs else inputs[0], outputs=output)
-
-            if self.tunemode:
-                loss_fn = hp.get('loss')
-                metric_fn = hp.get('metric')
-                optimizer = self.get_optimizer(hp.get('optimizer'), hp.get('learning_rate'))
             else:
-                loss_fn = 'mse'
-                metric_fn = 'mse'
-                optimizer = self.get_optimizer('adam', 1e-3)
+                cnn_branch = Conv1D(filters=64, kernel_size=3, activation='relu', padding='same')(cnn_branch)
+                cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
+                cnn_branch = LayerNormalization()(cnn_branch)
+                cnn_branch = Dropout(0.2)(cnn_branch)
 
-            model.compile(optimizer=optimizer, loss=loss_fn, steps_per_execution=50, metrics=[metric_fn])
+            cnn_branch = Flatten()(cnn_branch)
+            branches.append(cnn_branch)
 
-            if self.modelsummary:
-                model.summary()
+        # LSTM Branch
+        if self.lstm_model:
+            lstm_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='lstm_input')
+            if self.multi_inputs:
+                inputs.append(lstm_input)
+            lstm_branch = lstm_input
 
-            return model
+            shape = int_shape(lstm_branch)
+            if len(shape) == 4:
+                lstm_branch = Reshape((shape[1], shape[2]))(lstm_branch)
 
+            for i in range(hp.values.get('num_lstm_layers')):
+                lstm_branch = LSTM(
+                    units=hp.get(f'lstm_units_{i}'), activation=hp.get(f'lstm_activation_{i}'),
+                    return_sequences=(i < hp.values.get('num_lstm_layers') - 1)
+                )(lstm_branch)
+                lstm_branch = LayerNormalization()(lstm_branch)
+                lstm_branch = Dropout(0.2)(lstm_branch)
+
+            branches.append(lstm_branch)
+
+        # GRU Branch
+        if self.gru_model:
+            gru_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='gru_input')
+            if self.multi_inputs:
+                inputs.append(gru_input)
+            gru_branch = gru_input
+
+            shape = int_shape(gru_branch)
+            if len(shape) == 4:
+                gru_branch = Reshape((shape[1], shape[2]))(gru_branch)
+
+            for i in range(hp.values.get('num_gru_layers')):
+                gru_branch = GRU(
+                    units=hp.get(f'gru_units_{i}'), activation=hp.get(f'gru_activation_{i}'),
+                    return_sequences=(i < hp.values.get('num_gru_layers') - 1)
+                )(gru_branch)
+                gru_branch = LayerNormalization()(gru_branch)
+                gru_branch = Dropout(0.2)(gru_branch)
+
+            branches.append(gru_branch)
+
+        # Transformer Branch
+        if self.transformer_model:
+            transformer_input = shared_input if not self.multi_inputs else Input(shape=self.main_input_shape, name='transformer_input')
+            if self.multi_inputs:
+                inputs.append(transformer_input)
+            transformer_branch = transformer_input
+
+            shape = int_shape(transformer_branch)
+            if len(shape) == 4:
+                transformer_branch = Reshape((shape[1], shape[2]))(transformer_branch)
+
+            key_dim = hp.values.get('key_dim_0')
+            num_heads = hp.values.get('num_heads_0')
+            projected_dim = key_dim * num_heads
+
+            transformer_branch = Dense(projected_dim)(transformer_branch)
+            transformer_branch = self.transformer_block(transformer_branch, hp, 0, dim=projected_dim)
+            transformer_branch = GlobalAveragePooling1D()(transformer_branch)
+
+            branches.append(transformer_branch)
+
+        # Combine all branches
+        concatenated = Concatenate()(branches) if self.multi_branches else branches[0]
+        merged = Dense(512, activation='relu')(concatenated)
+        dense_1 = Dense(
+            units=hp.values.get('dense_1_units'), activation=hp.get('dense_1_activation') if self.tunemode else 'relu', kernel_regularizer=tf.keras.regularizers.l2(hp.values.get('l2_reg'))
+        )(merged)
+        dense_dropout = Dropout(0.2)(dense_1)
+        output = Dense(1, activation='sigmoid')(dense_dropout)
+
+        model = Model(inputs=inputs if self.multi_inputs else inputs[0], outputs=output)
+        optimizer = self.get_optimizer(hp.values.get('optimizer'), hp.values.get('learning_rate')) if self.tunemode else Adam(learning_rate=1e-3)
+        model.compile(optimizer=optimizer, loss=hp.values.get('loss') if self.tunemode else 'mse', metrics=[hp.get('metric') if self.tunemode else 'mse'])
+
+        if self.modelsummary:
+            model.summary()
+
+        return model
 
     def get_optimizer(self, optimizer_name, learning_rate):
         optimizers = {
@@ -628,83 +625,67 @@ class CMdtuner:
         except Exception as e:
             logger.info(f"Error saving the model: {e}")
 
+ 
+    def transformer_block(self, x, hp, i=0, dim=None, use_positional_encoding=True):
+        """Single transformer encoder block."""
+        key_dim = hp.values.get(f'key_dim_{i}', 64)
+        num_heads = hp.values.get(f'num_heads_{i}', 4)
+        projected_dim = dim or (key_dim * num_heads)
 
-    def transformer_block(self, inputs, hp, block_num, dim, use_positional_encoding=True, use_causal_mask=False):
-            key_dim = hp.get(f'key_dim_{block_num}')
-            num_heads = hp.get(f'num_heads_{block_num}')
-            ff_dim = hp.get(f'ff_dim_{block_num}')
-            activation = hp.get(f'transformer_activation_{block_num}')
-            projected_dim = num_heads * key_dim
+        # Optional: Apply positional encoding safely
+        if use_positional_encoding:
+            x = AddPositionalEncoding(projected_dim)(x)
 
-            x = inputs
+        # Multi-head attention block
+        attn_output = tf.keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=key_dim)(x, x)
+        attn_output = tf.keras.layers.Dropout(0.1)(attn_output)
+        out1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)(x + attn_output)
 
-            # Optional: Positional Encoding (sinusoidal)
-            if use_positional_encoding:
-                seq_len = tf.shape(x)[1]
-                pos_encoding = self.get_positional_encoding(seq_len, projected_dim)
-                x = Dense(projected_dim)(x)
-                x += pos_encoding
-            else:
-                x = Dense(projected_dim)(x)
+        # Feed-forward block
+        ffn_output = tf.keras.layers.Dense(projected_dim * 2, activation='relu')(out1)
+        ffn_output = tf.keras.layers.Dense(projected_dim)(ffn_output)
+        ffn_output = tf.keras.layers.Dropout(0.1)(ffn_output)
 
-            # Multi-head attention with optional causal masking
-            attn_out = MultiHeadAttention(
-                num_heads=num_heads,
-                key_dim=key_dim,
-                dropout=0.1,
-                use_causal_mask=use_causal_mask
-            )(x, x)
-            x = LayerNormalization()(x + attn_out)
+        # Final residual connection
+        return tf.keras.layers.LayerNormalization(epsilon=1e-6)(out1 + ffn_output)
 
-            # Feed-forward
-            ffn_out = Dense(ff_dim, activation=activation)(x)
-            ffn_out = Dropout(0.2)(ffn_out)
-            ffn_out = Dense(projected_dim)(ffn_out)
-
-            x = LayerNormalization()(x + ffn_out)
-            x = Dropout(0.2)(x)
-
-            return x
 
 
     
-
     def run_search(self):
-        strategy = tf.distribute.get_strategy()
-        with strategy.scope():
+     
+        logger.info("Running custom tuner search via OracleClient...")
+
+        if not self.oracle or not isinstance(self.oracle, OracleClient):
+            raise RuntimeError("OracleClient not initialized in distributed mode.")
+
+        while True:
             try:
-                logger = self.logger if hasattr(self, 'logger') else logging.getLogger(__name__)
-                logger.info("Running tuner search...")
+                trial = self.oracle.get_trial()
+                trial_id = trial["trial_id"]
+                hp_values = trial["hyperparameters"]
+                hp = HyperParameters()
+                for k, v in hp_values.items():
+                    hp.values[k] = v
 
-                # Run the tuner search
-                self.tuner.search(self.traindataset,
-                                validation_data=self.valdataset,
-                                epochs=self.epochs,
-                                callbacks=self.get_callbacks(),
-                                verbose=1)
-
-                logger.info("Tuner search completed.")
-
-                # Get best hyperparameters
-                best_hps_list = self.tuner.get_best_hyperparameters(num_trials=1)
-                if not best_hps_list:
-                    logger.warning("No best hyperparameters found.")
-                    return False
-
-                best_hps = best_hps_list[0]
-                logger.info(f"Best hyperparameters: {best_hps.values}")
-
-                return True
+                model = self.hypermodel.build(hp)
+                history = model.fit(
+                    self.traindataset,
+                    validation_data=self.valdataset,
+                    epochs=hp.values.get("epochs", 10),
+                    verbose=0
+                )
+                val_loss = history.history["val_loss"][-1]
+                logger.info(f"Trial {trial_id} completed with val_loss: {val_loss:.4f}")
+                self.oracle.report_trial_result(trial_id, val_loss)
+                self.oracle.update_trial_status(trial_id, status="COMPLETED")
 
             except Exception as e:
-                logger.error(f"Error during tuning: {e}", exc_info=True)
-                return False
-            finally:
-                if hasattr(self, 'tuner'):
-                    self.tuner.search_space_summary()
-                    self.tuner.results_summary()    
+                logger.error(f"Exception during trial run: {str(e)}")
+                break
 
-    @tf.function
+        logger.info("Custom tuner search completed.")
+        return True
     def _predict_graph(self, model, test_data):
         # Predict on one batch within a tf.function for performance.
         return model(test_data, training=False)
@@ -769,3 +750,20 @@ class CMdtuner:
         pe[:, 1::2] = tf.math.cos(position * div_term)
         pe = tf.expand_dims(pe, axis=0)
         return tf.cast(pe, dtype=tf.float16 if mixed_precision.global_policy().compute_dtype == 'float16' else tf.float32)
+
+class AddPositionalEncoding(tf.keras.layers.Layer):
+    def __init__(self, dim, **kwargs):
+        super().__init__(**kwargs)
+        self.dim = dim
+
+    def call(self, x):
+        seq_len = tf.shape(x)[1]
+        pos = tf.range(seq_len, dtype=tf.float32)[:, tf.newaxis]
+        i = tf.range(self.dim, dtype=tf.float32)[tf.newaxis, :]
+        angle_rates = 1 / tf.pow(10000.0, (2 * (i // 2)) / tf.cast(self.dim, tf.float32))
+        angle_rads = pos * angle_rates
+        sines = tf.sin(angle_rads[:, 0::2])
+        cosines = tf.cos(angle_rads[:, 1::2])
+        pos_encoding = tf.concat([sines, cosines], axis=-1)
+        pos_encoding = tf.expand_dims(pos_encoding, axis=0)  # (1, seq_len, dim)
+        return x + tf.cast(pos_encoding, x.dtype)
