@@ -163,7 +163,7 @@ print("Tuner mode:", gtuner_mode)
 
 # ----- Main Function -----
 def main(logger):
-    with strategy.scope():
+    #with strategy.scope():
         # Setup environment and retrieve parameters
         print("Start Main Setting up environment...")
         utils_config = CUtilities()
@@ -203,7 +203,7 @@ def main(logger):
 
          # ----- Model Tuning and Setup -----
         mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
-        mql_overrides.env.override_params({"mltune": {'batch_size': 32}})
+        mql_overrides.env.override_params({"mltune": {'batch_size': 8}})
         logger.info("Main: mp_app_ml_hard_run: %s", app_params.get('mp_app_ml_hard_run', True))
         logger.info("Main: mp_ml_mbase_path: %s", base_params.get('mp_glob_base_ml_project_dir', None))
         logger.info("Main: batch_size: %s", base_params.get('batch_size', None))
@@ -341,6 +341,10 @@ def main(logger):
         X_scaled = scaler.fit_transform(X_reshaped)
         # Reshape back to the original 3D shape
         datafile_X_scaled = X_scaled.reshape(datafile_X.shape)
+        if datafile_X_scaled.ndim == 4:
+            datafile_X_scaled = np.squeeze(datafile_X_scaled, axis=-1)
+        elif datafile_X_scaled.ndim == 2:
+            datafile_X_scaled = np.expand_dims(datafile_X_scaled, axis=-1)
 
         # Optionally, scale the targets (uncomment if desired)
         y_reshaped = datafile_y.reshape((-1, 1))
@@ -360,7 +364,7 @@ def main(logger):
         logger.info("Test samples: %s", X_test.shape[0])
 
          # ----- Convert to TensorFlow Dataset -----
-        batch_size = ml_params.get('batch_size', 1024)
+        batch_size = ml_params.get('batch_size', 8)
      
         buffer_size = ml_params.get('buffer_size', 10000)
         logger.info("Buffer size: %s", buffer_size)
@@ -465,7 +469,9 @@ def main(logger):
         )
         
         # --- Disable model weight saving globally to prevent Windows file lock errors ---
-        tuner_config.tuner._save_model = lambda: None
+        if tuner_config.tuner is not None:
+            tuner_config.tuner._save_model = lambda: None
+
 
         
         tuner_config.oracle = OracleClient(host="192.168.1.103", port=9000)

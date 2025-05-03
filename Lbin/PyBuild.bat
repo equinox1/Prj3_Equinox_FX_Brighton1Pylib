@@ -14,8 +14,8 @@ py -m build
 
 REM Upload to python PyPI test
 REM py -m pip install --upgrade twine
-py -m twine upload --repository testpypi dist/*
 
+py -m twine upload --repository testpypi dist/*
 REM Install 
 
 pip uninstall %1
