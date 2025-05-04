@@ -69,6 +69,8 @@ class CMdtuner:
         self.hypermodel_params = kwargs.get('hypermodel_params', {})
         logger.info(f"Hypermodel parameters: {self.hypermodel_params}")
 
+        self.oracle = kwargs.get("oracle", None)
+
         base = self.hypermodel_params.get('base', {})
         self.mp_pl_platform_base       = base.get('mp_glob_base_platform_dir', None)
         self.checkpoint_filepath       = base.get('mp_glob_base_ml_checkpoint_filepath', None)
@@ -321,6 +323,12 @@ class CMdtuner:
     def cast_to_float16(x, y):
         return tf.cast(x, tf.float16), y
 
+
+    @property
+    def hypermodel(self):
+        return self.build_model
+
+
     def enable_debugging(self, kwargs):
         if kwargs.get('tf1', False):
             tf.debugging.set_log_device_placement(True)
@@ -457,16 +465,19 @@ class CMdtuner:
             shape = int_shape(cnn_branch)
             if len(shape) == 4:
                 cnn_branch = Reshape((shape[1], shape[2]))(cnn_branch)
-        elif len(shape) == 2:
-            cnn_branch = Reshape((shape[1], 1))(cnn_branch)
-            if len(shape) == 3 and shape[-1] != 1:
+            elif len(shape) == 2:
+                cnn_branch = Reshape((shape[1], 1))(cnn_branch)
+            elif len(shape) == 3 and shape[-1] != 1:
                 cnn_branch = Dense(1)(cnn_branch)
 
             if self.tunemode:
                 for i in range(hp.values.get('num_cnn_layers')):
                     cnn_branch = Conv1D(
-                        filters=hp.get(f'cnn_filters_{i}'), kernel_size=hp.get(f'cnn_kernel_size_{i}'),
-                        activation=hp.values.get(f'cnn_activation_{i}'), padding='same')(cnn_branch)
+                        filters=hp.get(f'cnn_filters_{i}'),
+                        kernel_size=hp.get(f'cnn_kernel_size_{i}'),
+                        activation=hp.values.get(f'cnn_activation_{i}'),
+                        padding='same'
+                    )(cnn_branch)
                     cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
                     cnn_branch = LayerNormalization()(cnn_branch)
                     cnn_branch = Dropout(0.2)(cnn_branch)
@@ -644,44 +655,29 @@ class CMdtuner:
         # Final residual connection
         return tf.keras.layers.LayerNormalization(epsilon=1e-6)(out1 + ffn_output)
 
-
-
-    
     def run_search(self):
-     
-        logger.info("Running custom tuner search via OracleClient...")
+            logger.info("Running custom tuner search via OracleClient...")
+            logger.debug(f"run_search: input_shape = {self.input_shape}")
+            logger.debug(f"run_search: hypermodel_params keys = {list(self.hypermodel_params.get('mltune', {}).keys())}")
 
-        if not self.oracle or not isinstance(self.oracle, OracleClient):
-            raise RuntimeError("OracleClient not initialized in distributed mode.")
+            if not self.oracle or not isinstance(self.oracle, OracleClient):
+                raise RuntimeError("OracleClient not initialized in distributed mode.")
 
-        while True:
-            try:
-                trial = self.oracle.get_trial()
-                trial_id = trial["trial_id"]
-                hp_values = trial["hyperparameters"]
-                hp = HyperParameters()
-                for k, v in hp_values.items():
-                    hp.values[k] = v
+            while True:
+                try:
+                    trial = self.oracle.get_trial()
+                    trial_id = trial["trial_id"]
+                    hp_config = trial["hyperparameters"]
+                    hp = self.tuner.oracle.hyperparameters.copy()
+                    hp.values = hp_config
+                    logger.info(f"Running trial {trial_id} with hyperparameters: {hp_config}")
 
-                model = self.hypermodel.build(hp)
-                history = model.fit(
-                    self.traindataset,
-                    validation_data=self.valdataset,
-                    epochs=hp.values.get("epochs", 10),
-                    verbose=0
-                )
-                val_loss = history.history["val_loss"][-1]
-                logger.info(f"Trial {trial_id} completed with val_loss: {val_loss:.4f}")
-                self.oracle.report_trial_result(trial_id, val_loss)
-                self.oracle.update_trial_status(trial_id, status="COMPLETED")
+                except Exception as e:
+                    logger.error(f"Exception during trial run: {str(e)}")
+                    break
 
-            except Exception as e:
-                logger.error(f"Exception during trial run: {str(e)}")
-                break
-
-        logger.info("Custom tuner search completed.")
-        return True
-
+            logger.info("Custom tuner search completed.")
+            return True
 
     def _predict_graph(self, model, test_data):
         # Predict on one batch within a tf.function for performance.

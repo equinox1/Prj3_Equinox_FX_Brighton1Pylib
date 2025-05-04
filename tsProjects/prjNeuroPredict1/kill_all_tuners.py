@@ -4,12 +4,16 @@ import signal
 import platform
 
 # List of script names to kill
+
+
 SCRIPT_NAMES = [
-    "chief_script.py",
-    "worker_script.py",
-    "oracle_server.py",
-    "oracle_client.py"
+    "tsNeuroPredictWinMql_chief.py",
+    "tsNeuroPredictWinMql_worker.py",
+    "tsMqlMLOracleServer.py",
+    "tsMqlMLOracleClient.py",
+    "uvicorn"
 ]
+
 
 def is_windows():
     return platform.system().lower() == "windows"
