@@ -451,11 +451,6 @@ def main(logger):
         logger.info("Main Model Check: mp_symbol_primary: %s", mp_symbol_primary)
         logger.info("Main Model get all_modelscale: %s", mql_overrides.env.all_params().get('mltune', {}).get('all_modelscale', 1))
 
-
-
-        # --- Start Oracle Server ---
-        logger.info(f"Starting Oracle Server at {oracle_host}:{oracle_port}...")
-        logger.info("Oracle Server started successfully.")
    
         # ----- Model Tuning and Setup -----
         tuner_config = CMdtuner(
@@ -468,10 +463,11 @@ def main(logger):
         )
         
         def run_oracle_server():
-            oracle_server.start(host=oracle_host, port=oracle_port)
-        
-        threading.Thread(target=run_oracle_server, daemon=True).start()
-        logger.info(f"Oracle Server started on {oracle_host}:{oracle_port}")
+            try:
+                logger.info("Starting Oracle Server thread...")
+                oracle_server.start(host=oracle_host, port=oracle_port)
+            except Exception as e:
+                logger.error(f"Oracle Server failed to start: {e}", exc_info=True)
 
         # --- Disable model weight saving globally to prevent Windows file lock errors ---
         if tuner_config.tuner is not None:
