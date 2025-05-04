@@ -293,14 +293,7 @@ class CMdtuner:
                                                .cache()\
                                                .prefetch(buffer_size=AUTOTUNE)
 
-        # Set up distributed training strategy
-        self.strategy = tf.distribute.MirroredStrategy()
-
-        logger.info(f"Number of devices: {self.strategy.num_replicas_in_sync}")
-
-        self.tf1 = kwargs.get('tf1', False)
-        self.tf2 = kwargs.get('tf2', False)
-        self.enable_debugging(kwargs)
+       
 
         self.prepare_shapes()
 
@@ -434,9 +427,11 @@ class CMdtuner:
                     "hyperband_iterations": self.hyperband_iterations
                 })
 
+            logger.info(f"Tuner arguments: {tuner_args}")
             self.tuner = tuner_classes[self.tunemode](**tuner_args)
-            self.tuner._save_model = lambda: None  # Disable weight-saving to avoid file lock issues on Windows
             logger.info(f"Tuner initialized: {self.tunemode}")
+            self.tuner._save_model = lambda: None  # Disable weight-saving to avoid file lock issues on Windows
+            logger.info(f"Tuner model save method overridden to avoid file lock issues on Windows.")
             self.tuner.search_space_summary()
 
         except Exception as e:
@@ -686,6 +681,8 @@ class CMdtuner:
 
         logger.info("Custom tuner search completed.")
         return True
+
+
     def _predict_graph(self, model, test_data):
         # Predict on one batch within a tf.function for performance.
         return model(test_data, training=False)
