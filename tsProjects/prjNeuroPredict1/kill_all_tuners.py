@@ -9,9 +9,10 @@ import platform
 SCRIPT_NAMES = [
     "tsNeuroPredictWinMql_chief.py",
     "tsNeuroPredictWinMql_worker.py",
-    "tsMqlMLOracleServer.py",
-    "tsMqlMLOracleClient.py",
+    "OracleServer.py",
+    "OracleClient.py",
     "uvicorn"
+    "python"
 ]
 
 

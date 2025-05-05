@@ -44,11 +44,12 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TUNER_ID"] = "worker"
 tuner_id = os.environ.get("TUNER_ID", "worker")
 setup_config = CMqlSetup(loglevel='INFO', warn='ignore', precision='mixed_bfloat16', tfdebug=False, num_cores=48, num_threads=4)
+xerces_servername = "WINSVRXERCES01"
 xerces_server = '192.168.1.103'
 xerces_port = 9000
 xerces_logfile = 'tsneuropredict_app.log'
-global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=xerces_logfile, servername=xerces_server)
-
+global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_servername)
+print(f"Logdir: {global_logdir}")
 # --- [ logger setup ] ---
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)

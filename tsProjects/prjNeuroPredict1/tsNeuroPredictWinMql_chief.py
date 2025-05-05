@@ -65,6 +65,11 @@ from keras_tuner.engine.oracle import Oracle
 from keras_tuner.engine.trial import Trial
 from keras_tuner.engine.hyperparameters import HyperParameters
 from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
+import uvicorn
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI
 
 
 
@@ -88,11 +93,12 @@ class SimpleOracle(Oracle):
 os.environ["TUNER_ID"] = "chief"
 tuner_id = os.environ.get("TUNER_ID", "chief")
 setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4)
+xerces_servername = "WINSVRXERCES01"
 xerces_server = '192.168.1.103'
 xerces_port = 9000
 xerces_logfile = 'tsneuropredict_app.log'
-global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_server)
-singlelaunch = True
+global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_servername)
+print(f"Logdir: {global_logdir}")
 
 
 # Set up the root logger
@@ -132,6 +138,20 @@ tensorboard_cb = tf.keras.callbacks.TensorBoard(log_dir=tboardlogdir, histogram_
 # ---- Configuration ----
 
 is_chief = tuner_id.lower() == "chief"
+# Start OracleServer early in its own thread
+def launch_oracle():
+    try:
+        logger.info("Launching OracleServer early...")
+        oracle = CustomOracle(objective="val_loss", max_trials=50)
+        oracle_server = OracleServer(oracle)
+        oracle_server.start(host=xerces_server, port=xerces_port)
+        logger.info("OracleServer launched successfully.")
+    except Exception as e:
+        logger.error(f"Failed to launch OracleServer: {e}")
+
+if tuner_id.lower() == "chief":
+    oracle_thread = threading.Thread(target=launch_oracle, daemon=True)
+    oracle_thread.start()
 
 # strategy setup
 strategy = setup_config.get_computation_strategy()
@@ -154,7 +174,7 @@ print("Tuner mode:", gtuner_mode)
 # ----- Main Function -----
 def main(logger):
     #with strategy.scope():
-        
+ 
         # Setup environment and retrieve parameters
         print("Start Main Setting up environment...")
         utils_config = CUtilities()
@@ -444,18 +464,7 @@ def main(logger):
         logger.info("Main Model Check: mp_symbol_primary: %s", mp_symbol_primary)
         logger.info("Main Model get all_modelscale: %s", mql_overrides.env.all_params().get('mltune', {}).get('all_modelscale', 1))
 
-        if tuner_id.lower() == "chief":
-            try:
-                logger.info("Chief confirmed. Launching OracleServer at %s:%s...", xerces_server, xerces_port)
-                oracle = CustomOracle(objective="val_loss", max_trials=50)
-                oracle_server = OracleServer(oracle)
-                oracle_server.start(host=xerces_server, port=xerces_port)
-                logger.info("✅ OracleServer successfully started at %s:%s", xerces_server, xerces_port)
-            except Exception as e:
-                logger.error("❌ Failed to start OracleServer: %s", e)
-                raise
-
-
+       
             
         # ----- Model Tuning and Setup -----
         tuner_config = CMdtuner(
@@ -580,6 +589,6 @@ def main(logger):
             logger.info("No data loaded; exiting.")
             mt5.shutdown()
             logger.info("Finished.")
-
+        
 if __name__ == "__main__":
     main(logger)

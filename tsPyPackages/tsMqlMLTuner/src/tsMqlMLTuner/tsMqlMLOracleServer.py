@@ -34,7 +34,7 @@ class OracleServer:
 
         @self.app.post("/report_result")
         def report_result(report: ResultReport):
-            self.oracle.update_trial(trial_id=report.trial_id, score=report.result)
+            self.oracle.score_trial(report.trial_id, report.result)
             return {"message": "Result received."}
 
         @self.app.post("/update_status")
