@@ -1,10 +1,9 @@
 # oracle_server_main.py
-
-#Oracle imports
 from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
 import logging
+import time
 
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -21,7 +20,6 @@ def main():
         
         # Keep the main thread alive
         while True:
-            import time
             time.sleep(60)
 
     except Exception as e:

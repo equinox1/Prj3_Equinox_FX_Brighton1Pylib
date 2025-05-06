@@ -136,7 +136,7 @@ class CDataLoader:
                 logger.info(f"Api rates: Fetching Symbol {self.lp_app_primary_symbol} with rows {self.lp_data_rows} of rates from {self.lp_utc_from} to {self.lp_utc_to}")
                 logger.info(f"Api rates: FetchingTimeframe {self.lp_timeframe} ")
                 #Tested ok:  rates2 = mt5.copy_rates_from(lp_app_primary_symbol, mt5.TIMEFRAME_H4, lp_utc_from, lp_data_rows)
-                data = mt5.copy_rates_from(self.lp_app_primary_symbol,mt5.TIMEFRAME_H4, self.lp_utc_from, self.lp_data_rows)
+                data = mt5.copy_rates_from(self.lp_app_primary_symbol,self.lp_timeframe, self.lp_utc_from, self.lp_data_rows)
             df = pd.DataFrame(data)
             return df
         except Exception as e:

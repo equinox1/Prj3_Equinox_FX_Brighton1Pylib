@@ -60,11 +60,12 @@ from tsMqlMLTuner import CMdtuner
 #Oracle imports
 from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
+from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
 
 from keras_tuner.engine.oracle import Oracle
 from keras_tuner.engine.trial import Trial
 from keras_tuner.engine.hyperparameters import HyperParameters
-from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
@@ -224,7 +225,7 @@ def main(logger):
         logger.info("Main: Model Scale: %s", modscale)
     
         # ----- Load Reference class and time variables -----
-        lp_timeframe_name = data_params.get('mp_data_timeframe', 'H4')
+        lp_timeframe_name = data_params.get('mp_data_timeframe', 'M1')
         reference_config = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
         
         # Adjust TIME_CONSTANTS handling in case it's a list.

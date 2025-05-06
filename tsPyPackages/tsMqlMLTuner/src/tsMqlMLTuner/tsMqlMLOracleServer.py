@@ -1,5 +1,6 @@
 import threading
 import time
+import datetime
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -26,16 +27,22 @@ class OracleServer:
     def _configure_routes(self):
         @self.app.get("/get_trial")
         def get_trial():
-            trial = self.oracle.create_trial(tuner_id="chief")
-            return {
-                "trial_id": trial.trial_id,
-                "hyperparameters": trial.hyperparameters.values
-            }
+            try:
+                trial = self.oracle.create_trial(tuner_id="chief")
+                return {
+                    "trial_id": trial.trial_id,
+                    "hyperparameters": trial.hyperparameters.values
+                }
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Error generating trial: {e}")
 
         @self.app.post("/report_result")
         def report_result(report: ResultReport):
-            self.oracle.score_trial(report.trial_id, report.result)
-            return {"message": "Result received."}
+            try:
+                self.oracle.score_trial(report.trial_id, report.result)
+                return {"message": "Result received."}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Error scoring trial: {e}")
 
         @self.app.post("/update_status")
         def update_status(update: StatusUpdate):
@@ -57,9 +64,11 @@ class OracleServer:
                 })
             return {"trials": trials}
 
+        @self.app.get("/heartbeat")
+        def heartbeat():
+            return {"status": "alive", "timestamp": datetime.datetime.utcnow().isoformat()}
 
-
-    def start(self, host="0.0.0.0", port=9000):
+    def start(self, host="192.168.1.103", port=9000):
         if self._server_thread is not None:
             print("Oracle Server already running.")
             return
@@ -71,5 +80,3 @@ class OracleServer:
         self._server_thread.start()
         time.sleep(1)
         print(f"Oracle Server started at http://{host}:{port}")
-
-   

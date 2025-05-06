@@ -13,6 +13,7 @@ SCRIPT_NAMES = [
     "OracleClient.py",
     "uvicorn"
     "python"
+    "winsvrxerces01"
 ]
 
 
