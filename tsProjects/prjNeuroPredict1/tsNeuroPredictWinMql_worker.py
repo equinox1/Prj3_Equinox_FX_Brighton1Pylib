@@ -89,7 +89,7 @@ def main(logger):
     mltune_params = mql_overrides.env.all_params().get("mltune", {})
     app_params = mql_overrides.env.all_params().get("app", {})
 
-    lp_timeframe_name = data_params.get('mp_data_timeframe', 'H4')
+    lp_timeframe_name = data_params.get('mp_data_timeframe', 'M1')
     reference_config = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
     time_constants = reference_config.TIME_CONSTANTS[0] if isinstance(reference_config.TIME_CONSTANTS, list) else reference_config.TIME_CONSTANTS
 

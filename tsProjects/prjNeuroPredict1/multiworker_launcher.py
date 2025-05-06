@@ -5,7 +5,7 @@ import socket
 import requests
 import sys
 
-NUM_WORKERS = 2
+NUM_WORKERS = 8
 PYTHON_EXEC = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\venvwin1\Scripts\python.exe"
 
 # ==== CONFIGURATION ====
