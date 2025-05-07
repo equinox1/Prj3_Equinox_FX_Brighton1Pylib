@@ -33,25 +33,16 @@ class CDataLoader:
         self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default_filename1.csv')
         self.mp_data_filename2 = self.params.get('data', {}).get('mp_data_filename2', 'default_filename2.csv')
 
-        default_utc_from = datetime.utcnow()
-        default_utc_to = datetime.utcnow()
+        default_utc_from = datetime.now(datetime.timezone.utc)
+        default_utc_to = datetime.now(datetime.timezone.utc)
 
         self.lp_utc_from = kwargs.get('lp_utc_from', default_utc_from)
         self.lp_utc_to = kwargs.get('lp_utc_to', default_utc_to)
         self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
         self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('"mp_data_rows', 1000))
         self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
-        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('app', {}).get('mp_app_timeframe', 'mt5.TIMEFRAME_H4'))
+        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('data', {}).get('mp_app_timeframe', 'mt5.TIMEFRAME_M1'))
        
-
-        logger.info(f"UTC from: {self.lp_utc_from}")
-        logger.info(f"UTC to: {self.lp_utc_to}")
-        logger.info(f"Timeframe: {self.lp_timeframe}")
-        logger.info(f"Primary symbol: {self.lp_app_primary_symbol}")
-        logger.info(f"Rows to fetch: {self.lp_data_rows}")
-        logger.info(f"Row count: {self.lp_data_rowcount}")
-        logger.info(f"Timeframe: {self.lp_timeframe}")
-
         self._set_global_parameters(kwargs)  # Now safe to call
 
         # Debugging logs

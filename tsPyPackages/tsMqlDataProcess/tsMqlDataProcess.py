@@ -48,7 +48,7 @@ class CDataProcess:
         )
         self.lp_timeframe = kwargs.get(
             'lp_timeframe',
-            self.params.get('data', {}).get('mp_data_timeframe', 'H4')
+            self.params.get('data', {}).get('mp_data_timeframe', 'mt5.TIMEFRAME_M1')
         )
         logger.info(f"Primary symbol: {self.lp_app_primary_symbol}, Timeframe: {self.lp_timeframe}")
 

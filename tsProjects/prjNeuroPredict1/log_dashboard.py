@@ -27,6 +27,22 @@ def html_template(title: str, body: str) -> str:
         <head>
             <title>{title}</title>
             <meta http-equiv="refresh" content="5">
+            <script>
+            function toggle(id) {{
+                const el = document.getElementById(id);
+                el.style.display = el.style.display === 'none' ? 'block' : 'none';
+            }}
+            function filterTable() {{
+                const filter = document.getElementById('statusFilter').value;
+                const rows = document.querySelectorAll("table tr");
+                rows.forEach((row, index) => {{
+                    if (index === 0) return;
+                    const statusCell = row.cells[1];
+                    const show = !filter || statusCell.textContent.trim() === filter;
+                    row.style.display = show ? "" : "none";
+                }});
+            }}
+            </script>
             <style>
                 body {{ font-family: monospace; padding: 20px; }}
                 .container {{ max-width: 1200px; margin: auto; }}
@@ -35,6 +51,10 @@ def html_template(title: str, body: str) -> str:
                 th, td {{ padding: 8px; border: 1px solid #ddd; }}
                 th {{ background-color: #f0f0f0; }}
                 a {{ display: inline-block; margin-top: 15px; }}
+                .status-RUNNING {{ color: orange; font-weight: bold; }}
+                .status-COMPLETED {{ color: green; font-weight: bold; }}
+                .status-FAILED {{ color: red; font-weight: bold; }}
+                .toggle-btn {{ cursor: pointer; color: blue; text-decoration: underline; }}
             </style>
         </head>
         <body>
@@ -44,6 +64,7 @@ def html_template(title: str, body: str) -> str:
         </body>
     </html>
     """
+
 
 @app.get("/", response_class=HTMLResponse)
 def show_logs():
@@ -70,14 +91,34 @@ def show_trials():
     if not trials:
         return HTMLResponse(html_template("No Trials", "<h3>No trials available yet.</h3><a href='/'>← Back to Logs</a>"))
 
+    # Sort trials by score (descending) if available
+    trials.sort(key=lambda t: t.get('score') if t.get('score') is not None else -1, reverse=True)
     rows = ""
-    for trial in trials:
-        hp_str = html.escape(", ".join(f"{k}={v}" for k, v in trial.get('hyperparameters', {}).items()))
+    for idx, trial in enumerate(trials):
+        hp_id = f"hp_{idx}"
+        status_class = f"status-{trial['status']}"
         score = trial.get("score", "")
-        rows += f"<tr><td>{trial['trial_id']}</td><td>{trial['status']}</td><td>{score}</td><td>{hp_str}</td></tr>"
-
+        hp_dict = trial.get('hyperparameters', {})
+        hp_pretty = html.escape("\n".join(f"{k}: {v}" for k, v in hp_dict.items()))  # Fixed the string formatting issue
+        rows += f"""<tr>
+            <td>{trial['trial_id']}</td>
+            <td class='{status_class}'>{trial['status']}</td>
+            <td>{score}</td>
+            <td>
+                <span class='toggle-btn' onclick="toggle('{hp_id}')">Show/Hide</span>
+                <div id='{hp_id}' style='display:none; white-space:pre-wrap; font-size:smaller'>{hp_pretty}</div>
+            </td>
+        </tr>"""
+    
     table = f"""
     <h2>Oracle Trial Status</h2>
+    <label for="statusFilter">Filter by status:</label>
+    <select id="statusFilter" onchange="filterTable()">
+        <option value="">All</option>
+        <option value="RUNNING">RUNNING</option>
+        <option value="COMPLETED">COMPLETED</option>
+        <option value="FAILED">FAILED</option>
+    </select>
     <table>
         <tr><th>Trial ID</th><th>Status</th><th>Score</th><th>Hyperparameters</th></tr>
         {rows}
