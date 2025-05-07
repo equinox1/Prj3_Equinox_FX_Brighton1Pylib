@@ -195,37 +195,25 @@ def main(logger):
         logfile = os.path.join(logdir, 'tsneuropredict_app.log')
         logger.info(f"Logfile: {logfile}")
 
-        # Log parameter details
-        logger.info("Main Base Parameters:")
-        for key, value in base_params.items():
-            logger.info(f"  {key}: {value}")
-        logger.info("Main Data Parameters:")
-        for key, value in data_params.items():
-            logger.info(f"  {key}: {value}")
-        logger.info("Main ML Parameters:")
-        for key, value in ml_params.items():
-            logger.info(f"  {key}: {value}")
-        logger.info("Main ML Tuning Parameters:")
-        for key, value in mltune_params.items():
-            logger.info(f"  {key}: {value}")
-        logger.info("Main App Parameters:")
-        for key, value in app_params.items():
-            logger.info(f"  {key}: {value}")
-
-
+        
          # ----- Model Tuning and Setup -----
         mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
         mql_overrides.env.override_params({"mltune": {'batch_size': 8}})
+        mql_overrides.env.override_params({"data": {'mp_data_timeframe': 'mt5.TIMEFRAME_H4'}})
         logger.info("Main: mp_app_ml_hard_run: %s", app_params.get('mp_app_ml_hard_run', True))
         logger.info("Main: mp_ml_mbase_path: %s", base_params.get('mp_glob_base_ml_project_dir', None))
         logger.info("Main: batch_size: %s", base_params.get('batch_size', None))
+        logger.info("Main: mp_data_timeframe: %s", data_params.get('mp_data_timeframe', 'mt5.TIMEFRAME_H4'))
 
         # Scale the model
         modscale = gmodscale
         logger.info("Main: Model Scale: %s", modscale)
     
         # ----- Load Reference class and time variables -----
-        lp_timeframe_name = data_params.get('mp_data_timeframe', 'M1')
+        lp_timeframe_name = data_params.get('mp_data_timeframe', 'mt5.TIMEFRAME_H4')
+        logger.info("Main:Chief Timeframe Name: %s", lp_timeframe_name)
+      
+
         reference_config = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
         
         # Adjust TIME_CONSTANTS handling in case it's a list.
@@ -465,7 +453,24 @@ def main(logger):
         logger.info("Main Model Check: mp_symbol_primary: %s", mp_symbol_primary)
         logger.info("Main Model get all_modelscale: %s", mql_overrides.env.all_params().get('mltune', {}).get('all_modelscale', 1))
 
-       
+       # Log parameter details
+        logger.info("Main Base Parameters:")
+        for key, value in base_params.items():
+            logger.info(f"  {key}: {value}")
+        logger.info("Main Data Parameters:")
+        for key, value in data_params.items():
+            logger.info(f"  {key}: {value}")
+        logger.info("Main ML Parameters:")
+        for key, value in ml_params.items():
+            logger.info(f"  {key}: {value}")
+        logger.info("Main ML Tuning Parameters:")
+        for key, value in mltune_params.items():
+            logger.info(f"  {key}: {value}")
+        logger.info("Main App Parameters:")
+        for key, value in app_params.items():
+            logger.info(f"  {key}: {value}")
+
+
             
         # ----- Model Tuning and Setup -----
         tuner_config = CMdtuner(

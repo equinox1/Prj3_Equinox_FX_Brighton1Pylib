@@ -11,10 +11,11 @@ SCRIPT_NAMES = [
     "tsNeuroPredictWinMql_worker.py",
     "OracleServer.py",
     "OracleClient.py",
-    "uvicorn"
-    "python"
+    "uvicorn",
+    "python",
     "winsvrxerces01"
 ]
+
 
 
 def is_windows():

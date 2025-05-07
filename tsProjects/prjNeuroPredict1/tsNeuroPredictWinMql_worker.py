@@ -8,6 +8,7 @@
 # --- [ imports ] ---
 import os
 import logging
+from cv2 import log
 import numpy as np
 import time
 from datetime import datetime
@@ -89,7 +90,19 @@ def main(logger):
     mltune_params = mql_overrides.env.all_params().get("mltune", {})
     app_params = mql_overrides.env.all_params().get("app", {})
 
-    lp_timeframe_name = data_params.get('mp_data_timeframe', 'M1')
+
+
+     # ----- Model Tuning and Setup -----
+    mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
+    mql_overrides.env.override_params({"mltune": {'batch_size': 8}})
+    mql_overrides.env.override_params({"data": {'mp_data_timeframe': 'mt5.TIMEFRAME_H4'}})
+    logger.info("Main: mp_app_ml_hard_run: %s", app_params.get('mp_app_ml_hard_run', True))
+    logger.info("Main: mp_ml_mbase_path: %s", base_params.get('mp_glob_base_ml_project_dir', None))
+    logger.info("Main: batch_size: %s", base_params.get('batch_size', None))
+    logger.info("Main: mp_data_timeframe: %s", data_params.get('mp_data_timeframe', 'mt5.TIMEFRAME_H4'))
+
+    lp_timeframe_name = data_params.get('mp_data_timeframe', 'mt5.TIMEFRAME_H4')
+    logger.info("Worker Timeframe: %s", lp_timeframe_name)
     reference_config = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
     time_constants = reference_config.TIME_CONSTANTS[0] if isinstance(reference_config.TIME_CONSTANTS, list) else reference_config.TIME_CONSTANTS
 
