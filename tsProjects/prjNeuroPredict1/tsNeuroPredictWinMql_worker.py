@@ -16,6 +16,14 @@ from pathlib import Path
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
 
+# Extra modules needed for ONNX conversion and MetaTrader5 (adjust if not used)
+import tf2onnx
+import onnx
+from onnx import checker
+import onnxruntime as ort
+import MetaTrader5 as mt5
+
+
 from tsMqlSetup import CMqlSetup
 from tsMqlPlatform import run_platform, platform_checker
 from tsMqlEnvMgr import CMqlEnvMgr
@@ -95,7 +103,8 @@ def main(logger):
      # ----- Model Tuning and Setup -----
     mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
     mql_overrides.env.override_params({"mltune": {'batch_size': 8}})
-    mql_overrides.env.override_params({"data": {'mp_data_timeframe': 'mt5.TIMEFRAME_H4'}})
+    mql_overrides.env.override_params({"data": {'mp_data_timeframe': mt5.TIMEFRAME_H4}})
+    mql_overrides.env.override_params({"data": {'mp_data_timeframe': mt5.TIMEFRAME_H4}})
     logger.info("Main: mp_app_ml_hard_run: %s", app_params.get('mp_app_ml_hard_run', True))
     logger.info("Main: mp_ml_mbase_path: %s", base_params.get('mp_glob_base_ml_project_dir', None))
     logger.info("Main: batch_size: %s", base_params.get('batch_size', None))
