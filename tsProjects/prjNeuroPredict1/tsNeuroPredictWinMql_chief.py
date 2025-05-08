@@ -167,7 +167,7 @@ print("Distribution strategy:", diststrategy)
 
 #Tuner options
 gtuner_type = 'distributed' #'distributed'  # local, distributed, or tpu
-gtuner_mode ='random' # 'random', 'bayesian', 'greedy', 'hyperband', or 'local'
+gtuner_mode ='hyperband' # 'random', 'bayesian', 'greedy', 'hyperband', or 'local'
 gmodscale=8 # Model scale factor for tuning
 print("Tuner type:", gtuner_type) # local, distributed, or tpu
 print("Tuner mode:", gtuner_mode)
