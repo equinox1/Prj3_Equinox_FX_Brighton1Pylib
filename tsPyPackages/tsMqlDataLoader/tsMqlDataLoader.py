@@ -33,27 +33,31 @@ class CDataLoader:
         self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default_filename1.csv')
         self.mp_data_filename2 = self.params.get('data', {}).get('mp_data_filename2', 'default_filename2.csv')
 
-        default_utc_from = datetime.now(datetime.timezone.utc)
-        default_utc_to = datetime.now(datetime.timezone.utc)
+        default_utc_from = datetime.utcnow()
+        default_utc_to = datetime.utcnow()
 
         self.lp_utc_from = kwargs.get('lp_utc_from', default_utc_from)
         self.lp_utc_to = kwargs.get('lp_utc_to', default_utc_to)
         self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
         self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('"mp_data_rows', 1000))
         self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
-        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('data', {}).get('mp_app_timeframe', 'mt5.TIMEFRAME_M1'))
+        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('data', {}).get('mp_data_timeframe', 'mt5.TIMEFRAME_M1'))
        
         self._set_global_parameters(kwargs)  # Now safe to call
 
         # Debugging logs
         logger.debug(f"kwargs: {kwargs}")
         logger.debug(f"self.local_data_params: {self.local_data_params}")
-
         logger.info(f"UTC from: {self.lp_utc_from}")
         logger.info(f"UTC to: {self.lp_utc_to}")
         logger.info(f"Timeframe: {self.lp_timeframe}")
         logger.info(f"Primary symbol: {self.lp_app_primary_symbol}")
         logger.info(f"Rows to fetch: {self.lp_data_rows}")
+        logger.info(f"lp_timeframe: {self.lp_timeframe}")
+        logger.info(f"lp_data_rowcount: {self.lp_data_rowcount}")
+        logger.info(f"mp_data_filename1: {self.mp_data_filename1}")
+        logger.info(f"mp_data_filename2: {self.mp_data_filename2}")
+
 
     def _initialize_mql(self):
         """Initialize MetaTrader5 module and check platform."""
@@ -79,7 +83,6 @@ class CDataLoader:
 
   
         self.mp_glob_base_data_path = self.params.get('base', {}).get('mp_glob_base_data_path', 'Mql5Data')
-
         self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
         self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
         self.mp_data_loadapiticks = kwargs.get('mp_data_loadapiticks', self.params.get('data', {}).get('mp_data_loadapiticks', True))
@@ -121,13 +124,18 @@ class CDataLoader:
             if apitype == 'ticks':
                 logger.info(f"Api ticks: Fetching Symbol {self.lp_app_primary_symbol} with rows {self.lp_data_rows} of ticks from {self.lp_utc_from} to {self.lp_utc_to}")
                 logger.info(f"Api ticks: FetchingTimeframe {self.lp_timeframe} ")
+                logger.info(f"Api Running command: mt5.copy_ticks_from({self.lp_app_primary_symbol}, {self.lp_utc_from}, {self.lp_data_rows}, mt5.COPY_TICKS_ALL)")
                 #Tested ok:  ticks2=mt5.copy_ticks_from(lp_app_primary_symbol, lp_utc_from, lp_data_rows, mt5.COPY_TICKS_ALL)
+                #log:Api   command: mt5.copy_ticks_from(EURUSD, 2020-05-07 00:00:00+01:00, 1000, mt5.COPY_TICKS_ALL)
                 data = mt5.copy_ticks_from(self.lp_app_primary_symbol, self.lp_utc_from, self.lp_data_rows, mt5.COPY_TICKS_ALL)
             elif apitype == 'rates':
                 logger.info(f"Api rates: Fetching Symbol {self.lp_app_primary_symbol} with rows {self.lp_data_rows} of rates from {self.lp_utc_from} to {self.lp_utc_to}")
                 logger.info(f"Api rates: FetchingTimeframe {self.lp_timeframe} ")
+                logger.info(f"Api Running command: mt5.copy_rates_from({self.lp_app_primary_symbol}, {self.lp_timeframe}, {self.lp_utc_from}, {self.lp_data_rows})")
                 #Tested ok:  rates2 = mt5.copy_rates_from(lp_app_primary_symbol, mt5.TIMEFRAME_H4, lp_utc_from, lp_data_rows)
+                #log:Api   command:   mt5.copy_rates_from(EURUSD, mt5.TIMEFRAME_H4, 2020-05-07 00:00:00+01:00, 1000)  
                 data = mt5.copy_rates_from(self.lp_app_primary_symbol,self.lp_timeframe, self.lp_utc_from, self.lp_data_rows)
+         
             df = pd.DataFrame(data)
             return df
         except Exception as e:
