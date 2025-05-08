@@ -3,10 +3,9 @@ import os
 import signal
 import platform
 
-# List of script names to kill
-
-
 SCRIPT_NAMES = [
+    "tsNeuroPredictWinMql_chief.py",
+    "tsNeuroPredictWinMql_worker.py",
     "tsNeuroPredictWinMql_chief.py",
     "tsNeuroPredictWinMql_worker.py",
     "OracleServer.py",
@@ -14,8 +13,6 @@ SCRIPT_NAMES = [
     "uvicorn",
     "winsvrxerces01"
 ]
-
-
 
 def is_windows():
     return platform.system().lower() == "windows"
@@ -32,12 +29,12 @@ def kill_by_script_name(script_names):
                     print(f"[INFO] Killing PID {proc.pid} | CMD: {cmdline_str}")
                     
                     if is_windows():
-                        proc.terminate()  # os.kill with signal.SIGTERM isn't always reliable on Windows
+                        proc.terminate()
                     else:
                         os.kill(proc.pid, signal.SIGTERM)
 
                     killed.append((proc.pid, script_name))
-                    break  # Skip checking other script names
+                    break
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
     return killed

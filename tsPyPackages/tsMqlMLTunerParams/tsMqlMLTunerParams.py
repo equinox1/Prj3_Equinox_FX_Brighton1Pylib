@@ -133,6 +133,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
             "unitmax": 512,
             "unitstep": 32,
             "defaultunits": 128,
+            "backend": "tensorflow"  # or "pytorch"
         }
 
         self.MODEL_SCALE_PARAMS = {

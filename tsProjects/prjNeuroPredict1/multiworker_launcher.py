@@ -1,3 +1,4 @@
+# multiworker_launcher.py (MODIFIED)
 import subprocess
 import time
 import os
@@ -10,7 +11,8 @@ PYTHON_EXEC = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Pyt
 
 # ==== CONFIGURATION ====
 base_path = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/PythonLib"
-CHIEF_SCRIPT = os.path.join(base_path, "tsProjects/prjNeuroPredict1/oracle_server_main.py")
+# Swap to MODIFIED scripts
+CHIEF_SCRIPT = os.path.join(base_path, "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_chief.py")
 WORKER_SCRIPT = os.path.join(base_path, "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_worker.py")
 ORACLE_HOST = '192.168.1.103'
 ORACLE_PORT = 9000
