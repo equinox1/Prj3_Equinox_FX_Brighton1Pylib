@@ -130,6 +130,8 @@ ML_PARAMS:
 # ML Tuning Settings
 ML_TUNING_PARAMS:
   mp_ml_tunemode: True
+  backend: "tensorflow"  # or "pytorch"
+
 
 APP_PARAMS:
   mp_app_primary_symbol: "EURUSD"  # Corrected typo

@@ -61,6 +61,7 @@ from tsMqlMLTuner import CMdtuner
 from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
+from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector  
 
 from keras_tuner.engine.oracle import Oracle
 from keras_tuner.engine.trial import Trial
@@ -167,7 +168,8 @@ print("Distribution strategy:", diststrategy)
 
 #Tuner options
 gtuner_type = 'distributed' #'distributed'  # local, distributed, or tpu
-gtuner_mode ='hyperband' # 'random', 'bayesian', 'greedy', 'hyperband', or 'local'
+gtuner_mode ='random' # 'random', 'bayesian', 'greedy', 'hyperband', or 'local'
+gtuner_model = "tensorflow"  # or "pytorch"
 gmodscale=8 # Model scale factor for tuning
 print("Tuner type:", gtuner_type) # local, distributed, or tpu
 print("Tuner mode:", gtuner_mode)
@@ -307,7 +309,9 @@ def main(logger):
         mql_overrides.env.override_params({"mltune": {'distribution_strategy': diststrategy}})
         mql_overrides.env.override_params({"mltune": {'tunertype': gtuner_type}})
         mql_overrides.env.override_params({"mltune": {'tunemode': gtuner_mode}})
+        mql_overrides.env.override_params({"mltune": {'backend': gtuner_model}})
 
+       
         mltune_overrides = mql_overrides.env.all_params().get("mltune", {})
         logger.info("OverRidden: ML Tuning Parameters: %s", mltune_overrides)
         logger.info("OverRidden: Total Window Size: %s", mltune_overrides.get("total_window_size", total_window_size))
@@ -317,6 +321,7 @@ def main(logger):
         logger.info("OverRidden: Distribution Strategy: %s", mltune_overrides.get("distribution_strategy", diststrategy))
         logger.info("OverRidden: Tuner Type: %s", mltune_overrides.get("tunertype", gtuner_type))
         logger.info("OverRidden: Tuner Mode: %s", mltune_overrides.get("tunemode", gtuner_mode))
+        logger.info("OverRidden: Backend: %s", mltune_overrides.get("backend", gtuner_mode))
 
 
         # ----- Select Features and Labels -----
@@ -471,9 +476,9 @@ def main(logger):
             logger.info(f"  {key}: {value}")
 
 
-            
+           
         # ----- Model Tuning and Setup -----
-        tuner_config = CMdtuner(
+        tuner_config = CMdtunerSelector(
             oracle=OracleClient(host=xerces_server, port=xerces_port),
             hypermodel_params=mql_overrides.env.all_params(),
             traindataset=train_dataset,
