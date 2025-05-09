@@ -18,21 +18,17 @@ import json
 from datetime import datetime, date
 import pytz
 import socket
-
 # Data packages
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
-
 # Machine Learning packages
 os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
 os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-
 import tensorflow as tf
-
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler  # Added for scaling
@@ -56,7 +52,6 @@ from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
 from tsMqlMLProcess import CDMLProcess
 
-
 #Oracle imports
 from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
@@ -68,14 +63,11 @@ from tsMqlMLTuner.tsMqlMLTunerModTorch import PyTorchTuner
 from keras_tuner.engine.oracle import Oracle
 from keras_tuner.engine.trial import Trial
 from keras_tuner.engine.hyperparameters import HyperParameters
-
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
-
-
 
 # --- Define Simple Oracle ---
 class SimpleOracle(Oracle):
@@ -91,7 +83,6 @@ class SimpleOracle(Oracle):
         self._trials[trial_id].score = result
         self._trials[trial_id].status = Trial.Status.COMPLETED
 
-
 # ----- Setup platform -----
 # Set up the environment
 os.environ["TUNER_ID"] = "chief"
@@ -103,7 +94,6 @@ xerces_port = 9000
 xerces_logfile = 'tsneuropredict_app.log'
 global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_servername)
 print(f"Logdir: {global_logdir}")
-
 
 # Set up the root logger
 logger = logging.getLogger()
@@ -138,9 +128,7 @@ logger.info("Logfile: %s", global_logfile)
 tboardlogdir = os.path.join(global_logdir, 'tboard_logs')
 tensorboard_cb = tf.keras.callbacks.TensorBoard(log_dir=tboardlogdir, histogram_freq=1)
 
-
 # ---- Configuration ----
-
 is_chief = tuner_id.lower() == "chief"
 # Start OracleServer early in its own thread
 def launch_oracle():
@@ -198,7 +186,6 @@ def main(logger):
         os.makedirs(logdir, exist_ok=True)
         logfile = os.path.join(logdir, 'tsneuropredict_app.log')
         logger.info(f"Logfile: {logfile}")
-
         
          # ----- Model Tuning and Setup -----
         mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
@@ -217,7 +204,6 @@ def main(logger):
         lp_timeframe_name = data_params.get('mp_data_timeframe', 'mt5.TIMEFRAME_H4')
         logger.info("Main:Chief Timeframe Name: %s", lp_timeframe_name)
       
-
         reference_config = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
         
         # Adjust TIME_CONSTANTS handling in case it's a list.
@@ -268,7 +254,6 @@ def main(logger):
         logger.info(f"Main: UTC From: {mv_data_utc_from}")
         logger.info(f"Main: UTC To: {mv_data_utc_to}")
 
-      
         data_loader_config = CDataLoader(
             lp_utc_from=mv_data_utc_from,
             lp_utc_to=mv_data_utc_to,
@@ -312,7 +297,6 @@ def main(logger):
         mql_overrides.env.override_params({"mltune": {'tunertype': gtuner_type}})
         mql_overrides.env.override_params({"mltune": {'tunemode': gtuner_mode}})
         mql_overrides.env.override_params({"mltune": {'backend': gtuner_model}})
-
        
         mltune_overrides = mql_overrides.env.all_params().get("mltune", {})
         logger.info("OverRidden: ML Tuning Parameters: %s", mltune_overrides)
@@ -324,7 +308,6 @@ def main(logger):
         logger.info("OverRidden: Tuner Type: %s", mltune_overrides.get("tunertype", gtuner_type))
         logger.info("OverRidden: Tuner Mode: %s", mltune_overrides.get("tunemode", gtuner_mode))
         logger.info("OverRidden: Backend: %s", mltune_overrides.get("backend", gtuner_mode))
-
 
         # ----- Select Features and Labels -----
         features = ml_params.get("mp_ml_input_keyfeat", "Close")
@@ -478,35 +461,21 @@ def main(logger):
             logger.info(f"  {key}: {value}")
 
         # Conditional Tuner
-        backend = mltune_params.get("backend", "tensorflow").lower()
-        if backend == "pytorch":
-             # ----- Model Tuning and Setup -----
-            tuner_config = PyTorchTuner(
-                oracle=OracleClient(host=xerces_server, port=xerces_port),
-                hypermodel_params=mql_overrides.env.all_params(),
-                traindataset=train_dataset,
-                valdataset=val_dataset,
-                testdataset=test_dataset,
-                castmode='float16',
-            )
-            best_model = tuner_config.run()
-        else:
-            # ----- Model Tuning and Setup -----
-            tuner_config = CMdtuner(
-                oracle=OracleClient(host=xerces_server, port=xerces_port),
-                hypermodel_params=mql_overrides.env.all_params(),
-                traindataset=train_dataset,
-                valdataset=val_dataset,
-                testdataset=test_dataset,
-                castmode='float16',
-            )
+        tuner_config = CMdtunerSelector(
+            oracle=OracleClient(host=xerces_server, port=xerces_port),
+            hypermodel_params=mql_overrides.env.all_params(),
+            traindataset=train_dataset,
+            valdataset=val_dataset,
+            testdataset=test_dataset,
+            castmode='float16',
+        )
             
-            # --- Now run tuning normally ---
-            runtuner = tuner_config.run_search()
-            tuner_config.export_best_model(ftype='tf')
+        # --- Now run tuning normally ---
+        runtuner = tuner_config.run_search()
+        tuner_config.export_best_model(ftype='tf')
 
-            logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
-            best_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
+        logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
+        best_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
 
         if best_model is None:
             logger.info("No best model loaded. Running tuner search (default run).")
@@ -586,7 +555,7 @@ def main(logger):
                 logger.info("Plot Path: %s", plot_path)
                 print("Plot Path: %s", plot_path)
                 plt.savefig(plot_path)
-                #plt.show()
+                
                 # Close the plot to free up memory
                 plt.close()
                 logger.info("Price prediction plot saved at: %s", plot_path)
