@@ -51,13 +51,18 @@ class CustomOracle(Oracle):
         # Dense
         hp.Int('dense_1_units', 32, 256, step=32)
 
+        self._trials[trial_id] = Trial(hyperparameters=hp)
+        self._trials[trial_id].status = "RUNNING"
         return {
             "trial_id": trial_id,
             "hyperparameters": hp,
             "status": "RUNNING",
         }
 
+       
+
     def score_trial(self, trial_id, result):
-        if trial_id in self._trials:
-            self._trials[trial_id].score = result
-            self._trials[trial_id].status = "COMPLETED"
+        trial = self._trials.get(trial_id)
+        if trial:
+            trial.score = result
+            trial.status = "COMPLETED"
