@@ -55,13 +55,15 @@ from tsMqlConnect import CMqlBrokerConfig
 from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
 from tsMqlMLProcess import CDMLProcess
-from tsMqlMLTuner import CMdtuner
+
 
 #Oracle imports
 from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
+from tsMqlMLTuner.tsMqlMLTunerMod import CMdtuner 
 from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector  
+from tsMqlMLTuner.tsMqlMLTunerModTorch import PyTorchTuner
 
 from keras_tuner.engine.oracle import Oracle
 from keras_tuner.engine.trial import Trial
@@ -167,8 +169,8 @@ diststrategy = 'tf.distribute.MultiWorkerMirroredStrategy'
 print("Distribution strategy:", diststrategy)
 
 #Tuner options
-gtuner_type = 'distributed' #'distributed'  # local, distributed, or tpu
-gtuner_mode ='random' # 'random', 'bayesian', 'greedy', 'hyperband', or 'local'
+gtuner_type = 'local' #'distributed'  # local, distributed, or tpu
+gtuner_mode ='hyperband' # 'random', 'bayesian', 'greedy', 'hyperband', or 'local'
 gtuner_model = "tensorflow"  # or "pytorch"
 gmodscale=8 # Model scale factor for tuning
 print("Tuner type:", gtuner_type) # local, distributed, or tpu
@@ -475,24 +477,36 @@ def main(logger):
         for key, value in app_params.items():
             logger.info(f"  {key}: {value}")
 
+        # Conditional Tuner
+        backend = mltune_params.get("backend", "tensorflow").lower()
+        if backend == "pytorch":
+             # ----- Model Tuning and Setup -----
+            tuner_config = PyTorchTuner(
+                oracle=OracleClient(host=xerces_server, port=xerces_port),
+                hypermodel_params=mql_overrides.env.all_params(),
+                traindataset=train_dataset,
+                valdataset=val_dataset,
+                testdataset=test_dataset,
+                castmode='float16',
+            )
+            best_model = tuner_config.run()
+        else:
+            # ----- Model Tuning and Setup -----
+            tuner_config = CMdtuner(
+                oracle=OracleClient(host=xerces_server, port=xerces_port),
+                hypermodel_params=mql_overrides.env.all_params(),
+                traindataset=train_dataset,
+                valdataset=val_dataset,
+                testdataset=test_dataset,
+                castmode='float16',
+            )
+            
+            # --- Now run tuning normally ---
+            runtuner = tuner_config.run_search()
+            tuner_config.export_best_model(ftype='tf')
 
-           
-        # ----- Model Tuning and Setup -----
-        tuner_config = CMdtunerSelector(
-            oracle=OracleClient(host=xerces_server, port=xerces_port),
-            hypermodel_params=mql_overrides.env.all_params(),
-            traindataset=train_dataset,
-            valdataset=val_dataset,
-            testdataset=test_dataset,
-            castmode='float16',
-        )
-        
-        # --- Now run tuning normally ---
-        runtuner = tuner_config.run_search()
-        tuner_config.export_best_model(ftype='tf')
-
-        logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
-        best_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
+            logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
+            best_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
 
         if best_model is None:
             logger.info("No best model loaded. Running tuner search (default run).")
