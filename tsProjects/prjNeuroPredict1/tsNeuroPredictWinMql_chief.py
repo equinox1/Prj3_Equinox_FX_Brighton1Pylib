@@ -159,7 +159,7 @@ print("Distribution strategy:", diststrategy)
 #Tuner options
 gtuner_type = 'local' #'distributed'  # local, distributed, or tpu
 gtuner_mode ='hyperband' # 'random', 'bayesian', 'greedy', 'hyperband', or 'local'
-gtuner_model = "tensorflow"  # or "pytorch"
+gtuner_model = "pytorch"  # tensorflow or "pytorch"
 gmodscale=8 # Model scale factor for tuning
 print("Tuner type:", gtuner_type) # local, distributed, or tpu
 print("Tuner mode:", gtuner_mode)
@@ -362,14 +362,19 @@ def main(logger):
         logger.info("Train dataset: %s", train_dataset)
         logger.info("Validation dataset: %s", val_dataset)
         logger.info("Test dataset: %s", test_dataset)
+        # Check the dataset shapes
+        logger.info("Train dataset shape: %s", train_dataset.element_spec[0].shape)
+        logger.info("Validation dataset shape: %s", val_dataset.element_spec[0].shape)
+        logger.info("Test dataset shape: %s", test_dataset.element_spec[0].shape)
+        input_shape = train_dataset.element_spec[0].shape[1:]  # ✅ Drop batch dimension (None)
 
-        input_shape = train_dataset.element_spec[0].shape
         data_input_shape = input_shape
         output_shape = train_dataset.element_spec[1].shape
+
         
         mql_overrides.env.override_params({"mltune": {"input_shape": input_shape}})
         mql_overrides.env.override_params({"mltune": {"output_shape": output_shape}})
-        mql_overrides.env.override_params({"mltune": {"data_input_shape": data_input_shape}})
+        mql_overrides.env.override_params({"mltune": {"data_input_shape": input_shape}})
         mltune_overrides = mql_overrides.env.all_params().get("mltune", {})
 
         logger.info("Input shape: %s", input_shape)
