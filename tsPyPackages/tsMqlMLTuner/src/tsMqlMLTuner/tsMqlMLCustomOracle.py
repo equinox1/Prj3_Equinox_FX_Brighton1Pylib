@@ -1,19 +1,41 @@
 from keras_tuner.engine.oracle import Oracle
 from keras_tuner.engine.trial import Trial
 from keras_tuner.engine.hyperparameters import HyperParameters
+from tsMqlSetup import CMqlSetup
+import os
+import logging
+import uuid
 
+logger = logging.getLogger(__name__)
+
+from keras_tuner.engine.oracle import Oracle
+from keras_tuner.engine.trial import Trial
+from keras_tuner.engine.hyperparameters import HyperParameters
+from tsMqlSetup import CMqlSetup
+import os
+import logging
+import uuid
+
+logger = logging.getLogger(__name__)
 
 class CustomOracle(Oracle):
     def __init__(self, objective="val_loss", max_trials=50, seed=42):
-        super().__init__(
-            objective=objective,
-            max_trials=max_trials,
-            seed=seed,
-        )
-        # Required for directory/project structure (though unused in your setup)
-        self._directory = "oracle_dir"
-        self._project_name = "oracle_project"
-        self._trials = {}  # ✅ Initialize the trials dictionary
+        super().__init__(objective=objective, max_trials=max_trials, seed=seed)
+
+        setup_config = CMqlSetup(loglevel='INFO', warn='ignore', precision='mixed_bfloat16', tfdebug=False, num_cores=48, num_threads=4)
+        xerces_servername = "WINSVRXERCES01"
+        xerces_logfile = 'tsneuropredict_app.log'
+        self.global_logdir, self.global_logfile = setup_config.set_log_dir(logdir=None, logfile=xerces_logfile, servername=xerces_servername)
+        print(f"[CustomOracle] Logdir: {self.global_logdir}")
+
+        self._directory = os.path.join(self.global_logdir, "oracle_dir")
+        self._project_name = os.path.join(self.global_logdir, "oracle_project")
+        self._trials = {}
+
+    def create_trial(self, tuner_id):
+        """Generate a unique trial and return its hyperparameters"""
+        trial_id = str(uuid.uuid4())[:8]
+        return self.populate_space(trial_id)
 
     def populate_space(self, trial_id):
         hp = HyperParameters()
@@ -23,7 +45,7 @@ class CustomOracle(Oracle):
         hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4, 1e-5])
         hp.Choice('loss', ['mse', 'mae', 'binary_crossentropy'])
         hp.Choice('metric', ['mse', 'mae', 'accuracy'])
-        hp.Int('epochs', min_value=5, max_value=50, step=1)
+        hp.Int('epochs', min_value=5, max_value=50, step=5)
 
         # CNN
         hp.Int('num_cnn_layers', 1, 3)
@@ -51,18 +73,17 @@ class CustomOracle(Oracle):
         # Dense
         hp.Int('dense_1_units', 32, 256, step=32)
 
-        self._trials[trial_id] = Trial(hyperparameters=hp)
-        self._trials[trial_id].status = "RUNNING"
+        trial = Trial(hyperparameters=hp)
+        trial.status = "RUNNING"
+        self._trials[trial_id] = trial
+
         return {
             "trial_id": trial_id,
-            "hyperparameters": hp,
-            "status": "RUNNING",
+            "hyperparameters": hp.values,  # ✅ Now sending values dict
+            "status": trial.status,
         }
 
-       
-
     def score_trial(self, trial_id, result):
-        trial = self._trials.get(trial_id)
-        if trial:
-            trial.score = result
-            trial.status = "COMPLETED"
+        if trial_id in self._trials:
+            self._trials[trial_id].score = result
+            self._trials[trial_id].status = "COMPLETED"

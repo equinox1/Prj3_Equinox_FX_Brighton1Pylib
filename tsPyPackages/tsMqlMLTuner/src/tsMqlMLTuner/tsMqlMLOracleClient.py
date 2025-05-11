@@ -3,6 +3,10 @@ import time
 import requests
 import logging
 
+# Get a logger for this module
+logger = logging.getLogger(__name__)
+
+
 class OracleClient:
     def __init__(self, host="localhost", port=9000, heartbeat_interval=300):
         self.url = f"http://{host}:{port}"

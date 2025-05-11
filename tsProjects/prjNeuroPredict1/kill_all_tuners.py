@@ -6,12 +6,13 @@ import platform
 SCRIPT_NAMES = [
     "tsNeuroPredictWinMql_chief.py",
     "tsNeuroPredictWinMql_worker.py",
-    "tsNeuroPredictWinMql_chief.py",
-    "tsNeuroPredictWinMql_worker.py",
     "OracleServer.py",
     "OracleClient.py",
     "uvicorn",
     "winsvrxerces01"
+    "python"
+    "9000",
+
 ]
 
 def is_windows():

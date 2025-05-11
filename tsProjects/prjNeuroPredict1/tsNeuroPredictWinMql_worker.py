@@ -40,22 +40,8 @@ server = '192.168.1.103'
 port = 9000
 logdir, logfile = setup.set_log_dir(logfile='tsneuropredict_app.log', servername="WINSVRXERCES01")
 
-# --- Logger Setup ---
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
-if logger.hasHandlers():
-    logger.handlers.clear()
-try:
-    fh = logging.FileHandler(logfile, mode='w', encoding='utf-8')
-except OSError:
-    fh = logging.FileHandler('fallback.log', mode='w', encoding='utf-8')
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s',
-                              datefmt='%Y-%m-%d %H:%M:%S')
-fh.setFormatter(formatter)
-logger.addHandler(fh)
-sh = logging.StreamHandler()
-sh.setFormatter(formatter)
-logger.addHandler(sh)
+# Get a logger for this module
+logger = logging.getLogger(__name__)
 
 logger.info("Worker logging configured. Logfile: %s", logfile)
 
@@ -125,20 +111,39 @@ def main(logger):
 def run_worker_loop(X, y, input_shape, hyperparams):
     oracle = OracleClient(host=server, port=port)
 
-    # Patch override shapes if needed
-    hyperparams['mltune']['data_input_shape'] = input_shape
-    hyperparams['mltune']['input_shape'] = input_shape
+    # Set required tuning params
+    mltune = hyperparams.setdefault('mltune', {})
+    mltune['data_input_shape'] = input_shape
+    mltune['input_shape'] = input_shape
+    mltune['input_width'] = mltune.get('input_width', 24)
+    mltune['shift'] = mltune.get('shift', 24)
+    backend = mltune.get('backend', 'pytorch').lower()
+
+    if backend == "tensorflow":
+        import tensorflow as tf
+        buffer_size = 10000
+        batch_size = 32
+        dataset = tf.data.Dataset.from_tensor_slices((X, y))
+        dataset = dataset.shuffle(buffer_size).batch(batch_size)
+
+        traindataset = valdataset = testdataset = dataset
+    else:
+        # For PyTorch — use plain (X, y) tuples
+        traindataset = valdataset = testdataset = (X, y)
 
     tuner = CMdtunerSelector(
         oracle=oracle,
         hypermodel_params=hyperparams,
-        traindataset=(X, y),
-        valdataset=(X, y),
-        testdataset=(X, y),
+        traindataset=traindataset,
+        valdataset=valdataset,
+        testdataset=testdataset,
         castmode='float32'
     )
-    logger.info("Worker tuner initialized. Waiting for Oracle trials.")
-    tuner.run()
+
+    logger.info("Worker tuner initialized. Waiting for Oracle trials...")
+    tuner.run_search()
+
+
 
 if __name__ == "__main__":
     X, y, shape, params = main(logger)

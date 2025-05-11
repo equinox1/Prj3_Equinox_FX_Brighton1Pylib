@@ -4,6 +4,12 @@ import datetime
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import logging
+
+# Get a logger for this module
+logger = logging.getLogger(__name__)
+
+
 
 class TrialRequest(BaseModel):
     trial_id: str
