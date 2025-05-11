@@ -149,7 +149,19 @@ class CMdtuner:
         self.label_columns           = mltune.get('label_columns', None)
         self.shift                   = mltune.get('shift', 24)
         self.input_width             = mltune.get('input_width', 1440)
-        self.total_window_size       = self.input_width + self.shift
+
+        # Ensure input_width and shift have valid numeric values
+        self.input_width = mltune.get('input_width', 24)
+        self.shift = mltune.get('shift', 24)
+
+        # Final fallback in case they are explicitly None
+        if self.input_width is None:
+            self.input_width = 24
+        if self.shift is None:
+            self.shift = 24
+
+        self.total_window_size = self.input_width + self.shift
+
         self.tune_new_entries       = mltune.get('tune_new_entries', True)
         self.allow_new_entries       = mltune.get('allow_new_entries', True)
         self.max_retries_per_trial   = mltune.get('max_retries_per_trial', 5)
@@ -656,28 +668,51 @@ class CMdtuner:
         return tf.keras.layers.LayerNormalization(epsilon=1e-6)(out1 + ffn_output)
 
     def run_search(self):
-            logger.info("Running custom tuner search via OracleClient...")
-            logger.debug(f"run_search: input_shape = {self.input_shape}")
-            logger.debug(f"run_search: hypermodel_params keys = {list(self.hypermodel_params.get('mltune', {}).keys())}")
+        logger.info("Running custom tuner search via OracleClient...")
+        logger.debug(f"run_search: input_shape = {self.input_shape}")
+        logger.debug(f"run_search: hypermodel_params keys = {list(self.hypermodel_params.get('mltune', {}).keys())}")
 
-            if not self.oracle or not isinstance(self.oracle, OracleClient):
-                raise RuntimeError("OracleClient not initialized in distributed mode.")
+        if not self.oracle or not isinstance(self.oracle, OracleClient):
+            raise RuntimeError("OracleClient not initialized in distributed mode.")
 
-            while True:
-                try:
-                    trial = self.oracle.get_trial()
-                    trial_id = trial["trial_id"]
-                    hp_config = trial["hyperparameters"]
-                    hp = self.tuner.oracle.hyperparameters.copy()
-                    hp.values = hp_config
-                    logger.info(f"Running trial {trial_id} with hyperparameters: {hp_config}")
+        while True:
+            try:
+                trial = self.oracle.get_trial()
 
-                except Exception as e:
-                    logger.error(f"Exception during trial run: {str(e)}")
+                if not trial:
+                    logger.info("No more trials received from OracleServer. Exiting.")
                     break
 
-            logger.info("Custom tuner search completed.")
-            return True
+                trial_id = trial.get("trial_id")
+                hp_config = trial.get("hyperparameters", {})
+
+                if not trial_id:
+                    logger.warning("Received trial without trial_id; skipping.")
+                    continue
+
+                if not isinstance(hp_config, dict) or len(hp_config) == 0:
+                    logger.warning(f"Trial {trial_id} has empty hyperparameters. Marking as FAILED.")
+                    self.oracle.update_trial_status(trial_id, "FAILED")
+                    continue
+
+                hp = self.tuner.oracle.hyperparameters.copy()
+                hp.values = hp_config
+
+                logger.info(f"Running trial {trial_id} with hyperparameters: {hp_config}")
+                val_loss = self.objective(hp)
+
+                logger.info(f"✅ Trial {trial_id} completed. val_loss={val_loss:.5f}")
+                self.oracle.report_trial_result(trial_id, val_loss)
+
+            except Exception as e:
+                logger.error(f"❌ Exception during trial {trial_id if 'trial_id' in locals() else '[UNKNOWN]'}: {str(e)}")
+                if "trial_id" in locals():
+                    self.oracle.update_trial_status(trial_id, "FAILED")
+                break
+
+        logger.info("Custom tuner search completed.")
+        return True
+
 
     def _predict_graph(self, model, test_data):
         # Predict on one batch within a tf.function for performance.

@@ -157,8 +157,8 @@ diststrategy = 'tf.distribute.MultiWorkerMirroredStrategy'
 print("Distribution strategy:", diststrategy)
 
 #Tuner options
-gtuner_type = 'local' #'distributed'  # local, distributed, or tpu
-gtuner_mode ='hyperband' # 'random', 'bayesian', 'greedy', 'hyperband', or 'local'
+gtuner_type = 'distributed' #'distributed'  # local, distributed, or tpu
+gtuner_mode ='random' # 'random', 'bayesian', 'greedy', 'hyperband', or 'local'
 gtuner_model = "pytorch"  # tensorflow or "pytorch"
 gmodscale=8 # Model scale factor for tuning
 print("Tuner type:", gtuner_type) # local, distributed, or tpu

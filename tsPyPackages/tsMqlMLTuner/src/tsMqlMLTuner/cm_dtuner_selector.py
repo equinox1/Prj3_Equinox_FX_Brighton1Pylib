@@ -1,6 +1,8 @@
 from .tsMqlMLTunerMod import CMdtuner
 from .tsMqlMLTunerModTorch import PyTorchTuner
-
+import logging
+# Get a logger for this module
+logger = logging.getLogger(__name__)
 
 
 class CMdtunerSelector:
