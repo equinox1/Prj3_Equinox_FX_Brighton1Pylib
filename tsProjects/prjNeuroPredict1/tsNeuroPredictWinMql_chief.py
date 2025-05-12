@@ -10,7 +10,6 @@
 # +------------------------------------------------------------------+
 import os
 import logging
-import subprocess
 import threading
 import pathlib
 from pathlib import Path
@@ -18,22 +17,14 @@ import json
 from datetime import datetime, date
 import pytz
 import socket
-# Data packages
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
-# Machine Learning packages
-os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
-os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-
 import tensorflow as tf
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler  # Added for scaling
-
-# Extra modules needed for ONNX conversion and MetaTrader5 (adjust if not used)
+from sklearn.preprocessing import StandardScaler
 import tf2onnx
 import onnx
 from onnx import checker
@@ -51,61 +42,32 @@ from tsMqlConnect import CMqlBrokerConfig
 from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
 from tsMqlMLProcess import CDMLProcess
-
-#Oracle imports
-from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
-from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
-from tsMqlMLTuner.tsMqlMLTunerMod import CMdtuner 
-from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector  
+from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
 from tsMqlMLTuner.tsMqlMLTunerModTorch import PyTorchTuner
 
-from keras_tuner.engine.oracle import Oracle
-from keras_tuner.engine.trial import Trial
-from keras_tuner.engine.hyperparameters import HyperParameters
-import uvicorn
-from fastapi import FastAPI
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI
-
-# --- Define Simple Oracle ---
-class SimpleOracle(Oracle):
-    def __init__(self):
-        super().__init__(objective="val_loss", max_trials=20, seed=42)
-
-    def populate_space(self):
-        hp = HyperParameters()
-        hp.Choice("units", [32, 64, 128])
-        return {"status": Trial.Status.RUNNING, "values": hp.values, "hyperparameters": hp}
-
-    def score_trial(self, trial_id, result):
-        self._trials[trial_id].score = result
-        self._trials[trial_id].status = Trial.Status.COMPLETED
-
-# ----- Setup platform -----
-# Set up the environment
+os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
+os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TUNER_ID"] = "chief"
 tuner_id = os.environ.get("TUNER_ID", "chief")
+
 setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4)
 xerces_servername = "WINSVRXERCES01"
 xerces_server = '192.168.1.103'
 xerces_port = 9000
 xerces_logfile = 'tsneuropredict_app.log'
-global_logdir,global_logfile=setup_config.set_log_dir(logdir=None,logfile=xerces_logfile, servername=xerces_servername)
-print(f"Logdir: {global_logdir}")
+global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=xerces_logfile, servername=xerces_servername)
 
-# Set up the root logger
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 if logger.hasHandlers():
     logger.handlers.clear()
 try:
-    # Specify encoding='utf-8' in FileHandler
     fh = logging.FileHandler(global_logfile, mode='w', encoding='utf-8')
 except OSError as e:
-    print(f"Error creating log file: {e}")  # Use print() as fallback
-    fh = logging.FileHandler('fallback.log', mode='w', encoding='utf-8')  # Fallback to a local log file
+    print(f"Error creating log file: {e}")
+    fh = logging.FileHandler('fallback.log', mode='w', encoding='utf-8')
 
 formatter = logging.Formatter(
     '%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s',
@@ -113,37 +75,10 @@ formatter = logging.Formatter(
 )
 fh.setFormatter(formatter)
 logger.addHandler(fh)
-
 sh = logging.StreamHandler()
 sh.setFormatter(formatter)
 logger.addHandler(sh)
-
 logger.info("Logging configured successfully with FileHandler.")
-
-print(f"Logdir: {global_logdir}")
-print(f"Logfile: {global_logfile}")
-logger.info("Logdir: %s", global_logdir)
-logger.info("Logfile: %s", global_logfile)
-
-tboardlogdir = os.path.join(global_logdir, 'tboard_logs')
-tensorboard_cb = tf.keras.callbacks.TensorBoard(log_dir=tboardlogdir, histogram_freq=1)
-
-# ---- Configuration ----
-is_chief = tuner_id.lower() == "chief"
-# Start OracleServer early in its own thread
-def launch_oracle():
-    try:
-        logger.info("Launching OracleServer early...")
-        oracle = CustomOracle(objective="val_loss", max_trials=50)
-        oracle_server = OracleServer(oracle)
-        oracle_server.start(host=xerces_server, port=xerces_port)
-        logger.info("OracleServer launched successfully.")
-    except Exception as e:
-        logger.error(f"Failed to launch OracleServer: {e}")
-
-if tuner_id.lower() == "chief":
-    oracle_thread = threading.Thread(target=launch_oracle, daemon=True)
-    oracle_thread.start()
 
 # strategy setup
 strategy = setup_config.get_computation_strategy()
@@ -152,21 +87,22 @@ os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
-# tune multi strategy
 diststrategy = 'tf.distribute.MultiWorkerMirroredStrategy'
-print("Distribution strategy:", diststrategy)
+logger.info(f"Distribution strategy: {diststrategy}")
+gtuner_type = 'distributed'
+gtuner_mode = 'random'
+gtuner_model = "pytorch"
+gmodscale = 8
+gstandalone = True
+logger.info(f"Tuner type: {gtuner_type}, mode: {gtuner_mode}, backend: {gtuner_model}")
 
-#Tuner options
-gtuner_type = 'distributed' #'distributed'  # local, distributed, or tpu
-gtuner_mode ='random' # 'random', 'bayesian', 'greedy', 'hyperband', or 'local'
-gtuner_model = "pytorch"  # tensorflow or "pytorch"
-gmodscale=8 # Model scale factor for tuning
-print("Tuner type:", gtuner_type) # local, distributed, or tpu
-print("Tuner mode:", gtuner_mode)
 
 # ----- Main Function -----
 def main(logger):
     #with strategy.scope():
+        # ---- Configuration ----
+        is_chief = tuner_id.lower() == "chief"
+        
  
         # Setup environment and retrieve parameters
         print("Start Main Setting up environment...")
@@ -591,3 +527,4 @@ def main(logger):
         
 if __name__ == "__main__":
     main(logger)
+

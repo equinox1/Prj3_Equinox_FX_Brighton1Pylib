@@ -9,11 +9,7 @@ logger = logging.getLogger(__name__)
 
 class CustomOracle(Oracle):
     def __init__(self, objective="val_loss", max_trials=50, seed=42):
-        super().__init__(
-            objective=objective,
-            max_trials=max_trials,
-            seed=seed,
-        )
+        super().__init__(objective=objective, max_trials=max_trials, seed=seed)
 
         setup_config = CMqlSetup(
             loglevel='INFO',
@@ -23,6 +19,7 @@ class CustomOracle(Oracle):
             num_cores=48,
             num_threads=4
         )
+
         xerces_servername = "WINSVRXERCES01"
         xerces_logfile = 'tsneuropredict_app.log'
         self.global_logdir, self.global_logfile = setup_config.set_log_dir(
@@ -38,64 +35,39 @@ class CustomOracle(Oracle):
 
     def populate_space(self, trial_id):
         hp = HyperParameters()
-        hp.Choice('model_type', ['cnn', 'lstm', 'gru', 'transformer'])
-        hp.Choice('optimizer', ['adam', 'rmsprop', 'sgd', 'nadam'])
-        hp.Float('learning_rate', 1e-5, 1e-2, sampling='log')
-        hp.Choice('loss', ['mse', 'mae'])
-        hp.Choice('metric', ['mse', 'mae'])
-        hp.Int('epochs', 5, 50)
+        logger.info(f"[CustomOracle] Populating hyperparameters for trial_id: {trial_id}")
 
-        model_type = hp.get('model_type')
+        hp.Float("lr", 1e-4, 1e-2, sampling="log", default=1e-3)
+        hp.Choice("optimizer", ["Adam", "RMSprop", "SGD"], default="Adam")
+        hp.Int("epochs", 5, 20, step=5, default=10)
 
-        if model_type == 'cnn':
-            hp.Int('num_cnn_layers', 1, 3)
-            for i in range(3):
-                hp.Int(f'cnn_filters_{i}', 32, 256, step=32)
-                hp.Int(f'cnn_kernel_size_{i}', 2, 5)
-                hp.Choice(f'cnn_activation_{i}', ['relu', 'tanh'])
+        hp.Int("n_units1", 64, 256, step=64, default=128)
+        hp.Int("n_units2", 64, 256, step=64, default=128)
 
-        elif model_type == 'lstm':
-            hp.Int('num_lstm_layers', 1, 2)
-            for i in range(2):
-                hp.Int(f'lstm_units_{i}', 32, 256, step=32)
+        hp.Int("lstm_units", 32, 128, step=32, default=64)
 
-        elif model_type == 'gru':
-            hp.Int('num_gru_layers', 1, 2)
-            for i in range(2):
-                hp.Int(f'gru_units_{i}', 32, 256, step=32)
+        hp.Int("cnn_filters", 16, 128, step=16, default=32)
+        hp.Int("cnn_kernel_size", 2, 5, step=1, default=3)
 
-        elif model_type == 'transformer':
-            hp.Int('num_transformer_blocks', 1, 2)
-            for i in range(2):
-                hp.Int(f'key_dim_{i}', 32, 128, step=32)
-                hp.Int(f'num_heads_{i}', 2, 8, step=2)
+        hp.Int("trans_heads", 2, 8, step=2, default=4)
+        hp.Int("trans_ff_dim", 64, 512, step=64, default=128)
 
-        hp.Int('dense_1_units', 32, 256, step=32)
+        return hp
 
-        # Save Trial object locally if needed
-        self.trials[trial_id] = trial_lib.Trial(
-            trial_id=trial_id,
+    def create_trial(self, tuner_id):
+        trial_id = f"{len(self._trials):02d}"
+        hp = self.populate_space(trial_id)
+        trial = trial_lib.Trial(
             hyperparameters=hp,
-            status="RUNNING"
+            trial_id=trial_id,
+            status=trial_lib.TrialStatus.RUNNING,
         )
+        self._trials[trial_id] = trial
+        logger.info(f"[CustomOracle] Created trial {trial_id} with hyperparameters: {hp.values}")
+        return trial
 
-        # Return a dict for KerasTuner engine
-        return {
-            "trial_id": trial_id,
-            "hyperparameters": hp,
-            "status": "RUNNING"
-        }
 
     def score_trial(self, trial_id, result):
         if trial_id in self._trials:
             self._trials[trial_id].score = result
-            self._trials[trial_id].status = "COMPLETED"
-
-    def get_trial(self):
-        trial_id = self._generate_trial_id()
-        trial_dict = self.create_trial(trial_id)
-        self._trials[trial_id] = trial_dict
-        return {
-            "trial_id": trial_dict["trial_id"],
-            "hyperparameters": trial_dict["hyperparameters"].values
-        }
+            self._trials[trial_id].status = trial_lib.TrialStatus.COMPLETED

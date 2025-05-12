@@ -6,23 +6,27 @@ import requests
 import sys
 import psutil
 
-NUM_WORKERS = 1
-PYTHON_EXEC = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\venvwin1\Scripts\python.exe"
-
 # ==== CONFIGURATION ====
-base_path = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/PythonLib"
-CHIEF_SCRIPT = os.path.join(base_path, "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_chief.py")
-WORKER_SCRIPT = os.path.join(base_path, "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_worker.py")
+NUM_WORKERS = 1
+PYTHON_EXEC = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\.venv\Scripts\python.exe"
+BASE_PATH = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/PythonLib"
+
+CHIEF_SCRIPT = os.path.join(BASE_PATH, "tsProjects/prjNeuroPredict1/oracle_server_main.py")
+WORKER_SCRIPT = os.path.join(BASE_PATH, "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_worker.py")
+
 ORACLE_HOST = '192.168.1.103'
 ORACLE_PORT = 9000
 ORACLE_URL = f"http://{ORACLE_HOST}:{ORACLE_PORT}"
-MAX_WAIT_SECONDS = 60
-timeot = MAX_WAIT_SECONDS
+
+MAX_WAIT_SECONDS = 5
+MAX_RETRIES = 5
 FORCE_KILL = '--force' in sys.argv
+
+# ==== UTILS ====
 
 def port_in_use(host, port):
     try:
-        with socket.create_connection((host, port), timeout=MAX_WAIT_SECONDS):
+        with socket.create_connection((host, port), timeout=2):
             return True
     except (OSError, socket.timeout):
         return False
@@ -39,74 +43,73 @@ def kill_process_on_port(port):
         except Exception:
             continue
 
-def launch_process(script_path, tuner_id):
+def launch_process(script_path, tuner_id=None):
     env = os.environ.copy()
-    env["TUNER_ID"] = tuner_id
+    if tuner_id:
+        env["TUNER_ID"] = tuner_id
     return subprocess.Popen([PYTHON_EXEC, script_path], env=env)
 
-def wait_for_oracle_ready(timeout=MAX_WAIT_SECONDS):
-    print(f"⏳ Waiting for OracleServer to start on {ORACLE_URL}...")
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+def wait_for_oracle_ready():
+    print(f"⏳ Waiting for OracleServer at {ORACLE_URL}...")
+    for attempt in range(MAX_RETRIES):
         try:
-            with socket.create_connection((ORACLE_HOST, ORACLE_PORT), timeout=MAX_WAIT_SECONDS):
-                resp = requests.get(f"{ORACLE_URL}/get_trial", timeout=MAX_WAIT_SECONDS)
-                if resp.status_code == 200:
-                    print("✅ OracleServer is online and /get_trial is responsive.")
-                    return True
+            resp = requests.get(f"{ORACLE_URL}/heartbeat", timeout=MAX_WAIT_SECONDS)
+            if resp.status_code == 200:
+                print("✅ OracleServer heartbeat OK.")
+                # Optional: double-check /get_trial readiness
+                try:
+                    gt_resp = requests.get(f"{ORACLE_URL}/get_trial", timeout=MAX_WAIT_SECONDS)
+                    if gt_resp.status_code == 200:
+                        print("✅ OracleServer /get_trial responsive.")
+                        return True
+                except Exception as e:
+                    print(f"[WAIT] Oracle heartbeat OK but /get_trial failed: {e}")
+            else:
+                print(f"❌ Unexpected status: {resp.status_code}")
         except Exception as e:
             print(f"[WAIT] Oracle not ready yet: {e}")
-            time.sleep(MAX_WAIT_SECONDS)
-            print("❌ ERROR: OracleServer failed to start within timeout.")
-            return False
+        time.sleep(MAX_WAIT_SECONDS)
 
-def is_oracle_already_running():
-    try:
-        with socket.create_connection((ORACLE_HOST, ORACLE_PORT), timeout=MAX_WAIT_SECONDS):
-            print(f"🔄 OracleServer already running at {ORACLE_HOST}:{ORACLE_PORT}. Skipping chief.")
-            return True
-    except Exception:
-        return False
+    print("❌ ERROR: OracleServer not responsive within timeout.")
+    return False
 
+# ==== MAIN ====
 if __name__ == "__main__":
     if port_in_use(ORACLE_HOST, ORACLE_PORT):
         if FORCE_KILL:
             print(f"⚠️ Port {ORACLE_PORT} in use. Attempting forced shutdown...")
             kill_process_on_port(ORACLE_PORT)
             time.sleep(2)
-        elif is_oracle_already_running():
-            chief_proc = None
         else:
-            print(f"⚠️ Port {ORACLE_PORT} is already in use. OracleServer may already be running.")
+            print(f"⚠️ Port {ORACLE_PORT} already in use. Assuming Oracle is running.")
             chief_proc = None
     else:
-        print("🚀 Starting OracleServer Chief...")
-        chief_proc = launch_process(CHIEF_SCRIPT, "chief")
+        print("🚀 Launching OracleServer...")
+        chief_proc = launch_process(CHIEF_SCRIPT, tuner_id="chief")
         if not wait_for_oracle_ready():
-            print("❌ Exiting: OracleServer not responsive.")
+            print("❌ Aborting: OracleServer failed to start.")
             if chief_proc:
                 chief_proc.terminate()
                 chief_proc.wait()
             sys.exit(1)
 
-    time.sleep(2)
-
+    # Launch worker(s)
     print("🧑‍🏭 Starting Worker(s)...")
     workers = []
     for i in range(NUM_WORKERS):
         print(f"🟢 Launching Worker-{i+1}")
-        proc = launch_process(WORKER_SCRIPT, f"worker_{i+1}")
+        proc = launch_process(WORKER_SCRIPT, tuner_id=f"worker_{i+1}")
         workers.append(proc)
 
     try:
-        if 'chief_proc' in locals() and chief_proc:
+        if chief_proc:
             chief_proc.wait()
         else:
             while True:
                 time.sleep(10)
     except KeyboardInterrupt:
         print("🛑 Stopping all processes...")
-        if 'chief_proc' in locals() and chief_proc:
+        if chief_proc:
             chief_proc.terminate()
         for w in workers:
             w.terminate()

@@ -4,7 +4,6 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
-
 import logging
 import os
 
@@ -40,77 +39,17 @@ class PyTorchTuner:
         return train_loader, val_loader
 
     def build_model(self, hp, input_dim):
-        model_type = hp.get('model_type', 'cnn').lower()
-
-        if model_type == 'cnn':
-            num_layers = hp.get('num_cnn_layers', 1)
-            layers = [nn.Unflatten(1, (1, input_dim))]
-            in_channels = 1
-            length = input_dim
-            for i in range(num_layers):
-                out_channels = hp.get(f'cnn_filters_{i}', 64)
-                kernel_size = hp.get(f'cnn_kernel_size_{i}', 3)
-                activation = hp.get(f'cnn_activation_{i}', 'relu')
-                layers.append(nn.Conv1d(in_channels, out_channels, kernel_size))
-                layers.append(nn.ReLU() if activation == 'relu' else nn.Tanh())
-                in_channels = out_channels
-                length = max(1, length - kernel_size + 1)
-            layers += [
-                nn.Flatten(),
-                nn.Linear(in_channels * length, hp.get('dense_1_units', 64)),
-                nn.ReLU(),
-                nn.Linear(hp.get('dense_1_units', 64), 1)
-            ]
-            return nn.Sequential(*layers).to(self.device)
-
-        elif model_type == 'lstm':
-            num_layers = hp.get('num_lstm_layers', 1)
-            hidden_size = hp.get('lstm_units_0', 64)
-            return nn.Sequential(
-                nn.Unflatten(1, (1, input_dim)),
-                nn.LSTM(input_size=input_dim, hidden_size=hidden_size, num_layers=num_layers, batch_first=True),
-                nn.Flatten(),
-                nn.Linear(hidden_size, 1)
-            ).to(self.device)
-
-        elif model_type == 'gru':
-            num_layers = hp.get('num_gru_layers', 1)
-            hidden_size = hp.get('gru_units_0', 64)
-            return nn.Sequential(
-                nn.Unflatten(1, (1, input_dim)),
-                nn.GRU(input_size=input_dim, hidden_size=hidden_size, num_layers=num_layers, batch_first=True),
-                nn.Flatten(),
-                nn.Linear(hidden_size, 1)
-            ).to(self.device)
-
-        elif model_type == 'transformer':
-            num_blocks = hp.get('num_transformer_blocks', 1)
-            key_dim = hp.get('key_dim_0', 64)
-            num_heads = hp.get('num_heads_0', 4)
-            class TransformerModel(nn.Module):
-                def __init__(self, input_dim, key_dim, num_heads, num_blocks, dense_units):
-                    super().__init__()
-                    self.embedding = nn.Linear(input_dim, key_dim)
-                    self.transformer = nn.TransformerEncoder(
-                        nn.TransformerEncoderLayer(d_model=key_dim, nhead=num_heads, batch_first=True),
-                        num_layers=num_blocks
-                    )
-                    self.fc = nn.Sequential(
-                        nn.Linear(key_dim, dense_units),
-                        nn.ReLU(),
-                        nn.Linear(dense_units, 1)
-                    )
-
-                def forward(self, x):
-                    x = self.embedding(x)
-                    x = self.transformer(x)
-                    x = x.mean(dim=1)
-                    return self.fc(x)
-            return TransformerModel(input_dim=1, key_dim=key_dim, num_heads=num_heads,
-                                    num_blocks=num_blocks, dense_units=hp.get('dense_1_units', 64)).to(self.device)
-
-        else:
-            raise ValueError(f"Unsupported model_type: {model_type}")
+        n_units1 = hp.get('n_units1', 64)
+        n_units2 = hp.get('n_units2', 64)
+        model = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(input_dim, n_units1),
+            nn.ReLU(),
+            nn.Linear(n_units1, n_units2),
+            nn.ReLU(),
+            nn.Linear(n_units2, 1)
+        )
+        return model.to(self.device)
 
     def objective_from_hp(self, hp):
         if torch.cuda.is_available():
@@ -118,26 +57,23 @@ class PyTorchTuner:
 
         train_loader, val_loader = self.prepare_data()
         sample_batch = next(iter(train_loader))[0]
-        input_shape = sample_batch.shape[1:]
-        input_dim = int(np.prod(input_shape))
-        model_type = hp.get('model_type', 'cnn').lower()
+        print(f"[DEBUG] sample_batch shape before flatten: {sample_batch.shape}")
+        flat_sample = sample_batch.view(sample_batch.size(0), -1)
+        input_dim = flat_sample.shape[1]
+        print(f"[DEBUG] input_dim to Linear: {input_dim}")
 
-        print(f"[PyTorchTuner] Model type: {model_type}, input shape: {input_shape}, flat input_dim: {input_dim}")
         model = self.build_model(hp, input_dim)
-
-        optimizer_name = hp.get("optimizer", "Adam").capitalize()
-        lr = hp.get("learning_rate", 1e-3)
+        optimizer_name = hp.get("optimizer", "Adam")
+        lr = hp.get("lr", 1e-3)
         optimizer = getattr(optim, optimizer_name, optim.Adam)(model.parameters(), lr=lr)
-        loss_name = hp.get("loss", "mse").lower()
-        loss_fn = nn.MSELoss() if loss_name == "mse" else nn.L1Loss()
+        loss_fn = nn.MSELoss()
 
         try:
             for epoch in range(hp.get("epochs", 5)):
                 model.train()
                 for xb, yb in train_loader:
                     xb, yb = xb.to(self.device), yb.to(self.device)
-                    if model_type in ["lstm", "gru", "transformer"]:
-                        xb = xb.view(xb.size(0), 1, -1)
+                    xb = xb.view(xb.size(0), -1)
                     optimizer.zero_grad()
                     preds = model(xb).squeeze()
                     loss = loss_fn(preds, yb)
@@ -149,14 +85,12 @@ class PyTorchTuner:
             with torch.no_grad():
                 for xb, yb in val_loader:
                     xb, yb = xb.to(self.device), yb.to(self.device)
-                    if model_type in ["lstm", "gru", "transformer"]:
-                        xb = xb.view(xb.size(0), 1, -1)
+                    xb = xb.view(xb.size(0), -1)
                     preds = model(xb).squeeze()
                     loss = loss_fn(preds, yb)
                     val_losses.append(loss.item())
 
             return np.mean(val_losses)
-
         except RuntimeError as e:
             if "CUDA out of memory" in str(e):
                 print("[PyTorchTuner] ⚠️ Trial failed due to CUDA OOM")
