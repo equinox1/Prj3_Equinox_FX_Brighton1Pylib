@@ -5,11 +5,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-import logging
 import traceback
-
-# Get a logger for this module
-logger = logging.getLogger(__name__)
 
 class TrialRequest(BaseModel):
     trial_id: str
@@ -19,34 +15,42 @@ class ResultReport(BaseModel):
     trial_id: str
     result: float
 
-class StatusUpdate(BaseModel):
+class UpdateStatusModel(BaseModel):
     trial_id: str
     status: str
 
 class OracleServer:
-    def __init__(self, oracle):
+    def __init__(self, oracle, tuner_id="chief"):
         self.oracle = oracle
+        self.tuner_id = tuner_id
         self.app = FastAPI()
         self._server_thread = None
         self._configure_routes()
 
     def _configure_routes(self):
+        @self.app.get("/heartbeat")
+        def heartbeat():
+            return {"status": "alive", "timestamp": datetime.datetime.utcnow().isoformat()}
+
         @self.app.get("/get_trial")
         def get_trial():
             try:
-                tuner_id = self.tuner_id if hasattr(self, "tuner_id") else "chief"
-                trial = self.oracle.create_trial(tuner_id)
-
+                trial = self.oracle.create_trial(self.tuner_id)
                 if trial is None:
                     return JSONResponse(status_code=200, content={"trial": None})
-                return trial
+
+                hp_values = getattr(trial.hyperparameters, 'values', {})
+                trial_dict = {
+                    "trial_id": trial.trial_id,
+                    "hyperparameters": hp_values,
+                    "status": trial.status,
+                    "score": getattr(trial, "score", None),
+                }
+                return JSONResponse(status_code=200, content=trial_dict)
             except Exception as e:
                 tb = traceback.format_exc()
                 print(f"[OracleServer] 🔥 Exception in get_trial:\n{tb}")
-                return JSONResponse(status_code=500, content={
-                    "error": str(e),
-                    "traceback": tb,
-                })
+                return JSONResponse(status_code=500, content={"error": str(e), "traceback": tb})
 
         @self.app.post("/report_result")
         def report_result(report: ResultReport):
@@ -57,12 +61,16 @@ class OracleServer:
                 raise HTTPException(status_code=500, detail=f"Error scoring trial: {e}")
 
         @self.app.post("/update_status")
-        def update_status(update: StatusUpdate):
-            trial = self.oracle.get_trial(update.trial_id)
-            if trial:
-                trial.status = update.status
-                return {"message": f"Status updated to {update.status}"}
-            raise HTTPException(status_code=404, detail="Trial not found")
+        def update_status(update: UpdateStatusModel):
+            try:
+                if update.trial_id in self.oracle._trials:
+                    self.oracle._trials[update.trial_id].status = update.status
+                    return {"status": "updated", "trial_id": update.trial_id}
+                return {"status": "not_found", "trial_id": update.trial_id}
+            except Exception as e:
+                tb = traceback.format_exc()
+                print(f"[OracleServer] 🔥 Exception in update_status:\n{tb}")
+                raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
 
         @self.app.get("/list_trials")
         def list_trials():
@@ -76,11 +84,7 @@ class OracleServer:
                 })
             return {"trials": trials}
 
-        @self.app.get("/heartbeat")
-        def heartbeat():
-            return {"status": "alive", "timestamp": datetime.datetime.utcnow().isoformat()}
-
-    def start(self, host="192.168.1.103", port=9000):
+    def start(self, host="0.0.0.0", port=9000):
         if self._server_thread is not None:
             print("Oracle Server already running.")
             return

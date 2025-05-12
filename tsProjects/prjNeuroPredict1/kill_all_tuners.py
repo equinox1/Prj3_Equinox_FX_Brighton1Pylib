@@ -9,10 +9,8 @@ SCRIPT_NAMES = [
     "OracleServer.py",
     "OracleClient.py",
     "uvicorn",
-    "winsvrxerces01"
-    "python"
-    "9000",
-
+    "winsvrxerces01",
+    "9000",  # This one is questionable — port numbers are not script names, maybe remove
 ]
 
 def is_windows():
@@ -26,7 +24,7 @@ def kill_by_script_name(script_names):
             cmdline_str = ' '.join(cmdline)
 
             for script_name in script_names:
-                if script_name in cmdline_str:
+                if script_name in cmdline_str.lower():
                     print(f"[INFO] Killing PID {proc.pid} | CMD: {cmdline_str}")
                     
                     if is_windows():
