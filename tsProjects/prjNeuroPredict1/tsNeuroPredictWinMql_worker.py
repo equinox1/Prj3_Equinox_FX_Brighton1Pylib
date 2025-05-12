@@ -50,6 +50,11 @@ strategy = setup.get_computation_strategy()
 platform = run_platform.RunPlatform()
 logger.info("Detected platform: %s | MetaTrader5 active: %s", platform_checker.get_platform(), platform.check_mql_state())
 
+import multiprocessing as mp
+
+if __name__ == "__main__":
+    mp.set_start_method('spawn', force=True)
+
 # --- Main Worker Routine ---
 def main(logger):
     utils = CUtilities()

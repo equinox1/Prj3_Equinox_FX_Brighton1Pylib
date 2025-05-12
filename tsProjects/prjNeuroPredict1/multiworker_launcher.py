@@ -17,11 +17,12 @@ ORACLE_HOST = '192.168.1.103'
 ORACLE_PORT = 9000
 ORACLE_URL = f"http://{ORACLE_HOST}:{ORACLE_PORT}"
 MAX_WAIT_SECONDS = 60
+timeot = MAX_WAIT_SECONDS
 FORCE_KILL = '--force' in sys.argv
 
 def port_in_use(host, port):
     try:
-        with socket.create_connection((host, port), timeout=2):
+        with socket.create_connection((host, port), timeout=MAX_WAIT_SECONDS):
             return True
     except (OSError, socket.timeout):
         return False
@@ -48,20 +49,20 @@ def wait_for_oracle_ready(timeout=MAX_WAIT_SECONDS):
     start_time = time.time()
     while time.time() - start_time < timeout:
         try:
-            with socket.create_connection((ORACLE_HOST, ORACLE_PORT), timeout=2):
-                resp = requests.get(f"{ORACLE_URL}/get_trial", timeout=2)
+            with socket.create_connection((ORACLE_HOST, ORACLE_PORT), timeout=MAX_WAIT_SECONDS):
+                resp = requests.get(f"{ORACLE_URL}/get_trial", timeout=MAX_WAIT_SECONDS)
                 if resp.status_code == 200:
                     print("✅ OracleServer is online and /get_trial is responsive.")
                     return True
         except Exception as e:
             print(f"[WAIT] Oracle not ready yet: {e}")
-            time.sleep(2)
-    print("❌ ERROR: OracleServer failed to start within timeout.")
-    return False
+            time.sleep(MAX_WAIT_SECONDS)
+            print("❌ ERROR: OracleServer failed to start within timeout.")
+            return False
 
 def is_oracle_already_running():
     try:
-        with socket.create_connection((ORACLE_HOST, ORACLE_PORT), timeout=2):
+        with socket.create_connection((ORACLE_HOST, ORACLE_PORT), timeout=MAX_WAIT_SECONDS):
             print(f"🔄 OracleServer already running at {ORACLE_HOST}:{ORACLE_PORT}. Skipping chief.")
             return True
     except Exception:
