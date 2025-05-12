@@ -3,13 +3,13 @@ import time
 import datetime
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import logging
+import traceback
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
-
-
 
 class TrialRequest(BaseModel):
     trial_id: str
@@ -34,13 +34,19 @@ class OracleServer:
         @self.app.get("/get_trial")
         def get_trial():
             try:
-                trial = self.oracle.create_trial(tuner_id="chief")
-                return {
-                    "trial_id": trial.trial_id,
-                    "hyperparameters": trial.hyperparameters.values
-                }
+                tuner_id = self.tuner_id if hasattr(self, "tuner_id") else "chief"
+                trial = self.oracle.create_trial(tuner_id)
+
+                if trial is None:
+                    return JSONResponse(status_code=200, content={"trial": None})
+                return trial
             except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Error generating trial: {e}")
+                tb = traceback.format_exc()
+                print(f"[OracleServer] 🔥 Exception in get_trial:\n{tb}")
+                return JSONResponse(status_code=500, content={
+                    "error": str(e),
+                    "traceback": tb,
+                })
 
         @self.app.post("/report_result")
         def report_result(report: ResultReport):
