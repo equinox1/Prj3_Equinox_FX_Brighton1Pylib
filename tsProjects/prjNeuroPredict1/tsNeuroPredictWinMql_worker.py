@@ -125,6 +125,7 @@ def run_worker_loop(X, y, input_shape, hyperparams):
     mltune['input_width'] = mltune.get('input_width', 24)
     mltune['shift'] = mltune.get('shift', 24)
     backend = mltune.get('backend', 'pytorch').lower()
+    logger.info("Worker Using backend: %s", backend)
 
     if backend == "tensorflow":
         import tensorflow as tf
