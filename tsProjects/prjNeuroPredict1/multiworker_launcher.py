@@ -8,7 +8,7 @@ import psutil
 import logging
 
 # ==== CONFIGURATION ====
-NUM_WORKERS = 1
+NUM_WORKERS = 2
 PYTHON_EXEC = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\.venv\Scripts\python.exe"
 BASE_PATH = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/PythonLib"
 
@@ -19,8 +19,8 @@ ORACLE_HOST = '192.168.1.103'
 ORACLE_PORT = 9000
 ORACLE_URL = f"http://{ORACLE_HOST}:{ORACLE_PORT}"
 
-MAX_WAIT_SECONDS = 5
-MAX_RETRIES = 5
+MAX_WAIT_SECONDS = 15
+MAX_RETRIES = 15
 FORCE_KILL = '--force' in sys.argv
 
 # ==== UTILS ====
