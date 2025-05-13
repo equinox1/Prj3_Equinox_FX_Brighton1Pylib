@@ -3,12 +3,24 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
+import torch.nn.functional as F
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
+
 import logging
 import os
+import pathlib
+import uuid  # Ensure uuid is imported for use in get_callbacks
 
+# Get a logger for this module
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.DEBUG)  # Ensure the logger level is set appropriately
+
+# Platform imports
+from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
+pchk         = run_platform.RunPlatform()
+os_platform  = platform_checker.get_platform()
+loadmql      = pchk.check_mql_state()
+logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
 class PyTorchTuner:
     def __init__(self, **kwargs):
@@ -51,16 +63,15 @@ class PyTorchTuner:
         )
         return model.to(self.device)
 
-    def objective_from_hp(self, hp):
+    def _objective(self, hp):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
         train_loader, val_loader = self.prepare_data()
         sample_batch = next(iter(train_loader))[0]
-        print(f"[DEBUG] sample_batch shape before flatten: {sample_batch.shape}")
-        flat_sample = sample_batch.view(sample_batch.size(0), -1)
-        input_dim = flat_sample.shape[1]
-        print(f"[DEBUG] input_dim to Linear: {input_dim}")
+        input_dim = int(np.prod(sample_batch.shape[1:]))
+
+        print(f"[PyTorchTuner] Input batch shape: {sample_batch.shape}, computed input_dim: {input_dim}")
 
         model = self.build_model(hp, input_dim)
         optimizer_name = hp.get("optimizer", "Adam")
@@ -69,11 +80,10 @@ class PyTorchTuner:
         loss_fn = nn.MSELoss()
 
         try:
-            for epoch in range(hp.get("epochs", 5)):
+            for epoch in range(5):
                 model.train()
                 for xb, yb in train_loader:
                     xb, yb = xb.to(self.device), yb.to(self.device)
-                    xb = xb.view(xb.size(0), -1)
                     optimizer.zero_grad()
                     preds = model(xb).squeeze()
                     loss = loss_fn(preds, yb)
@@ -85,7 +95,6 @@ class PyTorchTuner:
             with torch.no_grad():
                 for xb, yb in val_loader:
                     xb, yb = xb.to(self.device), yb.to(self.device)
-                    xb = xb.view(xb.size(0), -1)
                     preds = model(xb).squeeze()
                     loss = loss_fn(preds, yb)
                     val_losses.append(loss.item())
@@ -111,7 +120,7 @@ class PyTorchTuner:
                 hp = trial["hyperparameters"]
 
                 print(f"[PyTorchTuner] 🔍 Running trial {trial_id} with hyperparameters: {hp}")
-                val_loss = self.objective_from_hp(hp)
+                val_loss = self._objective(hp)
 
                 print(f"[PyTorchTuner] ✅ Trial {trial_id} completed. val_loss={val_loss:.5f}")
                 self.oracle.report_trial_result(trial_id, val_loss)

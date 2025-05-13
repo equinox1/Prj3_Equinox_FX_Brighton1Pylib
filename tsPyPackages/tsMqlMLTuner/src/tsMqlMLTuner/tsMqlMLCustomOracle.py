@@ -52,6 +52,9 @@ class CustomOracle(Oracle):
         hp.Int("trans_heads", 2, 8, step=2, default=4)
         hp.Int("trans_ff_dim", 64, 512, step=64, default=128)
 
+        hp.Choice("loss", ["mse", "mae", "binary_crossentropy"], default="mse")
+        hp.Choice("metric", ["mse", "mae", "accuracy"], default="mse")
+
         return hp
 
     def create_trial(self, tuner_id):
