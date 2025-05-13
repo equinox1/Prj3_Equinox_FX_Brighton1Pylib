@@ -5,6 +5,7 @@ import socket
 import requests
 import sys
 import psutil
+import logging
 
 # ==== CONFIGURATION ====
 NUM_WORKERS = 1

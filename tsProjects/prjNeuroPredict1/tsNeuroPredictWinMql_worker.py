@@ -35,18 +35,20 @@ os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TUNER_ID"] = "worker"
 
-setup = CMqlSetup(loglevel='INFO', warn='ignore', precision='mixed_bfloat16', tfdebug=False, num_cores=48, num_threads=4)
-server = '192.168.1.103'
-port = 9000
-logdir, logfile = setup.set_log_dir(logfile='tsneuropredict_app.log', servername="WINSVRXERCES01")
+setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=8,num_threads = 2)
+xerces_servername = "WINSVRXERCES01"
+xerces_server = '192.168.1.103'
+xerces_port = 9000
+xerces_logfile = 'tsneuropredict_app.log'
+global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=xerces_logfile, servername=xerces_servername)
+
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
 
-logger.info("Worker logging configured. Logfile: %s", logfile)
 
 # --- Strategy & Platform ---
-strategy = setup.get_computation_strategy()
+strategy = setup_config.get_computation_strategy()
 platform = run_platform.RunPlatform()
 logger.info("Detected platform: %s | MetaTrader5 active: %s", platform_checker.get_platform(), platform.check_mql_state())
 
@@ -114,7 +116,7 @@ def main(logger):
 
 # --- Trial Execution Loop (via Selector) ---
 def run_worker_loop(X, y, input_shape, hyperparams):
-    oracle = OracleClient(host=server, port=port)
+    oracle = OracleClient(host=xerces_server, port=xerces_port)
 
     # Set required tuning params
     mltune = hyperparams.setdefault('mltune', {})
@@ -144,6 +146,7 @@ def run_worker_loop(X, y, input_shape, hyperparams):
         testdataset=testdataset,
         castmode='float32'
     )
+
 
     logger.info("Worker tuner initialized. Waiting for Oracle trials...")
     tuner.run_search()

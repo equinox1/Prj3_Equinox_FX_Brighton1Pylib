@@ -54,10 +54,10 @@ from tensorflow.keras.metrics import (MSE, MAE, MAPE, MSLE, Poisson, KLDivergenc
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, ReduceLROnPlateau
 import keras_tuner as kt
 import numpy as np
+from tensorflow.keras.activations import get as get_activation
+from keras_tuner.engine.hyperparameters import HyperParameters
 
-# Enable mixed precision and XLA JIT compilation for performance
 
-mixed_precision.set_global_policy('mixed_float16')
 import gc
 gc.collect()
 
@@ -347,6 +347,8 @@ class CMdtuner:
         if kwargs.get('tf2', False):
             tf.debugging.enable_check_numerics()
 
+            
+
     def prepare_shapes(self):
         if not self.data_input_shape:
             raise ValueError("Data input shape must be specified.")
@@ -360,7 +362,7 @@ class CMdtuner:
             self.data_input_shape = self.data_input_shape[1:]  # Remove batch dimension if present
             logger.info(f"Adjusted 3D data input shape: {self.data_input_shape}")
         self.main_input_shape = self.get_shape(self.data_input_shape)
-
+        logger.info(f"Main input shape: {self.main_input_shape}") # Add this line
 
     @staticmethod
     def get_shape(data_shape):
@@ -483,11 +485,12 @@ class CMdtuner:
                 cnn_branch = Dense(1)(cnn_branch)
 
             if self.tunemode:
-                for i in range(hp.values.get('num_cnn_layers')):
+                num_cnn_layers = hp.values.get('num_cnn_layers', 1)
+                for i in range(num_cnn_layers):
                     cnn_branch = Conv1D(
-                        filters=hp.get(f'cnn_filters_{i}'),
-                        kernel_size=hp.get(f'cnn_kernel_size_{i}'),
-                        activation=hp.values.get(f'cnn_activation_{i}'),
+                        filters=hp.values.get(f'cnn_filters_{i}', 64),
+                        kernel_size=hp.values.get(f'cnn_kernel_size_{i}', 3),
+                        activation=hp.values.get(f'cnn_activation_{i}', 'relu'),
                         padding='same'
                     )(cnn_branch)
                     cnn_branch = MaxPooling1D(pool_size=2)(cnn_branch)
@@ -513,10 +516,12 @@ class CMdtuner:
             if len(shape) == 4:
                 lstm_branch = Reshape((shape[1], shape[2]))(lstm_branch)
 
-            for i in range(hp.values.get('num_lstm_layers')):
+            num_lstm_layers = hp.values.get('num_lstm_layers', 1)
+            for i in range(num_lstm_layers):
                 lstm_branch = LSTM(
-                    units=hp.get(f'lstm_units_{i}'), activation=hp.get(f'lstm_activation_{i}'),
-                    return_sequences=(i < hp.values.get('num_lstm_layers') - 1)
+                    units=hp.values.get(f'lstm_units_{i}', 64),
+                    activation=hp.values.get(f'lstm_activation_{i}', 'tanh'),
+                    return_sequences=(i < num_lstm_layers - 1)
                 )(lstm_branch)
                 lstm_branch = LayerNormalization()(lstm_branch)
                 lstm_branch = Dropout(0.2)(lstm_branch)
@@ -534,10 +539,12 @@ class CMdtuner:
             if len(shape) == 4:
                 gru_branch = Reshape((shape[1], shape[2]))(gru_branch)
 
-            for i in range(hp.values.get('num_gru_layers')):
+            num_gru_layers = hp.values.get('num_gru_layers', 1)
+            for i in range(num_gru_layers):
                 gru_branch = GRU(
-                    units=hp.get(f'gru_units_{i}'), activation=hp.get(f'gru_activation_{i}'),
-                    return_sequences=(i < hp.values.get('num_gru_layers') - 1)
+                    units=hp.values.get(f'gru_units_{i}', 64),
+                    activation=hp.values.get(f'gru_activation_{i}', 'tanh'),
+                    return_sequences=(i < num_gru_layers - 1)
                 )(gru_branch)
                 gru_branch = LayerNormalization()(gru_branch)
                 gru_branch = Dropout(0.2)(gru_branch)
@@ -555,8 +562,8 @@ class CMdtuner:
             if len(shape) == 4:
                 transformer_branch = Reshape((shape[1], shape[2]))(transformer_branch)
 
-            key_dim = hp.values.get('key_dim_0')
-            num_heads = hp.values.get('num_heads_0')
+            key_dim = hp.values.get('key_dim_0', 64)
+            num_heads = hp.values.get('num_heads_0', 4)
             projected_dim = key_dim * num_heads
 
             transformer_branch = Dense(projected_dim)(transformer_branch)
@@ -565,23 +572,29 @@ class CMdtuner:
 
             branches.append(transformer_branch)
 
-        # Combine all branches
+        # Combine branches and dense layers
         concatenated = Concatenate()(branches) if self.multi_branches else branches[0]
         merged = Dense(512, activation='relu')(concatenated)
         dense_1 = Dense(
-            units=hp.values.get('dense_1_units'), activation=hp.get('dense_1_activation') if self.tunemode else 'relu', kernel_regularizer=tf.keras.regularizers.l2(hp.values.get('l2_reg'))
+            units=hp.values.get('dense_1_units', 64),
+            activation=get_activation(hp.values.get('dense_1_activation', 'relu')),
+            kernel_regularizer=tf.keras.regularizers.l2(hp.values.get('l2_reg', 1e-4))
         )(merged)
         dense_dropout = Dropout(0.2)(dense_1)
         output = Dense(1, activation='sigmoid')(dense_dropout)
 
         model = Model(inputs=inputs if self.multi_inputs else inputs[0], outputs=output)
-        optimizer = self.get_optimizer(hp.values.get('optimizer'), hp.values.get('learning_rate')) if self.tunemode else Adam(learning_rate=1e-3)
-        model.compile(optimizer=optimizer, loss=hp.values.get('loss') if self.tunemode else 'mse', metrics=[hp.get('metric') if self.tunemode else 'mse'])
 
-        if self.modelsummary:
-            model.summary()
+        # Final compile
+        optimizer = self.get_optimizer(hp.values.get('optimizer', 'adam'), hp.values.get('learning_rate', 1e-3))
+        model.compile(
+            optimizer=optimizer,
+            loss=tf.keras.losses.get(hp.values.get('loss', 'mse')),
+            metrics=[tf.keras.metrics.get(hp.values.get('metric', 'mse'))]
+        )
 
         return model
+
 
     def get_optimizer(self, optimizer_name, learning_rate):
         optimizers = {
@@ -593,31 +606,32 @@ class CMdtuner:
             'adagrad': tf.keras.optimizers.Adagrad,
             'adamax':  tf.keras.optimizers.Adamax
         }
-        optimizer_class = optimizers.get(optimizer_name, Adam)
+        optimizer_class = optimizers.get(optimizer_name.lower(), Adam)
+        logger.debug(f"Using optimizer: {optimizer_name} → {optimizer_class}")
         return optimizer_class(learning_rate=learning_rate)
 
     def get_callbacks(self):
-        checkpoint_filepath = self.checkpoint_filepath
-        logger.info(f"Checkpoint filepath: {checkpoint_filepath}")
-        if checkpoint_filepath and isinstance(checkpoint_filepath, pathlib.Path):
-            checkpoint_filepath = str(checkpoint_filepath)
-            logger.info(f"Converted checkpoint filepath to string: {checkpoint_filepath}")
-
         tuner_id = os.environ.get("TUNER_ID", f"worker_{uuid.uuid4().hex[:6]}")
         checkpoint_filepath = os.path.join(self.modeldatapath, f"{self.modelname}_{tuner_id}.keras")
 
         callbacks = [
-            EarlyStopping(monitor=self.objective, patience=self.chk_patience, verbose=self.chk_verbosity, restore_best_weights=True),
-            TensorBoard(log_dir=os.path.join(self.modeldatapath, 'tboard_logs')),
-            ReduceLROnPlateau(monitor=self.objective, factor=0.1, patience=self.chk_patience, min_lr=1e-6, verbose=self.chk_verbosity)
+            tf.keras.callbacks.EarlyStopping(monitor=self.chk_monitor, patience=self.chk_patience,
+                                            verbose=self.chk_verbosity, restore_best_weights=True),
+            tf.keras.callbacks.TensorBoard(log_dir=os.path.join(self.modeldatapath, 'tboard_logs')),
+            tf.keras.callbacks.ReduceLROnPlateau(monitor=self.chk_monitor, factor=0.1,
+                                                patience=self.chk_patience, min_lr=1e-6,
+                                                verbose=self.chk_verbosity)
         ]
 
         if tuner_id.lower() == "chief":
-            callbacks.insert(1, ModelCheckpoint(filepath=checkpoint_filepath, save_best_only=self.save_best_only, verbose=self.chk_verbosity))
+            callbacks.insert(1, tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_filepath,
+                                                                save_best_only=self.save_best_only,
+                                                                verbose=self.chk_verbosity))
         else:
             logger.info(f"Skipping ModelCheckpoint on worker: {tuner_id}")
 
         return callbacks
+
 
     def export_best_model(self, ftype='tf'):
         try:
@@ -666,7 +680,9 @@ class CMdtuner:
 
         # Final residual connection
         return tf.keras.layers.LayerNormalization(epsilon=1e-6)(out1 + ffn_output)
-
+        
+    
+  
     def run_search(self):
         logger.info("Running custom tuner search via OracleClient...")
         logger.debug(f"run_search: input_shape = {self.input_shape}")
@@ -678,32 +694,24 @@ class CMdtuner:
         while True:
             try:
                 trial = self.oracle.get_trial()
-
                 if not trial:
                     logger.info("No more trials received from OracleServer. Exiting.")
                     break
-
                 trial_id = trial.get("trial_id")
                 hp_config = trial.get("hyperparameters", {})
-
                 if not trial_id:
                     logger.warning("Received trial without trial_id; skipping.")
                     continue
-
                 if not isinstance(hp_config, dict) or len(hp_config) == 0:
                     logger.warning(f"Trial {trial_id} has empty hyperparameters. Marking as FAILED.")
                     self.oracle.update_trial_status(trial_id, "FAILED")
                     continue
-
-                hp = self.tuner.oracle.hyperparameters.copy()
+                hp = HyperParameters()
                 hp.values = hp_config
-
                 logger.info(f"Running trial {trial_id} with hyperparameters: {hp_config}")
-                val_loss = self.objective(hp)
-
+                val_loss = self._objective(hp)
                 logger.info(f"✅ Trial {trial_id} completed. val_loss={val_loss:.5f}")
                 self.oracle.report_trial_result(trial_id, val_loss)
-
             except Exception as e:
                 logger.error(f"❌ Exception during trial {trial_id if 'trial_id' in locals() else '[UNKNOWN]'}: {str(e)}")
                 if "trial_id" in locals():
@@ -712,6 +720,65 @@ class CMdtuner:
 
         logger.info("Custom tuner search completed.")
         return True
+
+
+   
+    def _objective(self, hp):
+        loss_str = hp.values.get("loss", "mse")
+        metric_str = hp.values.get("metric", "mse")
+
+        try:
+            if isinstance(loss_str, str):
+                if loss_str.lower() in ["mse", "mean_squared_error"]:
+                    self.loss = tf.keras.losses.MeanSquaredError()
+                elif loss_str.lower() in ["mae", "mean_absolute_error"]:
+                    self.loss = tf.keras.losses.MeanAbsoluteError()
+                else:
+                    loss = tf.keras.losses.get(loss_str)
+                    self.loss = loss() if isinstance(loss, type) else loss
+            else:
+                self.loss = loss_str
+        except Exception as e:
+            logger.error(f"[OBJECTIVE] Invalid loss: {loss_str} — {e}")
+            raise
+
+        try:
+            if isinstance(metric_str, str):
+                if metric_str.lower() in ["mse", "mean_squared_error"]:
+                    self.metric = tf.keras.metrics.MeanSquaredError()
+                elif metric_str.lower() in ["mae", "mean_absolute_error"]:
+                    self.metric = tf.keras.metrics.MeanAbsoluteError()
+                else:
+                    metric = tf.keras.metrics.get(metric_str)
+                    self.metric = metric() if isinstance(metric, type) else metric
+            else:
+                self.metric = metric_str
+        except Exception as e:
+            logger.error(f"[OBJECTIVE] Invalid metric: {metric_str} — {e}")
+            raise
+
+        logger.info(f"[OBJECTIVE] Resolved loss={self.loss} ({type(self.loss)}), metric={self.metric} ({type(self.metric)})")
+
+        model = self.build_model(hp)
+        model.compile(optimizer=tf.keras.optimizers.Adam(), loss=self.loss, metrics=[self.metric])
+        history = model.fit(
+            self.traindataset,
+            validation_data=self.valdataset,
+            epochs=hp.values.get("epochs", 10),
+            verbose=0,
+            callbacks=self.get_callbacks()
+        )
+
+        val_loss = history.history.get("val_loss", [None])[-1]
+        if val_loss is None:
+            logger.warning("Trial produced no validation loss.")
+            val_loss = float("inf")
+        else:
+            logger.info(f"✅ Trial completed. val_loss={val_loss:.5f}")
+
+        return val_loss
+
+
 
 
     def _predict_graph(self, model, test_data):
@@ -779,6 +846,8 @@ class CMdtuner:
         pe = tf.expand_dims(pe, axis=0)
         return tf.cast(pe, dtype=tf.float16 if mixed_precision.global_policy().compute_dtype == 'float16' else tf.float32)
 
+    
+
 class AddPositionalEncoding(tf.keras.layers.Layer):
     def __init__(self, dim, **kwargs):
         super().__init__(**kwargs)
@@ -795,3 +864,4 @@ class AddPositionalEncoding(tf.keras.layers.Layer):
         pos_encoding = tf.concat([sines, cosines], axis=-1)
         pos_encoding = tf.expand_dims(pos_encoding, axis=0)  # (1, seq_len, dim)
         return x + tf.cast(pos_encoding, x.dtype)
+
