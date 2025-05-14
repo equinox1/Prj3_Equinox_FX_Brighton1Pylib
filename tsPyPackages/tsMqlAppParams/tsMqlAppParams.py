@@ -33,6 +33,10 @@ class CMqlEnvAppParams(CEnvCore):
         "mp_app_ml_tunemodeepochs": True,
         "mp_app_ml_Keras_tuner": 'hyperband',
         "mp_app_ml_batch_size": 4,
+        "xerces_servername": 'WINSVRXERCES01',
+        "xerces_server" :'192.168.1.103',
+        "xerces_port" : 9000,
+        "xerces_logfile" : 'tsneuropredict_app.log',
        
     }
 

@@ -28,9 +28,7 @@ pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logger.info(f"Running on: {os_platform} | MQL Load State: {loadmql}")
+
 
 
 class CMqlSetup:
@@ -171,14 +169,15 @@ class CMqlSetup:
 
         return self.global_logdir, self.global_logfile
 
-    def setup_global_logger(logfile='tsneuropredict_app.log'):
+    def setup_global_logger(self,logfilein='tsneuropredict_app.log'):
         logger = logging.getLogger()
         logger.setLevel(logging.DEBUG)
 
         # Avoid duplicate handlers
         if logger.hasHandlers():
             logger.handlers.clear()
-
+          
+        logfile = os.path.join(logfilein)
         fh = logging.FileHandler(logfile, mode='a', encoding='utf-8')
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s')
         fh.setFormatter(formatter)

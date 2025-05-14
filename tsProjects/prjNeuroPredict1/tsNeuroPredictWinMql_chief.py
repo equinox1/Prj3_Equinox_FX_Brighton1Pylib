@@ -32,10 +32,10 @@ import onnxruntime as ort
 import MetaTrader5 as mt5
 
 # Custom modules
-from tsMqlSetup import CMqlSetup
+
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
 from tsMqlEnvMgr import CMqlEnvMgr
-from tsMqlOverrides import CMqlOverrides
+
 from tsMqlUtilities import CUtilities
 from tsMqlReference import CMqlRefConfig
 from tsMqlConnect import CMqlBrokerConfig
@@ -52,33 +52,19 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TUNER_ID"] = "chief"
 tuner_id = os.environ.get("TUNER_ID", "chief")
 
+# ----- Start Logging Setup -----
+from tsMqlSetup import CMqlSetup
+from tsMqlOverrides import CMqlOverrides
+mql_overrides = CMqlOverrides() 
+app_params = mql_overrides.env.all_params().get("app", {})
 setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4)
-xerces_servername = "WINSVRXERCES01"
-xerces_server = '192.168.1.103'
-xerces_port = 9000
-xerces_logfile = 'tsneuropredict_app.log'
+xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
+xerces_server = app_params.get('xerces_server', '192.168.1.103')
+xerces_port = app_params.get('xerces_port', 9000)
+xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=xerces_logfile, servername=xerces_servername)
-
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
-if logger.hasHandlers():
-    logger.handlers.clear()
-try:
-    fh = logging.FileHandler(global_logfile, mode='w', encoding='utf-8')
-except OSError as e:
-    print(f"Error creating log file: {e}")
-    fh = logging.FileHandler('fallback.log', mode='w', encoding='utf-8')
-
-formatter = logging.Formatter(
-    '%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-fh.setFormatter(formatter)
-logger.addHandler(fh)
-sh = logging.StreamHandler()
-sh.setFormatter(formatter)
-logger.addHandler(sh)
-logger.info("Logging configured successfully with FileHandler.")
+logger = setup_config.setup_global_logger(logfilein=global_logfile)
+# ----- End Logging Setup -----
 
 # strategy setup
 strategy = setup_config.get_computation_strategy()
@@ -102,8 +88,6 @@ def main(logger):
     #with strategy.scope():
         # ---- Configuration ----
         is_chief = tuner_id.lower() == "chief"
-        
- 
         # Setup environment and retrieve parameters
         print("Start Main Setting up environment...")
         utils_config = CUtilities()
