@@ -3,23 +3,20 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
-import torch.nn.functional as F
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 
 import logging
 import os
-import pathlib
-import uuid  # Ensure uuid is imported for use in get_callbacks
+from tsMqlPlatform import run_platform, platform_checker
 
-# Get a logger for this module
+# Logger setup
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)  # Ensure the logger level is set appropriately
+logger.setLevel(logging.DEBUG)
 
-# Platform imports
-from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
-pchk         = run_platform.RunPlatform()
-os_platform  = platform_checker.get_platform()
-loadmql      = pchk.check_mql_state()
+# Platform state
+pchk = run_platform.RunPlatform()
+os_platform = platform_checker.get_platform()
+loadmql = pchk.check_mql_state()
 logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
 class PyTorchTuner:
@@ -32,16 +29,20 @@ class PyTorchTuner:
 
     def prepare_data(self):
         def extract_xy(data):
-            X, y = [], []
-            for x_i, y_i in data:
-                x_np = np.asarray(x_i.numpy() if hasattr(x_i, 'numpy') else x_i)
-                y_np = np.asarray(y_i.numpy() if hasattr(y_i, 'numpy') else y_i)
-                X.append(x_np)
-                y.append(y_np)
-            most_common_shape = max(set([x.shape for x in X]), key=[x.shape for x in X].count)
-            X_clean = [x for x in X if x.shape == most_common_shape]
-            y_clean = [y[i] for i in range(len(X)) if X[i].shape == most_common_shape]
-            return torch.tensor(np.stack(X_clean), dtype=torch.float32), torch.tensor(np.stack(y_clean), dtype=torch.float32)
+            if isinstance(data, (list, tuple)) and len(data) == 2:
+                x, y = data
+                if isinstance(x, np.ndarray):
+                    x = torch.tensor(x, dtype=torch.float32)
+                if isinstance(y, np.ndarray):
+                    y = torch.tensor(y, dtype=torch.float32)
+                return x, y
+            elif isinstance(data, TensorDataset):
+                x_all, y_all = [], []
+                for x, y in data:
+                    x_all.append(x.unsqueeze(0))
+                    y_all.append(y.unsqueeze(0))
+                return torch.cat(x_all, dim=0), torch.cat(y_all, dim=0)
+            raise ValueError("Unsupported dataset format. Expected (x, y) tuple or TensorDataset.")
 
         X_train, y_train = extract_xy(self.train_data)
         X_val, y_val = extract_xy(self.val_data)
@@ -63,7 +64,7 @@ class PyTorchTuner:
         )
         return model.to(self.device)
 
-    def _objective(self, hp):
+    def objective_from_hp(self, hp):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
@@ -120,7 +121,7 @@ class PyTorchTuner:
                 hp = trial["hyperparameters"]
 
                 print(f"[PyTorchTuner] 🔍 Running trial {trial_id} with hyperparameters: {hp}")
-                val_loss = self._objective(hp)
+                val_loss = self.objective_from_hp(hp)
 
                 print(f"[PyTorchTuner] ✅ Trial {trial_id} completed. val_loss={val_loss:.5f}")
                 self.oracle.report_trial_result(trial_id, val_loss)

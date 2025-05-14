@@ -7,8 +7,10 @@ import sys
 import psutil
 import logging
 
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 # ==== CONFIGURATION ====
-NUM_WORKERS = 2
+NUM_WORKERS = 1
 PYTHON_EXEC = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\.venv\Scripts\python.exe"
 BASE_PATH = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/PythonLib"
 

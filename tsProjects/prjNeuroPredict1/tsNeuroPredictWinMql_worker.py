@@ -28,7 +28,7 @@ from tsMqlMLProcess import CDMLProcess
 
 # Distributed tuner system
 from tsMqlMLTuner import OracleClient, CMdtunerSelector
-
+gtuner_model = "pytorch"  # or "tensorflow"
 # --- Environment Setup ---
 os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
 os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
@@ -61,12 +61,13 @@ if __name__ == "__main__":
 def main(logger):
     utils = CUtilities()
     overrides = CMqlOverrides()
-
+    
     # Default parameter setup
     overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
     overrides.env.override_params({"mltune": {'batch_size': 8}})
     overrides.env.override_params({"data": {'mp_data_timeframe': mt5.TIMEFRAME_H4}})
-
+    overrides.env.override_params({"mltune": {'backend': gtuner_model}})
+    
     base = overrides.env.all_params().get("base", {})
     data = overrides.env.all_params().get("data", {})
     ml = overrides.env.all_params().get("ml", {})
