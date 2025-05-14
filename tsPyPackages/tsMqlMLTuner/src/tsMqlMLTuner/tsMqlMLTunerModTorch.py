@@ -26,6 +26,7 @@ class PyTorchTuner:
         self.val_data = kwargs.get("valdataset")
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.oracle = kwargs.get("oracle", OracleClient())
+        self.logdev = kwargs.get("logdev", False)
 
     def prepare_data(self):
         def extract_xy(data):
@@ -65,7 +66,8 @@ class PyTorchTuner:
         return model.to(self.device)
 
     def objective_from_hp(self, hp):
-        print(f"[PyTorchTuner] 💻 Using device: {self.device}")
+        if self.logdev:
+             print(f"[PyTorchTuner] 💻 Using device: {self.device}")
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
@@ -86,7 +88,8 @@ class PyTorchTuner:
             for epoch in range(5):
                 model.train()
                 for xb, yb in train_loader:
-                    print(f"[PyTorchTuner] 📦 Training batch on device: {xb.device}")
+                    if self.logdev:
+                        print(f"[PyTorchTuner] 📦 Training batch shape: {xb.shape}, target shape: {yb.shape}")
                     xb, yb = xb.to(self.device), yb.to(self.device)
                     optimizer.zero_grad()
                     preds = model(xb).squeeze()
