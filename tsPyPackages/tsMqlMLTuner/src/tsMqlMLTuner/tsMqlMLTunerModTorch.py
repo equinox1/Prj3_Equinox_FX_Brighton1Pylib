@@ -65,6 +65,7 @@ class PyTorchTuner:
         return model.to(self.device)
 
     def objective_from_hp(self, hp):
+        print(f"[PyTorchTuner] 💻 Using device: {self.device}")
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
 
@@ -75,6 +76,7 @@ class PyTorchTuner:
         print(f"[PyTorchTuner] Input batch shape: {sample_batch.shape}, computed input_dim: {input_dim}")
 
         model = self.build_model(hp, input_dim)
+        print(f"[PyTorchTuner] 🧠 Model initialized on device: {next(model.parameters()).device}")
         optimizer_name = hp.get("optimizer", "Adam")
         lr = hp.get("lr", 1e-3)
         optimizer = getattr(optim, optimizer_name, optim.Adam)(model.parameters(), lr=lr)
@@ -84,6 +86,7 @@ class PyTorchTuner:
             for epoch in range(5):
                 model.train()
                 for xb, yb in train_loader:
+                    print(f"[PyTorchTuner] 📦 Training batch on device: {xb.device}")
                     xb, yb = xb.to(self.device), yb.to(self.device)
                     optimizer.zero_grad()
                     preds = model(xb).squeeze()
@@ -92,6 +95,9 @@ class PyTorchTuner:
                     optimizer.step()
 
             model.eval()
+            if self.device == "cuda":
+                print(f"[PyTorchTuner] 🔋 GPU memory allocated: {torch.cuda.memory_allocated() / 1e6:.2f} MB")
+                print(f"[PyTorchTuner] 🔋 GPU memory reserved: {torch.cuda.memory_reserved() / 1e6:.2f} MB")
             val_losses = []
             with torch.no_grad():
                 for xb, yb in val_loader:
