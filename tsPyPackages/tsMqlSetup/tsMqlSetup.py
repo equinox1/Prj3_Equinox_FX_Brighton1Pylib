@@ -171,23 +171,23 @@ class CMqlSetup:
 
         return self.global_logdir, self.global_logfile
 
-    def set_logger(self, global_logfile):
-        logger = logging.getLogger(__name__)
+    def setup_global_logger(logfile='tsneuropredict_app.log'):
+        logger = logging.getLogger()
         logger.setLevel(logging.DEBUG)
+
+        # Avoid duplicate handlers
         if logger.hasHandlers():
             logger.handlers.clear()
 
-        try:
-            fh = logging.FileHandler(global_logfile, mode='w', encoding='utf-8')
-        except OSError as e:
-            print(f"Failed to open logfile: {e}")
-            fh = logging.FileHandler('fallback.log', mode='w', encoding='utf-8')
-
-        formatter = logging.Formatter(
-            '%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
+        fh = logging.FileHandler(logfile, mode='a', encoding='utf-8')
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s')
         fh.setFormatter(formatter)
         logger.addHandler(fh)
-        logger.info("Logger initialized.")
+
+        # Optional: Stream to console too
+        sh = logging.StreamHandler()
+        sh.setFormatter(formatter)
+        logger.addHandler(sh)
+
+        logger.info(f"Logger initialized with output file: {logfile}")
         return logger

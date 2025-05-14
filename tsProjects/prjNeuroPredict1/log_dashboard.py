@@ -6,6 +6,10 @@ import requests
 import logging
 import html
 
+# Logger setup
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 # Configuration
 LOG_FILE = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir/tsneuropredict_app.log"
 ORACLE_API = "http://192.168.1.103:9000"
@@ -19,7 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
 
 def html_template(title: str, body: str) -> str:
     return f"""
@@ -65,7 +69,6 @@ def html_template(title: str, body: str) -> str:
     </html>
     """
 
-
 @app.get("/", response_class=HTMLResponse)
 def show_logs():
     if not os.path.exists(LOG_FILE):
@@ -77,7 +80,6 @@ def show_logs():
     escaped_log = html.escape("".join(lines))
     body = f"<h2>Tuning Logs (Live)</h2><div class='logbox'>{escaped_log}</div><a href='/trials'>→ View Trials Dashboard</a>"
     return HTMLResponse(html_template("Log Viewer", body))
-
 
 @app.get("/trials", response_class=HTMLResponse)
 def show_trials():
@@ -91,25 +93,26 @@ def show_trials():
     if not trials:
         return HTMLResponse(html_template("No Trials", "<h3>No trials available yet.</h3><a href='/'>← Back to Logs</a>"))
 
-    # Sort trials by score (descending) if available
     trials.sort(key=lambda t: t.get('score') if t.get('score') is not None else -1, reverse=True)
     rows = ""
     for idx, trial in enumerate(trials):
         hp_id = f"hp_{idx}"
         status_class = f"status-{trial['status']}"
         score = trial.get("score", "")
+        score_style = "color:green;font-weight:bold" if isinstance(score, (int, float)) and score < 0.05 else ""
+        row_style = "style='background-color:#eef'" if idx == 0 else ""
         hp_dict = trial.get('hyperparameters', {})
-        hp_pretty = html.escape("\n".join(f"{k}: {v}" for k, v in hp_dict.items()))  # Fixed the string formatting issue
-        rows += f"""<tr>
+        hp_pretty = html.escape("\n".join(f"{k}: {v}" for k, v in hp_dict.items()))
+        rows += f"""<tr {row_style}>
             <td>{trial['trial_id']}</td>
             <td class='{status_class}'>{trial['status']}</td>
-            <td>{score}</td>
+            <td style='{score_style}'>{score}</td>
             <td>
-                <span class='toggle-btn' onclick="toggle('{hp_id}')">Show/Hide</span>
+                <span class='toggle-btn' onclick=\"toggle('{hp_id}')\">Show/Hide</span>
                 <div id='{hp_id}' style='display:none; white-space:pre-wrap; font-size:smaller'>{hp_pretty}</div>
             </td>
         </tr>"""
-    
+
     table = f"""
     <h2>Oracle Trial Status</h2>
     <label for="statusFilter">Filter by status:</label>
@@ -123,10 +126,9 @@ def show_trials():
         <tr><th>Trial ID</th><th>Status</th><th>Score</th><th>Hyperparameters</th></tr>
         {rows}
     </table>
-    <a href="/">← Back to Logs</a>
+    <a href="/">← Back to Logs</a> | <a href="/api/trials">🔗 Raw JSON</a>
     """
     return HTMLResponse(html_template("Trial Dashboard", table))
-
 
 @app.get("/api/logs", response_class=JSONResponse)
 def get_logs_json():
@@ -137,7 +139,6 @@ def get_logs_json():
         lines = f.readlines()[-300:]
     return {"log": lines}
 
-
 @app.get("/api/trials", response_class=JSONResponse)
 def get_trials_json():
     try:
@@ -146,7 +147,6 @@ def get_trials_json():
         return response.json()
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=502)
-
 
 if __name__ == "__main__":
     import uvicorn
