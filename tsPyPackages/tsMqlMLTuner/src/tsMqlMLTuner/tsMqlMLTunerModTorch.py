@@ -1,34 +1,26 @@
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
+import torch.nn.functional as F
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 
 import logging
 import os
-from tsMqlPlatform import run_platform, platform_checker
+import pathlib
+import uuid  # Ensure uuid is imported for use in get_callbacks
 
-# ----- Start Logging Setup -----
-from tsMqlSetup import CMqlSetup
-from tsMqlOverrides import CMqlOverrides
-mql_overrides = CMqlOverrides() 
-app_params = mql_overrides.env.all_params().get("app", {})
-setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4)
-xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
-xerces_server = app_params.get('xerces_server', '192.168.1.103')
-xerces_port = app_params.get('xerces_port', 9000)
-xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=xerces_logfile, servername=xerces_servername)
-logger = setup_config.setup_global_logger(logfilein=global_logfile)
-# ----- End Logging Setup -----
+# Setup logger
+logger = logging.getLogger(__name__)
 
+# Platform imports
+from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
+pchk         = run_platform.RunPlatform()
+os_platform  = platform_checker.get_platform()
+loadmql      = pchk.check_mql_state()
 
-# Platform state
-pchk = run_platform.RunPlatform()
-os_platform = platform_checker.get_platform()
-loadmql = pchk.check_mql_state()
-logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
 
 class PyTorchTuner:
     def __init__(self, **kwargs):

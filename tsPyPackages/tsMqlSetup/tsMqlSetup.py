@@ -32,8 +32,7 @@ loadmql = pchk.check_mql_state()
 
 
 class CMqlSetup:
-    def __init__(self, tflog='2', warn='ignore', precision='mixed_float16',
-                 tfdebug=False, num_cores=28, num_threads=2, **kwargs):
+    def __init__(self, tflog='2', warn='ignore', precision='mixed_float16', tfdebug=False, num_cores=28, num_threads=2, **kwargs):
 
         self.tflog = tflog
         self.warn = warn
@@ -42,6 +41,7 @@ class CMqlSetup:
         self.num_cores = num_cores  # Physical cores
         self.num_threads = num_threads
         self.sumthreads = self.num_cores * self.num_threads
+        self.gtuner_model = kwargs.get('gtuner_model', 'tensorflow')
         self.kwargs = kwargs
 
         self._setup_warnings()
@@ -49,6 +49,7 @@ class CMqlSetup:
         self._set_precision_policy()
         self._configure_tf()
         self._configure_debug()
+        
 
     def _setup_warnings(self):
         warnings.filterwarnings(self.warn)
@@ -144,7 +145,7 @@ class CMqlSetup:
 
         raise RuntimeError("❌ No valid strategy available.")
 
-    def set_log_dir(self, logdir=None, logfile='tslog', servername=None):
+    def set_log_dir(self, logdir=None, logfile='tslog', servername=None, ltuner=None):
         import socket
         hostname = os.getenv('HOSTNAME', socket.gethostname())
         print(f"Hostname: {hostname}")
@@ -157,36 +158,47 @@ class CMqlSetup:
             elif os_platform == 'Darwin':
                 base_path = '/Users/shepa/OneDrive/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir'
             else:
-                base_path = os.path.expanduser('~/EQUINRUN/Logdir')
+                base_path = os.path.expanduser('~/EQUINRUN/Logdir')  # ✅ fallback
+
+            subdir = servername if servername else '_unknown'
+            base_path = os.path.join(base_path, self.gtuner_model, subdir)
+        else:
+            base_path = logdir
 
         os.makedirs(base_path, exist_ok=True)
-        self.global_logdir = base_path
-        self.global_logfile = os.path.join(base_path, logfile)
 
-        if not os.path.exists(self.global_logfile):
-            with open(self.global_logfile, 'w') as f:
-                f.write("Log file created.")
+        # Prevent nested subfolders from logfile name
+        logfile_name = os.path.basename(logfile)
+        self.global_logdir = base_path
+        self.global_logfile = os.path.join(base_path, logfile_name)
+       
+
+        # Make sure the directory exists
+        os.makedirs(os.path.dirname(self.global_logfile), exist_ok=True)
+
+        try:
+            with open(self.global_logfile, 'a') as f:
+                f.write('')  # Create an empty file to ensure it is writable
+        except Exception as e:
+            print(f"Could not create logfile at {self.global_logfile}: {e}")
+            raise
 
         return self.global_logdir, self.global_logfile
 
-    def setup_global_logger(self,logfilein='tsneuropredict_app.log'):
-        logger = logging.getLogger()
-        logger.setLevel(logging.DEBUG)
 
-        # Avoid duplicate handlers
+
+    def setup_global_logger(self, logfilein='tsneuropredict_app.log'):
+        logger = logging.getLogger()
         if logger.hasHandlers():
-            logger.handlers.clear()
-          
-        logfile = os.path.join(logfilein)
-        fh = logging.FileHandler(logfile, mode='a', encoding='utf-8')
+            return logger  # Prevent duplicate setup
+
+        logger.setLevel(logging.DEBUG)
+        fh = logging.FileHandler(logfilein, mode='a', encoding='utf-8')
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s')
         fh.setFormatter(formatter)
         logger.addHandler(fh)
-
-        # Optional: Stream to console too
         sh = logging.StreamHandler()
         sh.setFormatter(formatter)
         logger.addHandler(sh)
-
-        logger.info(f"Logger initialized with output file: {logfile}")
+        logger.info(f"Logger initialized with output file: {logfilein}")
         return logger

@@ -25,27 +25,15 @@ from keras_tuner.engine.hyperparameters import HyperParameters
 from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 
-# ----- Start Logging Setup -----
-from tsMqlSetup import CMqlSetup
-from tsMqlOverrides import CMqlOverrides
-mql_overrides = CMqlOverrides() 
-app_params = mql_overrides.env.all_params().get("app", {})
-setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4)
-xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
-xerces_server = app_params.get('xerces_server', '192.168.1.103')
-xerces_port = app_params.get('xerces_port', 9000)
-xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=xerces_logfile, servername=xerces_servername)
-logger = setup_config.setup_global_logger(logfilein=global_logfile)
-# ----- End Logging Setup -----
-
+# Setup logger
+logger = logging.getLogger(__name__)
 
 # Platform imports
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
 pchk         = run_platform.RunPlatform()
 os_platform  = platform_checker.get_platform()
 loadmql      = pchk.check_mql_state()
-logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
+
 
 # TensorFlow/Keras imports
 from tensorflow.keras.layers import (
@@ -875,4 +863,3 @@ class AddPositionalEncoding(tf.keras.layers.Layer):
         pos_encoding = tf.concat([sines, cosines], axis=-1)
         pos_encoding = tf.expand_dims(pos_encoding, axis=0)  # (1, seq_len, dim)
         return x + tf.cast(pos_encoding, x.dtype)
-

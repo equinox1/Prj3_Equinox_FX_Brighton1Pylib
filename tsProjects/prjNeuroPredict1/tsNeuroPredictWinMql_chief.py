@@ -4,10 +4,7 @@
 # |                                                    Tony Shepherd |
 # |                                    https://www.xercescloud.co.uk |
 # +------------------------------------------------------------------+
-# property copyright "Tony Shepherd"
-# property link      "https://www.xercescloud.co.uk"
-# property version   "1.01"
-# +------------------------------------------------------------------+
+
 import os
 import logging
 import threading
@@ -46,25 +43,28 @@ from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
 from tsMqlMLTuner.tsMqlMLTunerModTorch import PyTorchTuner
 
+
 os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
 os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TUNER_ID"] = "chief"
 tuner_id = os.environ.get("TUNER_ID", "chief")
 
-# ----- Start Logging Setup -----
 from tsMqlSetup import CMqlSetup
 from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides() 
 app_params = mql_overrides.env.all_params().get("app", {})
+gtuner_model = app_params.get('gtuner_model', 'tensorflow')  # or "tensorflow"
+print(f"Worker Using GTuner model: {gtuner_model}")
 setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4)
+
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
-xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=xerces_logfile, servername=xerces_servername)
-logger = setup_config.setup_global_logger(logfilein=global_logfile)
-# ----- End Logging Setup -----
+
+# Setup logger
+logger = logging.getLogger(__name__)
+
 
 # strategy setup
 strategy = setup_config.get_computation_strategy()
@@ -77,9 +77,8 @@ diststrategy = 'tf.distribute.MultiWorkerMirroredStrategy'
 logger.info(f"Distribution strategy: {diststrategy}")
 gtuner_type = 'distributed'
 gtuner_mode = 'random'
-gtuner_model = "pytorch"
 gmodscale = 8
-gstandalone = True
+gstandalone = False
 logger.info(f"Tuner type: {gtuner_type}, mode: {gtuner_mode}, backend: {gtuner_model}")
 
 
