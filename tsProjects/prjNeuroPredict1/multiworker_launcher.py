@@ -5,35 +5,21 @@ import socket
 import requests
 import sys
 import psutil
-import logging
-
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-
-# ----- Start Logging Setup -----
-from tsMqlSetup import CMqlSetup
-from tsMqlOverrides import CMqlOverrides
-mql_overrides = CMqlOverrides() 
-app_params = mql_overrides.env.all_params().get("app", {})
-setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4)
-xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
-xerces_server = app_params.get('xerces_server', '192.168.1.103')
-xerces_port = app_params.get('xerces_port', 9000)
-xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=xerces_logfile, servername=xerces_servername)
-logger = setup_config.setup_global_logger(logfilein=global_logfile)
-# ----- End Logging Setup -----
-
+import logging
 # ==== CONFIGURATION ====
-NUM_WORKERS = 2
+NUM_WORKERS = 1
 PYTHON_EXEC = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\.venv\Scripts\python.exe"
 BASE_PATH = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/PythonLib"
 
-CHIEF_SCRIPT = os.path.join(BASE_PATH, "tsProjects/prjNeuroPredict1/oracle_server_main.py")
+ORACLE_DAEMON_SCRIPT = os.path.join(BASE_PATH, "tsProjects/prjNeuroPredict1/oracle_server_main.py")
+CHIEF_SCRIPT = os.path.join(BASE_PATH, "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_chief.py")
 WORKER_SCRIPT = os.path.join(BASE_PATH, "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_worker.py")
 
 ORACLE_HOST = '192.168.1.103'
 ORACLE_PORT = 9000
 ORACLE_URL = f"http://{ORACLE_HOST}:{ORACLE_PORT}"
+NUM_WORKERS = 1
 
 MAX_WAIT_SECONDS = 15
 MAX_RETRIES = 15
@@ -99,18 +85,22 @@ if __name__ == "__main__":
             time.sleep(2)
         else:
             print(f"⚠️ Port {ORACLE_PORT} already in use. Assuming Oracle is running.")
-            chief_proc = None
+            oracle_proc = None
     else:
-        print("🚀 Launching OracleServer...")
-        chief_proc = launch_process(CHIEF_SCRIPT, tuner_id="chief")
+        print("🚀 Launching OracleServer Daemon...")
+        oracle_proc = launch_process(ORACLE_DAEMON_SCRIPT, tuner_id="oracle")
         if not wait_for_oracle_ready():
             print("❌ Aborting: OracleServer failed to start.")
-            if chief_proc:
-                chief_proc.terminate()
-                chief_proc.wait()
+            if oracle_proc:
+                oracle_proc.terminate()
+                oracle_proc.wait()
             sys.exit(1)
 
-    # Launch worker(s)
+    # ✅ Now launch Chief
+    print("👑 Launching Chief Process...")
+    chief_proc = launch_process(CHIEF_SCRIPT, tuner_id="chief")
+
+    # ✅ Launch Worker(s)
     print("🧑‍🏭 Starting Worker(s)...")
     workers = []
     for i in range(NUM_WORKERS):
@@ -126,6 +116,8 @@ if __name__ == "__main__":
                 time.sleep(10)
     except KeyboardInterrupt:
         print("🛑 Stopping all processes...")
+        if oracle_proc:
+            oracle_proc.terminate()
         if chief_proc:
             chief_proc.terminate()
         for w in workers:

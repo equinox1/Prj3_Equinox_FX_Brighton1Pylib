@@ -37,6 +37,7 @@ class CMqlEnvAppParams(CEnvCore):
         "xerces_server" :'192.168.1.103',
         "xerces_port" : 9000,
         "xerces_logfile" : 'tsneuropredict_app.log',
+        "gtuner_model": "tensorflow",  # or "tensorflow"
        
     }
 

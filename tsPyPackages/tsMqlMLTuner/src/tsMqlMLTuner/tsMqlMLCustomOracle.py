@@ -5,10 +5,11 @@ from tsMqlSetup import CMqlSetup
 import os
 import logging
 
+# Setup logger
 logger = logging.getLogger(__name__)
 
 class CustomOracle(Oracle):
-    def __init__(self, objective="val_loss", max_trials=50, seed=42):
+    def __init__(self, objective="val_loss", max_trials=50,log='tslog', seed=42):
         super().__init__(objective=objective, max_trials=max_trials, seed=seed)
 
         setup_config = CMqlSetup(
@@ -20,17 +21,9 @@ class CustomOracle(Oracle):
             num_threads=4
         )
 
-        xerces_servername = "WINSVRXERCES01"
-        xerces_logfile = 'tsneuropredict_app.log'
-        self.global_logdir, self.global_logfile = setup_config.set_log_dir(
-            logdir=None,
-            logfile=xerces_logfile,
-            servername=xerces_servername
-        )
-        print(f"[CustomOracle] Logdir: {self.global_logdir}")
-
-        self._directory = os.path.join(self.global_logdir, "oracle_dir")
-        self._project_name = os.path.join(self.global_logdir, "oracle_project")
+        self.global_logdir, self.global_logfile = setup_config.set_log_dir(logdir=log, logfile="oracle.log")
+        self._directory = os.path.join(log, "oracle_dir")
+        self._project_name = os.path.join(log, "oracle_project")
         self._trials = {}
 
     def populate_space(self, trial_id):

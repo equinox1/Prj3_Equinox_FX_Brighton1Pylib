@@ -6,6 +6,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import traceback
+import logging
+
+# Setup logger
+logger = logging.getLogger(__name__)
 
 class TrialRequest(BaseModel):
     trial_id: str
