@@ -3,6 +3,7 @@ import warnings
 import gc
 import logging
 
+import socket
 os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
 os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
@@ -11,6 +12,7 @@ import tensorflow as tf
 from tensorflow.keras.mixed_precision import Policy
 
 from tsMqlPlatform import run_platform, platform_checker
+from rich.logging import RichHandler
 
 # -- Base Env Setup --
 os.environ.update({
@@ -145,7 +147,7 @@ class CMqlSetup:
 
         raise RuntimeError("❌ No valid strategy available.")
 
-    def set_log_dir(self, logdir=None, logfile='tslog', servername=None, ltuner=None):
+    def set_log_dir1(self, logdir=None, logfile='tslog', servername=None, ltuner=None):
         import socket
         hostname = os.getenv('HOSTNAME', socket.gethostname())
         print(f"Hostname: {hostname}")
@@ -187,7 +189,7 @@ class CMqlSetup:
 
 
 
-    def setup_global_logger(self, logfilein='tsneuropredict_app.log'):
+    def setup_global_logger1(self, logdir=None, logfile='tslog', servername=None, ltuner=None):
         logger = logging.getLogger()
         if logger.hasHandlers():
             return logger  # Prevent duplicate setup
@@ -201,4 +203,67 @@ class CMqlSetup:
         sh.setFormatter(formatter)
         logger.addHandler(sh)
         logger.info(f"Logger initialized with output file: {logfilein}")
+        return logger
+
+
+
+    def set_log_dir(self, logdir=None, logfile='tslog', servername=None, ltuner=None):
+        hostname = socket.gethostname()
+        print(f"Hostname: {hostname}")
+
+        # Default logdir construction based on platform
+        if logdir is None:
+            if hostname == servername and os_platform == 'Windows':
+                base_path = r'C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir'
+            elif os_platform == 'Linux':
+                base_path = '/mnt/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir'
+            elif os_platform == 'Darwin':
+                base_path = '/Users/shepa/OneDrive/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir'
+            else:
+                base_path = os.path.expanduser('~/EQUINRUN/Logdir')
+
+        else:
+            base_path = logdir
+
+        # Final log directory: Logdir / Hostname / ltuner
+        final_logdir = os.path.join(base_path, hostname, ltuner)
+        os.makedirs(final_logdir, exist_ok=True)
+
+        self.global_logdir = final_logdir
+        self.global_logfile = os.path.join(final_logdir, 'tsneuropredict_app.log')
+
+        try:
+            with open(self.global_logfile, 'a') as f:
+                f.write('')
+        except Exception as e:
+            print(f"Could not create logfile at {self.global_logfile}: {e}")
+            raise
+
+        return self.global_logdir, self.global_logfile
+
+
+
+    def setup_global_logger(self, logfilein=None):
+        if logfilein is None:
+            logfilein = getattr(self, 'global_logfile', 'tsneuropredict_app.log')
+
+        logger = logging.getLogger()
+        if logger.hasHandlers():
+            return logger  # Avoid duplicate handlers
+
+        logger.setLevel(logging.DEBUG)
+
+        # File handler
+        fh = logging.FileHandler(logfilein, mode='a', encoding='utf-8')
+        file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s')
+        fh.setFormatter(file_formatter)
+        logger.addHandler(fh)
+
+        # Rich console handler
+        rich_handler = RichHandler(rich_tracebacks=True, markup=True)
+        console_formatter = logging.Formatter('%(message)s')
+        rich_handler.setFormatter(console_formatter)
+        logger.addHandler(rich_handler)
+
+        logger.info(f"Logger initialized with file: {logfilein}")
         return logger

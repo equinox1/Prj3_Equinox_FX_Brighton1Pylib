@@ -7,10 +7,13 @@ import sys
 import psutil
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 import logging
+
 # ==== CONFIGURATION ====
 NUM_WORKERS = 1
 PYTHON_EXEC = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\.venv\Scripts\python.exe"
 BASE_PATH = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/PythonLib"
+
+from tsMqlSetup import CMqlSetup
 
 ORACLE_DAEMON_SCRIPT = os.path.join(BASE_PATH, "tsProjects/prjNeuroPredict1/oracle_server_main.py")
 CHIEF_SCRIPT = os.path.join(BASE_PATH, "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_chief.py")
@@ -19,11 +22,13 @@ WORKER_SCRIPT = os.path.join(BASE_PATH, "tsProjects/prjNeuroPredict1/tsNeuroPred
 ORACLE_HOST = '192.168.1.103'
 ORACLE_PORT = 9000
 ORACLE_URL = f"http://{ORACLE_HOST}:{ORACLE_PORT}"
-NUM_WORKERS = 1
 
 MAX_WAIT_SECONDS = 15
 MAX_RETRIES = 15
 FORCE_KILL = '--force' in sys.argv
+
+# 🔁 Set global backend: 'pytorch' or 'tensorflow'
+GLOBAL_BACKEND = "pytorch"
 
 # ==== UTILS ====
 
@@ -46,10 +51,12 @@ def kill_process_on_port(port):
         except Exception:
             continue
 
-def launch_process(script_path, tuner_id=None):
+def launch_process(script_path, tuner_id=None, backend="tensorflow"):
     env = os.environ.copy()
     if tuner_id:
         env["TUNER_ID"] = tuner_id
+    env["GTUNER_MODEL"] = backend
+    env["MLTUNE_BACKEND"] = backend
     return subprocess.Popen([PYTHON_EXEC, script_path], env=env)
 
 def wait_for_oracle_ready():
@@ -88,7 +95,7 @@ if __name__ == "__main__":
             oracle_proc = None
     else:
         print("🚀 Launching OracleServer Daemon...")
-        oracle_proc = launch_process(ORACLE_DAEMON_SCRIPT, tuner_id="oracle")
+        oracle_proc = launch_process(ORACLE_DAEMON_SCRIPT, tuner_id="oracle", backend=GLOBAL_BACKEND)
         if not wait_for_oracle_ready():
             print("❌ Aborting: OracleServer failed to start.")
             if oracle_proc:
@@ -98,14 +105,14 @@ if __name__ == "__main__":
 
     # ✅ Now launch Chief
     print("👑 Launching Chief Process...")
-    chief_proc = launch_process(CHIEF_SCRIPT, tuner_id="chief")
+    chief_proc = launch_process(CHIEF_SCRIPT, tuner_id="chief", backend=GLOBAL_BACKEND)
 
     # ✅ Launch Worker(s)
     print("🧑‍🏭 Starting Worker(s)...")
     workers = []
     for i in range(NUM_WORKERS):
         print(f"🟢 Launching Worker-{i+1}")
-        proc = launch_process(WORKER_SCRIPT, tuner_id=f"worker_{i+1}")
+        proc = launch_process(WORKER_SCRIPT, tuner_id=f"worker_{i+1}", backend=GLOBAL_BACKEND)
         workers.append(proc)
 
     try:
