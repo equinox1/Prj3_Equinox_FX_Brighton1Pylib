@@ -4,6 +4,8 @@
 # |                        Refactored with CMdtunerSelector          |
 # +------------------------------------------------------------------+
 
+from tsMqlSetup import CMqlSetup
+
 import os
 import logging
 import numpy as np
@@ -35,22 +37,42 @@ os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TUNER_ID"] = "worker"
 
-
-## ----- Start Logging Setup -----
+# -- start of logging setup --
 from tsMqlSetup import CMqlSetup
+# ✅ Logger and Logdir Setup
+setup_config = CMqlSetup(
+    loglevel='INFO',
+    warn='ignore',
+    precision='mixed_bfloat16',
+    tfdebug=False,
+    num_cores=8,
+    num_threads=1
+)
 from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides() 
+# 🔁 Accept launcher-provided backend override
+env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
+env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
+
+mql_overrides.env.override_params({
+    "mltune": {"backend": env_backend},
+    "app": {"gtuner_model": env_gtuner}
+})
+
+
 app_params = mql_overrides.env.all_params().get("app", {})
-gtuner_model = app_params.get('gtuner_model', 'tensorflow')  # or "tensorflow"
-setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4,gtuner_model=gtuner_model)
+tune_params = mql_overrides.env.all_params().get("mltune", {})
+from tsMqlSetup import CMqlSetup
+gtuner_model = app_params.get('gtuner_model', 'pytorch')  # or "tensorflow"
+backend = tune_params.get('backend', gtuner_model)  # or "tensorflow"
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 tunerlogfile = xerces_logfile
-global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername)
-logger = setup_config.setup_global_logger(logfilein=global_logfile)
-# ----- End Logging Setup -----
+global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername,ltuner=gtuner_model)
+logger = setup_config.setup_global_logger(global_logfile)
+# -- end of logging setup ----
 
 
 # --- Strategy & Platform ---
@@ -72,8 +94,7 @@ def main(logger):
     overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
     overrides.env.override_params({"mltune": {'batch_size': 8}})
     overrides.env.override_params({"data": {'mp_data_timeframe': mt5.TIMEFRAME_H4}})
-    overrides.env.override_params({"mltune": {'backend': gtuner_model}})
-    
+       
     base = overrides.env.all_params().get("base", {})
     data = overrides.env.all_params().get("data", {})
     ml = overrides.env.all_params().get("ml", {})
@@ -125,39 +146,55 @@ def main(logger):
 def run_worker_loop(X, y, input_shape, hyperparams):
     oracle = OracleClient(host=xerces_server, port=xerces_port)
 
-    # Set required tuning params
+    # Update input shape and basic tuning params
     mltune = hyperparams.setdefault('mltune', {})
-    mltune['data_input_shape'] = input_shape
-    mltune['input_shape'] = input_shape
-    mltune['input_width'] = mltune.get('input_width', 24)
-    mltune['shift'] = mltune.get('shift', 24)
-    backend = mltune.get('backend', 'pytorch').lower()
-    logger.info("Worker Using backend: %s", backend)
+    mltune.update({
+        'data_input_shape': input_shape,
+        'input_shape': input_shape,
+        'input_width': mltune.get('input_width', 24),
+        'shift': mltune.get('shift', 24)
+    })
 
-    if backend == "tensorflow":
+    backend = os.environ.get("MLTUNE_BACKEND", "tensorflow").lower()
+    gtuner_model = os.environ.get("GTUNER_MODEL", backend).lower()
+
+    logger.info(f"Worker Using GTuner model: {gtuner_model}")
+    logger.info(f"Worker Using backend: {backend}")
+
+    if backend == "pytorch":
+        from tsMqlMLTuner.tsMqlMLTunerModTorch import PyTorchTuner
+        tuner = PyTorchTuner(
+            oracle=oracle,
+            hypermodel_params=hyperparams,
+            traindataset=(X, y),
+            valdataset=(X, y)  # Optional: add real split later
+        )
+        logger.info("Worker running PyTorch tuner loop...")
+        tuner.run_search()
+        return
+
+    elif backend == "tensorflow":
         import tensorflow as tf
         buffer_size = 10000
         batch_size = 32
         dataset = tf.data.Dataset.from_tensor_slices((X, y))
         dataset = dataset.shuffle(buffer_size).batch(batch_size)
-
         traindataset = valdataset = testdataset = dataset
+
+        from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
+        tuner = CMdtunerSelector(
+            oracle=oracle,
+            hypermodel_params=hyperparams,
+            traindataset=traindataset,
+            valdataset=valdataset,
+            testdataset=testdataset,
+            castmode='float32'
+        )
+        logger.info("Worker running TensorFlow tuner loop...")
+        tuner.run_search()
+
     else:
-        # For PyTorch — use plain (X, y) tuples
-        traindataset = valdataset = testdataset = (X, y)
-
-    tuner = CMdtunerSelector(
-        oracle=oracle,
-        hypermodel_params=hyperparams,
-        traindataset=traindataset,
-        valdataset=valdataset,
-        testdataset=testdataset,
-        castmode='float32'
-    )
-
-
-    logger.info("Worker tuner initialized. Waiting for Oracle trials...")
-    tuner.run_search()
+        raise ValueError(f"Unsupported backend: {backend}")
 
 
 

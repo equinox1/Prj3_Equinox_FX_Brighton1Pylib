@@ -5,6 +5,9 @@
 # |                                    https://www.xercescloud.co.uk |
 # +------------------------------------------------------------------+
 
+from tsMqlSetup import CMqlSetup
+cmql = CMqlSetup(gtuner_model='pytorch')
+logger = cmql.setup_global_logger()
 import os
 import logging
 import threading
@@ -50,20 +53,45 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TUNER_ID"] = "chief"
 tuner_id = os.environ.get("TUNER_ID", "chief")
 
+# -- start of logging setup --
 from tsMqlSetup import CMqlSetup
+
+# ✅ Logger and Logdir Setup
+setup_config = CMqlSetup(
+    loglevel='INFO',
+    warn='ignore',
+    precision='mixed_bfloat16',
+    tfdebug=False,
+    num_cores=48,
+    num_threads=8
+)
+
 from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides() 
-app_params = mql_overrides.env.all_params().get("app", {})
-gtuner_model = app_params.get('gtuner_model', 'tensorflow')  # or "tensorflow"
-print(f"Worker Using GTuner model: {gtuner_model}")
-setup_config = CMqlSetup(loglevel='INFO', warn='ignore',precision='mixed_bfloat16', tfdebug=False,num_cores=48,num_threads = 4)
+# 🔁 Accept launcher-provided backend override
+env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
+env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
 
+mql_overrides.env.override_params({
+    "mltune": {"backend": env_backend},
+    "app": {"gtuner_model": env_gtuner}
+})
+
+
+
+
+from tsMqlSetup import CMqlSetup
+gtuner_model = app_params.get('gtuner_model', 'pytorch')  # or "tensorflow"
+backend = tune_params.get('backend', gtuner_model)  # or "tensorflow"
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
+xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
+tunerlogfile = xerces_logfile
+global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername,ltuner=gtuner_model)
+logger = setup_config.setup_global_logger(global_logfile)
+# -- end of logging setup --
 
-# Setup logger
-logger = logging.getLogger(__name__)
 
 
 # strategy setup
@@ -79,7 +107,6 @@ gtuner_type = 'distributed'
 gtuner_mode = 'random'
 gmodscale = 8
 gstandalone = False
-logger.info(f"Tuner type: {gtuner_type}, mode: {gtuner_mode}, backend: {gtuner_model}")
 
 
 # ----- Main Function -----
@@ -215,7 +242,7 @@ def main(logger):
         mql_overrides.env.override_params({"mltune": {'distribution_strategy': diststrategy}})
         mql_overrides.env.override_params({"mltune": {'tunertype': gtuner_type}})
         mql_overrides.env.override_params({"mltune": {'tunemode': gtuner_mode}})
-        mql_overrides.env.override_params({"mltune": {'backend': gtuner_model}})
+        
        
         mltune_overrides = mql_overrides.env.all_params().get("mltune", {})
         logger.info("OverRidden: ML Tuning Parameters: %s", mltune_overrides)
@@ -226,9 +253,8 @@ def main(logger):
         logger.info("OverRidden: Distribution Strategy: %s", mltune_overrides.get("distribution_strategy", diststrategy))
         logger.info("OverRidden: Tuner Type: %s", mltune_overrides.get("tunertype", gtuner_type))
         logger.info("OverRidden: Tuner Mode: %s", mltune_overrides.get("tunemode", gtuner_mode))
-        logger.info("OverRidden: Backend: %s", mltune_overrides.get("backend", gtuner_mode))
-
-        # ----- Select Features and Labels -----
+        
+          # ----- Select Features and Labels -----
         features = ml_params.get("mp_ml_input_keyfeat", "Close")
         features_scaled = ml_params.get("mp_ml_input_keyfeat_scaled", "Close_Scaled")
         label1 = ml_params.get("mp_ml_output_label", "Label")
@@ -510,4 +536,3 @@ def main(logger):
         
 if __name__ == "__main__":
     main(logger)
-
