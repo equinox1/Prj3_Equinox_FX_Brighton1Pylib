@@ -29,7 +29,7 @@ xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 tunerlogfile = xerces_logfile
 global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername,ltuner=gtuner_model)
-logger = setup_config.setup_global_logger(global_logfile)
+logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
 # -- end of logging setup ----
 
 class CustomOracle(Oracle):
