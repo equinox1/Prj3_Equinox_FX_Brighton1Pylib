@@ -5,15 +5,14 @@ import socket
 import requests
 import sys
 import psutil
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 import logging
+
+from tsMqlSetup import CMqlSetup
 
 # ==== CONFIGURATION ====
 NUM_WORKERS = 4
 PYTHON_EXEC = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\.venv\Scripts\python.exe"
 BASE_PATH = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/PythonLib"
-
-from tsMqlSetup import CMqlSetup
 
 ORACLE_DAEMON_SCRIPT = os.path.join(BASE_PATH, "tsProjects/prjNeuroPredict1/oracle_server_main.py")
 CHIEF_SCRIPT = os.path.join(BASE_PATH, "tsProjects/prjNeuroPredict1/tsNeuroPredictWinMql_chief.py")
@@ -27,11 +26,9 @@ MAX_WAIT_SECONDS = 15
 MAX_RETRIES = 15
 FORCE_KILL = '--force' in sys.argv
 
-# 🔁 Set global backend: 'pytorch' or 'tensorflow'
-GLOBAL_BACKEND = "pytorch"  # Change as needed
+GLOBAL_BACKEND = "pytorch"  # Options: 'pytorch', 'tensorflow'
 
-# ==== UTILS ====
-
+# ==== UTILITIES ====
 def port_in_use(host, port):
     try:
         with socket.create_connection((host, port), timeout=2):
@@ -57,6 +54,8 @@ def launch_process(script_path, tuner_id=None, backend="tensorflow"):
         env["TUNER_ID"] = tuner_id
     env["GTUNER_MODEL"] = backend
     env["MLTUNE_BACKEND"] = backend
+    label = tuner_id.upper() if tuner_id else "PROCESS"
+    print(f"[LAUNCH] Launching {label} → {script_path}")
     return subprocess.Popen([PYTHON_EXEC, script_path], env=env)
 
 def wait_for_oracle_ready():
@@ -66,7 +65,6 @@ def wait_for_oracle_ready():
             resp = requests.get(f"{ORACLE_URL}/heartbeat", timeout=MAX_WAIT_SECONDS)
             if resp.status_code == 200:
                 print("✅ OracleServer heartbeat OK.")
-                # Optional: double-check /get_trial readiness
                 try:
                     gt_resp = requests.get(f"{ORACLE_URL}/get_trial", timeout=MAX_WAIT_SECONDS)
                     if gt_resp.status_code == 200:
@@ -83,7 +81,7 @@ def wait_for_oracle_ready():
     print("❌ ERROR: OracleServer not responsive within timeout.")
     return False
 
-# ==== MAIN ====
+# ==== MAIN ENTRYPOINT ====
 if __name__ == "__main__":
     if port_in_use(ORACLE_HOST, ORACLE_PORT):
         if FORCE_KILL:
@@ -103,16 +101,14 @@ if __name__ == "__main__":
                 oracle_proc.wait()
             sys.exit(1)
 
-    # ✅ Now launch Chief
     print("👑 Launching Chief Process...")
     chief_proc = launch_process(CHIEF_SCRIPT, tuner_id="chief", backend=GLOBAL_BACKEND)
 
-    # ✅ Launch Worker(s)
-    print("🧑‍🏭 Starting Worker(s)...")
+    print("🧑‍🏭 Launching Worker Processes...")
     workers = []
     for i in range(NUM_WORKERS):
-        print(f"🟢 Launching Worker-{i+1}")
-        proc = launch_process(WORKER_SCRIPT, tuner_id=f"worker_{i+1}", backend=GLOBAL_BACKEND)
+        tuner_id = f"worker_{i+1}"
+        proc = launch_process(WORKER_SCRIPT, tuner_id=tuner_id, backend=GLOBAL_BACKEND)
         workers.append(proc)
 
     try:
@@ -122,10 +118,11 @@ if __name__ == "__main__":
             while True:
                 time.sleep(10)
     except KeyboardInterrupt:
-        print("🛑 Stopping all processes...")
+        print("🛑 Interrupt received. Terminating all processes...")
         if oracle_proc:
             oracle_proc.terminate()
         if chief_proc:
             chief_proc.terminate()
         for w in workers:
             w.terminate()
+        print("✅ All subprocesses terminated cleanly.")
