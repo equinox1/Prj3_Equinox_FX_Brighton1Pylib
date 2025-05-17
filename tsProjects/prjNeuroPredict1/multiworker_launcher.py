@@ -9,7 +9,7 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 import logging
 
 # ==== CONFIGURATION ====
-NUM_WORKERS = 1
+NUM_WORKERS = 4
 PYTHON_EXEC = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\.venv\Scripts\python.exe"
 BASE_PATH = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/PythonLib"
 
@@ -28,7 +28,7 @@ MAX_RETRIES = 15
 FORCE_KILL = '--force' in sys.argv
 
 # 🔁 Set global backend: 'pytorch' or 'tensorflow'
-GLOBAL_BACKEND = "pytorch"
+GLOBAL_BACKEND = "pytorch"  # Change as needed
 
 # ==== UTILS ====
 

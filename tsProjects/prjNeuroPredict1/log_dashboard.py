@@ -5,14 +5,24 @@ import os
 import requests
 import logging
 import html
+import glob
+import json
 
 # Logger setup
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-# Configuration
-LOG_FILE = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir/tsneuropredict_app.log"
-ORACLE_API = "http://192.168.1.103:9000"
+# Dynamically resolve log file
+
+def resolve_logfile():
+    base_path = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir"
+    matches = glob.glob(os.path.join(base_path, "**", "tsneuropredict_app.log"), recursive=True)
+    if matches:
+        return max(matches, key=os.path.getmtime)
+    return None
+
+LOG_FILE = resolve_logfile()
+ORACLE_API = os.getenv("ORACLE_API", "http://192.168.1.103:9000")
 
 app = FastAPI(title="Tuner Dashboard")
 
@@ -24,13 +34,12 @@ app.add_middleware(
 )
 
 
-
-def html_template(title: str, body: str) -> str:
+def html_template(title: str, body: str, extra_scripts: str = "") -> str:
     return f"""
     <html>
         <head>
             <title>{title}</title>
-            <meta http-equiv="refresh" content="5">
+            <meta http-equiv="refresh" content="10">
             <script>
             function toggle(id) {{
                 const el = document.getElementById(id);
@@ -46,6 +55,7 @@ def html_template(title: str, body: str) -> str:
                     row.style.display = show ? "" : "none";
                 }});
             }}
+            {extra_scripts}
             </script>
             <style>
                 body {{ font-family: monospace; padding: 20px; }}
@@ -69,9 +79,10 @@ def html_template(title: str, body: str) -> str:
     </html>
     """
 
+
 @app.get("/", response_class=HTMLResponse)
 def show_logs():
-    if not os.path.exists(LOG_FILE):
+    if not LOG_FILE or not os.path.exists(LOG_FILE):
         return HTMLResponse(html_template("Log Viewer", "<h3>No log file found.</h3>"), status_code=404)
 
     with open(LOG_FILE, "r", encoding="utf-8") as f:
@@ -80,6 +91,7 @@ def show_logs():
     escaped_log = html.escape("".join(lines))
     body = f"<h2>Tuning Logs (Live)</h2><div class='logbox'>{escaped_log}</div><a href='/trials'>→ View Trials Dashboard</a>"
     return HTMLResponse(html_template("Log Viewer", body))
+
 
 @app.get("/trials", response_class=HTMLResponse)
 def show_trials():
@@ -94,6 +106,24 @@ def show_trials():
         return HTMLResponse(html_template("No Trials", "<h3>No trials available yet.</h3><a href='/'>← Back to Logs</a>"))
 
     trials.sort(key=lambda t: t.get('score') if t.get('score') is not None else -1, reverse=True)
+
+    summary = {
+        "total": len(trials),
+        "completed": sum(t["status"] == "COMPLETED" for t in trials),
+        "failed": sum(t["status"] == "FAILED" for t in trials),
+        "best_score": min((t.get("score", float("inf")) for t in trials if t.get("score") is not None), default="N/A")
+    }
+
+    summary_html = f"""
+    <h3>Summary</h3>
+    <ul>
+        <li>Total Trials: {summary['total']}</li>
+        <li>Completed: {summary['completed']}</li>
+        <li>Failed: {summary['failed']}</li>
+        <li>Best Score: {summary['best_score']}</li>
+    </ul>
+    """
+
     rows = ""
     for idx, trial in enumerate(trials):
         hp_id = f"hp_{idx}"
@@ -115,6 +145,7 @@ def show_trials():
 
     table = f"""
     <h2>Oracle Trial Status</h2>
+    {summary_html}
     <label for="statusFilter">Filter by status:</label>
     <select id="statusFilter" onchange="filterTable()">
         <option value="">All</option>
@@ -122,7 +153,7 @@ def show_trials():
         <option value="COMPLETED">COMPLETED</option>
         <option value="FAILED">FAILED</option>
     </select>
-    <table>
+    <table id="trialTable">
         <tr><th>Trial ID</th><th>Status</th><th>Score</th><th>Hyperparameters</th></tr>
         {rows}
     </table>
@@ -130,23 +161,38 @@ def show_trials():
     """
     return HTMLResponse(html_template("Trial Dashboard", table))
 
+
 @app.get("/api/logs", response_class=JSONResponse)
 def get_logs_json():
-    if not os.path.exists(LOG_FILE):
+    if not LOG_FILE or not os.path.exists(LOG_FILE):
         return JSONResponse(content={"error": "Log file not found"}, status_code=404)
 
     with open(LOG_FILE, "r", encoding="utf-8") as f:
         lines = f.readlines()[-300:]
     return {"log": lines}
 
+
 @app.get("/api/trials", response_class=JSONResponse)
-def get_trials_json():
+def get_trials_json(status: str = None):
     try:
         response = requests.get(f"{ORACLE_API}/list_trials", timeout=5)
         response.raise_for_status()
-        return response.json()
+        trials = response.json().get("trials", [])
+        if status:
+            trials = [t for t in trials if t["status"] == status]
+        return {"trials": trials}
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=502)
+
+
+@app.get("/health", response_class=JSONResponse)
+def oracle_health():
+    try:
+        r = requests.get(f"{ORACLE_API}/heartbeat", timeout=5)
+        return {"status": "alive" if r.status_code == 200 else "unresponsive"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
+
 
 if __name__ == "__main__":
     import uvicorn

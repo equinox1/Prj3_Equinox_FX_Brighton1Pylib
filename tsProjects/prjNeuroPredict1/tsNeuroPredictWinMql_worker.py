@@ -37,9 +37,24 @@ os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TUNER_ID"] = "worker"
 
-# -- start of logging setup --
 from tsMqlSetup import CMqlSetup
-# ✅ Logger and Logdir Setup
+from tsMqlOverrides import CMqlOverrides
+
+env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
+env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
+
+mql_overrides = CMqlOverrides()
+mql_overrides.env.override_params({
+    "mltune": {"backend": env_backend},
+    "app": {"gtuner_model": env_gtuner}
+})
+
+app_params = mql_overrides.env.all_params().get("app", {})
+gtuner_model = app_params.get('gtuner_model', 'pytorch')
+xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
+xerces_server = app_params.get('xerces_server', '192.168.1.103')
+xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
+
 setup_config = CMqlSetup(
     loglevel='INFO',
     warn='ignore',
@@ -48,32 +63,15 @@ setup_config = CMqlSetup(
     num_cores=8,
     num_threads=1
 )
-from tsMqlOverrides import CMqlOverrides
-mql_overrides = CMqlOverrides() 
-# 🔁 Accept launcher-provided backend override
-env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
-env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
 
-mql_overrides.env.override_params({
-    "mltune": {"backend": env_backend},
-    "app": {"gtuner_model": env_gtuner}
-})
+global_logdir, global_logfile = setup_config.set_log_dir(
+    logdir=None,
+    logfile=xerces_logfile,
+    servername=xerces_servername,
+    ltuner=gtuner_model
+)
 
-
-app_params = mql_overrides.env.all_params().get("app", {})
-tune_params = mql_overrides.env.all_params().get("mltune", {})
-from tsMqlSetup import CMqlSetup
-gtuner_model = app_params.get('gtuner_model', 'pytorch')  # or "tensorflow"
-backend = tune_params.get('backend', gtuner_model)  # or "tensorflow"
-xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
-xerces_server = app_params.get('xerces_server', '192.168.1.103')
-xerces_port = app_params.get('xerces_port', 9000)
-xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-tunerlogfile = xerces_logfile
-global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername,ltuner=gtuner_model)
 logger = setup_config.setup_global_logger(global_logfile)
-# -- end of logging setup ----
-
 
 # --- Strategy & Platform ---
 strategy = setup_config.get_computation_strategy()
@@ -100,6 +98,8 @@ def main(logger):
     ml = overrides.env.all_params().get("ml", {})
     mltune = overrides.env.all_params().get("mltune", {})
     app = overrides.env.all_params().get("app", {})
+
+    
 
     timeframe = data.get("mp_data_timeframe", mt5.TIMEFRAME_H4)
     ref = CMqlRefConfig(loaded_data_type="MINUTE", required_data_type=timeframe)
@@ -144,7 +144,11 @@ def main(logger):
 
 # --- Trial Execution Loop (via Selector) ---
 def run_worker_loop(X, y, input_shape, hyperparams):
+    app_params = mql_overrides.env.all_params().get("app", {})
+    xerces_server = app_params.get('xerces_server', '192.168.1.103')
+    xerces_port = app_params.get('xerces_port', 9000)
     oracle = OracleClient(host=xerces_server, port=xerces_port)
+
 
     # Update input shape and basic tuning params
     mltune = hyperparams.setdefault('mltune', {})
