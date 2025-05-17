@@ -6,13 +6,32 @@ from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
 from tsMqlOverrides import CMqlOverrides
 
 import logging
+import os
 from rich.logging import RichHandler
 import time
 import threading
 import uvicorn
 from tsMqlSetup import CMqlSetup
 
-# ✅ Logger and Logdir Setup
+## -- start of logging setup --
+from tsMqlSetup import CMqlSetup
+from tsMqlOverrides import CMqlOverrides
+
+env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
+env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
+
+mql_overrides = CMqlOverrides()
+mql_overrides.env.override_params({
+    "mltune": {"backend": env_backend},
+    "app": {"gtuner_model": env_gtuner}
+})
+
+app_params = mql_overrides.env.all_params().get("app", {})
+gtuner_model = app_params.get('gtuner_model', 'pytorch')
+xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
+xerces_server = app_params.get('xerces_server', '192.168.1.103')
+xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
+
 setup_config = CMqlSetup(
     loglevel='INFO',
     warn='ignore',
@@ -22,29 +41,14 @@ setup_config = CMqlSetup(
     num_threads=1
 )
 
+global_logdir, global_logfile = setup_config.set_log_dir(
+    logdir=None,
+    logfile=xerces_logfile,
+    servername=xerces_servername,
+    ltuner=gtuner_model
+)
 
-chiefsetgtuner= "pytorch"  # or "tensorflow"
-mql_overrides = CMqlOverrides() 
-app_params = mql_overrides.env.all_params().get("app", {})
-tune_params = mql_overrides.env.all_params().get("mltune", {})
-
-# Set GTuner model based on app parameters or default to 'tensorflow'
-mql_overrides.env.override_params({"app": {'gtuner_model': chiefsetgtuner}})
-# Set backend for mql_overrides
-mql_overrides.env.override_params({"mltune": {'backend': chiefsetgtuner}})
-
-# -- start of logging setup --
-
-gtuner_model = app_params.get('gtuner_model', 'pytorch')  # or "tensorflow"
-backend = tune_params.get('backend', gtuner_model)  # or "tensorflow"
-xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
-xerces_server = app_params.get('xerces_server', '192.168.1.103')
-xerces_port = app_params.get('xerces_port', 9000)
-xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-tunerlogfile = xerces_logfile
-global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername,ltuner=gtuner_model)
-logger = setup_config.setup_global_logger(global_logfile)
-# -- end of logging setup --
+logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
 
 logger.info(f"Chief Using GTuner model: {gtuner_model}")
 logger.info(f"Chief Using backend: {backend}")

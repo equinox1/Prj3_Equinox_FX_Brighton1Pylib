@@ -10,7 +10,7 @@ import logging
 from tsMqlSetup import CMqlSetup
 
 # ==== CONFIGURATION ====
-NUM_WORKERS = 1
+NUM_WORKERS = 8
 PYTHON_EXEC = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\.venv\Scripts\python.exe"
 BASE_PATH = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/PythonLib"
 
@@ -26,7 +26,7 @@ MAX_WAIT_SECONDS = 15
 MAX_RETRIES = 15
 FORCE_KILL = '--force' in sys.argv
 
-GLOBAL_BACKEND = "pytorch"  # Options: 'pytorch', 'tensorflow'
+GLOBAL_BACKEND = "tensorflow"  # Options: 'pytorch', 'tensorflow'
 
 # ==== UTILITIES ====
 def port_in_use(host, port):

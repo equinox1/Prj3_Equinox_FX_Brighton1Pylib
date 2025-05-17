@@ -10,6 +10,7 @@ Version: 1.0
 License: (Optional) e.g., MIT License
 """
 import logging
+
 logger = logging.getLogger(__name__)
 from tsMqlBaseParams.setbase_params import CMqlEnvBaseParams
 from tsMqlDataParams import CMqlEnvDataParams
