@@ -15,8 +15,6 @@ import yaml
 import json
 import logging
 import copy
-
-# Basic logger configuration for demonstration
 logger = logging.getLogger(__name__)
 
 # Define a global configuration as a fallback if none is provided.

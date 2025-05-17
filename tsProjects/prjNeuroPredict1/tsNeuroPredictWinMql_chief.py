@@ -89,8 +89,6 @@ global_logdir, global_logfile = setup_config.set_log_dir(
 logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
 
 
-
-
 # strategy setup
 strategy = setup_config.get_computation_strategy()
 pchk = run_platform.RunPlatform()
