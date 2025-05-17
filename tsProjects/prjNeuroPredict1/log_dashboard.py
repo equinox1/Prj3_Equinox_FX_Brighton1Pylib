@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -7,13 +7,13 @@ import logging
 import html
 import glob
 import json
+from datetime import datetime
 
 # Logger setup
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 # Dynamically resolve log file
-
 def resolve_logfile():
     base_path = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir"
     matches = glob.glob(os.path.join(base_path, "**", "tsneuropredict_app.log"), recursive=True)
@@ -33,13 +33,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 def html_template(title: str, body: str, extra_scripts: str = "") -> str:
     return f"""
     <html>
         <head>
             <title>{title}</title>
-            <meta http-equiv="refresh" content="10">
+            <meta id='refresh-meta' http-equiv="refresh" content="10">
             <script>
             function toggle(id) {{
                 const el = document.getElementById(id);
@@ -55,6 +54,14 @@ def html_template(title: str, body: str, extra_scripts: str = "") -> str:
                     row.style.display = show ? "" : "none";
                 }});
             }}
+            function copyToClipboard(id) {{
+                const el = document.getElementById(id);
+                navigator.clipboard.writeText(el.innerText);
+            }}
+            function toggleRefresh() {{
+                const meta = document.getElementById('refresh-meta');
+                meta.content = document.getElementById('autorefresh').checked ? "10" : "";
+            }}
             {extra_scripts}
             </script>
             <style>
@@ -69,16 +76,23 @@ def html_template(title: str, body: str, extra_scripts: str = "") -> str:
                 .status-COMPLETED {{ color: green; font-weight: bold; }}
                 .status-FAILED {{ color: red; font-weight: bold; }}
                 .toggle-btn {{ cursor: pointer; color: blue; text-decoration: underline; }}
+                .best-trial {{ background-color: #dff0d8 !important; }}
             </style>
         </head>
         <body>
             <div class="container">
+                <label><input type="checkbox" id="autorefresh" checked onchange="toggleRefresh()"> Auto-refresh</label>
                 {body}
             </div>
         </body>
     </html>
     """
 
+def safe_str(obj):
+    try:
+        return str(obj)
+    except Exception:
+        return repr(obj)
 
 @app.get("/", response_class=HTMLResponse)
 def show_logs():
@@ -89,9 +103,9 @@ def show_logs():
         lines = f.readlines()[-300:]
 
     escaped_log = html.escape("".join(lines))
-    body = f"<h2>Tuning Logs (Live)</h2><div class='logbox'>{escaped_log}</div><a href='/trials'>→ View Trials Dashboard</a>"
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    body = f"<h2>Tuning Logs (Live)</h2><p><em>Last updated: {timestamp}</em></p><div class='logbox'>{escaped_log}</div><a href='/trials'>→ View Trials Dashboard</a>"
     return HTMLResponse(html_template("Log Viewer", body))
-
 
 @app.get("/trials", response_class=HTMLResponse)
 def show_trials():
@@ -105,7 +119,8 @@ def show_trials():
     if not trials:
         return HTMLResponse(html_template("No Trials", "<h3>No trials available yet.</h3><a href='/'>← Back to Logs</a>"))
 
-    trials.sort(key=lambda t: t.get('score') if t.get('score') is not None else -1, reverse=True)
+    trials.sort(key=lambda t: t.get('score') if t.get('score') is not None else float('inf'))
+    best_id = trials[0]['trial_id'] if trials[0].get("score") is not None else None
 
     summary = {
         "total": len(trials),
@@ -130,15 +145,16 @@ def show_trials():
         status_class = f"status-{trial['status']}"
         score = trial.get("score", "")
         score_style = "color:green;font-weight:bold" if isinstance(score, (int, float)) and score < 0.05 else ""
-        row_style = "style='background-color:#eef'" if idx == 0 else ""
+        row_class = "class='best-trial'" if trial["trial_id"] == best_id else ""
         hp_dict = trial.get('hyperparameters', {})
-        hp_pretty = html.escape("\n".join(f"{k}: {v}" for k, v in hp_dict.items()))
-        rows += f"""<tr {row_style}>
+        hp_pretty = html.escape("\n".join(f"{safe_str(k)}: {safe_str(v)}" for k, v in hp_dict.items()), quote=True)
+        rows += f"""<tr {row_class}>
             <td>{trial['trial_id']}</td>
             <td class='{status_class}'>{trial['status']}</td>
             <td style='{score_style}'>{score}</td>
             <td>
                 <span class='toggle-btn' onclick=\"toggle('{hp_id}')\">Show/Hide</span>
+                <button onclick=\"copyToClipboard('{hp_id}')\">\ud83d\udccb</button>
                 <div id='{hp_id}' style='display:none; white-space:pre-wrap; font-size:smaller'>{hp_pretty}</div>
             </td>
         </tr>"""
@@ -157,33 +173,30 @@ def show_trials():
         <tr><th>Trial ID</th><th>Status</th><th>Score</th><th>Hyperparameters</th></tr>
         {rows}
     </table>
-    <a href="/">← Back to Logs</a> | <a href="/api/trials">🔗 Raw JSON</a>
+    <a href="/">\u2190 Back to Logs</a> | <a href="/api/trials">🔗 Raw JSON</a>
     """
-    return HTMLResponse(html_template("Trial Dashboard", table))
-
+    safe_table = table.encode('utf-8', 'replace').decode('utf-8')
+    return HTMLResponse(html_template("Trial Dashboard", safe_table))
 
 @app.get("/api/logs", response_class=JSONResponse)
 def get_logs_json():
     if not LOG_FILE or not os.path.exists(LOG_FILE):
         return JSONResponse(content={"error": "Log file not found"}, status_code=404)
-
     with open(LOG_FILE, "r", encoding="utf-8") as f:
         lines = f.readlines()[-300:]
     return {"log": lines}
 
-
 @app.get("/api/trials", response_class=JSONResponse)
-def get_trials_json(status: str = None):
+def get_trials_json(status: str = None, skip: int = 0, limit: int = 50):
     try:
         response = requests.get(f"{ORACLE_API}/list_trials", timeout=5)
         response.raise_for_status()
         trials = response.json().get("trials", [])
         if status:
             trials = [t for t in trials if t["status"] == status]
-        return {"trials": trials}
+        return {"trials": trials[skip:skip+limit]}
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=502)
-
 
 @app.get("/health", response_class=JSONResponse)
 def oracle_health():
@@ -192,7 +205,6 @@ def oracle_health():
         return {"status": "alive" if r.status_code == 200 else "unresponsive"}
     except Exception as e:
         return {"status": "error", "detail": str(e)}
-
 
 if __name__ == "__main__":
     import uvicorn

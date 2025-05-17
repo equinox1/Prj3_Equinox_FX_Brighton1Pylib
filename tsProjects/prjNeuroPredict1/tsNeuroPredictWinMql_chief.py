@@ -86,7 +86,8 @@ global_logdir, global_logfile = setup_config.set_log_dir(
     ltuner=gtuner_model
 )
 
-logger = setup_config.setup_global_logger(global_logfile)
+logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
+
 
 
 
