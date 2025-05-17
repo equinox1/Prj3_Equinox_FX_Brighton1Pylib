@@ -5,9 +5,7 @@
 # |                                    https://www.xercescloud.co.uk |
 # +------------------------------------------------------------------+
 
-from tsMqlSetup import CMqlSetup
-cmql = CMqlSetup(gtuner_model='pytorch')
-logger = cmql.setup_global_logger()
+
 import os
 import logging
 import threading
@@ -55,42 +53,40 @@ tuner_id = os.environ.get("TUNER_ID", "chief")
 
 # -- start of logging setup --
 from tsMqlSetup import CMqlSetup
-
-# ✅ Logger and Logdir Setup
-setup_config = CMqlSetup(
-    loglevel='INFO',
-    warn='ignore',
-    precision='mixed_bfloat16',
-    tfdebug=False,
-    num_cores=48,
-    num_threads=8
-)
-
 from tsMqlOverrides import CMqlOverrides
-mql_overrides = CMqlOverrides() 
-# 🔁 Accept launcher-provided backend override
+
 env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
 env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
 
+mql_overrides = CMqlOverrides()
 mql_overrides.env.override_params({
     "mltune": {"backend": env_backend},
     "app": {"gtuner_model": env_gtuner}
 })
 
-
-
-
-from tsMqlSetup import CMqlSetup
-gtuner_model = app_params.get('gtuner_model', 'pytorch')  # or "tensorflow"
-backend = tune_params.get('backend', gtuner_model)  # or "tensorflow"
+app_params = mql_overrides.env.all_params().get("app", {})
+gtuner_model = app_params.get('gtuner_model', 'pytorch')
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
-xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-tunerlogfile = xerces_logfile
-global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername,ltuner=gtuner_model)
+
+setup_config = CMqlSetup(
+    loglevel='INFO',
+    warn='ignore',
+    precision='mixed_bfloat16',
+    tfdebug=False,
+    num_cores=8,
+    num_threads=1
+)
+
+global_logdir, global_logfile = setup_config.set_log_dir(
+    logdir=None,
+    logfile=xerces_logfile,
+    servername=xerces_servername,
+    ltuner=gtuner_model
+)
+
 logger = setup_config.setup_global_logger(global_logfile)
-# -- end of logging setup --
 
 
 
@@ -409,6 +405,11 @@ def main(logger):
         logger.info("Main App Parameters:")
         for key, value in app_params.items():
             logger.info(f"  {key}: {value}")
+
+        
+        xerces_server = app_params.get('xerces_server', '192.168.1.103')
+        xerces_port = app_params.get('xerces_port', 9000)
+        oracle = OracleClient(host=xerces_server, port=xerces_port)
 
         # Conditional Tuner
         tuner_config = CMdtunerSelector(
