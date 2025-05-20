@@ -1,37 +1,43 @@
 # ✅ oracle_server_main.py
 
-from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer 
-from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
-
-from tsMqlOverrides import CMqlOverrides
-
-import logging
 import os
-from rich.logging import RichHandler
 import time
 import threading
+import logging
+import warnings
+from rich.logging import RichHandler
 import uvicorn
-from tsMqlSetup import CMqlSetup
 
-## -- start of logging setup --
-from tsMqlSetup import CMqlSetup
+from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer 
+from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
 from tsMqlOverrides import CMqlOverrides
+from tsMqlSetup import CMqlSetup
 
+# -- Suppress ONNX Windows version warning --
+warnings.filterwarnings("ignore", message="Unsupported Windows version")
+
+# -- Load environment variables first --
 env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
 env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
 
+# -- Apply overrides before config extraction --
 mql_overrides = CMqlOverrides()
 mql_overrides.env.override_params({
     "mltune": {"backend": env_backend},
     "app": {"gtuner_model": env_gtuner}
 })
 
+# -- Extract config after overrides are in place --
 app_params = mql_overrides.env.all_params().get("app", {})
-gtuner_model = app_params.get('gtuner_model', 'pytorch')
+tune_params = mql_overrides.env.all_params().get("mltune", {})
+gtuner_model = app_params.get('gtuner_model', env_backend)
+backend = tune_params.get("backend", env_backend)
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
+xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
+# -- Setup logging --
 setup_config = CMqlSetup(
     loglevel='INFO',
     warn='ignore',
@@ -47,60 +53,68 @@ global_logdir, global_logfile = setup_config.set_log_dir(
     servername=xerces_servername,
     ltuner=gtuner_model
 )
-
 logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
 
+# -- Logging headers --
 logger.info(f"Chief Using GTuner model: {gtuner_model}")
 logger.info(f"Chief Using backend: {backend}")
 print(f"Global logdir: {global_logdir}")
 print(f"Global logfile: {global_logfile}")
 
+# -- Uvicorn runner --
 def run_uvicorn(app, host, port):
-    log_config = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "default": {
-                "format": "%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s",
+    try:
+        log_config = {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {
+                "default": {
+                    "format": "%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s",
+                },
             },
-        },
-        "handlers": {
-            "file": {
-                "class": "logging.FileHandler",
-                "filename": global_logfile,
-                "formatter": "default",
+            "handlers": {
+                "file": {
+                    "class": "logging.FileHandler",
+                    "filename": global_logfile,
+                    "formatter": "default",
+                    "level": "DEBUG",
+                },
+            },
+            "root": {
+                "handlers": ["file"],
                 "level": "DEBUG",
             },
-        },
-        "root": {
-            "handlers": ["file"],
-            "level": "DEBUG",
-        },
-    }
+        }
+        uvicorn.run(app, host=host, port=port, log_level="debug", log_config=log_config)
+    except Exception as e:
+        logger.exception(f"❌ Uvicorn failed to start: {e}")
 
-    uvicorn.run(app, host=host, port=port, log_level="debug", log_config=log_config)
-
-
+# -- Main launcher --
 def main():
     try:
         logger.info("🧠 Creating CustomOracle...")
-        oracle = CustomOracle(objective="val_loss", max_trials=50,log=global_logdir, seed=42)
+        num_trials = tune_params.get("num_trials", 50)
+        oracle = CustomOracle(objective="val_loss", max_trials=num_trials, log=global_logdir, seed=42, reset_trials=True)
 
-        logger.info("🚀 Starting OracleServer at http://192.168.1.103:9000")
+        logger.info(f"🚀 Starting OracleServer at http://{xerces_server}:{xerces_port}")
         server = OracleServer(oracle, tuner_id="chief")
 
-        thread = threading.Thread(target=run_uvicorn, args=(server.app, "192.168.1.103", 9000), daemon=True)
+        thread = threading.Thread(target=run_uvicorn, args=(server.app, xerces_server, xerces_port))
         thread.start()
 
-        logger.info("✅ OracleServer is now running.")
+        time.sleep(1)
+        if not thread.is_alive():
+            logger.error("❌ Uvicorn server thread died immediately after starting.")
+            raise RuntimeError("Uvicorn failed to start. Check configuration or port.")
+
+        logger.info("[OK] OracleServer is now running.")
         while True:
             time.sleep(60)
 
     except Exception as e:
         logger.error(f"❌ Failed to start OracleServer: {e}")
         logger.info("⚙️ Cleaning up resources...")
-        logger.info("✅ Cleanup completed.")
-
+        logger.info("[OK] Cleanup completed.")
 
 if __name__ == "__main__":
     main()

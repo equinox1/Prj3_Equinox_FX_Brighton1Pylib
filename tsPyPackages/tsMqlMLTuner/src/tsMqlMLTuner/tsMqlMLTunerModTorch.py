@@ -37,7 +37,6 @@ xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 tunerlogfile = xerces_logfile
 global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername,ltuner=gtuner_model)
-
 logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
 # -- end of logging setup ----
 
@@ -144,28 +143,58 @@ class PyTorchTuner:
                 print("[PyTorchTuner] ⚠️ Trial failed due to CUDA OOM")
             raise e
 
+    def export_best_model(self, ftype='onnx'):
+        if self.best_model is None:
+            logger.warning("No model available for export.")
+            return
+
+        base = self.params.get("base", {})
+        modeldata_path = base.get("mp_glob_sub_ml_src_modeldata", "./")
+        model_name = base.get("mp_glob_sub_ml_model_name", "best_model")
+        mp_symbol = base.get("lp_app_primary_symbol", "EURUSD")
+        ml_data_type = base.get("mp_ml_data_type", "data")
+
+        onnx_path = os.path.join(modeldata_path, f"model_{mp_symbol}_{ml_data_type}.onnx")
+        dummy_input = torch.randn(1, self.best_input_dim).to(self.device)
+
+        try:
+            torch_onnx_export(self.best_model, dummy_input, onnx_path, input_names=['input'], output_names=['output'], opset_version=17)
+            logger.info(f"ONNX model exported to {onnx_path}")
+            onnx.checker.check_model(onnx.load(onnx_path))
+        except Exception as e:
+            logger.error(f"Failed to export ONNX model: {e}")
+
+
     def run_search(self):
         tuner_id = os.environ.get("TUNER_ID", "worker")
         print(f"[PyTorchTuner] 🚀 Starting distributed search as {tuner_id}")
 
         while True:
             try:
-                trial = self.oracle.get_trial()
+                trial_resp = self.oracle.get_trial()
+                trial = trial_resp.get("trial") if isinstance(trial_resp, dict) else trial_resp
+
                 if not trial or "trial_id" not in trial:
-                    print("[PyTorchTuner] 💤 No more trials. Exiting.")
+                    print("[PyTorchTuner] 💤 No more trials available. Exiting.")
                     break
 
                 trial_id = trial["trial_id"]
-                hp = trial["hyperparameters"]
+                hp = trial.get("hyperparameters", {})
+
+                if not isinstance(hp, dict) or not hp:
+                    print(f"[PyTorchTuner] ⚠️ Trial {trial_id} has invalid or empty hyperparameters. Marking as FAILED.")
+                    self.oracle.update_trial_status(trial_id, "FAILED")
+                    continue
 
                 print(f"[PyTorchTuner] 🔍 Running trial {trial_id} with hyperparameters: {hp}")
                 val_loss = self.objective_from_hp(hp)
 
-                print(f"[PyTorchTuner] ✅ Trial {trial_id} completed. val_loss={val_loss:.5f}")
+                print(f"[PyTorchTuner] ✅ Trial {trial_id} completed. val_loss = {val_loss:.5f}")
                 self.oracle.report_trial_result(trial_id, val_loss)
 
             except Exception as e:
-                print(f"[PyTorchTuner] ❌ Error during trial execution: {e}")
+                trial_name = trial_id if "trial_id" in locals() else "[UNKNOWN]"
+                print(f"[PyTorchTuner] ❌ Exception during trial {trial_name}: {e}")
                 if "trial_id" in locals():
                     self.oracle.update_trial_status(trial_id, "FAILED")
                 break

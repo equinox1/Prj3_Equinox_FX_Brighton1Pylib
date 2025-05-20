@@ -3,6 +3,9 @@ import warnings
 import gc
 import logging
 import socket
+import codecs
+import io
+import sys
 
 os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
 os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
@@ -18,8 +21,9 @@ os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
 
 class CMqlSetup:
-    def __init__(self, tflog='2', warn='ignore', precision='mixed_float16', tfdebug=False, num_cores=28, num_threads=2, **kwargs):
+    def __init__(self, loglevel='DEBUG', tflog =2,warn='ignore', precision='mixed_float16', tfdebug=False,num_cores=48, num_threads=8 ,**kwargs):
         self.tflog = tflog
+        self.loglevel = loglevel.upper()
         self.warn = warn
         self.precision = precision
         self.tfdebug = tfdebug
@@ -34,12 +38,25 @@ class CMqlSetup:
         self._set_precision_policy()
         self._configure_tf()
         self._configure_debug()
+        self._encoding()
+
+    def _encoding(self):
+        if sys.platform.startswith('win'):
+            if sys.getfilesystemencoding() != 'utf-8':
+                os.environ['PYTHONIOENCODING'] = 'utf-8'
+                os.environ['PYTHONLEGACYWINDOWSSTDIO'] = 'utf-8'
+                codecs.register_error('strict', codecs.ignore_errors)
+            
+                os.system('chcp 65001')  # Set UTF-8 codepage in console
+                sys.stdout.reconfigure(encoding='utf-8')
+                sys.stderr.reconfigure(encoding='utf-8')
+
 
     def _setup_warnings(self):
         warnings.filterwarnings(self.warn)
 
     def _setup_tf_logging(self):
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = self.tflog
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(self.tflog)
 
     def _set_precision_policy(self):
         tf.keras.mixed_precision.set_global_policy(Policy(self.precision))
@@ -135,7 +152,7 @@ class CMqlSetup:
 
         if logdir is None:
             if hostname == servername and os_platform == 'Windows':
-                base_path = r'C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir'
+                base_path = r'C:\\WinRunMnt1\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\\Logdir'
             elif os_platform == 'Linux':
                 base_path = '/mnt/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir'
             elif os_platform == 'Darwin':
@@ -160,31 +177,65 @@ class CMqlSetup:
 
         return self.global_logdir, self.global_logfile
 
-    def setup_global_logger(self, logfilein=None, force_reset=True):
-        if logfilein is None:
-            logfilein = getattr(self, 'global_logfile', 'tsneuropredict_app.log')
+    def setup_global_logger(self, logfile_path, force_reset=False):
+        """
+        Sets up a global logger with console output (via RichHandler) and file output.
+        Includes robust handling for rewrapping sys.stdout/sys.stderr on Windows.
+
+        Args:
+            logfile_path (str): The path to the log file.
+            force_reset (bool): If True, the log file will be overwritten; otherwise,
+                                logs will be appended.
+
+        Returns:
+            logging.Logger: The configured logger instance.
+        """
+        import threading
+
+        # --- Safe rewrap only if we're in the main thread on Windows ---
+        if sys.platform.startswith('win') and threading.current_thread() is threading.main_thread():
+            # Attempt to rewrap sys.stdout
+            # DEBUG:print(f"sys.stderr={sys.stderr}, type={type(sys.stderr)}, closed={getattr(sys.stderr, 'closed', 'N/A')}", file=sys.__stdout__)
+
+            try:
+                if (
+                    sys.stdout and
+                    hasattr(sys.stdout, 'buffer') and
+                    not getattr(sys.stdout, 'closed', False) and
+                    not isinstance(sys.stdout, io.TextIOWrapper)
+                ):
+                    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+            except Exception as e:
+                print(f"Warning: Failed to rewrap sys.stdout: {e}", file=sys.__stdout__)
+
+            # Attempt to rewrap sys.stderr
+            try:
+                if (
+                    sys.stderr and
+                    hasattr(sys.stderr, 'buffer') and
+                    not getattr(sys.stderr, 'closed', False) and
+                    not isinstance(sys.stderr, io.TextIOWrapper)
+                ):
+                    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+            except Exception as e:
+                print(f"Warning: Failed to rewrap sys.stderr: {e}", file=sys.__stderr__ if sys.__stderr__ else sys.__stdout__)
+
+        # --- Proceed with standard logger setup ---
+        loglevel = getattr(logging, self.loglevel.upper(), logging.INFO)
+
+        handlers = [RichHandler(rich_tracebacks=True)]
+
+        try:
+            file_handler = logging.FileHandler(logfile_path, mode='w' if force_reset else 'a', encoding='utf-8')
+            file_handler.setFormatter(logging.Formatter(
+                '%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s'))
+            handlers.append(file_handler)
+        except Exception as e:
+            print(f"❌ Failed to initialize file logging: {e}", file=sys.__stderr__ if sys.__stderr__ else sys.__stdout__)
+            raise
+
+        logging.basicConfig(level=loglevel, handlers=handlers, force=True)
 
         logger = logging.getLogger()
-
-        if logger.hasHandlers() and not force_reset:
-            return logger
-
-        if force_reset:
-            for handler in logger.handlers[:]:
-                logger.removeHandler(handler)
-
-        logger.setLevel(logging.DEBUG)
-
-        fh = logging.FileHandler(logfilein, mode='a', encoding='utf-8')
-        log_prefix = f"[{os.environ.get('TUNER_ID', 'main').upper()}]"
-        file_formatter = logging.Formatter(f'{log_prefix} %(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s')
-        fh.setFormatter(file_formatter)
-        logger.addHandler(fh)
-
-        rich_handler = RichHandler(rich_tracebacks=True, markup=True)
-        console_formatter = logging.Formatter('%(message)s')
-        rich_handler.setFormatter(console_formatter)
-        logger.addHandler(rich_handler)
-
-        logger.info(f"Logger initialized with file: {logfilein}")
+        logger.info(f"Logger initialized with file: {logfile_path}")
         return logger

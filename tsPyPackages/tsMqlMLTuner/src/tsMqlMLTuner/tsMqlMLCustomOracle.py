@@ -33,8 +33,17 @@ logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
 # -- end of logging setup ----
 
 class CustomOracle(Oracle):
-    def __init__(self, objective="val_loss", max_trials=50,log='tslog', seed=42):
+    def __init__(self, objective="val_loss", max_trials=50, log='tslog', seed=42, reset_trials=True):
         super().__init__(objective=objective, max_trials=max_trials, seed=seed)
+        self.global_logdir = global_logdir
+        self.global_logfile = global_logfile
+
+        if reset_trials:
+            self._trials = {}  # Clear trial history
+        else:
+            self._trials = getattr(self, '_trials', {})  # Use existing if not resetting
+
+        self._trials = {}
 
         setup_config = CMqlSetup(
             loglevel='INFO',
@@ -45,10 +54,8 @@ class CustomOracle(Oracle):
             num_threads=4
         )
 
-        self.global_logdir = global_logdir
-        self.global_logfile = global_logfile
         
-        self._trials = {}
+   
 
     def populate_space(self, trial_id):
         hp = HyperParameters()
@@ -75,6 +82,10 @@ class CustomOracle(Oracle):
         return hp
 
     def create_trial(self, tuner_id):
+        if len(self._trials) >= self.max_trials:
+            logger.info(f"[CustomOracle] 🚫 Max trials ({self.max_trials}) reached. No more trials will be created.")
+            return None
+
         trial_id = f"{len(self._trials):02d}"
         hp = self.populate_space(trial_id)
         trial = trial_lib.Trial(
@@ -85,6 +96,7 @@ class CustomOracle(Oracle):
         self._trials[trial_id] = trial
         logger.info(f"[CustomOracle] Created trial {trial_id} with hyperparameters: {hp.values}")
         return trial
+
 
 
     def score_trial(self, trial_id, result):

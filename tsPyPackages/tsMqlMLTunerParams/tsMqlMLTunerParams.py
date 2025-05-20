@@ -88,7 +88,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
         }
 
         self.CORE_TUNER_PARAMS = {
-            "num_trials": 3,
+            "num_trials": 64,
             "max_retries_per_trial": 5,
             "max_consecutive_failed_trials": 3,
             "steps_per_execution": 1,

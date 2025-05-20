@@ -717,32 +717,41 @@ class CMdtuner:
 
         while True:
             try:
-                trial = self.oracle.get_trial()
+                trial_resp = self.oracle.get_trial()
+                trial = trial_resp.get("trial") if isinstance(trial_resp, dict) else trial_resp
+
                 if not trial:
-                    logger.info("No more trials received from OracleServer. Exiting.")
+                    logger.info("No more trials available from OracleServer. Exiting.")
                     break
+
                 trial_id = trial.get("trial_id")
                 hp_config = trial.get("hyperparameters", {})
+
                 if not trial_id:
                     logger.warning("Received trial without trial_id; skipping.")
                     continue
-                if not isinstance(hp_config, dict) or len(hp_config) == 0:
+
+                if not isinstance(hp_config, dict) or not hp_config:
                     logger.warning(f"Trial {trial_id} has empty hyperparameters. Marking as FAILED.")
                     self.oracle.update_trial_status(trial_id, "FAILED")
                     continue
+
                 hp = HyperParameters()
                 hp.values = hp_config
-                logger.info(f"Running trial {trial_id} with hyperparameters: {hp_config}")
+
+                logger.info(f"🔍 Running trial {trial_id} with hyperparameters: {hp_config}")
                 val_loss = self._objective(hp)
-                logger.info(f"✅ Trial {trial_id} completed. val_loss={val_loss:.5f}")
+                logger.info(f"✅ Trial {trial_id} completed. val_loss = {val_loss:.5f}")
                 self.oracle.report_trial_result(trial_id, val_loss)
+
             except Exception as e:
-                logger.error(f"❌ Exception during trial {trial_id if 'trial_id' in locals() else '[UNKNOWN]'}: {str(e)}")
-                if "trial_id" in locals():
+                trial_name = trial_id if 'trial_id' in locals() else '[UNKNOWN]'
+                logger.error(f"❌ Exception during trial {trial_name}: {str(e)}", exc_info=True)
+                if 'trial_id' in locals():
                     self.oracle.update_trial_status(trial_id, "FAILED")
                 break
 
-        logger.info("Custom tuner search completed.")
+        logger.info("✅ Custom tuner search completed.")
         return True
 
 
