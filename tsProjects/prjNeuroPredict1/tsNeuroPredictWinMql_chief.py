@@ -7,6 +7,7 @@
 
 
 import os
+import sys
 import logging
 import threading
 import pathlib
@@ -106,7 +107,6 @@ gstandalone = False
 
 # ----- Main Function -----
 def main(logger):
-    #with strategy.scope():
         # ---- Configuration ----
         is_chief = tuner_id.lower() == "chief"
         # Setup environment and retrieve parameters
@@ -422,117 +422,97 @@ def main(logger):
             
         # --- Now run tuning normally ---
         runtuner = tuner_config.run_search()
-        tuner_config.export_best_model(ftype='tf')
 
-        logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
-        best_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
+        # Check if tuning was successful
+        oracle = OracleClient(host=xerces_server, port=xerces_port)
+        best_trial = oracle.get_best_trial()
+        if not best_trial or "hyperparameters" not in best_trial:
+            logger.error("❌ No best trial found. Skipping training/export.")
+            sys.exit(1)
 
-        if best_model is None:
-            logger.info("No best model loaded. Running tuner search (default run).")
-            runtuner = tuner_config.run_search()
-            tuner_config.export_best_model(ftype='tf')
-        elif mp_ml_hard_run:
-            logger.info("Running tuner search (hard run).")
-            runtuner = tuner_config.run_search()
-            tuner_config.export_best_model(ftype='tf')
-        else:
-            logger.info("Best model loaded successfully.")
-            runtuner = True
+        logger.info(f"🏆 Best trial ID: {best_trial['trial_id']}")
+        hp = best_trial["hyperparameters"]
+        # Rebuild tuner for post-tuning processing
+        tuner_config = CMdtunerSelector(
+            oracle=oracle,  # reuse or reconstruct from oracle_dir
+            hypermodel_params=hyperparams,
+            traindataset=train_dataset,
+            valdataset=val_dataset,
+            testdataset=test_dataset,
+            castmode='float32'
+        )
 
-        # ----- Train and Evaluate the Model -----
-        logger.info("Model: Loading file from directory %s, filename: %s", mp_ml_mbase_path, mp_ml_model_name)
-        load_model = tuner_config.check_and_load_model(mp_ml_mbase_path, ftype='tf')
-        if load_model is not None:
-            best_model = load_model
-            logger.info("Model: Best model: %s", best_model.name)
-            best_model.summary(print_fn=lambda x: logger.info(x))
-            
-            # Clear any previous session to free up resources
-            tf.keras.backend.clear_session()
+        # Get best trial
+        best_trial = tuner_config.oracle.get_best_trial()
+        if not best_trial:
+            logger.error("No best trial found. Cannot continue with post-tuning training.")
+            sys.exit(1)
 
-            try:
-                # Set up callbacks (e.g., early stopping) if desired
-                callbacks = [
-                    tensorboard_cb,
-                    tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-                ]
-                logger.info("Training the best model...")
+        logger.info(f"🏆 Best trial selected: {best_trial['trial_id']}")
+        hp = best_trial['hyperparameters']
 
-                logger.info("Best Epochs: %s, tf_epochs: %s", epochs, mp_ml_tf_param_epochs)
+        # Build and fit best model
+        best_model = tuner_config.build_model(hp)
+        logger.info("Fitting model on full training set...")
 
-                best_model.fit(
-                    train_dataset,
-                    validation_data=val_dataset,
-                    epochs=epochs,
-                    batch_size=batch_size,
-                    callbacks=callbacks,
-                )
-                logger.info("Training completed.")
+        # --- FIX: Properly call fit() and set up callbacks ---
+        batch_size = hp.get("batch_size", 32)
+        epochs = hp.get("epochs", 10)
+        os.makedirs(logdir, exist_ok=True)
+        callbacks = [
+            tf.keras.callbacks.TensorBoard(log_dir=logdir),
+            tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
+        ]
+        history = best_model.fit(
+            train_dataset,
+            validation_data=val_dataset,
+            epochs=epochs,
+            callbacks=callbacks
+        )
 
-                # ----- Model Evaluation -----
-                # Predict on the test dataset
-                y_pred = best_model.predict(test_dataset)
-                # Combine the batched true labels into a single array
-                y_test_true = np.concatenate([y for _, y in test_dataset], axis=0)
-                
-                # Compute evaluation metrics
-                mse_value = mean_squared_error(y_test_true, y_pred)
-                mae_value = mean_absolute_error(y_test_true, y_pred)
-                r2_value = r2_score(y_test_true, y_pred)
-                
-                logger.info("Evaluation on Test Data:")
-                logger.info("MSE: %s", mse_value)
-                logger.info("MAE: %s", mae_value)
-                logger.info("R2 Score: %s", r2_value)
-                
-                # ----- Plotting Predictions vs Actuals -----
-                plt.figure(figsize=(10, 6))
-                plt.plot(y_test_true, label='Actual Price')
-                plt.plot(y_pred, label='Predicted Price')
-                plt.xlabel("Sample Index")
-                plt.ylabel("Price Value")
-                plt.title("Price Prediction Evaluation")
-                plt.legend()
-                # Save the plot to the specified path
-                logger.info("PLOT: mp_glob_sub_ml_src_modeldata: %s", mp_glob_sub_ml_src_modeldata)
-                logger.info("PLOT: mp_symbol_primary: %s", mp_symbol_primary)
+        # === FINAL PREDICTIONS AND MSE ===
+        logger.info("📈 Predicting on test set using best model...")
+        try:
+            y_pred = best_model.predict(test_dataset)
+            y_true = np.concatenate([y for _, y in test_dataset], axis=0)
 
-                print("PLOT: mp_symbol_primary: %s", mp_symbol_primary)
-                print("PLOT: mp_ml_mbase_path: %s", mp_ml_mbase_path)
-                print("PLOT: mp_glob_sub_ml_src_modeldata: %s", mp_glob_sub_ml_src_modeldata)
+            test_mse = np.mean(np.square(y_pred.flatten() - y_true.flatten()))
+            logger.info(f"📉 Final Test MSE: {test_mse:.6f}")
 
-                plot_path = os.path.join(mp_ml_mbase_path, f"price_prediction_plot_{mp_symbol_primary}.png")
-                logger.info("Plot Path: %s", plot_path)
-                print("Plot Path: %s", plot_path)
-                plt.savefig(plot_path)
-                
-                # Close the plot to free up memory
-                plt.close()
-                logger.info("Price prediction plot saved at: %s", plot_path)
-                
-                # ----- ONNX Model Export -----
-                if ONNX_save:
-                    try:
-                        # Ensure mp_ml_data_type is defined (defaulting to 'data' if not provided)
-                        mp_ml_data_type = base_params.get('mp_ml_data_type', 'data')
-                        mp_output_path = os.path.join(mp_glob_sub_ml_src_modeldata, f"model_{mp_symbol_primary}_{mp_ml_data_type}.onnx")
-                        logger.info("Output Path: %s", mp_output_path)
-                        opset_version = 17
-                        spec = [tf.TensorSpec(best_model.input_shape, tf.float16, name="input")]
-                        onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature=spec, opset=opset_version)
-                        onnx.save_model(onnx_model, mp_output_path)
-                        logger.info("Model saved to %s", mp_output_path)
-                        checker.check_model(onnx_model)
-                        logger.info("ONNX model is valid. ONNX Runtime version: %s", ort.__version__)
-                    except Exception as e:
-                        logger.error("ONNX conversion failed: %s", str(e))
-            finally:
-                mt5.shutdown()
-                logger.info("Finished.")
-        else:
-            logger.info("No data loaded; exiting.")
-            mt5.shutdown()
-            logger.info("Finished.")
-        
+            # Optional: Save prediction plot
+            plt.figure(figsize=(12, 5))
+            plt.plot(y_true, label="True")
+            plt.plot(y_pred, label="Predicted")
+            plt.legend()
+            plt.title("Prediction vs Ground Truth")
+            plt.grid(True)
+            modeldatapath = base_params.get('mp_glob_sub_ml_src_modeldata')
+            modelname = base_params.get('mp_glob_sub_ml_model_name')
+            plot_path = os.path.join(modeldatapath, f"{modelname}_predictions.png")
+            plt.savefig(plot_path)
+            plt.close()
+            logger.info(f"📊 Prediction plot saved: {plot_path}")
+
+        except Exception as e:
+            logger.error(f"❌ Error during final prediction/evaluation: {e}")
+
+        # Save model
+        modeldatapath = base_params.get('mp_glob_sub_ml_src_modeldata')
+        modelname = base_params.get('mp_glob_sub_ml_model_name')
+        symbol_name = app_params.get('mp_app_primary_symbol', 'EURUSD')
+        model_path = os.path.join(modeldatapath, f"{modelname}.h5")
+        best_model.save(model_path)
+        logger.info(f"✅ Model saved: {model_path}")
+
+        # Optional: Convert to ONNX
+        if app_params.get("mp_app_ONNX_save", False):
+            import tf2onnx
+            import onnx
+            spec = [tf.TensorSpec(best_model.input_shape, tf.float32, name="input")]
+            onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature=spec, opset=17)
+            onnx_path = os.path.join(modeldatapath, f"model_{symbol_name}_data.onnx")
+            onnx.save_model(onnx_model, onnx_path)
+            logger.info(f"🧠 ONNX model saved to {onnx_path}")
+
 if __name__ == "__main__":
     main(logger)

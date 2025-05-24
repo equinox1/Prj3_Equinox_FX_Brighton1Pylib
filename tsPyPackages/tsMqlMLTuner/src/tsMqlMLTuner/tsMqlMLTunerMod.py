@@ -805,6 +805,11 @@ class CMdtuner:
         val_loss = history.history.get("val_loss", [None])[-1]
         if val_loss is None:
             logger.warning("Trial produced no validation loss.")
+            self.oracle.update_trial_status(trial_id, "FAILED")
+            return float("inf")  # force early rejection
+
+        if val_loss is None:
+            logger.warning("Trial produced no validation loss.")
             val_loss = float("inf")
         else:
             logger.info(f"✅ Trial completed. val_loss={val_loss:.5f}")

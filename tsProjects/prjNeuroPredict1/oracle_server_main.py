@@ -19,13 +19,16 @@ warnings.filterwarnings("ignore", message="Unsupported Windows version")
 # -- Load environment variables first --
 env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
 env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
+env_trials = 128
 
 # -- Apply overrides before config extraction --
 mql_overrides = CMqlOverrides()
 mql_overrides.env.override_params({
     "mltune": {"backend": env_backend},
-    "app": {"gtuner_model": env_gtuner}
+    "app": {"gtuner_model": env_gtuner},
+    "mltune": {"num_trials": env_trials},
 })
+print(f"Num trials: {env_trials}")
 
 # -- Extract config after overrides are in place --
 app_params = mql_overrides.env.all_params().get("app", {})
@@ -89,8 +92,45 @@ def run_uvicorn(app, host, port):
     except Exception as e:
         logger.exception(f"❌ Uvicorn failed to start: {e}")
 
+
+def clean_stale_trials_from_oracle(logdir):
+    import json
+    from pathlib import Path
+
+    oracle_file = Path(logdir) / "oracle.json"
+    if not oracle_file.exists():
+        logger.warning(f"No oracle.json found at {oracle_file}")
+        return
+
+    try:
+        with open(oracle_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        trials = data.get("trials", {})
+        updated = False
+
+        for trial_id, trial_data in trials.items():
+            if trial_data.get("status") == "RUNNING":
+                logger.info(f"Marking stale trial {trial_id} as FAILED")
+                trial_data["status"] = "FAILED"
+                updated = True
+
+        if updated:
+            with open(oracle_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            logger.info("Stale trials have been marked as FAILED.")
+        else:
+            logger.info("No stale trials found to clean.")
+    except Exception as e:
+        logger.exception(f"Failed to clean stale trials: {e}")
+
+
 # -- Main launcher --
 def main():
+    # -- Clean up stale trials from previous runs --
+    if not tune_params.get("reset_trials", True):
+        clean_stale_trials_from_oracle(global_logdir)
+    # -- Check if the port is already in use --
     try:
         logger.info("🧠 Creating CustomOracle...")
         num_trials = tune_params.get("num_trials", 50)

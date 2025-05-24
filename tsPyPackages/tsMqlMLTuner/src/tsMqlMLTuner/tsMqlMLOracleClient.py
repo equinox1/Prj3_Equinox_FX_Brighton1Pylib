@@ -58,6 +58,21 @@ class OracleClient:
         except Exception as e:
             logging.exception("Unexpected error in OracleClient.get_trial")
 
+    def get_best_trial(self):
+        try:
+            response = requests.get(f"{self.url}/list_trials", timeout=10)
+            response.raise_for_status()
+            trials = response.json().get("trials", [])
+            trials = [t for t in trials if t.get("score") is not None]
+            if not trials:
+                return None
+            trials.sort(key=lambda t: t["score"])  # Assuming lower score is better
+            return trials[0]
+        except Exception as e:
+            logging.error(f"[OracleClient] Failed to get best trial: {e}")
+            return None
+
+
     def report_trial_result(self, trial_id, result):
         try:
             payload = {"trial_id": trial_id, "result": result}
