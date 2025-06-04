@@ -27,6 +27,8 @@ MAX_RETRIES = 15
 FORCE_KILL = '--force' in sys.argv
 
 GLOBAL_BACKEND = "tensorflow"  # Options: 'pytorch', 'tensorflow'
+GLOBAL_TUNER_TYPE = "hyperband"  # <-- Ensures Oracle and Chief use the same tuner type
+
 
 # ==== UTILITIES ====
 def port_in_use(host, port):
@@ -37,12 +39,12 @@ def port_in_use(host, port):
         return False
 
 def kill_process_on_port(port):
-    print(f"🔍 Scanning for processes using port {port}...")
+    print(f"\U0001F50D Scanning for processes using port {port}...")
     for proc in psutil.process_iter(['pid', 'connections']):
         try:
             for conn in proc.info['connections']:
                 if conn.laddr.port == port:
-                    print(f"🔪 Killing process {proc.pid} using port {port}...")
+                    print(f"\U0001F52A Killing process {proc.pid} using port {port}...")
                     proc.kill()
                     time.sleep(1)
         except Exception:
@@ -54,12 +56,16 @@ def launch_process(script_path, tuner_id=None, backend="tensorflow"):
         env["TUNER_ID"] = tuner_id
     env["GTUNER_MODEL"] = backend
     env["MLTUNE_BACKEND"] = backend
+    env["TUNER_TYPE"] = GLOBAL_TUNER_TYPE  # <-- Ensures consistent tuner mode
+    
+
+
     label = tuner_id.upper() if tuner_id else "PROCESS"
     print(f"[LAUNCH] Launching {label} → {script_path}")
     return subprocess.Popen([PYTHON_EXEC, script_path], env=env)
 
 def wait_for_oracle_ready():
-    print(f"⏳ Waiting for OracleServer at {ORACLE_URL}...")
+    print(f"\u23F3 Waiting for OracleServer at {ORACLE_URL}...")
     for attempt in range(MAX_RETRIES):
         try:
             resp = requests.get(f"{ORACLE_URL}/heartbeat", timeout=MAX_WAIT_SECONDS)
@@ -104,25 +110,17 @@ if __name__ == "__main__":
     print("👑 Launching Chief Process...")
     chief_proc = launch_process(CHIEF_SCRIPT, tuner_id="chief", backend=GLOBAL_BACKEND)
 
-    print("🧑‍🏭 Launching Worker Processes...")
-    workers = []
-    for i in range(NUM_WORKERS):
-        tuner_id = f"worker_{i+1}"
-        proc = launch_process(WORKER_SCRIPT, tuner_id=tuner_id, backend=GLOBAL_BACKEND)
-        workers.append(proc)
+    print("🧑‍🔬 Launching Worker Processes...")
+    workers = [launch_process(WORKER_SCRIPT, tuner_id=f"worker{i+1}", backend=GLOBAL_BACKEND) for i in range(NUM_WORKERS)]
 
     try:
-        if chief_proc:
-            chief_proc.wait()
-        else:
-            while True:
-                time.sleep(10)
+        chief_proc.wait()
     except KeyboardInterrupt:
-        print("🛑 Interrupt received. Terminating all processes...")
-        if oracle_proc:
-            oracle_proc.terminate()
+        print("🚫 KeyboardInterrupt received. Shutting down processes...")
+    finally:
         if chief_proc:
             chief_proc.terminate()
-        for w in workers:
-            w.terminate()
-        print("✅ All subprocesses terminated cleanly.")
+        for worker in workers:
+            worker.terminate()
+        if oracle_proc:
+            oracle_proc.terminate()

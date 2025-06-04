@@ -107,6 +107,30 @@ gstandalone = False
 
 # ----- Main Function -----
 def main(logger):
+        # Setup environment and retrieve parameters
+        print("Start Main Setting up environment...")
+        utils_config = CUtilities()
+        mql_overrides = CMqlOverrides()
+
+        # Generate or retrieve tuner_id
+        all_params = mql_overrides.env.all_params()
+        mltune_params = all_params.get("mltune", {})
+
+        tuner_id = mltune_params.get("tuner_id")
+        if not tuner_id:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            tuner_id = f"tuner_run_{timestamp}"
+            mql_overrides.env.override_params({
+                'mltune': {
+                    'tuner_id': tuner_id,
+                    'overwrite': True
+                }
+            })
+            logger.info(f"[main] Auto-generated tuner_id: {tuner_id}")
+        else:
+            logger.info(f"[main] Using provided tuner_id: {tuner_id}")
+
+        
         # ---- Configuration ----
         is_chief = tuner_id.lower() == "chief"
         # Setup environment and retrieve parameters
@@ -352,7 +376,7 @@ def main(logger):
         # Misc overrides
         mql_overrides.env.override_params({"mltune": {'mp_ml_show_plot': True}})
         mql_overrides.env.override_params({"mltune": {'ONNX_save': True}})
-        mql_overrides.env.override_params({"mltune": {'overwrite': False}})
+        mql_overrides.env.override_params({"mltune": {'overwrite': True}})
         mql_overrides.env.override_params({"mltune": {'tuner_id': tuner_id}})
         
         unitmin = mql_overrides.env.all_params().get('mltune', {}).get('unitmin', None)
@@ -410,6 +434,20 @@ def main(logger):
         xerces_port = app_params.get('xerces_port', 9000)
         oracle = OracleClient(host=xerces_server, port=xerces_port)
 
+
+        # Generate unique tuner ID
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        tuner_id = f"tuner_run_{timestamp}"
+
+        # Apply to environment overrides
+        mql_overrides.env.override_params({
+            'mltune': {
+                'tuner_id': tuner_id,
+                'overwrite': True  # Force a fresh trial state
+            }
+        })
+
+        
         # Conditional Tuner
         tuner_config = CMdtunerSelector(
             oracle=OracleClient(host=xerces_server, port=xerces_port),

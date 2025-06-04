@@ -93,7 +93,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
             "max_consecutive_failed_trials": 3,
             "steps_per_execution": 1,
             "executions_per_trial": 1,
-            "overwrite": False,
+            "overwrite": True,
             "max_retries_per_trial": 5,
             "max_consecutive_failed_trials": 3,
             "executions_per_trial": 1,

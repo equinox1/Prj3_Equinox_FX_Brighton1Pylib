@@ -18,6 +18,14 @@ import uuid  # Ensure uuid is imported for use in get_callbacks
 os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
 os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
+# ✅ Determine backend from environment
+backend = os.environ.get('MLTUNE_BACKEND', 'tensorflow').lower()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.info(f"🔧 Detected tuning backend from environment: {backend}")
+
+
 import tensorflow as tf
 from datetime import date
 import numpy as np
@@ -191,7 +199,7 @@ class CMdtuner:
         self.max_retries_per_trial   = mltune.get('max_retries_per_trial', 5)
         self.max_consecutive_failed_trials = mltune.get('max_consecutive_failed_trials', 3)
         self.executions_per_trial    = mltune.get('executions_per_trial', 1)
-        self.overwrite               = mltune.get('overwrite', False)
+        self.overwrite               = mltune.get('overwrite', True)
 
         logger.info(f"Tuning parameters: today            : {self.today}")
         logger.info(f"Tuning parameters: seed             : {self.seed}")
@@ -285,7 +293,7 @@ class CMdtuner:
 
         # Checkpoint parameters  
         self.checkpoint_dir = self.checkpoint_filepath
-        self.overwrite = mltune.get('overwrite', False)
+        self.overwrite = mltune.get('overwrite', True)
         self.chk_fullmodel = mltune.get('chk_fullmodel', True)
         self.chk_verbosity = mltune.get('chk_verbosity', 1)
         self.chk_mode = mltune.get('chk_mode', 'min')
@@ -757,64 +765,74 @@ class CMdtuner:
 
    
     def _objective(self, hp):
+        """Objective function for evaluating a trial's performance."""
+
+        trial_id = os.environ.get("KERASTUNER_TRIAL_ID", "UNKNOWN")
+        logger.info(f"[OBJECTIVE] Starting trial {trial_id} with hyperparameters: {hp.values}")
+
+        # Resolve loss
         loss_str = hp.values.get("loss", "mse")
+        try:
+            if loss_str.lower() in ["mse", "mean_squared_error"]:
+                self.loss = tf.keras.losses.MeanSquaredError()
+            elif loss_str.lower() in ["mae", "mean_absolute_error"]:
+                self.loss = tf.keras.losses.MeanAbsoluteError()
+            else:
+                loss = tf.keras.losses.get(loss_str)
+                self.loss = loss() if isinstance(loss, type) else loss
+        except Exception as e:
+            logger.error(f"[OBJECTIVE] Invalid loss '{loss_str}': {e}", exc_info=True)
+            return float("inf")
+
+        # Resolve metric
         metric_str = hp.values.get("metric", "mse")
-
         try:
-            if isinstance(loss_str, str):
-                if loss_str.lower() in ["mse", "mean_squared_error"]:
-                    self.loss = tf.keras.losses.MeanSquaredError()
-                elif loss_str.lower() in ["mae", "mean_absolute_error"]:
-                    self.loss = tf.keras.losses.MeanAbsoluteError()
-                else:
-                    loss = tf.keras.losses.get(loss_str)
-                    self.loss = loss() if isinstance(loss, type) else loss
+            if metric_str.lower() in ["mse", "mean_squared_error"]:
+                self.metric = tf.keras.metrics.MeanSquaredError()
+            elif metric_str.lower() in ["mae", "mean_absolute_error"]:
+                self.metric = tf.keras.metrics.MeanAbsoluteError()
             else:
-                self.loss = loss_str
+                metric = tf.keras.metrics.get(metric_str)
+                self.metric = metric() if isinstance(metric, type) else metric
         except Exception as e:
-            logger.error(f"[OBJECTIVE] Invalid loss: {loss_str} — {e}")
-            raise
+            logger.error(f"[OBJECTIVE] Invalid metric '{metric_str}': {e}", exc_info=True)
+            return float("inf")
 
+        logger.info(f"[OBJECTIVE] Using loss={self.loss}, metric={self.metric}")
+
+        # Build and compile model
         try:
-            if isinstance(metric_str, str):
-                if metric_str.lower() in ["mse", "mean_squared_error"]:
-                    self.metric = tf.keras.metrics.MeanSquaredError()
-                elif metric_str.lower() in ["mae", "mean_absolute_error"]:
-                    self.metric = tf.keras.metrics.MeanAbsoluteError()
-                else:
-                    metric = tf.keras.metrics.get(metric_str)
-                    self.metric = metric() if isinstance(metric, type) else metric
-            else:
-                self.metric = metric_str
+            model = self.build_model(hp)
+            model.compile(
+                optimizer=tf.keras.optimizers.Adam(),
+                loss=self.loss,
+                metrics=[self.metric]
+            )
         except Exception as e:
-            logger.error(f"[OBJECTIVE] Invalid metric: {metric_str} — {e}")
-            raise
+            logger.error(f"[OBJECTIVE] Failed to compile model for trial {trial_id}: {e}", exc_info=True)
+            return float("inf")
 
-        logger.info(f"[OBJECTIVE] Resolved loss={self.loss} ({type(self.loss)}), metric={self.metric} ({type(self.metric)})")
+        # Train model
+        try:
+            history = model.fit(
+                self.traindataset,
+                validation_data=self.valdataset,
+                epochs=hp.values.get("epochs", 10),
+                verbose=0,
+                callbacks=self.get_callbacks()
+            )
+        except Exception as e:
+            logger.error(f"[OBJECTIVE] Training failed for trial {trial_id}: {e}", exc_info=True)
+            return float("inf")
 
-        model = self.build_model(hp)
-        model.compile(optimizer=tf.keras.optimizers.Adam(), loss=self.loss, metrics=[self.metric])
-        history = model.fit(
-            self.traindataset,
-            validation_data=self.valdataset,
-            epochs=hp.values.get("epochs", 10),
-            verbose=0,
-            callbacks=self.get_callbacks()
-        )
-
+        # Extract validation loss
         val_loss = history.history.get("val_loss", [None])[-1]
         if val_loss is None:
-            logger.warning("Trial produced no validation loss.")
-            self.oracle.update_trial_status(trial_id, "FAILED")
-            return float("inf")  # force early rejection
+            logger.warning(f"[OBJECTIVE] Trial {trial_id} produced no val_loss.")
+            return float("inf")
 
-        if val_loss is None:
-            logger.warning("Trial produced no validation loss.")
-            val_loss = float("inf")
-        else:
-            logger.info(f"✅ Trial completed. val_loss={val_loss:.5f}")
-
-        return val_loss
+        logger.info(f"[OBJECTIVE] Trial {trial_id} completed with val_loss={val_loss:.6f}")
+        return float(val_loss)
 
 
 
@@ -870,10 +888,15 @@ class CMdtuner:
 
     def get_best_hyperparameters(self):
         try:
-            return self.tuner.get_best_hyperparameters(num_trials=1)[0]
+            best_hps = self.tuner.get_best_hyperparameters(num_trials=1)
+            if not best_hps:
+                logger.info("No best hyperparameters found. Returning None.")
+                return None
+            return best_hps[0]
         except Exception as e:
             logger.info(f"Error retrieving best hyperparameters: {e}")
             return None
+
 
     def get_positional_encoding(self, seq_len, dim):
         position = tf.range(seq_len, dtype=tf.float32)[:, tf.newaxis]
@@ -902,3 +925,16 @@ class AddPositionalEncoding(tf.keras.layers.Layer):
         pos_encoding = tf.concat([sines, cosines], axis=-1)
         pos_encoding = tf.expand_dims(pos_encoding, axis=0)  # (1, seq_len, dim)
         return x + tf.cast(pos_encoding, x.dtype)
+
+    def finalize_best_trial(self):
+        try:
+            best_trials = self.tuner.oracle.get_best_trials(num_trials=1)
+            if not best_trials:
+                logger.error("❌ No best trial found. Skipping training/export.")
+                return None
+            best_trial = best_trials[0]
+            logger.info(f"✅ Best trial finalized: {best_trial.trial_id}")
+            return best_trial
+        except Exception as e:
+            logger.error(f"❌ Failed to fetch or finalize best trial from OracleClient: {e}")
+            return None
