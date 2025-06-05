@@ -10,7 +10,7 @@ import logging
 from tsMqlSetup import CMqlSetup
 
 # ==== CONFIGURATION ====
-NUM_WORKERS = 1  # Number of worker processes to launch
+NUM_WORKERS = 24  # Number of worker processes to launch
 PYTHON_EXEC = r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\PythonLib\.venv\Scripts\python.exe"
 BASE_PATH = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/PythonLib"
 

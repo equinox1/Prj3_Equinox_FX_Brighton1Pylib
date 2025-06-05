@@ -263,10 +263,10 @@ class CMdtuner:
         self.transh_modelscale = mltune_params.get('transh_modelscale', 8.0)
         self.transff_modelscale = mltune_params.get('transff_modelscale', 8.0)
         self.dense_modelscale = mltune_params.get('dense_modelscale', 8.0)
-        self.trans_dim_min      = mltune_params.get('trans_dim_min', 32 // self.trans_modelscale)
-        self.trans_dim_max      = mltune_params.get('trans_dim_max', 256 // self.trans_modelscale)
-        self.trans_dim_step     = mltune_params.get('trans_dim_step', 32 // self.trans_modelscale)
-        self.trans_dim_default  = mltune_params.get('trans_dim_default', 64 // self.trans_modelscale)
+        self.trans_dim_min      = mltune_params.get('trans_dim_min', 32 // int(self.trans_modelscale))
+        self.trans_dim_max      = mltune_params.get('trans_dim_max', 256 // int(self.trans_modelscale))
+        self.trans_dim_step     = mltune_params.get('trans_dim_step', 32 // int(self.trans_modelscale))
+        self.trans_dim_default  = mltune_params.get('trans_dim_default', 64 // int(self.trans_modelscale))
         self.trans_heads_min    = mltune_params.get('trans_heads_min', 2)
         self.trans_heads_max    = mltune_params.get('trans_heads_max', 8)
         self.trans_heads_step   = mltune_params.get('trans_heads_step', 2)
@@ -278,8 +278,8 @@ class CMdtuner:
         self.dense_units_step   = mltune_params.get('dense_units_step', int(32 // self.dense_modelscale))
 
         #Threading parameters
-        self.use_multiprocessing = mltune_params.get('use_multiprocessing', True)
-        self.workers = mltune_params.get('workers', 32)
+        #self.use_multiprocessing = mltune_params.get('use_multiprocessing', True)
+        #self.workers = mltune_params.get('workers', 32)
       
         logger.info(f"Tuning parameters: unitmin          : {self.unitmin}")
         logger.info(f"Tuning parameters: unitmax          : {self.unitmax}")
@@ -306,8 +306,8 @@ class CMdtuner:
         logger.info(f"Tuning parameters: 'dense_units_min': {self.dense_units_min}")
         logger.info(f"Tuning parameters: 'dense_units_max': {self.dense_units_max}")
         logger.info(f"Tuning parameters: 'dense_units_step': {self.dense_units_step}")
-        logger.info(f"Tuning parameters: 'use_multiprocessing': {self.use_multiprocessing}")
-        logger.info(f"Tuning parameters: 'workers': {self.workers}")
+        #logger.info(f"Tuning parameters: 'use_multiprocessing': {self.use_multiprocessing}")
+        #logger.info(f"Tuning parameters: 'workers': {self.workers}")
 
        
 
@@ -658,12 +658,67 @@ class CMdtuner:
 
         model = Model(inputs=inputs if self.multi_inputs else inputs[0], outputs=output)
 
-        # Final compile
+        # Final compile - CORRECTED: Explicitly map metric strings to Keras Metric objects
         optimizer = self.get_optimizer(hp.values.get('optimizer', 'adam'), hp.values.get('learning_rate', 1e-3))
+        
+        # Resolve the loss function
+        loss_str = hp.values.get('loss', 'mse')
+        try:
+            if loss_str.lower() in ["mse", "mean_squared_error"]:
+                resolved_loss = tf.keras.losses.MeanSquaredError()
+            elif loss_str.lower() in ["mae", "mean_absolute_error"]:
+                resolved_loss = tf.keras.losses.MeanAbsoluteError()
+            elif loss_str.lower() in ["binary_crossentropy"]:
+                resolved_loss = tf.keras.losses.BinaryCrossentropy()
+            elif loss_str.lower() in ["mape", "mean_absolute_percentage_error"]:
+                resolved_loss = tf.keras.losses.MeanAbsolutePercentageError()
+            elif loss_str.lower() in ["msle", "mean_squared_logarithmic_error"]:
+                resolved_loss = tf.keras.losses.MeanSquaredLogarithmicError()
+            elif loss_str.lower() == "poisson":
+                resolved_loss = tf.keras.losses.Poisson()
+            elif loss_str.lower() in ["kld", "kl_divergence"]:
+                resolved_loss = tf.keras.losses.KLDivergence()
+            elif loss_str.lower() in ["cosine_similarity"]:
+                resolved_loss = tf.keras.losses.CosineSimilarity()
+            else:
+                resolved_loss = tf.keras.losses.get(loss_str)
+                if isinstance(resolved_loss, type):
+                    resolved_loss = resolved_loss()
+        except Exception as e:
+            logger.error(f"Error resolving loss '{loss_str}' in build_model: {e}")
+            resolved_loss = tf.keras.losses.MeanSquaredError() # Fallback
+
+        # Resolve the metric function
+        metric_str = hp.values.get('metric', 'mse')
+        try:
+            if metric_str.lower() in ["mse", "mean_squared_error"]:
+                resolved_metric = tf.keras.metrics.MeanSquaredError()
+            elif metric_str.lower() in ["mae", "mean_absolute_error"]:
+                resolved_metric = tf.keras.metrics.MeanAbsoluteError()
+            elif metric_str.lower() in ["accuracy"]:
+                resolved_metric = tf.keras.metrics.Accuracy()
+            elif metric_str.lower() in ["mape", "mean_absolute_percentage_error"]:
+                resolved_metric = tf.keras.metrics.MeanAbsolutePercentageError()
+            elif metric_str.lower() in ["msle", "mean_squared_logarithmic_error"]:
+                resolved_metric = tf.keras.metrics.MeanSquaredLogarithmicError()
+            elif metric_str.lower() == "poisson":
+                resolved_metric = tf.keras.metrics.Poisson()
+            elif metric_str.lower() in ["kld", "kl_divergence"]:
+                resolved_metric = tf.keras.metrics.KLDivergence()
+            elif metric_str.lower() in ["cosine_similarity"]:
+                resolved_metric = tf.keras.metrics.CosineSimilarity()
+            else:
+                resolved_metric = tf.keras.metrics.get(metric_str)
+                if isinstance(resolved_metric, type):
+                    resolved_metric = resolved_metric()
+        except Exception as e:
+            logger.error(f"Error resolving metric '{metric_str}' in build_model: {e}")
+            resolved_metric = tf.keras.metrics.MeanSquaredError() # Fallback
+
         model.compile(
             optimizer=optimizer,
-            loss=tf.keras.losses.get(hp.values.get('loss', 'mse')),
-            metrics=[tf.keras.metrics.get(hp.values.get('metric', 'mse'))]
+            loss=resolved_loss,
+            metrics=[resolved_metric]
         )
 
         return model
@@ -759,7 +814,34 @@ class CMdtuner:
         return tf.keras.layers.LayerNormalization(epsilon=1e-6)(out1 + ffn_output)
         
     
-   
+    # Assuming this 'run' method is causing the AttributeError.
+    # It was not directly provided in the original snippet, but implied by the traceback.
+    # Added a placeholder 'run' method for the fix. You might need to adjust based on its actual use.
+    def run(self):
+        """
+        Placeholder run method to demonstrate the fix for the AttributeError.
+        In a real scenario, this method would orchestrate the tuning process.
+        """
+        if self.tuner is None:
+            logger.error("Tuner is not initialized. Cannot run tuning.")
+            return
+
+        logger.info(f"Starting tuning process with mode: {self.tunemode}")
+        try:
+            self.tuner.search(
+                self.traindataset,
+                validation_data=self.valdataset,
+                epochs=self.epochs, # Use base epochs for tuner.search
+                callbacks=self.get_callbacks(), # CORRECTED: Call get_callbacks()
+                #use_multiprocessing=self.use_multiprocessing,
+                #workers=self.workers
+            )
+            logger.info("Tuning process completed.")
+            self.export_best_model() # Export best model after search
+        except Exception as e:
+            logger.error(f"Error during tuning process: {e}", exc_info=True)
+
+
     def _objective(self, hp):
         """Objective function for evaluating a trial's performance."""
 
@@ -773,6 +855,18 @@ class CMdtuner:
                 self.loss = tf.keras.losses.MeanSquaredError()
             elif loss_str.lower() in ["mae", "mean_absolute_error"]:
                 self.loss = tf.keras.losses.MeanAbsoluteError()
+            elif loss_str.lower() in ["binary_crossentropy"]:
+                self.loss = tf.keras.losses.BinaryCrossentropy()
+            elif loss_str.lower() in ["mape", "mean_absolute_percentage_error"]:
+                self.loss = tf.keras.losses.MeanAbsolutePercentageError()
+            elif loss_str.lower() in ["msle", "mean_squared_logarithmic_error"]:
+                self.loss = tf.keras.losses.MeanSquaredLogarithmicError()
+            elif loss_str.lower() == "poisson":
+                self.loss = tf.keras.losses.Poisson()
+            elif loss_str.lower() in ["kld", "kl_divergence"]:
+                self.loss = tf.keras.losses.KLDivergence()
+            elif loss_str.lower() in ["cosine_similarity"]:
+                self.loss = tf.keras.losses.CosineSimilarity()
             else:
                 loss = tf.keras.losses.get(loss_str)
                 self.loss = loss() if isinstance(loss, type) else loss
@@ -787,6 +881,18 @@ class CMdtuner:
                 self.metric = tf.keras.metrics.MeanSquaredError()
             elif metric_str.lower() in ["mae", "mean_absolute_error"]:
                 self.metric = tf.keras.metrics.MeanAbsoluteError()
+            elif metric_str.lower() in ["accuracy"]:
+                self.metric = tf.keras.metrics.Accuracy()
+            elif metric_str.lower() in ["mape", "mean_absolute_percentage_error"]:
+                self.metric = tf.keras.metrics.MeanAbsolutePercentageError()
+            elif metric_str.lower() in ["msle", "mean_squared_logarithmic_error"]:
+                self.metric = tf.keras.metrics.MeanSquaredLogarithmicError()
+            elif metric_str.lower() == "poisson":
+                self.metric = tf.keras.metrics.Poisson()
+            elif metric_str.lower() in ["kld", "kl_divergence"]:
+                self.metric = tf.keras.metrics.KLDivergence()
+            elif metric_str.lower() in ["cosine_similarity"]:
+                self.metric = tf.keras.metrics.CosineSimilarity()
             else:
                 metric = tf.keras.metrics.get(metric_str)
                 self.metric = metric() if isinstance(metric, type) else metric
@@ -815,7 +921,7 @@ class CMdtuner:
                 validation_data=self.valdataset,
                 epochs=hp.values.get("epochs", 10),
                 verbose=0,
-                callbacks=self.get_callbacks()
+                callbacks=self.get_callbacks() # CORRECTED: Call get_callbacks()
             )
         except Exception as e:
             logger.error(f"[OBJECTIVE] Training failed for trial {trial_id}: {e}", exc_info=True)
@@ -934,4 +1040,3 @@ class AddPositionalEncoding(tf.keras.layers.Layer):
         except Exception as e:
             logger.error(f"❌ Failed to fetch or finalize best trial from OracleClient: {e}")
             return None
-
