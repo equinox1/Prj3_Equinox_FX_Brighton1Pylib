@@ -21,7 +21,7 @@ from tsMqlOverrides import CMqlOverrides
 
 # -- start of logging setup --
 from tsMqlSetup import CMqlSetup
-from tsMqlOverrides import CMqlOverrides
+# Removed: from tsMqlOverrides import CMqlOverrides (already imported above)
 
 env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
 env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
@@ -55,7 +55,6 @@ global_logdir, global_logfile = setup_config.set_log_dir(
 )
 
 logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
-
 
 
 # Initialize platform checker

@@ -3,7 +3,7 @@
 # |                                    tsNeuroPredictWinMql_chief.py |
 # |                                                    Tony Shepherd |
 # |                                    https://www.xercescloud.co.uk |
-# +------------------------------------------------------------------+
+# +------------------------------------------------------------------+\
 
 
 import os
@@ -40,37 +40,15 @@ from tsMqlReference import CMqlRefConfig
 from tsMqlConnect import CMqlBrokerConfig
 from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
-from tsMqlMLProcess import CDMLProcess
+from tsMqlMLProcess import CDMLProcess # Ensure CDMLProcess is imported
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
 from tsMqlMLTuner.tsMqlMLTunerModTorch import PyTorchTuner
 
 
-os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
-os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-os.environ["TUNER_ID"] = "chief"
-tuner_id = os.environ.get("TUNER_ID", "chief")
-
 # -- start of logging setup --
 from tsMqlSetup import CMqlSetup
-from tsMqlOverrides import CMqlOverrides
-
-env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
-env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
-
-mql_overrides = CMqlOverrides()
-mql_overrides.env.override_params({
-    "mltune": {"backend": env_backend},
-    "app": {"gtuner_model": env_gtuner}
-})
-
-app_params = mql_overrides.env.all_params().get("app", {})
-gtuner_model = app_params.get('gtuner_model', 'pytorch')
-xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
-xerces_server = app_params.get('xerces_server', '192.168.1.103')
-xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-
+# ✅ Logger and Logdir Setup
 setup_config = CMqlSetup(
     loglevel='INFO',
     warn='ignore',
@@ -79,457 +57,327 @@ setup_config = CMqlSetup(
     num_cores=8,
     num_threads=1
 )
-
-global_logdir, global_logfile = setup_config.set_log_dir(
-    logdir=None,
-    logfile=xerces_logfile,
-    servername=xerces_servername,
-    ltuner=gtuner_model
-)
+from tsMqlOverrides import CMqlOverrides
+mql_overrides = CMqlOverrides()
+app_params = mql_overrides.env.all_params().get("app", {})
+tune_params = mql_overrides.env.all_params().get("mltune", {})
+from tsMqlSetup import CMqlSetup
+gtuner_model = app_params.get('gtuner_model', 'pytorch')  # or "tensorflow"
+backend = tune_params.get('backend', gtuner_model)  # or "tensorflow"
+xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
+xerces_server = app_params.get('xerces_server', '192.168.1.103')
+xerces_port = app_params.get('xerces_port', 9000)
+xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
+tunerlogfile = xerces_logfile
+global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername, ltuner=gtuner_model)
 
 logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
+# -- end of logging setup ----
 
 
-# strategy setup
-strategy = setup_config.get_computation_strategy()
-pchk = run_platform.RunPlatform()
-os_platform = platform_checker.get_platform()
-loadmql = pchk.check_mql_state()
-logger.info(f"Running on: {os_platform} and loadmql state is {loadmql}")
+# --- Environment Setup ---
+os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
+os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["TUNER_ID"] = "chief" # This is important for the client to identify itself
 
-diststrategy = 'tf.distribute.MultiWorkerMirroredStrategy'
-logger.info(f"Distribution strategy: {diststrategy}")
-gtuner_type = 'distributed'
-gtuner_mode = 'random'
-gmodscale = 8
-gstandalone = False
+# --- Global Configuration ---
+# Use CMqlEnvMgr to get all parameters
+env_mgr = CMqlEnvMgr()
+all_params = env_mgr.all_params()
+base_params = all_params.get("base", {})
+app_params = all_params.get("app", {})
+broker_params = all_params.get("broker", {})
+ml_params = all_params.get("ml", {})
+tune_params = all_params.get("mltune", {})
+
+# Extract necessary parameters for Chief
+SYMBOLS = app_params.get('mp_app_symbols', ['EURUSD'])
+TIMEFRAME = app_params.get('mp_app_timeframe', 'M1')
+NUM_CANDLES = app_params.get('mp_app_num_candles', 10000)
+MODEL_NAME = app_params.get('mp_glob_sub_ml_model_name', 'ts_mql_model')
+LOOK_BACK = ml_params.get('mp_ml_look_back', 60)
+PREDICTION_HORIZON = ml_params.get('mp_ml_prediction_horizon', 1)
+TRAIN_SPLIT_RATIO = ml_params.get('mp_ml_train_split_ratio', 0.8)
+# CORRECTED: Updated FEATURES_TO_USE to use prefixed column names
+FEATURES_TO_USE = ml_params.get('mp_ml_features_to_use', ['R1_Open', 'R1_High', 'R1_Low', 'R1_Close', 'R1_Tick_Volume', 'R1_spread', 'R1_Real_Volume'])
+# CORRECTED: Updated TARGET_FEATURE to use prefixed column name
+TARGET_FEATURE = ml_params.get('mp_ml_target_feature', 'R1_Close')
+NORMALIZATION_METHOD = ml_params.get('mp_ml_normalization_method', 'StandardScaler')
+MODEL_TYPE = ml_params.get('mp_ml_model_type', 'LSTM') # Default to LSTM
+MLTUNE_BACKEND = tune_params.get('backend', 'tensorflow') # Default to tensorflow
+MLTUNE_NUM_TRIALS = tune_params.get('num_trials', 10)
+MLTUNE_TUNER_TYPE = tune_params.get('tuner_type', 'hyperband')
+MLTUNE_OVERWRITE = tune_params.get('overwrite', True)
+MLTUNE_RESET_TRIALS = tune_params.get('reset_trials', True)
+ORACLE_HOST = app_params.get('xerces_server', '192.168.1.103')
+ORACLE_PORT = app_params.get('xerces_port', 9000)
+
+# Mapping for MetaTrader5 timeframes
+MT5_TIMEFRAME_MAP = {
+    'M1': mt5.TIMEFRAME_M1,
+    'M2': mt5.TIMEFRAME_M2,
+    'M3': mt5.TIMEFRAME_M3,
+    'M4': mt5.TIMEFRAME_M4,
+    'M5': mt5.TIMEFRAME_M5,
+    'M6': mt5.TIMEFRAME_M6,
+    'M10': mt5.TIMEFRAME_M10,
+    'M12': mt5.TIMEFRAME_M12,
+    'M15': mt5.TIMEFRAME_M15,
+    'M20': mt5.TIMEFRAME_M20,
+    'M30': mt5.TIMEFRAME_M30,
+    'H1': mt5.TIMEFRAME_H1,
+    'H2': mt5.TIMEFRAME_H2,
+    'H3': mt5.TIMEFRAME_H3,
+    'H4': mt5.TIMEFRAME_H4,
+    'H6': mt5.TIMEFRAME_H6,
+    'H8': mt5.TIMEFRAME_H8,
+    'H12': mt5.TIMEFRAME_H12,
+    'D1': mt5.TIMEFRAME_D1,
+    'W1': mt5.TIMEFRAME_W1,
+    'MN1': mt5.TIMEFRAME_MN1,
+}
 
 
-# ----- Main Function -----
-def main(logger):
-        # Setup environment and retrieve parameters
-        print("Start Main Setting up environment...")
-        utils_config = CUtilities()
-        mql_overrides = CMqlOverrides()
-
-        # Generate or retrieve tuner_id
-        all_params = mql_overrides.env.all_params()
-        mltune_params = all_params.get("mltune", {})
-
-        tuner_id = mltune_params.get("tuner_id")
-        if not tuner_id:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            tuner_id = f"tuner_run_{timestamp}"
-            mql_overrides.env.override_params({
-                'mltune': {
-                    'tuner_id': tuner_id,
-                    'overwrite': True
-                }
-            })
-            logger.info(f"[main] Auto-generated tuner_id: {tuner_id}")
-        else:
-            logger.info(f"[main] Using provided tuner_id: {tuner_id}")
-
-        
-        # ---- Configuration ----
-        is_chief = tuner_id.lower() == "chief"
-        # Setup environment and retrieve parameters
-        print("Start Main Setting up environment...")
-        utils_config = CUtilities()
-        mql_overrides = CMqlOverrides()  # Uses defaults if no config.yaml provided
-
-        base_params = mql_overrides.env.all_params().get("base", {})
-        data_params = mql_overrides.env.all_params().get("data", {})
-        feat_params = mql_overrides.env.all_params().get("features", {})
-        ml_params = mql_overrides.env.all_params().get("ml", {})
-        mltune_params = mql_overrides.env.all_params().get("mltune", {})
-        app_params = mql_overrides.env.all_params().get("app", {})
-        
-        # Log the logfile location; ensure logdir is not None.
-        logdir = base_params.get('mp_glob_base_log_path') or global_logdir
-        logdir = global_logdir if logdir is None else logdir
-        os.makedirs(logdir, exist_ok=True)
-        logfile = os.path.join(logdir, 'tsneuropredict_app.log')
-        logger.info(f"Logfile: {logfile}")
-        
-         # ----- Model Tuning and Setup -----
-        mql_overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
-        mql_overrides.env.override_params({"mltune": {'batch_size': 8}})
-        mql_overrides.env.override_params({"data": {'mp_data_timeframe': mt5.TIMEFRAME_H4}})
-        logger.info("Main: mp_app_ml_hard_run: %s", app_params.get('mp_app_ml_hard_run', True))
-        logger.info("Main: mp_ml_mbase_path: %s", base_params.get('mp_glob_base_ml_project_dir', None))
-        logger.info("Main: batch_size: %s", base_params.get('batch_size', None))
-        logger.info("Main: mp_data_timeframe: %s", data_params.get('mp_data_timeframe', 'mt5.TIMEFRAME_H4'))
-
-        # Scale the model
-        modscale = gmodscale
-        logger.info("Main: Model Scale: %s", modscale)
+# --- Data Loading and Preprocessing ---
+def load_and_preprocess_data(symbol, timeframe_str, num_candles, look_back, prediction_horizon, features_to_use, target_feature, normalization_method):
+    logger.info(f"📊 Loading data for {symbol} {timeframe_str}...")
     
-        # ----- Load Reference class and time variables -----
-        lp_timeframe_name = data_params.get('mp_data_timeframe', 'mt5.TIMEFRAME_H4')
-        logger.info("Main:Chief Timeframe Name: %s", lp_timeframe_name)
-      
-        reference_config = CMqlRefConfig(loaded_data_type='MINUTE', required_data_type=lp_timeframe_name)
-        
-        # Adjust TIME_CONSTANTS handling in case it's a list.
-        time_constants = reference_config.TIME_CONSTANTS
-        if isinstance(time_constants, list):
-            time_constants = time_constants[0]
+    # Convert string timeframe to mt5.TIMEFRAME_* constant
+    timeframe_mt5 = MT5_TIMEFRAME_MAP.get(timeframe_str)
+    if timeframe_mt5 is None:
+        logger.error(f"❌ Invalid timeframe string: {timeframe_str}. Please use one of: {list(MT5_TIMEFRAME_MAP.keys())}")
+        return None, None, None, None, None, None
 
-        # Extract time constants
-        UNIT = time_constants["UNIT"]["SECOND"]
-        MINUTE = reference_config.get_timevalue('MINUTE')
-        HOUR = reference_config.get_timevalue('HOUR')
-        DAY = reference_config.get_timevalue('DAY')
-        CURRENT_TIME = reference_config.get_current_time()
-        CURRENTDAY = CURRENT_TIME["CURRENTDAY"]
-        CURRENTMONTH = CURRENT_TIME["CURRENTMONTH"]
-        CURRENTYEAR = CURRENT_TIME["CURRENTYEAR"]
-        TIMEZONE = CURRENT_TIME["TIMEZONE"]
-        TIMEFRAME = CURRENT_TIME["TIMEFRAME"]
-        timeval = HOUR  # used for window creation
-        logger.info(f"Timezone: {TIMEZONE}")
-        logger.info(f"Timeframe: {TIMEFRAME}")
+    # Initialize CDataLoader with the correct mt5 timeframe constant
+    data_loader = CDataLoader(
+        lp_app_primary_symbol=symbol,
+        lp_timeframe=timeframe_mt5, # Pass the mt5 constant
+        lp_data_rows=num_candles # Assuming num_candles corresponds to lp_data_rows
+    )
+    
+    # Call run_dataloader_services to get the dataframes
+    df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader.run_dataloader_services()
 
-        mql_overrides.env.override_params({"data": {"mp_data_rows": 1000}})
-        mql_overrides.env.override_params({"data": {"mp_data_rowcount": 100000}})
-       
-        rows = data_params.get('mp_data_rows', 1000)
-        rowcount = data_params.get('mp_data_rowcount', 10000)
-        logger.info(f"Timeframe Name: {lp_timeframe_name}, Rows: {rows}, Rowcount: {rowcount}")
+    # Assuming 'df_api_rates' is the primary dataframe for historical rates
+    # You might need to adjust this based on your data loading strategy (ticks vs rates, API vs file)
+    data_df = df_api_rates 
 
-        # ----- Broker Login -----
-        logger.info("PARAM HEADER: MP_APP_BROKER: %s", app_params.get('mp_app_broker'))
-        broker_config = CMqlBrokerConfig(app_params.get('mp_app_broker'))
-        mqqlobj = broker_config.run_mql_login()
-        if mqqlobj is True:
-            logger.info("Successfully logged in to MetaTrader 5.")
-        else:
-            logger.info("Failed to login. Error code: %s", mqqlobj)
+    if data_df.empty:
+        logger.error(f"❌ No data loaded for {symbol}.")
+        return None, None, None, None, None, None
 
-        # ----- Data Loader and Process Initialization -----
-        data_loader_config = CDataLoader()
-        data_process_config = CDataProcess(mp_unit=UNIT)
-        ml_process_config = CDMLProcess()
+    logger.info("⚙️ Preprocessing data (CDataProcess)...")
+    # Initialize CDataProcess with keyword arguments
+    data_process = CDataProcess(
+        look_back=look_back,
+        prediction_horizon=prediction_horizon,
+        features_to_use=features_to_use,
+        target_feature=target_feature
+    )
+    
+    # Call run_dataprocess_services to process the dataframe
+    processed_data_df = data_process.run_dataprocess_services(df=data_df, df_name='df_api_rates') # Pass df and df_name
 
-        # ----- Data Loading and Processing -----
-        mp_data_history_size = data_params.get('mp_data_history_size', 1)
-        mv_data_utc_from = data_loader_config.set_mql_timezone(CURRENTYEAR - mp_data_history_size, CURRENTMONTH, CURRENTDAY, TIMEZONE)
-        mv_data_utc_to = data_loader_config.set_mql_timezone(CURRENTYEAR, CURRENTMONTH, CURRENTDAY, TIMEZONE)
-        logger.info(f"Main: UTC From: {mv_data_utc_from}")
-        logger.info(f"Main: UTC To: {mv_data_utc_to}")
+    # Check if processed_data_df is empty after processing
+    if processed_data_df.empty:
+        logger.error("❌ Data processing resulted in an empty DataFrame.")
+        return None, None, None, None, None, None
 
-        data_loader_config = CDataLoader(
-            lp_utc_from=mv_data_utc_from,
-            lp_utc_to=mv_data_utc_to,
-            lp_timeframe=lp_timeframe_name,
-            lp_app_primary_symbol=app_params.get('lp_app_primary_symbol', app_params.get('mp_app_primary_symbol', 'EURUSD')),
-            lp_app_rows=rows,
-            lp_app_rowcount=rowcount
-        )
-        df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader_config.run_dataloader_services()
-        logger.info("Loaded: Data API Ticks: %s, Data API Rates: %s, Data File Ticks: %s, Data File Rates: %s",
-                    df_api_ticks.shape, df_api_rates.shape, df_file_ticks.shape, df_file_rates.shape)
+    # DEBUGGING: Print columns of the DataFrame after CDataProcess
+    logger.info(f"DEBUG: Columns after CDataProcess: {processed_data_df.columns.tolist()}")
 
-        df_api_ticks = data_process_config.run_dataprocess_services(df=df_api_ticks, df_name='df_api_ticks')
-        df_api_rates = data_process_config.run_dataprocess_services(df=df_api_rates, df_name='df_api_rates')
-        df_file_ticks = data_process_config.run_dataprocess_services(df=df_file_ticks, df_name='df_file_ticks')
-        df_file_rates = data_process_config.run_dataprocess_services(df=df_file_rates, df_name='df_file_rates')
-        utils_config.run_mql_print(df=df_api_ticks, df_name='df_api_ticks', hrows=5, colwidth=30, app='data processing')
-        utils_config.run_mql_print(df=df_api_rates, df_name='df_api_rates', hrows=5, colwidth=30, app='data processing')
-        utils_config.run_mql_print(df=df_file_ticks, df_name='df_file_ticks', hrows=5, colwidth=30, app='data processing')
-        utils_config.run_mql_print(df=df_file_rates, df_name='df_file_rates', hrows=5, colwidth=30, app='data processing')
-        datafile = df_file_rates
+    logger.info("⚙️ Creating ML sequences (CDMLProcess)...")
+    # Initialize CDMLProcess for creating sequences
+    # CDMLProcess also takes look_back, prediction_horizon, features_to_use, target_feature
+    # It's good practice to pass these explicitly if CDMLProcess uses them for sequence creation
+    ml_process = CDMLProcess(
+        look_back=look_back,
+        prediction_horizon=prediction_horizon,
+        features_to_use=features_to_use,
+        target_feature=target_feature
+    )
 
-        # ----- Add Time Index to Data -----
-        column_features = datafile.columns[1:]
-        datafile = datafile[[datafile.columns[0]] + list(column_features)]
-        utils_config.run_mql_print(df=datafile, df_name='df_file_rates', hrows=5, colwidth=30, app='datafile')
-        logger.info("DataFrame index: %s", datafile.index)
+    # Now, create sequences using the ml_process instance
+    # CORRECTED: Using Create_Xy_input_and_target instead of create_sequences
+    logger.info(f"Attempting to create sequences with processed_data_df shape: {processed_data_df.shape}, look_back: {look_back}, prediction_horizon: {prediction_horizon}, features: {features_to_use}")
+    X, y = ml_process.Create_Xy_input_and_target(
+        df=processed_data_df,
+        back_window=look_back,
+        forward_window=prediction_horizon,
+        features=features_to_use # Pass the list of features
+    )
 
-        # ----- Create Window Parameters -----
-        logger.info("Creating the 24 hour prediction window with timeval: %s and HOUR: %s", timeval, HOUR)
-        back_window, forward_window, pred_width = ml_process_config.create_ml_window(timeval=HOUR)
-        total_window_size = back_window + forward_window
-        logger.info("Create Window: Back Window: %s, Forward Window: %s, Prediction Width: %s", back_window, forward_window, pred_width)
+    if X is None or y is None or X.size == 0 or y.size == 0:
+        logger.error(f"❌ Failed to create sequences after data processing. X shape: {X.shape if X is not None else 'None'}, y shape: {y.shape if y is not None else 'None'}")
+        return None, None, None, None, None, None
 
-        mql_overrides.env.override_params({"mltune": {"total_window_size": total_window_size}})
-        mql_overrides.env.override_params({"mltune": {"input_width": back_window}})
-        mql_overrides.env.override_params({"mltune": {"label_width": forward_window}})
-        mql_overrides.env.override_params({"mltune": {"shift": pred_width}})
-        mql_overrides.env.override_params({"mltune": {'tf_param_epochs': 1}})
-        mql_overrides.env.override_params({"mltune": {'distribution_strategy': diststrategy}})
-        mql_overrides.env.override_params({"mltune": {'tunertype': gtuner_type}})
-        mql_overrides.env.override_params({"mltune": {'tunemode': gtuner_mode}})
-        
-       
-        mltune_overrides = mql_overrides.env.all_params().get("mltune", {})
-        logger.info("OverRidden: ML Tuning Parameters: %s", mltune_overrides)
-        logger.info("OverRidden: Total Window Size: %s", mltune_overrides.get("total_window_size", total_window_size))
-        logger.info("OverRidden: Input Width: %s", mltune_overrides.get("Input Width", back_window))
-        logger.info("OverRidden: Label Width: %s", mltune_overrides.get("Label Width", forward_window))
-        logger.info("OverRidden: Shift: %s", mltune_overrides.get("Shift", pred_width))
-        logger.info("OverRidden: Distribution Strategy: %s", mltune_overrides.get("distribution_strategy", diststrategy))
-        logger.info("OverRidden: Tuner Type: %s", mltune_overrides.get("tunertype", gtuner_type))
-        logger.info("OverRidden: Tuner Mode: %s", mltune_overrides.get("tunemode", gtuner_mode))
-        
-          # ----- Select Features and Labels -----
-        features = ml_params.get("mp_ml_input_keyfeat", "Close")
-        features_scaled = ml_params.get("mp_ml_input_keyfeat_scaled", "Close_Scaled")
-        label1 = ml_params.get("mp_ml_output_label", "Label")
-        logger.info("Main: Features: %s, Features Scaled: %s, Label1: %s", features, features_scaled, label1)
+    # Determine n_steps and n_features from the created X array
+    # X will have shape (num_samples, back_window, num_features)
+    n_steps = X.shape[1]
+    n_features = X.shape[2]
+    logger.info(f"✅ Sequences created. X shape: {X.shape}, y shape: {y.shape}")
 
-        # ----- Generate X and y -----
-        datafile_X, datafile_y = ml_process_config.Create_Xy_input_and_target(
-            datafile, back_window=back_window, forward_window=forward_window, features=[features]
-        )
-        logger.info("Input shape: %s, Target shape: %s", datafile_X.shape, datafile_y.shape)
+    # Reshape y for scaling if it's a 1D array
+    if y.ndim == 1:
+        y_reshaped_for_scaler = y.reshape(-1, 1)
+    else:
+        y_reshaped_for_scaler = y
 
-        # ----- Scaling the Input Features -----
-        # Reshape X from (n_samples, back_window, n_features) to 2D for scaling
-        nsamples, nsteps, nfeatures = datafile_X.shape
-        X_reshaped = datafile_X.reshape((nsamples * nsteps, nfeatures))
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X_reshaped)
-        # Reshape back to the original 3D shape
-        datafile_X_scaled = X_scaled.reshape(datafile_X.shape)
-        if datafile_X_scaled.ndim == 4:
-            datafile_X_scaled = np.squeeze(datafile_X_scaled, axis=-1)
-        elif datafile_X_scaled.ndim == 2:
-            datafile_X_scaled = np.expand_dims(datafile_X_scaled, axis=-1)
+    # Initialize scaler for features (X)
+    feature_scaler = StandardScaler()
+    # Reshape X to 2D for scaling, then back to 3D
+    X_scaled = feature_scaler.fit_transform(X.reshape(-1, n_features)).reshape(X.shape)
+    logger.info(f"X scaled shape: {X_scaled.shape}")
 
-        # Optionally, scale the targets (uncomment if desired)
-        y_reshaped = datafile_y.reshape((-1, 1))
-        y_scaled = scaler.fit_transform(y_reshaped)
-        datafile_y_scaled = y_scaled.reshape(datafile_y.shape)
+    # Initialize scaler for target (y)
+    target_scaler = StandardScaler()
+    y_scaled = target_scaler.fit_transform(y_reshaped_for_scaler)
 
-        # ----- Split Data (using scaled inputs) -----
-        seed = mltune_params.get('seed', 42)
-        n_samples = len(datafile_X_scaled)
-        train_end = int(0.7 * n_samples)
-        val_end = int(0.85 * n_samples)
-        X_train, X_val, X_test, y_train, y_val, y_test = ml_process_config.manual_split_data(
-            datafile_X_scaled, datafile_y, train_end, val_end
-        )
-        logger.info("Train samples: %s", X_train.shape[0])
-        logger.info("Validation samples: %s", X_val.shape[0])
-        logger.info("Test samples: %s", X_test.shape[0])
+    # If y was 1D, convert it back to 1D after scaling
+    if y.ndim == 1:
+        y_scaled = y_scaled.flatten()
+    logger.info(f"y scaled shape: {y_scaled.shape}")
 
-         # ----- Convert to TensorFlow Dataset -----
-        batch_size = ml_params.get('batch_size', 1024)
-     
-        buffer_size = ml_params.get('buffer_size', 10000)
-        logger.info("Buffer size: %s", buffer_size)
-        train_dataset, val_dataset, test_dataset = ml_process_config.create_simple_tf_dataset(
-            X_train, y_train, X_val, y_val, X_test, y_test, batch_size=batch_size, buffer_size=buffer_size
-        )
-        logger.info("Train dataset: %s", train_dataset)
-        logger.info("Validation dataset: %s", val_dataset)
-        logger.info("Test dataset: %s", test_dataset)
-        # Check the dataset shapes
-        logger.info("Train dataset shape: %s", train_dataset.element_spec[0].shape)
-        logger.info("Validation dataset shape: %s", val_dataset.element_spec[0].shape)
-        logger.info("Test dataset shape: %s", test_dataset.element_spec[0].shape)
-        input_shape = train_dataset.element_spec[0].shape[1:]  # ✅ Drop batch dimension (None)
-
-        data_input_shape = input_shape
-        output_shape = train_dataset.element_spec[1].shape
-
-        
-        mql_overrides.env.override_params({"mltune": {"input_shape": input_shape}})
-        mql_overrides.env.override_params({"mltune": {"output_shape": output_shape}})
-        mql_overrides.env.override_params({"mltune": {"data_input_shape": input_shape}})
-        mltune_overrides = mql_overrides.env.all_params().get("mltune", {})
-
-        logger.info("Input shape: %s", input_shape)
-        logger.info("Output shape: %s", output_shape)
-
-        # ----- Model Scale ----- see start of file for model scale
-        mql_overrides.env.override_params({"mltune": {'all_modelscale': modscale}})
-        mql_overrides.env.override_params({"mltune": {'cnn_modelscale': modscale}})
-        mql_overrides.env.override_params({"mltune": {'lstm_modelscale': modscale}})
-        mql_overrides.env.override_params({"mltune": {'gru_modelscale': modscale}})
-        mql_overrides.env.override_params({"mltune": {'trans_modelscale': modscale}})
-        mql_overrides.env.override_params({"mltune": {'transh_modelscale': modscale}})
-        mql_overrides.env.override_params({"mltune": {'transff_modelscale': modscale}})
-        mql_overrides.env.override_params({"mltune": {'dense_modelscale': modscale}})
-
-        all_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('all_modelscale', 1)
-        cnn_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('cnn_modelscale', 1)
-        lstm_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('lstm_modelscale', 1)
-        gru_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('gru_modelscale', 1)
-        trans_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('trans_modelscale', 1)
-        transh_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('transh_modelscale', 1)
-        transff_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('transff_modelscale', 1)
-        dense_modelscale = mql_overrides.env.all_params().get('mltune', {}).get('dense_modelscale', 1)
-
-        # Tune overrides
-        mql_overrides.env.override_params({"mltune": {'unitmin': int(32/modscale)}})
-        mql_overrides.env.override_params({"mltune": {'unitmax': int(512/modscale)}})
-        mql_overrides.env.override_params({"mltune": {'unitstep': int(32/modscale)}})
-        mql_overrides.env.override_params({"mltune": {'defaultunits': int(128/modscale)}})
-        mql_overrides.env.override_params({"mltune": {'max_epochs': 10}})
-        mql_overrides.env.override_params({"mltune": {'min_epochs': 1}})
-        mql_overrides.env.override_params({"mltune": {'tunemodeepochs': True}})
-        mql_overrides.env.override_params({"mltune": {'tune_new_entries': True}})
-
-        # Misc overrides
-        mql_overrides.env.override_params({"mltune": {'mp_ml_show_plot': True}})
-        mql_overrides.env.override_params({"mltune": {'ONNX_save': True}})
-        mql_overrides.env.override_params({"mltune": {'overwrite': True}})
-        mql_overrides.env.override_params({"mltune": {'tuner_id': tuner_id}})
-        
-        unitmin = mql_overrides.env.all_params().get('mltune', {}).get('unitmin', None)
-        unitmax = mql_overrides.env.all_params().get('mltune', {}).get('unitmax', None)
-        unitstep = mql_overrides.env.all_params().get('mltune', {}).get('unitstep', None)
-        defaultunits = mql_overrides.env.all_params().get('mltune', {}).get('defaultunits', None)
-
-        # Note Epochs is extracted once the model has tuned and found best epoch this a declare of defaults
-        epochs = mql_overrides.env.all_params().get('mltune', {}).get('epochs', None)
-        tune_new_entries = mql_overrides.env.all_params().get('mltune', {}).get('tune_new_entries', None)
-
-        logger.info("Main: ML Tuning Parameters: %s", unitmin)
-        logger.info("Main: ML Tuning Parameters: %s", unitmax)
-        logger.info("Main: ML Tuning Parameters: %s", unitstep)
-        logger.info("Main: ML Tuning Parameters: %s", defaultunits)
-        logger.info("Main: ML Tuning Parameters: %s", epochs)
-        logger.info("Main: ML Tuning Parameters: %s", tune_new_entries)
-
-        mp_ml_mbase_path = base_params.get('mp_glob_base_ml_project_dir', None)
-        mp_ml_model_name = base_params.get('mp_glob_sub_ml_model_name', None)
-        mp_ml_hard_run = app_params.get('mp_app_ml_hard_run', True)
-        mp_ml_tf_param_epochs = base_params.get('mp_ml_tf_param_epochs', 1)
-        ONNX_save = base_params.get('onnx_save', False)
-        mp_glob_sub_ml_src_modeldata = base_params.get('mp_glob_sub_ml_src_modeldata', None)
-        mp_symbol_primary = base_params.get('lp_app_primary_symbol', 'EURUSD')
-
-        logger.info("Main Model Check: mp_ml_mbase_path: %s", mp_ml_mbase_path)
-        logger.info("Main Model Check: mp_ml_model_name: %s", mp_ml_model_name)
-        logger.info("Main Model Check: mp_ml_hard_run: %s", mp_ml_hard_run)
-        logger.info("Main Model Check: mp_ml_tf_param_epochs: %s", mp_ml_tf_param_epochs)
-        logger.info("Main Model Check: ONNX_save: %s", ONNX_save)
-        logger.info("Main Model Check: mp_glob_sub_ml_src_modeldata: %s", mp_glob_sub_ml_src_modeldata)
-        logger.info("Main Model Check: mp_symbol_primary: %s", mp_symbol_primary)
-        logger.info("Main Model get all_modelscale: %s", mql_overrides.env.all_params().get('mltune', {}).get('all_modelscale', 1))
-
-       # Log parameter details
-        logger.info("Main Base Parameters:")
-        for key, value in base_params.items():
-            logger.info(f"  {key}: {value}")
-        logger.info("Main Data Parameters:")
-        for key, value in data_params.items():
-            logger.info(f"  {key}: {value}")
-        logger.info("Main ML Parameters:")
-        for key, value in ml_params.items():
-            logger.info(f"  {key}: {value}")
-        logger.info("Main ML Tuning Parameters:")
-        for key, value in mltune_params.items():
-            logger.info(f"  {key}: {value}")
-        logger.info("Main App Parameters:")
-        for key, value in app_params.items():
-            logger.info(f"  {key}: {value}")
-
-        
-        xerces_server = app_params.get('xerces_server', '192.168.1.103')
-        xerces_port = app_params.get('xerces_port', 9000)
-        oracle = OracleClient(host=xerces_server, port=xerces_port)
+    logger.info("✅ Data preprocessing complete.")
+    return X_scaled, y_scaled, n_steps, n_features, feature_scaler, target_scaler
 
 
-        # Generate unique tuner ID
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        tuner_id = f"tuner_run_{timestamp}"
+def main(logger):
+    logger.info("🚀 Starting tsNeuroPredictWinMql_chief.py...")
 
-        # Apply to environment overrides
-        mql_overrides.env.override_params({
-            'mltune': {
-                'tuner_id': tuner_id,
-                'overwrite': True  # Force a fresh trial state
-            }
-        })
+    # Initialize OracleClient
+    oracle_client = OracleClient(host=ORACLE_HOST, port=ORACLE_PORT)
 
-        
-        # Conditional Tuner
-        tuner_config = CMdtunerSelector(
-            oracle=OracleClient(host=xerces_server, port=xerces_port),
-            hypermodel_params=mql_overrides.env.all_params(),
-            traindataset=train_dataset,
-            valdataset=val_dataset,
-            testdataset=test_dataset,
-            castmode='float16',
-        )
-            
-        # --- Now run tuning normally ---
-        runtuner = tuner_config.run_search()
+    # Load and preprocess data
+    X, y, n_steps, n_features, feature_scaler, target_scaler = load_and_preprocess_data(
+        symbol=SYMBOLS[0], # Assuming single symbol for now
+        timeframe_str=TIMEFRAME, # Pass the string timeframe
+        num_candles=NUM_CANDLES,
+        look_back=LOOK_BACK,
+        prediction_horizon=PREDICTION_HORIZON,
+        features_to_use=FEATURES_TO_USE,
+        target_feature=TARGET_FEATURE,
+        normalization_method=NORMALIZATION_METHOD
+    )
 
-        # Check if tuning was successful
-        oracle = OracleClient(host=xerces_server, port=xerces_port)
-        best_trial = oracle.get_best_trial()
-        if not best_trial or "hyperparameters" not in best_trial:
-            logger.error("❌ No best trial found. Skipping training/export.")
-            sys.exit(1)
+    if X is None:
+        logger.error("❌ Data loading and preprocessing failed. Exiting.")
+        sys.exit(1)
 
-        logger.info(f"🏆 Best trial ID: {best_trial['trial_id']}")
-        hp = best_trial["hyperparameters"]
-        # Rebuild tuner for post-tuning processing
-        tuner_config = CMdtunerSelector(
-            oracle=oracle,  # reuse or reconstruct from oracle_dir
-            hypermodel_params=hyperparams,
-            traindataset=train_dataset,
-            valdataset=val_dataset,
-            testdataset=test_dataset,
-            castmode='float32'
-        )
+    # Split data
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=(1 - TRAIN_SPLIT_RATIO), random_state=42)
+    logger.info(f"Data split: Train {len(X_train)} samples, Validation {len(X_val)} samples.")
 
-        # Get best trial
-        best_trial = tuner_config.oracle.get_best_trial()
-        if not best_trial:
-            logger.error("No best trial found. Cannot continue with post-tuning training.")
-            sys.exit(1)
+    # Convert to TensorFlow Datasets for KerasTuner (if using TensorFlow backend)
+    # Or to PyTorch Tensors and DataLoader (if using PyTorch backend)
+    if MLTUNE_BACKEND == 'tensorflow':
+        train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train)).batch(32)
+        val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(32)
+        input_shape = (n_steps, n_features)
+        num_classes = 1 # Regression task
+    elif MLTUNE_BACKEND == 'pytorch':
+        import torch # Import torch here if not already imported globally
+        train_dataset = (torch.tensor(X_train).float(), torch.tensor(y_train).float())
+        val_dataset = (torch.tensor(X_val).float(), torch.tensor(y_val).float())
+        input_shape = (n_steps, n_features)
+        num_classes = 1 # Regression task
+    else:
+        logger.error(f"Unsupported MLTUNE_BACKEND: {MLTUNE_BACKEND}")
+        sys.exit(1)
 
-        logger.info(f"🏆 Best trial selected: {best_trial['trial_id']}")
-        hp = best_trial['hyperparameters']
 
-        # Build and fit best model
-        best_model = tuner_config.build_model(hp)
-        logger.info("Fitting model on full training set...")
+    # Initialize CMdtunerSelector
+    logger.info(f"Initializing CMdtunerSelector with backend: {MLTUNE_BACKEND} and tuner type: {MLTUNE_TUNER_TYPE}")
+    tuner_config = CMdtunerSelector(
+        tuner_type=MLTUNE_TUNER_TYPE,
+        backend=MLTUNE_BACKEND,
+        oracle_client=oracle_client, # Pass the oracle_client instance
+        train_dataset=train_dataset,
+        val_dataset=val_dataset,
+        input_shape=input_shape,
+        num_classes=num_classes,
+        project_name=MODEL_NAME,
+        max_trials=MLTUNE_NUM_TRIALS,
+        hypermodel_params=all_params # Pass all_params here
+    )
 
-        # --- FIX: Properly call fit() and set up callbacks ---
-        batch_size = hp.get("batch_size", 32)
-        epochs = hp.get("epochs", 10)
-        os.makedirs(logdir, exist_ok=True)
-        callbacks = [
-            tf.keras.callbacks.TensorBoard(log_dir=logdir),
-            tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
-        ]
-        history = best_model.fit(
-            train_dataset,
-            validation_data=val_dataset,
-            epochs=epochs,
-            callbacks=callbacks
-        )
+    # --- DEBUGGING: Print type of tuner_config before calling run_search ---
+    logger.info(f"Type of tuner_config before run_search: {type(tuner_config)}")
+    print(f"DEBUG: Type of tuner_config before run_search: {type(tuner_config)}")
+    # --- END DEBUGGING ---
 
-        # === FINAL PREDICTIONS AND MSE ===
-        logger.info("📈 Predicting on test set using best model...")
+    # Run the tuner search
+    logger.info("Starting hyperparameter search...")
+    best_model = tuner_config.run_search()
+
+    if best_model:
+        logger.info("✅ Hyperparameter search completed. Best model obtained.")
+
+        # --- Final Evaluation and Prediction ---
+        logger.info("Evaluating the best model...")
         try:
-            y_pred = best_model.predict(test_dataset)
-            y_true = np.concatenate([y for _, y in test_dataset], axis=0)
+            # Prepare the full dataset for final prediction/evaluation
+            # Ensure X_val and y_val are in the correct format for prediction
+            if MLTUNE_BACKEND == 'tensorflow':
+                # For TensorFlow, predict directly on the numpy array X_val
+                predictions_scaled = best_model.predict(X_val)
+            elif MLTUNE_BACKEND == 'pytorch':
+                # For PyTorch, convert X_val to tensor and move to appropriate device
+                import torch # Ensure torch is imported
+                best_model.eval() # Set model to evaluation mode
+                with torch.no_grad():
+                    X_val_tensor = torch.tensor(X_val).float()
+                    predictions_scaled = best_model(X_val_tensor).numpy() # Convert back to numpy
+            else:
+                logger.error(f"Unsupported backend for prediction: {MLTUNE_BACKEND}")
+                predictions_scaled = None
 
-            test_mse = np.mean(np.square(y_pred.flatten() - y_true.flatten()))
-            logger.info(f"📉 Final Test MSE: {test_mse:.6f}")
+            if predictions_scaled is not None:
+                # Inverse transform predictions and actual values
+                # Ensure predictions_scaled has the correct shape for inverse_transform
+                if predictions_scaled.ndim == 1:
+                    predictions_scaled_reshaped = predictions_scaled.reshape(-1, 1)
+                else:
+                    predictions_scaled_reshaped = predictions_scaled
 
-            # Optional: Save prediction plot
-            plt.figure(figsize=(12, 5))
-            plt.plot(y_true, label="True")
-            plt.plot(y_pred, label="Predicted")
-            plt.legend()
-            plt.title("Prediction vs Ground Truth")
-            plt.grid(True)
-            modeldatapath = base_params.get('mp_glob_sub_ml_src_modeldata')
-            modelname = base_params.get('mp_glob_sub_ml_model_name')
-            plot_path = os.path.join(modeldatapath, f"{modelname}_predictions.png")
-            plt.savefig(plot_path)
-            plt.close()
-            logger.info(f"📊 Prediction plot saved: {plot_path}")
+                if y_val.ndim == 1:
+                    y_val_reshaped = y_val.reshape(-1, 1)
+                else:
+                    y_val_reshaped = y_val
+
+                predictions = target_scaler.inverse_transform(predictions_scaled_reshaped)
+                actuals = target_scaler.inverse_transform(y_val_reshaped)
+
+                # Flatten if they were originally 1D
+                if y.ndim == 1:
+                    predictions = predictions.flatten()
+                    actuals = actuals.flatten()
+
+                mse = mean_squared_error(actuals, predictions)
+                mae = mean_absolute_error(actuals, predictions)
+                r2 = r2_score(actuals, predictions)
+
+                logger.info(f"Final Model Evaluation:")
+                logger.info(f"  Mean Squared Error (MSE): {mse:.4f}")
+                logger.info(f"  Mean Absolute Error (MAE): {mae:.4f}")
+                logger.info(f"  R-squared (R2): {r2:.4f}")
+
+                # Plotting predictions vs actuals
+                plt.figure(figsize=(12, 6))
+                sns.lineplot(x=range(len(actuals)), y=actuals, label='Ground Truth')
+                sns.lineplot(x=range(len(predictions)), y=predictions, label='Predictions')
+                plt.title("Prediction vs Ground Truth")
+                plt.xlabel("Time Step")
+                plt.ylabel(TARGET_FEATURE)
+                plt.legend()
+                plt.grid(True)
+                modeldatapath = base_params.get('mp_glob_sub_ml_src_modeldata')
+                modelname = base_params.get('mp_glob_sub_ml_model_name')
+                plot_path = os.path.join(modeldatapath, f"{modelname}_predictions.png")
+                plt.savefig(plot_path)
+                plt.close()
+                logger.info(f"📊 Prediction plot saved: {plot_path}")
 
         except Exception as e:
             logger.error(f"❌ Error during final prediction/evaluation: {e}")
@@ -537,20 +385,81 @@ def main(logger):
         # Save model
         modeldatapath = base_params.get('mp_glob_sub_ml_src_modeldata')
         modelname = base_params.get('mp_glob_sub_ml_model_name')
-        symbol_name = app_params.get('mp_app_primary_symbol', 'EURUSD')
-        model_path = os.path.join(modeldatapath, f"{modelname}.h5")
-        best_model.save(model_path)
-        logger.info(f"✅ Model saved: {model_path}")
+        # Ensure modelname is valid for filename
+        if not modelname:
+            modelname = "default_model"
+            logger.warning("Model name not found in config, using 'default_model'.")
 
-        # Optional: Convert to ONNX
-        if app_params.get("mp_app_ONNX_save", False):
-            import tf2onnx
-            import onnx
-            spec = [tf.TensorSpec(best_model.input_shape, tf.float32, name="input")]
-            onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature=spec, opset=17)
-            onnx_path = os.path.join(modeldatapath, f"model_{symbol_name}_data.onnx")
-            onnx.save_model(onnx_model, onnx_path)
-            logger.info(f"🧠 ONNX model saved to {onnx_path}")
+        model_save_path = os.path.join(modeldatapath, f"{modelname}.h5")
+
+        if MLTUNE_BACKEND == 'tensorflow':
+            try:
+                best_model.save(model_save_path)
+                logger.info(f"✅ TensorFlow model saved: {model_save_path}")
+            except Exception as e:
+                logger.error(f"❌ Failed to save TensorFlow model: {e}")
+        elif MLTUNE_BACKEND == 'pytorch':
+            try:
+                import torch # Ensure torch is imported
+                # For PyTorch, save the state_dict
+                torch.save(best_model.state_dict(), model_save_path.replace('.h5', '.pth'))
+                logger.info(f"✅ PyTorch model state_dict saved: {model_save_path.replace('.h5', '.pth')}")
+            except Exception as e:
+                logger.error(f"❌ Failed to save PyTorch model state_dict: {e}")
+        else:
+            logger.warning(f"Model saving not implemented for backend: {MLTUNE_BACKEND}")
+
+
+        # Optional: Convert to ONNX (TensorFlow only for now)
+        if MLTUNE_BACKEND == 'tensorflow' and app_params.get("mp_app_ONNX_save", False):
+            try:
+                import tf2onnx
+                import onnx
+                from onnx import checker
+                logger.info("Attempting to convert TensorFlow model to ONNX...")
+                # Define input signature for ONNX conversion
+                spec = [tf.TensorSpec(best_model.input_shape, tf.float32, name="input")]
+                onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature=spec, opset=13)
+                onnx_path = os.path.join(modeldatapath, f"{modelname}.onnx")
+                onnx.save(onnx_model, onnx_path)
+                logger.info(f"✅ ONNX model saved: {onnx_path}")
+
+                # Check ONNX model
+                onnx_model_checked = onnx.load(onnx_path)
+                checker.check_model(onnx_model_checked)
+                logger.info("✅ ONNX model check successful.")
+
+                # Optional: Run inference with ONNX Runtime to verify
+                ort_session = ort.InferenceSession(onnx_path)
+                input_name = ort_session.get_inputs()[0].name
+                output_name = ort_session.get_outputs()[0].name
+
+                # Use a small subset of X_val for ONNX inference test
+                test_input = X_val[:1].astype(np.float32)
+                ort_outs = ort_session.run([output_name], {input_name: test_input})
+                logger.info(f"✅ ONNX Runtime inference test successful. Output shape: {ort_outs[0].shape}")
+
+            except ImportError:
+                logger.warning("tf2onnx or onnx not installed. Skipping ONNX conversion.")
+            except Exception as e:
+                logger.error(f"❌ Failed to convert or verify ONNX model: {e}")
+    else:
+        logger.info("Skipping final evaluation and model saving as no best model was found.")
+
+    logger.info("🏁 tsNeuroPredictWinMql_chief.py finished.")
+
 
 if __name__ == "__main__":
-    main(logger)
+    # Ensure MetaTrader5 is initialized and finalized
+    if not mt5.initialize():
+        logger.error("❌ mt5.initialize() failed, error code =", mt5.last_error())
+        sys.exit(1)
+    else:
+        logger.info("✅ MetaTrader5 initialized successfully.")
+
+    try:
+        # Run the main function
+        main(logger)
+    finally:
+        mt5.shutdown()
+        logger.info("✅ MetaTrader5 shutdown.")

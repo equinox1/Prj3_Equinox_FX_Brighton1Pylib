@@ -2,9 +2,7 @@
 # +------------------------------------------------------------------+
 # |                            tsNeuroPredictWinMql_worker.py        |
 # |                        Refactored with CMdtunerSelector          |
-# +------------------------------------------------------------------+
-
-from tsMqlSetup import CMqlSetup
+# +------------------------------------------------------------------+\
 
 import os
 import logging
@@ -41,27 +39,8 @@ os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TUNER_ID"] = "worker" # This is important for the client to identify itself
 
-from tsMqlSetup import CMqlSetup
-from tsMqlOverrides import CMqlOverrides
-
-env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
-env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
-
-mql_overrides = CMqlOverrides()
-mql_overrides.env.override_params({
-    "mltune": {"backend": env_backend},
-    "app": {"gtuner_model": env_gtuner}
-})
-
-app_params = mql_overrides.env.all_params().get("app", {})
-gtuner_model = app_params.get('gtuner_model', 'pytorch')
-xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
-xerces_server = app_params.get('xerces_server', '192.168.1.103')
-xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-# Added xerces_port for OracleClient initialization
-xerces_port = app_params.get('xerces_port', 9000)
-
-
+# -- start of logging setup --
+# ✅ Logger and Logdir Setup
 setup_config = CMqlSetup(
     loglevel='INFO',
     warn='ignore',
@@ -70,227 +49,236 @@ setup_config = CMqlSetup(
     num_cores=8,
     num_threads=1
 )
-
-global_logdir, global_logfile = setup_config.set_log_dir(
-    logdir=None,
-    logfile=xerces_logfile,
-    servername=xerces_servername,
-    ltuner=gtuner_model
-)
+mql_overrides = CMqlOverrides()
+app_params = mql_overrides.env.all_params().get("app", {})
+tune_params = mql_overrides.env.all_params().get("mltune", {})
+gtuner_model = app_params.get('gtuner_model', 'pytorch')  # or "tensorflow"
+backend = tune_params.get('backend', gtuner_model)  # or "tensorflow"
+xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
+xerces_server = app_params.get('xerces_server', '192.168.1.103')
+xerces_port = app_params.get('xerces_port', 9000)
+xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
+tunerlogfile = xerces_logfile
+global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername, ltuner=gtuner_model)
 
 logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
+# -- end of logging setup ----
 
 
-# --- Strategy & Platform ---
-strategy = setup_config.get_computation_strategy()
-platform = run_platform.RunPlatform()
-logger.info("Detected platform: %s | MetaTrader5 active: %s", platform_checker.get_platform(), platform.check_mql_state())
+# --- Global Configuration ---
+# Use CMqlEnvMgr to get all parameters
+env_mgr = CMqlEnvMgr()
+all_params = env_mgr.all_params()
+base_params = all_params.get("base", {})
+app_params = all_params.get("app", {})
+broker_params = all_params.get("broker", {})
+ml_params = all_params.get("ml", {})
+tune_params = all_params.get("mltune", {})
 
-import multiprocessing as mp
-
-if __name__ == "__main__":
-    # Force spawn method for multiprocessing to avoid issues with TensorFlow/PyTorch
-    mp.set_start_method('spawn', force=True)
-
-# --- Main Worker Routine ---
-def main(logger):
-    utils = CUtilities()
-    overrides = CMqlOverrides()
-
-    # Default parameter setup
-    overrides.env.override_params({"app": {'mp_app_ml_hard_run': False}})
-    overrides.env.override_params({"mltune": {'batch_size': 8}})
-    overrides.env.override_params({"data": {'mp_data_timeframe': mt5.TIMEFRAME_H4}})
-
-    base = overrides.env.all_params().get("base", {})
-    data = overrides.env.all_params().get("data", {})
-    ml = overrides.env.all_params().get("ml", {})
-    mltune = overrides.env.all_params().get("mltune", {})
-    app = overrides.env.all_params().get("app", {})
+# Extract necessary parameters for Worker
+SYMBOLS = app_params.get('mp_app_symbols', ['EURUSD'])
+TIMEFRAME = app_params.get('mp_app_timeframe', 'M1')
+NUM_CANDLES = app_params.get('mp_app_num_candles', 10000)
+MODEL_NAME = app_params.get('mp_glob_sub_ml_model_name', 'ts_mql_model')
+LOOK_BACK = ml_params.get('mp_ml_look_back', 60)
+PREDICTION_HORIZON = ml_params.get('mp_ml_prediction_horizon', 1)
+TRAIN_SPLIT_RATIO = ml_params.get('mp_ml_train_split_ratio', 0.8)
+FEATURES_TO_USE = ml_params.get('mp_ml_features_to_use', ['R1_Open', 'R1_High', 'R1_Low', 'R1_Close', 'R1_Tick_Volume', 'R1_spread', 'R1_Real_Volume'])
+TARGET_FEATURE = ml_params.get('mp_ml_target_feature', 'R1_Close')
+NORMALIZATION_METHOD = ml_params.get('mp_ml_normalization_method', 'StandardScaler')
+MLTUNE_BACKEND = tune_params.get('backend', 'tensorflow') # Default to tensorflow
+ORACLE_HOST = app_params.get('xerces_server', '192.168.1.103')
+ORACLE_PORT = app_params.get('xerces_port', 9000)
 
 
+# Mapping for MetaTrader5 timeframes
+MT5_TIMEFRAME_MAP = {
+    'M1': mt5.TIMEFRAME_M1,
+    'M2': mt5.TIMEFRAME_M2,
+    'M3': mt5.TIMEFRAME_M3,
+    'M4': mt5.TIMEFRAME_M4,
+    'M5': mt5.TIMEFRAME_M5,
+    'M6': mt5.TIMEFRAME_M6,
+    'M10': mt5.TIMEFRAME_M10,
+    'M12': mt5.TIMEFRAME_M12,
+    'M15': mt5.TIMEFRAME_M15,
+    'M20': mt5.TIMEFRAME_M20,
+    'M30': mt5.TIMEFRAME_M30,
+    'H1': mt5.TIMEFRAME_H1,
+    'H2': mt5.TIMEFRAME_H2,
+    'H3': mt5.TIMEFRAME_H3,
+    'H4': mt5.TIMEFRAME_H4,
+    'H6': mt5.TIMEFRAME_H6,
+    'H8': mt5.TIMEFRAME_H8,
+    'H12': mt5.TIMEFRAME_H12,
+    'D1': mt5.TIMEFRAME_D1,
+    'W1': mt5.TIMEFRAME_W1,
+    'MN1': mt5.TIMEFRAME_MN1,
+}
 
-    timeframe = data.get("mp_data_timeframe", mt5.TIMEFRAME_H4)
-    ref = CMqlRefConfig(loaded_data_type="MINUTE", required_data_type=timeframe)
-    timeconst = ref.TIME_CONSTANTS[0] if isinstance(ref.TIME_CONSTANTS, list) else ref.TIME_CONSTANTS
 
-    now = ref.get_current_time()
-    utc_from = CDataLoader().set_mql_timezone(now["CURRENTYEAR"] - 1, now["CURRENTMONTH"], now["CURRENTDAY"], now["TIMEZONE"])
-    utc_to   = CDataLoader().set_mql_timezone(now["CURRENTYEAR"], now["CURRENTMONTH"], now["CURRENTDAY"], now["TIMEZONE"])
+# --- Data Loading and Preprocessing ---
+def load_and_preprocess_data(symbol, timeframe_str, num_candles, look_back, prediction_horizon, features_to_use, target_feature, normalization_method):
+    logger.info(f"📊 Loading data for {symbol} {timeframe_str}...")
+    
+    # Convert string timeframe to mt5.TIMEFRAME_* constant
+    timeframe_mt5 = MT5_TIMEFRAME_MAP.get(timeframe_str)
+    if timeframe_mt5 is None:
+        logger.error(f"❌ Invalid timeframe string: {timeframe_str}. Please use one of: {list(MT5_TIMEFRAME_MAP.keys())}")
+        return None, None, None, None, None, None
 
-    CMqlBrokerConfig(app.get("mp_app_broker")).run_mql_login()
+    # Initialize CDataLoader with the correct mt5 timeframe constant
+    data_loader = CDataLoader(
+        lp_app_primary_symbol=symbol,
+        lp_timeframe=timeframe_mt5, # Pass the mt5 constant
+        lp_data_rows=num_candles # Assuming num_candles corresponds to lp_data_rows
+    )
+    
+    # Call run_dataloader_services to get the dataframes
+    df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader.run_dataloader_services()
 
-    dataloader = CDataLoader(
-        lp_utc_from=utc_from,
-        lp_utc_to=utc_to,
-        lp_timeframe=timeframe,
-        lp_app_primary_symbol=app.get("mp_app_primary_symbol", "EURUSD"),
-        lp_app_rows=data.get("mp_data_rows", 1000),
-        lp_app_rowcount=data.get("mp_data_rowcount", 10000)
+    # Assuming 'df_api_rates' is the primary dataframe for historical rates
+    data_df = df_api_rates 
+
+    if data_df.empty:
+        logger.error(f"❌ No data loaded for {symbol}.")
+        return None, None, None, None, None, None
+
+    logger.info("⚙️ Preprocessing data (CDataProcess)...")
+    # Initialize CDataProcess with keyword arguments
+    data_process = CDataProcess(
+        look_back=look_back,
+        prediction_horizon=prediction_horizon,
+        features_to_use=features_to_use,
+        target_feature=target_feature
+    )
+    
+    # Call run_dataprocess_services to process the dataframe
+    processed_data_df = data_process.run_dataprocess_services(df=data_df, df_name='df_api_rates') # Pass df and df_name
+
+    if processed_data_df.empty:
+        logger.error("❌ Data processing resulted in an empty DataFrame.")
+        return None, None, None, None, None, None
+
+    logger.info("⚙️ Creating ML sequences (CDMLProcess)...")
+    ml_process = CDMLProcess(
+        look_back=look_back,
+        prediction_horizon=prediction_horizon,
+        features_to_use=features_to_use,
+        target_feature=target_feature
     )
 
-    df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = dataloader.run_dataloader_services()
-    df_rates = CDataProcess(mp_unit=timeconst["UNIT"]["SECOND"]).run_dataprocess_services(df=df_file_rates, df_name='df_file_rates')
+    logger.info(f"Attempting to create sequences with processed_data_df shape: {processed_data_df.shape}, look_back: {look_back}, prediction_horizon: {prediction_horizon}, features: {features_to_use}")
+    X, y = ml_process.Create_Xy_input_and_target(
+        df=processed_data_df,
+        back_window=look_back,
+        forward_window=prediction_horizon,
+        features=features_to_use # Pass the list of features
+    )
 
-    X_raw, y = CDMLProcess().Create_Xy_input_and_target(df_rates, back_window=24, forward_window=24,
-                                                        features=[ml.get("mp_ml_input_keyfeat", "Close")])
+    if X is None or y is None or X.size == 0 or y.size == 0:
+        logger.error(f"❌ Failed to create sequences after data processing. X shape: {X.shape if X is not None else 'None'}, y shape: {y.shape if y is not None else 'None'}")
+        return None, None, None, None, None, None
 
-    # Scale
-    nsamples, nsteps, nfeatures = X_raw.shape
-    X_flat = X_raw.reshape((nsamples * nsteps, nfeatures))
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X_flat).reshape(X_raw.shape)
+    n_steps = X.shape[1]
+    n_features = X.shape[2]
+    logger.info(f"✅ Sequences created. X shape: {X.shape}, y shape: {y.shape}")
 
-    if X_scaled.ndim == 4:
-        X_scaled = np.squeeze(X_scaled, axis=-1)
-    elif X_scaled.ndim == 2:
-        X_scaled = np.expand_dims(X_scaled, axis=-1)
+    if y.ndim == 1:
+        y_reshaped_for_scaler = y.reshape(-1, 1)
+    else:
+        y_reshaped_for_scaler = y
 
-    input_shape = X_scaled.shape[1:]
-    logger.info("Data loaded and shaped. Input shape: %s | Output: %s", input_shape, y.shape)
+    feature_scaler = StandardScaler()
+    X_scaled = feature_scaler.fit_transform(X.reshape(-1, n_features)).reshape(X.shape)
+    logger.info(f"X scaled shape: {X_scaled.shape}")
 
-    return X_scaled, y, input_shape, overrides.env.all_params()
+    target_scaler = StandardScaler()
+    y_scaled = target_scaler.fit_transform(y_reshaped_for_scaler)
 
-# --- Trial Execution Loop (via Selector) ---
-def run_worker_loop(X, y, input_shape, hyperparams_base):
-    # Retrieve server details from app_params
-    app_params = mql_overrides.env.all_params().get("app", {})
-    xerces_server = app_params.get('xerces_server', '192.168.1.103')
-    xerces_port = app_params.get('xerces_port', 9000)
-    # Initialize OracleClient for communication with OracleServer
-    oracle_client = OracleClient(host=xerces_server, port=xerces_port)
+    if y.ndim == 1:
+        y_scaled = y_scaled.flatten()
+    logger.info(f"y scaled shape: {y_scaled.shape}")
 
-    backend = os.environ.get("MLTUNE_BACKEND", "tensorflow").lower()
-    gtuner_model = os.environ.get("GTUNER_MODEL", backend).lower()
+    logger.info("✅ Data preprocessing complete.")
+    return X_scaled, y_scaled, n_steps, n_features, feature_scaler, target_scaler
 
-    logger.info(f"Worker Using GTuner model: {gtuner_model}")
-    logger.info(f"Worker Using backend: {backend}")
 
-    # --- Worker Loop for fetching and running trials ---
-    while True:
-        try:
-            # Request a new trial from the OracleServer
-            trial_response = oracle_client.get_trial(tuner_id=os.environ["TUNER_ID"])
+def main(logger):
+    logger.info("🚀 Starting tsNeuroPredictWinMql_worker.py...")
 
-            if trial_response and trial_response.get('trial_id') and trial_response.get('status') == TrialStatus.RUNNING:
-                trial_id = trial_response['trial_id']
-                hyperparameters = trial_response['hyperparameters']
-                logger.info(f"Worker received trial {trial_id} with hyperparameters: {hyperparameters}")
+    # Initialize OracleClient
+    oracle_client = OracleClient(host=ORACLE_HOST, port=ORACLE_PORT)
 
-                # Merge base hyperparameters with trial-specific ones
-                current_hyperparams = hyperparams_base.copy()
-                mltune_params = current_hyperparams.setdefault('mltune', {})
-                mltune_params.update(hyperparameters) # Update with trial-specific HPs
-                mltune_params.update({
-                    'data_input_shape': input_shape,
-                    'input_shape': input_shape,
-                    'input_width': mltune_params.get('input_width', 24),
-                    'shift': mltune_params.get('shift', 24)
-                })
+    # Load and preprocess data
+    X, y, n_steps, n_features, feature_scaler, target_scaler = load_and_preprocess_data(
+        symbol=SYMBOLS[0], # Assuming single symbol for now
+        timeframe_str=TIMEFRAME, # Pass the string timeframe
+        num_candles=NUM_CANDLES,
+        look_back=LOOK_BACK,
+        prediction_horizon=PREDICTION_HORIZON,
+        features_to_use=FEATURES_TO_USE,
+        target_feature=TARGET_FEATURE,
+        normalization_method=NORMALIZATION_METHOD
+    )
 
-                # Instantiate the tuner for this specific trial
-                if backend == "pytorch":
-                    from tsMqlMLTuner.tsMqlMLTunerModTorch import PyTorchTuner
-                    # Pass the OracleClient directly to the tuner for internal reporting if it supports it,
-                    # or prepare to report manually. For distributed, explicit reporting is safer.
-                    tuner = PyTorchTuner(
-                        oracle=oracle_client, # Pass client directly
-                        hypermodel_params=current_hyperparams, # Use combined hyperparams
-                        traindataset=(X, y),
-                        valdataset=(X, y)
-                    )
-                    logger.info("Worker running PyTorch model for trial %s...", trial_id)
-                    # The tuner should have a method to train a single trial and return its results
-                    # Assuming a method like 'fit_trial' that returns metrics for the objective
-                    # This is a conceptual call; you might need to adapt your PyTorchTuner
-                    metrics = tuner.run_single_trial_and_get_results(hyperparameters) # This method needs to be implemented in PyTorchTuner
+    if X is None:
+        logger.error("❌ Data loading and preprocessing failed. Exiting.")
+        sys.exit(1)
 
-                elif backend == "tensorflow":
-                    import tensorflow as tf
-                    buffer_size = 10000
-                    batch_size = mltune_params.get('batch_size', 32) # Use batch size from HPs
-                    dataset = tf.data.Dataset.from_tensor_slices((X, y))
-                    dataset = dataset.shuffle(buffer_size).batch(batch_size)
-                    traindataset = valdataset = testdataset = dataset
+    # Split data (worker only needs train/val for its trials)
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=(1 - TRAIN_SPLIT_RATIO), random_state=42)
+    logger.info(f"Data split: Train {len(X_train)} samples, Validation {len(X_val)} samples.")
 
-                    # CMdtunerSelector needs to be adapted to run a single trial
-                    tuner_selector = CMdtunerSelector(
-                        oracle=oracle_client, # Pass client directly
-                        hypermodel_params=current_hyperparams, # Use combined hyperparams
-                        traindataset=traindataset,
-                        valdataset=valdataset,
-                        testdataset=testdataset,
-                        castmode='float32'
-                    )
-                    logger.info("Worker running TensorFlow model for trial %s...", trial_id)
-                    # This method needs to be implemented in CMdtunerSelector to train a single trial
-                    metrics = tuner_selector.run_single_trial_and_get_results(hyperparameters) # This method needs to be implemented in CMdtunerSelector
+    # Convert to TensorFlow Datasets or PyTorch Tensors
+    if MLTUNE_BACKEND == 'tensorflow':
+        train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train)).batch(32)
+        val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(32)
+        input_shape = (n_steps, n_features)
+        num_classes = 1 # Regression task
+    elif MLTUNE_BACKEND == 'pytorch':
+        import torch # Import torch here
+        train_dataset = (torch.tensor(X_train).float(), torch.tensor(y_train).float())
+        val_dataset = (torch.tensor(X_val).float(), torch.tensor(y_val).float())
+        input_shape = (n_steps, n_features)
+        num_classes = 1 # Regression task
+    else:
+        logger.error(f"Unsupported MLTUNE_BACKEND: {MLTUNE_BACKEND}")
+        sys.exit(1)
 
-                else:
-                    raise ValueError(f"Unsupported backend: {backend}")
+    # Initialize CMdtunerSelector for the worker
+    logger.info(f"Initializing CMdtunerSelector for worker with backend: {MLTUNE_BACKEND}")
+    tuner_config = CMdtunerSelector(
+        tuner_type=tune_params.get('tuner_type', 'hyperband'), # Worker doesn't strictly need tuner_type, but good for consistency
+        backend=MLTUNE_BACKEND,
+        oracle_client=oracle_client,
+        train_dataset=train_dataset,
+        val_dataset=val_dataset,
+        input_shape=input_shape,
+        num_classes=num_classes,
+        project_name=MODEL_NAME, # Workers also need project_name for logging/directories
+        max_trials=tune_params.get('num_trials', 1), # Workers typically run one trial at a time
+        hypermodel_params=all_params # Pass all_params to the tuner for configuration
+    )
 
-                # Report results back to the OracleServer
-                if metrics:
-                    # Assuming 'metrics' is a dictionary like {'val_loss': 0.123, 'loss': 0.05, ...}
-                    oracle_client.report_results(trial_id=trial_id, results=metrics)
-                    logger.info(f"Worker reported results for trial {trial_id}: {metrics}")
-                else:
-                    logger.warning(f"Worker failed to get metrics for trial {trial_id}. Reporting as INCOMPLETE.")
-                    # Optionally, report as INCOMPLETE if no metrics
-                    oracle_client.report_results(trial_id=trial_id, results={"status": TrialStatus.INVALID})
+    # Run the worker's tuning process (which will fetch trials from Oracle)
+    logger.info("Worker starting its tuning process...")
+    tuner_config.run() # Call the 'run' method for workers
 
-            elif trial_response and trial_response.get('status') == TrialStatus.STOPPED:
-                logger.info("OracleServer indicated STOPPED status. Exiting worker loop.")
-                break # Exit loop if Oracle tells to stop
+    logger.info("🏁 tsNeuroPredictWinMql_worker.py finished.")
 
-            elif trial_response and trial_response.get('status') == TrialStatus.IDLE:
-                logger.info("OracleServer is IDLE. No new trials available yet. Waiting...")
-                time.sleep(10) # Wait a bit before asking again
-            elif not trial_response:
-                 logger.info("OracleServer returned no trial. No more trials or an issue occurred. Exiting.")
-                 break # No more trials available or an error occurred
-            else:
-                logger.info(f"Unexpected trial status from OracleServer: {trial_response.get('status')}. Exiting.")
-                break # Unexpected status
-
-        except Exception as e:
-            logger.error(f"Error in worker loop: {e}", exc_info=True)
-            # Potentially mark trial as failed if an error occurred during its execution
-            if 'trial_id' in locals():
-                try:
-                    oracle_client.report_results(trial_id=trial_id, results={"status": TrialStatus.FAILED, "error": str(e)})
-                    logger.info(f"Reported trial {trial_id} as FAILED due to error.")
-                except Exception as report_e:
-                    logger.error(f"Failed to report trial {trial_id} as FAILED: {report_e}")
-            time.sleep(5) # Wait before retrying or exiting
-            # Depending on error severity, you might want to break here
-            break
-
-# --- Crucial Addition: Modify CMdtunerSelector and PyTorchTuner ---
-# You will NEED to modify your CMdtunerSelector and PyTorchTuner classes
-# (in tsMqlMLTuner/cm_dtuner_selector.py and tsMqlMLTuner/tsMqlMLTunerModTorch.py)
-# to have a method like `run_single_trial_and_get_results(hyperparameters)`.
-# This method should:
-# 1. Take the specific hyperparameters for the current trial.
-# 2. Build and compile the model using these hyperparameters.
-# 3. Train the model for one epoch or until convergence (as per your training logic).
-# 4. Return the validation metric (e.g., val_loss) as a dictionary: {'val_loss': <value>}.
-#    The key must match the `objective` defined in your CustomOracle.
-
-# Example conceptual change for CMdtunerSelector (tensorflow):
-# class CMdtunerSelector:
-#     # ... existing init ...
-#     def run_single_trial_and_get_results(self, hyperparameters):
-#         # Use self.build_model with hyperparameters
-#         model = self.build_model(hyperparameters)
-#         model.compile(...) # Compile with appropriate loss/optimizer/metrics
-#         # Train the model
-#         history = model.fit(self.traindataset, validation_data=self.valdataset, epochs=hyperparameters['epochs'])
-#         # Extract the objective metric
-#         val_loss = history.history['val_loss'][-1] # Or whatever your objective is
-#         return {'val_loss': val_loss} # Must match objective in CustomOracle
 
 if __name__ == "__main__":
-    X, y, shape, params = main(logger)
-    run_worker_loop(X, y, shape, params)
-    logger.info("Worker process completed.")
+    # Ensure MetaTrader5 is initialized and finalized
+    if not mt5.initialize():
+        logger.error("❌ mt5.initialize() failed, error code =", mt5.last_error())
+        sys.exit(1)
+    else:
+        logger.info("✅ MetaTrader5 initialized successfully.")
+
+    try:
+        # Run the main function
+        main(logger)
+    finally:
+        mt5.shutdown()
+        logger.info("✅ MetaTrader5 shutdown.")
