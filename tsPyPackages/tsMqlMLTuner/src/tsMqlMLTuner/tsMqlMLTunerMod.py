@@ -193,7 +193,8 @@ class CMdtuner:
         self.factor                  = mltune_params.get('factor', 10)
         self.objective               = mltune_params.get('objective', 'val_loss')
         self.input_shape             = kwargs.get('input_shape', None) # Get from kwargs passed by CMdtunerSelector
-        self.num_classes             = kwargs.get('num_classes', 1) # Get from kwargs passed by CMdtunerSelector
+        # Pass num_classes from kwargs or derive from label_columns
+        self.num_classes             = kwargs.get('num_classes', 1) 
         self.data_input_shape        = mltune_params.get('data_input_shape', None)
         self.multi_inputs            = mltune_params.get('multi_inputs', False)
         self.multi_branches          = mltune_params.get('multi_branches', True)
@@ -249,7 +250,14 @@ class CMdtuner:
         logger.info(f"Tuning parameters: executions_per_trial: {self.executions_per_trial}")
         logger.info(f"Tuning parameters: overwrite        : {self.overwrite}")
 
-
+        # Corrected: Derive num_classes if multi_outputs is True and label_columns are provided
+        if self.multi_outputs and self.label_columns is not None:
+            if isinstance(self.label_columns, (list, tuple)):
+                self.num_classes = len(self.label_columns)
+                logger.info(f"Updated num_classes based on label_columns: {self.num_classes}")
+            else:
+                logger.warning(f"multi_outputs is True but label_columns is not a list/tuple. num_classes remains {self.num_classes}")
+        
         # New tuning parameters 
         self.unitmin         = mltune_params.get('unitmin', 32)
         self.unitmax         = mltune_params.get('unitmax', 512)
@@ -263,23 +271,25 @@ class CMdtuner:
         self.transh_modelscale = mltune_params.get('transh_modelscale', 8.0)
         self.transff_modelscale = mltune_params.get('transff_modelscale', 8.0)
         self.dense_modelscale = mltune_params.get('dense_modelscale', 8.0)
-        self.trans_dim_min      = mltune_params.get('trans_dim_min', 32 // int(self.trans_modelscale))
-        self.trans_dim_max      = mltune_params.get('trans_dim_max', 256 // int(self.trans_modelscale))
-        self.trans_dim_step     = mltune_params.get('trans_dim_step', 32 // int(self.trans_modelscale))
-        self.trans_dim_default  = mltune_params.get('trans_dim_default', 64 // int(self.trans_modelscale))
+        # Ensure division by zero is handled if scale is 0
+        self.trans_dim_min      = mltune_params.get('trans_dim_min', 32 // int(self.trans_modelscale) if self.trans_modelscale != 0 else 32)
+        self.trans_dim_max      = mltune_params.get('trans_dim_max', 256 // int(self.trans_modelscale) if self.trans_modelscale != 0 else 256)
+        self.trans_dim_step     = mltune_params.get('trans_dim_step', 32 // int(self.trans_modelscale) if self.trans_modelscale != 0 else 32)
+        self.trans_dim_default  = mltune_params.get('trans_dim_default', 64 // int(self.trans_modelscale) if self.trans_modelscale != 0 else 64)
+        
         self.trans_heads_min    = mltune_params.get('trans_heads_min', 2)
         self.trans_heads_max    = mltune_params.get('trans_heads_max', 8)
         self.trans_heads_step   = mltune_params.get('trans_heads_step', 2)
-        self.trans_ff_min       = mltune_params.get('trans_ff_min', int(64 // self.transff_modelscale))
-        self.trans_ff_max       = mltune_params.get('trans_ff_max', int(512 // self.transff_modelscale))
-        self.trans_ff_step      = mltune_params.get('trans_ff_step', int(64 // self.transff_modelscale))
-        self.dense_units_min    = mltune_params.get('dense_units_min', int(32 // self.dense_modelscale))
-        self.dense_units_max    = mltune_params.get('dense_units_max', int(128 // self.dense_modelscale))
-        self.dense_units_step   = mltune_params.get('dense_units_step', int(32 // self.dense_modelscale))
+        self.trans_ff_min       = mltune_params.get('trans_ff_min', int(64 // self.transff_modelscale) if self.transff_modelscale != 0 else 64)
+        self.trans_ff_max       = mltune_params.get('trans_ff_max', int(512 // self.transff_modelscale) if self.transff_modelscale != 0 else 512)
+        self.trans_ff_step      = mltune_params.get('trans_ff_step', int(64 // self.transff_modelscale) if self.transff_modelscale != 0 else 64)
+        self.dense_units_min    = mltune_params.get('dense_units_min', int(32 // self.dense_modelscale) if self.dense_modelscale != 0 else 32)
+        self.dense_units_max    = mltune_params.get('dense_units_max', int(128 // self.dense_modelscale) if self.dense_modelscale != 0 else 128)
+        self.dense_units_step   = mltune_params.get('dense_units_step', int(32 // self.dense_modelscale) if self.dense_modelscale != 0 else 32)
 
-        #Threading parameters
-        #self.use_multiprocessing = mltune_params.get('use_multiprocessing', True)
-        #self.workers = mltune_params.get('workers', 32)
+        #Threading parameters - Removed as they are not expected by Keras Tuner's internal model.fit
+        # self.use_multiprocessing = mltune_params.get('use_multiprocessing', True)
+        # self.workers = mltune_params.get('workers', 32)
       
         logger.info(f"Tuning parameters: unitmin          : {self.unitmin}")
         logger.info(f"Tuning parameters: unitmax          : {self.unitmax}")
@@ -306,8 +316,8 @@ class CMdtuner:
         logger.info(f"Tuning parameters: 'dense_units_min': {self.dense_units_min}")
         logger.info(f"Tuning parameters: 'dense_units_max': {self.dense_units_max}")
         logger.info(f"Tuning parameters: 'dense_units_step': {self.dense_units_step}")
-        #logger.info(f"Tuning parameters: 'use_multiprocessing': {self.use_multiprocessing}")
-        #logger.info(f"Tuning parameters: 'workers': {self.workers}")
+        # logger.info(f"Tuning parameters: 'use_multiprocessing': {self.use_multiprocessing}") # Removed
+        # logger.info(f"Tuning parameters: 'workers': {self.workers}") # Removed
 
        
 
@@ -645,7 +655,17 @@ class CMdtuner:
         # Ensure the output layer matches the number of classes (regression task)
         # For regression, num_classes is typically 1.
         output_units = self.num_classes if self.num_classes else 1
-        output_activation = 'sigmoid' if output_units > 1 else 'linear' # Use linear for regression
+        # The activation function should be 'linear' for regression, and 'sigmoid' for binary classification.
+        # If num_classes > 1 and it's a classification, use 'softmax'.
+        # For this context, assuming regression or multi-output regression.
+        output_activation = 'linear'
+        if output_units > 1: # Could be multi-label binary or multi-class
+             # If target is (None, 7) and multi_outputs is true, it's likely a multi-output regression.
+             # If it was multi-class classification, it would likely be one-hot encoded and need softmax.
+             # Given the problem's context often being time series prediction, linear is usually correct.
+             output_activation = 'linear' # For multi-output regression
+        elif self.hypermodel_params.get('is_binary_classification', False): # Add a param to distinguish binary
+            output_activation = 'sigmoid' # For single-output binary classification
 
         merged = Dense(512, activation='relu')(concatenated)
         dense_1 = Dense(
@@ -654,11 +674,13 @@ class CMdtuner:
             kernel_regularizer=tf.keras.regularizers.l2(hp.values.get('l2_reg', 1e-4))
         )(merged)
         dense_dropout = Dropout(0.2)(dense_1)
-        output = Dense(output_units, activation=output_activation)(dense_dropout)
+        # IMPORTANT FIX: Set the units of the final Dense layer to self.num_classes
+        # This resolves the `target.shape=(None, 7), output.shape=(None, 1)` mismatch.
+        output = Dense(self.num_classes, activation=output_activation)(dense_dropout)
 
         model = Model(inputs=inputs if self.multi_inputs else inputs[0], outputs=output)
 
-        # Final compile - CORRECTED: Explicitly map metric strings to Keras Metric objects
+        # Final compile
         optimizer = self.get_optimizer(hp.values.get('optimizer', 'adam'), hp.values.get('learning_rate', 1e-3))
         
         # Resolve the loss function
@@ -669,6 +691,11 @@ class CMdtuner:
             elif loss_str.lower() in ["mae", "mean_absolute_error"]:
                 resolved_loss = tf.keras.losses.MeanAbsoluteError()
             elif loss_str.lower() in ["binary_crossentropy"]:
+                # Ensure BinaryCrossentropy is appropriate for multi-output regression,
+                # or adjust activation if it's binary classification.
+                # If target is (None, 7) and loss is binary_crossentropy, it implies 7 independent binary predictions.
+                # If it's multi-output regression, linear activation and MSE/MAE are more typical.
+                # For now, keep it as is, assuming a multi-label binary classification or special case.
                 resolved_loss = tf.keras.losses.BinaryCrossentropy()
             elif loss_str.lower() in ["mape", "mean_absolute_percentage_error"]:
                 resolved_loss = tf.keras.losses.MeanAbsolutePercentageError()
@@ -814,34 +841,7 @@ class CMdtuner:
         return tf.keras.layers.LayerNormalization(epsilon=1e-6)(out1 + ffn_output)
         
     
-    # Assuming this 'run' method is causing the AttributeError.
-    # It was not directly provided in the original snippet, but implied by the traceback.
-    # Added a placeholder 'run' method for the fix. You might need to adjust based on its actual use.
-    def run(self):
-        """
-        Placeholder run method to demonstrate the fix for the AttributeError.
-        In a real scenario, this method would orchestrate the tuning process.
-        """
-        if self.tuner is None:
-            logger.error("Tuner is not initialized. Cannot run tuning.")
-            return
-
-        logger.info(f"Starting tuning process with mode: {self.tunemode}")
-        try:
-            self.tuner.search(
-                self.traindataset,
-                validation_data=self.valdataset,
-                epochs=self.epochs, # Use base epochs for tuner.search
-                callbacks=self.get_callbacks(), # CORRECTED: Call get_callbacks()
-                #use_multiprocessing=self.use_multiprocessing,
-                #workers=self.workers
-            )
-            logger.info("Tuning process completed.")
-            self.export_best_model() # Export best model after search
-        except Exception as e:
-            logger.error(f"Error during tuning process: {e}", exc_info=True)
-
-
+   
     def _objective(self, hp):
         """Objective function for evaluating a trial's performance."""
 
@@ -905,8 +905,10 @@ class CMdtuner:
         # Build and compile model
         try:
             model = self.build_model(hp)
+            # When calling model.compile in _objective, ensure it uses the resolved
+            # loss and metric objects, not string lookups, to match build_model
             model.compile(
-                optimizer=tf.keras.optimizers.Adam(),
+                optimizer=self.get_optimizer(hp.values.get('optimizer', 'adam'), hp.values.get('learning_rate', 1e-3)), # Use hp values for optimizer
                 loss=self.loss,
                 metrics=[self.metric]
             )
@@ -921,7 +923,7 @@ class CMdtuner:
                 validation_data=self.valdataset,
                 epochs=hp.values.get("epochs", 10),
                 verbose=0,
-                callbacks=self.get_callbacks() # CORRECTED: Call get_callbacks()
+                callbacks=self.get_callbacks()
             )
         except Exception as e:
             logger.error(f"[OBJECTIVE] Training failed for trial {trial_id}: {e}", exc_info=True)
@@ -937,6 +939,28 @@ class CMdtuner:
         return float(val_loss)
 
 
+    def run(self):
+        """
+        Placeholder run method to orchestrate the tuning process.
+        """
+        if self.tuner is None:
+            logger.error("Tuner is not initialized. Cannot run tuning.")
+            return
+
+        logger.info(f"Starting tuning process with mode: {self.tunemode}")
+        try:
+            # Removed use_multiprocessing and workers from tuner.search() arguments
+            # as they are not expected by Keras Tuner's TensorFlowTrainer.
+            self.tuner.search(
+                self.traindataset,
+                validation_data=self.valdataset,
+                epochs=self.epochs, # Use base epochs for tuner.search
+                callbacks=self.get_callbacks()
+            )
+            logger.info("Tuning process completed.")
+            self.export_best_model() # Export best model after search
+        except Exception as e:
+            logger.error(f"Error during tuning process: {e}", exc_info=True)
 
 
     def _predict_graph(self, model, test_data):
