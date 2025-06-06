@@ -234,18 +234,24 @@ def main(logger):
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=(1 - TRAIN_SPLIT_RATIO), random_state=42)
     logger.info(f"Data split: Train {len(X_train)} samples, Validation {len(X_val)} samples.")
 
+    # Determine num_classes dynamically from y's shape
+    # If y is (num_samples,), it's 1. If y is (num_samples, N), it's N.
+    if y.ndim == 1:
+        num_classes = 1
+    else:
+        num_classes = y.shape[-1] # This will be 7 if target.shape=(None, 7)
+    logger.info(f"Determined num_classes for model output: {num_classes}")
+
     # Convert to TensorFlow Datasets or PyTorch Tensors
     if MLTUNE_BACKEND == 'tensorflow':
         train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train)).batch(32)
         val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(32)
         input_shape = (n_steps, n_features)
-        num_classes = 1 # Regression task
     elif MLTUNE_BACKEND == 'pytorch':
         import torch # Import torch here
         train_dataset = (torch.tensor(X_train).float(), torch.tensor(y_train).float())
         val_dataset = (torch.tensor(X_val).float(), torch.tensor(y_val).float())
         input_shape = (n_steps, n_features)
-        num_classes = 1 # Regression task
     else:
         logger.error(f"Unsupported MLTUNE_BACKEND: {MLTUNE_BACKEND}")
         sys.exit(1)
@@ -259,7 +265,7 @@ def main(logger):
         train_dataset=train_dataset,
         val_dataset=val_dataset,
         input_shape=input_shape,
-        num_classes=num_classes,
+        num_classes=num_classes, # Use the dynamically determined num_classes
         project_name=MODEL_NAME, # Workers also need project_name for logging/directories
         max_trials=tune_params.get('num_trials', 1), # Workers typically run one trial at a time
         hypermodel_params=all_params # Pass all_params to the tuner for configuration
@@ -286,3 +292,5 @@ if __name__ == "__main__":
     finally:
         mt5.shutdown()
         logger.info("✅ MetaTrader5 shutdown.")
+        logger.info("✅ tsNeuroPredictWinMql_worker.py completed successfully.")
+        # Ensure MetaTrader5 is properly shutdown
