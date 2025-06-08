@@ -98,7 +98,6 @@ class CMqlEnvMLTunerParams(CEnvCore):
             "max_consecutive_failed_trials": 3,
             "executions_per_trial": 1,
             "distribution_strategy": "auto",
-            "tuner_id": None,
         }
 
         self.EXTRA_TUNER_PARAMS = {
@@ -133,7 +132,9 @@ class CMqlEnvMLTunerParams(CEnvCore):
             "unitmax": 512,
             "unitstep": 32,
             "defaultunits": 128,
-            "backend": "tensorflow"  # or "pytorch"
+            "backend": "tensorflow" , # or "pytorch"
+            "tuner_type": "hyperband",  # Options: 'randomsearch', 'bayesian', 'hyperband'
+            "tuner_id": None,  # Unique identifier for the tuner instance
         }
 
         self.MODEL_SCALE_PARAMS = {

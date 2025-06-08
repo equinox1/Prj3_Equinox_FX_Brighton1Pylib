@@ -15,6 +15,7 @@ import tensorflow as tf
 from tensorflow.keras.mixed_precision import Policy
 from tsMqlPlatform import run_platform, platform_checker
 from rich.logging import RichHandler
+from rich.traceback import install
 
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
@@ -38,18 +39,25 @@ class CMqlSetup:
         self._set_precision_policy()
         self._configure_tf()
         self._configure_debug()
-        self._encoding()
+        # The _encoding method is called from setup_logging for console handler configuration.
+        # self._encoding() # Removed from here, as setup_logging will handle it more directly.
 
     def _encoding(self):
+        # This method's logic is now more directly handled within setup_logging's RichHandler config
+        # For general system-wide UTF-8 setting, it's still useful.
         if sys.platform.startswith('win'):
             if sys.getfilesystemencoding() != 'utf-8':
                 os.environ['PYTHONIOENCODING'] = 'utf-8'
                 os.environ['PYTHONLEGACYWINDOWSSTDIO'] = 'utf-8'
-                codecs.register_error('strict', codecs.ignore_errors)
-            
-                os.system('chcp 65001')  # Set UTF-8 codepage in console
+                # Ensure the console itself uses UTF-8 if it's a new one.
+                # This line sets the console codepage for the current process.
+                os.system('chcp 65001')
+                # Reconfigure stdout/stderr for Python's own stream handling
+                # This might not affect RichHandler's direct stream, but good practice.
                 sys.stdout.reconfigure(encoding='utf-8')
                 sys.stderr.reconfigure(encoding='utf-8')
+                # Register a lenient error handler for codecs
+                codecs.register_error('strict', codecs.ignore_errors)
 
 
     def _setup_warnings(self):
@@ -146,7 +154,7 @@ class CMqlSetup:
 
         raise RuntimeError("❌ No valid strategy available.")
 
-    def set_log_dir(self, logdir=None, logfile='tslog', servername=None, ltuner=None):
+    def set_log_dir(self, logdir=None, logfile='tslog', servername=None, backend=None):
         hostname = socket.gethostname()
         print(f"Hostname: {hostname}")
 
@@ -162,14 +170,19 @@ class CMqlSetup:
         else:
             base_path = logdir
 
-        final_logdir = os.path.join(base_path, hostname, ltuner)
+        final_logdir = os.path.join(base_path, hostname, backend)
         os.makedirs(final_logdir, exist_ok=True)
 
         self.global_logdir = final_logdir
-        self.global_logfile = os.path.join(final_logdir, 'tsneuropredict_app.log')
+        # Ensure that the logfile name is based on the provided logfile argument
+        # and has a .log extension.
+        if not logfile.endswith('.log'):
+            logfile = f"{logfile}.log"
+        self.global_logfile = os.path.join(final_logdir, logfile)
 
         try:
-            with open(self.global_logfile, 'a') as f:
+            # Create the logfile if it doesn't exist, or just ensure writability
+            with open(self.global_logfile, 'a', encoding='utf-8') as f: # Ensure UTF-8 when opening
                 f.write('')
         except Exception as e:
             print(f"Could not create logfile at {self.global_logfile}: {e}")
@@ -177,65 +190,54 @@ class CMqlSetup:
 
         return self.global_logdir, self.global_logfile
 
-    def setup_global_logger(self, logfile_path, force_reset=False):
-        """
-        Sets up a global logger with console output (via RichHandler) and file output.
-        Includes robust handling for rewrapping sys.stdout/sys.stderr on Windows.
+    def setup_logging(self, **kwargs):
+        """Sets up the logging configuration using RichHandler to log to a logfile and console."""
+        logfile = kwargs.get('logfile', None)
 
-        Args:
-            logfile_path (str): The path to the log file.
-            force_reset (bool): If True, the log file will be overwritten; otherwise,
-                                logs will be appended.
+        install(show_locals=True)  # Optional: Enhances Rich traceback for better debugging
 
-        Returns:
-            logging.Logger: The configured logger instance.
-        """
-        import threading
-
-        # --- Safe rewrap only if we're in the main thread on Windows ---
-        if sys.platform.startswith('win') and threading.current_thread() is threading.main_thread():
-            # Attempt to rewrap sys.stdout
-            # DEBUG:print(f"sys.stderr={sys.stderr}, type={type(sys.stderr)}, closed={getattr(sys.stderr, 'closed', 'N/A')}", file=sys.__stdout__)
-
-            try:
-                if (
-                    sys.stdout and
-                    hasattr(sys.stdout, 'buffer') and
-                    not getattr(sys.stdout, 'closed', False) and
-                    not isinstance(sys.stdout, io.TextIOWrapper)
-                ):
-                    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-            except Exception as e:
-                print(f"Warning: Failed to rewrap sys.stdout: {e}", file=sys.__stdout__)
-
-            # Attempt to rewrap sys.stderr
-            try:
-                if (
-                    sys.stderr and
-                    hasattr(sys.stderr, 'buffer') and
-                    not getattr(sys.stderr, 'closed', False) and
-                    not isinstance(sys.stderr, io.TextIOWrapper)
-                ):
-                    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-            except Exception as e:
-                print(f"Warning: Failed to rewrap sys.stderr: {e}", file=sys.__stderr__ if sys.__stderr__ else sys.__stdout__)
-
-        # --- Proceed with standard logger setup ---
-        loglevel = getattr(logging, self.loglevel.upper(), logging.INFO)
-
-        handlers = [RichHandler(rich_tracebacks=True)]
-
-        try:
-            file_handler = logging.FileHandler(logfile_path, mode='w' if force_reset else 'a', encoding='utf-8')
-            file_handler.setFormatter(logging.Formatter(
-                '%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s'))
-            handlers.append(file_handler)
-        except Exception as e:
-            print(f"❌ Failed to initialize file logging: {e}", file=sys.__stderr__ if sys.__stderr__ else sys.__stdout__)
-            raise
-
-        logging.basicConfig(level=loglevel, handlers=handlers, force=True)
-
+        # Ensure logfile is provided or fallback to a default
+        LOG_FILE = logfile or getattr(self, 'global_logfile', None)
+        
+        # Create a logger instance
         logger = logging.getLogger()
-        logger.info(f"Logger initialized with file: {logfile_path}")
-        return logger
+        logger.setLevel(logging.INFO)  # Set the minimum logging level
+
+        # Remove any existing handlers to prevent duplicate logs if setup_logging is called multiple times
+        if logger.hasHandlers():
+            for handler in list(logger.handlers): # Iterate over a copy to safely remove
+                logger.removeHandler(handler)
+
+        # Create a file handler
+        # IMPORTANT: Specify encoding='utf-8' for the FileHandler
+        file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
+        file_handler.setLevel(logging.INFO)
+
+        # Create a RichHandler for console output
+        # IMPORTANT: Explicitly set `console=sys.stdout` and `encoding='utf-8'` for RichHandler's stream
+        console_handler = RichHandler(
+            level=logging.INFO,
+            show_time=True,
+            show_level=True,
+            rich_tracebacks=True,
+            console=sys.stdout, # Explicitly tell RichHandler to use stdout
+            log_time_format="[%m/%d/%y %H:%M:%S]" # Optional: consistent time format
+        )
+        # Manually ensure the console stream is opened with utf-8 if not already
+        if sys.stdout.encoding != 'utf-8':
+            try:
+                sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
+                sys.stderr = open(sys.stderr.fileno(), mode='w', encoding='utf-8', buffering=1)
+            except Exception as e:
+                # This re-opening might not always work or be necessary, log if it fails.
+                logging.warning(f"Failed to reconfigure sys.stdout/stderr to UTF-8: {e}")
+
+        # Create a formatter for the file handler
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+
+        # Add the handlers to the logger
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
+
+        logging.info(f"Logging setup complete. Messages will be logged to {LOG_FILE}")

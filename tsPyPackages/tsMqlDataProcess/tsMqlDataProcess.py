@@ -20,41 +20,25 @@ from tsMqlEnvMgr import CMqlEnvMgr
 from tsMqlOverrides import CMqlOverrides
 
 # -- start of logging setup --
-from tsMqlSetup import CMqlSetup
-# Removed: from tsMqlOverrides import CMqlOverrides (already imported above)
-
-env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
-env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
-
-mql_overrides = CMqlOverrides()
-mql_overrides.env.override_params({
-    "mltune": {"backend": env_backend},
-    "app": {"gtuner_model": env_gtuner}
-})
-
+from tsMqlOverrides import CMqlOverrides
+mql_overrides = CMqlOverrides() 
 app_params = mql_overrides.env.all_params().get("app", {})
-gtuner_model = app_params.get('gtuner_model', 'pytorch')
+tune_params = mql_overrides.env.all_params().get("mltune", {})
+
+gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
+backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
+xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
-setup_config = CMqlSetup(
-    loglevel='INFO',
-    warn='ignore',
-    precision='mixed_bfloat16',
-    tfdebug=False,
-    num_cores=8,
-    num_threads=1
-)
-
-global_logdir, global_logfile = setup_config.set_log_dir(
-    logdir=None,
-    logfile=xerces_logfile,
-    servername=xerces_servername,
-    ltuner=gtuner_model
-)
-
-logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
+global_logdir = app_params.get('LOGDIR', 'Logdir')
+global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
+# -- Set up global logging --
+from tsMqlSetup import CMqlSetup 
+from tsMqlSetup import setup_logging
+setup_logging()  # Ensure logging is configured before getting the logger
+logger = logging.getLogger(__name__)
 
 
 # Initialize platform checker

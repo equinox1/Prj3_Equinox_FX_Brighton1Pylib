@@ -45,33 +45,67 @@ from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
 from tsMqlMLTuner.tsMqlMLTunerModTorch import PyTorchTuner
 
+from tsMqlOverrides import CMqlOverrides
+mql_overrides = CMqlOverrides()
+app_params = mql_overrides.env.all_params().get("app", {})
+tune_params = mql_overrides.env.all_params().get("mltune", {})
 
-# -- start of logging setup --
+global_logdir = app_params.get('LOGDIR', 'Logdir')
+global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
+
+# -- Set up global logging (from tsMqlSetup) --
 from tsMqlSetup import CMqlSetup
-# ✅ Logger and Logdir Setup
+clientlog_config = CMqlSetup()
+
+# Retrieve global logfile path from environment variable
+GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
+if GLOBAL_LOGFILE_PATH:
+    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
+else:
+    clientlog_config.setup_logging() # Fallback to default if not provided
+    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for Chief. Using default logging.")
+
+logger = logging.getLogger(__name__) # Get logger for this module
+# -- end of logging setup ----
+
+
+
+from tsMqlSetup import CMqlSetup
+# Initialize CMqlSetup for the launcher itself, to ensure logging is configured
+# and setup_config is defined for any utility functions that might implicitly use it.
+# Dynamically determine num_cores and num_threads for optimal performance.
+# num_cores: Estimate physical cores. On systems with hyperthreading, this is often
+#            half the logical core count (os.cpu_count()). If os.cpu_count() is not available
+#            or is 1, default to 1.
+# num_threads: Typically 1 per core for numerical workloads to avoid hyperthreading
+#              contention, but can be set higher (e.g., 2) if testing proves beneficial.
+_logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
+_estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
+
 setup_config = CMqlSetup(
     loglevel='INFO',
     warn='ignore',
     precision='mixed_bfloat16',
     tfdebug=False,
-    num_cores=8,
+    num_cores=_estimated_physical_cores,
     num_threads=1
 )
-from tsMqlOverrides import CMqlOverrides
-mql_overrides = CMqlOverrides()
-app_params = mql_overrides.env.all_params().get("app", {})
-tune_params = mql_overrides.env.all_params().get("mltune", {})
+
+
+
 from tsMqlSetup import CMqlSetup
-gtuner_model = app_params.get('gtuner_model', 'pytorch')  # or "tensorflow"
-backend = tune_params.get('backend', gtuner_model)  # or "tensorflow"
+gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
+backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch
+logger.info(f"Chief get: Using backend: {backend} and tuner type: {gtuner_model}")
+print(f"DEBUG: Using backend: {backend} and tuner type: {gtuner_model}")
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-tunerlogfile = xerces_logfile
-global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername, ltuner=gtuner_model)
 
-logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
+logger.info(f"Chief Using backend: {backend}")
+logger.info(f"Chief Using tuner model: {gtuner_model}")
+
 # -- end of logging setup ----
 
 
@@ -86,10 +120,10 @@ os.environ["TUNER_ID"] = "chief" # This is important for the client to identify 
 env_mgr = CMqlEnvMgr()
 all_params = env_mgr.all_params()
 base_params = all_params.get("base", {})
-app_params = all_params.get("app", {})
+#app_params = all_params.get("app", {})
 broker_params = all_params.get("broker", {})
 ml_params = all_params.get("ml", {})
-tune_params = all_params.get("mltune", {})
+#tune_params = all_params.get("mltune", {})
 
 # Extract necessary parameters for Chief
 SYMBOLS = app_params.get('mp_app_symbols', ['EURUSD'])
@@ -105,9 +139,12 @@ FEATURES_TO_USE = ml_params.get('mp_ml_features_to_use', ['R1_Open', 'R1_High', 
 TARGET_FEATURE = ml_params.get('mp_ml_target_feature', 'R1_Close')
 NORMALIZATION_METHOD = ml_params.get('mp_ml_normalization_method', 'StandardScaler')
 MODEL_TYPE = ml_params.get('mp_ml_model_type', 'LSTM') # Default to LSTM
-MLTUNE_BACKEND = tune_params.get('backend', 'tensorflow') # Default to tensorflow
+MLTUNE_BACKEND = backend
+logger.info(f"Using MLTUNE_BACKEND: {MLTUNE_BACKEND}")
 MLTUNE_NUM_TRIALS = tune_params.get('num_trials', 10)
-MLTUNE_TUNER_TYPE = tune_params.get('tuner_type', 'hyperband')
+MLTUNE_TUNER_TYPE = gtuner_model
+logger.info(f"Using MLTUNE_TUNER_TYPE: {MLTUNE_TUNER_TYPE}")
+
 MLTUNE_OVERWRITE = tune_params.get('overwrite', True)
 MLTUNE_RESET_TRIALS = tune_params.get('reset_trials', True)
 ORACLE_HOST = app_params.get('xerces_server', '192.168.1.103')
@@ -294,7 +331,7 @@ def main(logger):
 
 
     # Initialize CMdtunerSelector
-    logger.info(f"Initializing CMdtunerSelector with backend: {MLTUNE_BACKEND} and tuner type: {MLTUNE_TUNER_TYPE}")
+    logger.info(f"Chief Initializing CMdtunerSelector with backend: {MLTUNE_BACKEND} and tuner type: {MLTUNE_TUNER_TYPE}")
     tuner_config = CMdtunerSelector(
         tuner_type=MLTUNE_TUNER_TYPE,
         backend=MLTUNE_BACKEND,

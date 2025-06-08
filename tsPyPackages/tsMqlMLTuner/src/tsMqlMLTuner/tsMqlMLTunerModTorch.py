@@ -12,34 +12,48 @@ import os
 import pathlib
 import uuid  # Ensure uuid is imported for use in get_callbacks
 
-
-# -- start of logging setup --
 from tsMqlSetup import CMqlSetup
-# ✅ Logger and Logdir Setup
+# Initialize CMqlSetup for the launcher itself, to ensure logging is configured
+# and setup_config is defined for any utility functions that might implicitly use it.
+# Dynamically determine num_cores and num_threads for optimal performance.
+# num_cores: Estimate physical cores. On systems with hyperthreading, this is often
+#            half the logical core count (os.cpu_count()). If os.cpu_count() is not available
+#            or is 1, default to 1.
+# num_threads: Typically 1 per core for numerical workloads to avoid hyperthreading
+#              contention, but can be set higher (e.g., 2) if testing proves beneficial.
+_logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
+_estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
+
 setup_config = CMqlSetup(
     loglevel='INFO',
     warn='ignore',
     precision='mixed_bfloat16',
     tfdebug=False,
-    num_cores=8,
+    num_cores=_estimated_physical_cores,
     num_threads=1
 )
+
+
 from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides() 
 app_params = mql_overrides.env.all_params().get("app", {})
 tune_params = mql_overrides.env.all_params().get("mltune", {})
-from tsMqlSetup import CMqlSetup
-gtuner_model = app_params.get('gtuner_model', 'pytorch')  # or "tensorflow"
-backend = tune_params.get('backend', gtuner_model)  # or "tensorflow"
+
+gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
+backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-tunerlogfile = xerces_logfile
-global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername, ltuner=gtuner_model)
 
-logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
-# -- end of logging setup ----
+app_params = mql_overrides.env.all_params().get("app", {})
+global_logdir = app_params.get('LOGDIR', 'Logdir')
+global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
+# -- Set up global logging --
+from tsMqlSetup import CMqlSetup 
+from tsMqlSetup import setup_logging
+setup_logging(logfile=global_logfile)  # Ensure logging is configured before getting the logger
+logger = logging.getLogger(__name__)
 
 
 class PyTorchTuner:

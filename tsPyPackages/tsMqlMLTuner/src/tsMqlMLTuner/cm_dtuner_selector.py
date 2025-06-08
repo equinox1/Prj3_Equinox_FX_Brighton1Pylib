@@ -2,137 +2,115 @@ from .tsMqlMLTunerMod import CMdtuner
 from .tsMqlMLTunerModTorch import PyTorchTuner
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient # This is crucial for chief to talk to server
 
-import logging
-# -- start of logging setup --
+import os # Ensure os is imported
+import logging # Ensure logging is imported
+
+# -- Set up global logging (from tsMqlSetup) --
 from tsMqlSetup import CMqlSetup
-# ✅ Logger and Logdir Setup
+clientlog_config = CMqlSetup()
+
+# Retrieve global logfile path from environment variable
+GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
+if GLOBAL_LOGFILE_PATH:
+    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
+else:
+    clientlog_config.setup_logging() # Fallback to default if not provided
+    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for cm_dtuner_selector. Using default logging.")
+
+logger = logging.getLogger(__name__) # Get logger for this module
+# -- end of logging setup ----
+
+# Initialize CMqlSetup for the launcher itself, to ensure logging is configured
+# and setup_config is defined for any utility functions that might implicitly use it.
+# Dynamically determine num_cores and num_threads for optimal performance.
+_logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
+_estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
+
 setup_config = CMqlSetup(
     loglevel='INFO',
     warn='ignore',
     precision='mixed_bfloat16',
     tfdebug=False,
-    num_cores=8,
+    num_cores=_estimated_physical_cores,
     num_threads=1
 )
+
 from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides()
-app_params = mql_overrides.env.all_params().get("app", {})
 tune_params = mql_overrides.env.all_params().get("mltune", {})
-from tsMqlSetup import CMqlSetup
-gtuner_model = app_params.get('gtuner_model', 'pytorch')  # or "tensorflow"
-backend = tune_params.get('backend', gtuner_model)  # or "tensorflow"
-xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
-xerces_server = app_params.get('xerces_server', '192.168.1.103')
-xerces_port = app_params.get('xerces_port', 9000)
-xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-tunerlogfile = xerces_logfile
-global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername,ltuner=gtuner_model)
-logger = setup_config.setup_global_logger(global_logfile)
-# -- end of logging setup ----
+app_params = mql_overrides.env.all_params().get("app", {})
 
 class CMdtunerSelector:
-    def __init__(self, **kwargs):
-        # Ensure that 'oracle' from kwargs is the OracleClient for the chief
-        self.oracle_client = kwargs.get('oracle')
-        if not isinstance(self.oracle_client, OracleClient):
-            logger.warning("CMdtunerSelector initialized without a proper OracleClient. Distributed functionality might be impacted.")
+    def __init__(self, backend='tensorflow', tuner_type='hyperband', oracle_client=None, **kwargs):
+        self.backend = backend.lower()
+        self.tuner_type = tuner_type.lower()
+        self.oracle = oracle_client
+        logger.info(f"CMdtunerSelector initialized with backend: {self.backend}, tuner_type: {self.tuner_type}")
 
-        # Store backend as an instance attribute
-        self.backend = kwargs.get("hypermodel_params", {}).get("mltune", {}).get("backend", "tensorflow").lower()
-        logger.info(f"Tunerselector Using backend: {self.backend}")
-        print(f"Tunerselector Using backend: {self.backend}") # Keep print for immediate console feedback
-
-        # Initialize the appropriate tuner based on the backend
-        # Ensure the tuner internally uses the passed oracle_client
-        if self.backend == "pytorch":
-            self.tuneobj = PyTorchTuner(**kwargs)
-        elif self.backend == "tensorflow":
-            self.tuneobj = CMdtuner(**kwargs)
+        if self.backend == 'tensorflow':
+            logger.info("Selected TensorFlow backend.")
+            self.tuneobj = CMdtuner(
+                tuner_type=self.tuner_type,
+                oracle_client=self.oracle,
+                **kwargs
+            )
+        elif self.backend == 'pytorch':
+            logger.info("Selected PyTorch backend.")
+            self.tuneobj = PyTorchTuner(
+                tuner_type=self.tuner_type, # PyTorchTuner might not use this directly, but kept for consistency
+                oracle_client=self.oracle,
+                **kwargs
+            )
         else:
-            raise ValueError(f"Unsupported backend: {self.backend}")
+            logger.error(f"Unsupported backend: {self.backend}. Falling back to TensorFlow.")
+            self.backend = 'tensorflow'
+            self.tuneobj = CMdtuner(
+                tuner_type=self.tuner_type,
+                oracle_client=self.oracle,
+                **kwargs
+            )
 
-        logger.info(f"Initialized {self.tuneobj.__class__.__name__} with parameters: {kwargs}")
-        # IMPORTANT: __init__ should not return a value. Ensure no explicit return statement.
+    def search(self, *args, **kwargs):
+        logger.info(f"Initiating hyperparameter search for backend: {self.backend}")
+        return self.tuneobj.search(*args, **kwargs)
 
+    def get_best_models(self, num_models=1):
+        logger.info(f"Retrieving top {num_models} best models for backend: {self.backend}")
+        return self.tuneobj.get_best_models(num_models=num_models)
 
-    def run(self):
-        # This method likely kicks off the worker-side run_search or similar
-        # For chief, run_search is more appropriate.
-        return self.tuneobj.run()
-
-    def run_search(self):
-        # Using the logger defined at the module level
-        logger.info("Chief running tuner search...")
-
+    def finalize_best_trial(self):
+        logger.info(f"Finalizing best trial for backend: {self.backend}")
         try:
-            best_model = None # Initialize best_model to None
-
-            # The actual search is handled in the backend-specific blocks below.
-
             if self.backend == 'tensorflow':
-                logger.info("Running KerasTuner search for TensorFlow backend...")
-                # Ensure the tuner object itself is initialized within CMdtuner
-                if hasattr(self.tuneobj, 'tuner') and self.tuneobj.tuner is not None:
-                    self.tuneobj.tuner.search(
-                        self.tuneobj.traindataset, # Use train_dataset from tuneobj
-                        epochs=self.tuneobj.epochs, # Use epochs from tuneobj
-                        validation_data=self.tuneobj.valdataset, # Use val_dataset from tuneobj
-                        callbacks=self.tuneobj.get_callbacks(), # Get callbacks from tuneobj
-                        verbose=1 # Set verbose to see progress
-                    )
-                    
-                    # After search, attempt to get the best model
-                    best_models = self.tuneobj.tuner.get_best_models(num_models=1)
-                    if best_models:
-                        best_model = best_models[0]
-                        logger.info("Best model retrieved from TensorFlow tuner.")
-                    else:
-                        logger.warning("No best model found from TensorFlow tuner after search.")
-                else:
-                    logger.error("TensorFlow tuner (self.tuneobj.tuner) was not initialized. Cannot run search.")
-                    best_model = None
-                
+                best_model = self.tuneobj.finalize_best_trial()
             elif self.backend == 'pytorch':
-                # For PyTorch, the PyTorchTuner handles the distributed search
-                logger.info("Running distributed search for PyTorch...")
-                self.tuneobj.run_distributed_search(
-                    self.tuneobj.train_dataset, # Pass data to PyTorchTuner's run_distributed_search
-                    self.tuneobj.val_dataset,
-                    epochs=self.tuneobj.epochs, # Use epochs from tuneobj
-                    batch_size=self.tuneobj.batch_size # Use batch_size from tuneobj
-                )
-                # After distributed search, PyTorchTuner should have a way to get the best model
-                best_model = self.tuneobj.get_best_model() # Assuming this method exists in PyTorchTuner
-                if best_model:
-                    logger.info("Best model retrieved from PyTorch tuner.")
-                else:
-                    logger.warning("No best model found from PyTorch tuner.")
+                best_model = self.tuneobj.finalize_best_trial()
             else:
-                logger.error(f"Unsupported backend for run_search: {self.backend}")
-            
+                logger.warning(f"Finalize best trial not supported for backend: {self.backend}")
+                return None
+
             if best_model:
-                logger.info("✅ Best model determined. Proceeding with export (if applicable).")
-                # This should handle saving the model found/rebuilt.
-                self.export_best_model() # Call export on self for consistency
+                logger.info(f"Best model for {self.backend} backend successfully determined. Proceeding with export (if applicable).")
+                self.export_best_model(ftype=self.backend)
+            else:
+                logger.warning(f"No best model found for {self.backend} backend during finalization.")
             return best_model
 
         except Exception as e:
             logger.error(f"❌ Failed to fetch or finalize best trial: {e}", exc_info=True)
             return None
 
-
     def export_best_model(self, ftype='tf'):
-        # This method should now ensure it exports the `best_model` that was identified
-        # in `run_search` (if `build_model_from_hyperparameters` was called).
-        # You might need to store `self.best_model` after it's built/loaded in run_search.
+        logger.info(f"Attempting to export best model using ftype: {ftype}")
         if hasattr(self.tuneobj, 'export_best_model'):
             logger.info(f"Exporting best model using {self.tuneobj.__class__.__name__}'s export_best_model.")
             return self.tuneobj.export_best_model(ftype=ftype)
         else:
-            logger.warning(f"tuneobj ({self.tuneobj.__class__.__name__}) does not have 'export_best_model' method.")
+            logger.warning(f"tuneobj ({self.tuneobj.__class__.__name__}) does not have 'export_best_model' method. Skipping export.")
         return None
 
     def check_and_load_model(self, *args, **kwargs):
+        logger.info(f"Checking and loading model for backend: {self.backend}")
         if hasattr(self.tuneobj, 'check_and_load_model'):
             logger.info(f"Checking and loading model using {self.tuneobj.__class__.__name__}'s check_and_load_model.")
             return self.tuneobj.check_and_load_model(*args, **kwargs)

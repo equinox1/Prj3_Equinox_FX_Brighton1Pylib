@@ -19,30 +19,34 @@ from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
 from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
 from tsMqlOverrides import CMqlOverrides
 from tsMqlSetup import CMqlSetup
+clientlog_config = CMqlSetup()
+clientlog_config.setup_logging()  # Ensure logging is configured before getting the logger
+logger = logging.getLogger(__name__)
 
 # -- Suppress ONNX Windows version warning --
 warnings.filterwarnings("ignore", message="Unsupported Windows version")
 
 # -- Load environment variables first --
-env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
-env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
-env_trials = int(os.environ.get("MLTUNE_TRIALS", 128))
-env_tuner_type = os.environ.get("TUNER_TYPE", "hyperband")
 
+env_trials = int(os.environ.get("MLTUNE_TRIALS", 128))
 # -- Apply overrides before config extraction --
 mql_overrides = CMqlOverrides()
+tune_params = mql_overrides.env.all_params().get("mltune", {})
+
+gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
+backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch
+
+
 mql_overrides.env.override_params({
     "mltune": {
-        "backend": env_backend,
+        "backend": backend,
         "num_trials": env_trials,
-        "tuner_type": env_tuner_type,
+        "tuner_type": gtuner_model,
         "reset_trials": True,        # 👈 ensures all previous trials are cleared
         "overwrite": True,           # 👈 allows tuner to recreate directory/files
         "tuner_id": "chief"          # 👈 ensures a clean session per run
     },
-    "app": {
-        "gtuner_model": env_gtuner
-    }
+   
 })
 
 print(f"Num trials: {env_trials}")
@@ -54,36 +58,46 @@ all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
 tune_params = all_params.get("mltune", {})
 
-gtuner_model = app_params.get('gtuner_model', env_backend)
-backend = tune_params.get("backend", env_backend)
+
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = int(app_params.get('xerces_port', 9000))
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
-# -- Setup logging --
+from tsMqlSetup import CMqlSetup
+# Initialize CMqlSetup for the launcher itself, to ensure logging is configured
+# and setup_config is defined for any utility functions that might implicitly use it.
+# Dynamically determine num_cores and num_threads for optimal performance.
+# num_cores: Estimate physical cores. On systems with hyperthreading, this is often
+#            half the logical core count (os.cpu_count()). If os.cpu_count() is not available
+#            or is 1, default to 1.
+# num_threads: Typically 1 per core for numerical workloads to avoid hyperthreading
+#              contention, but can be set higher (e.g., 2) if testing proves beneficial.
+_logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
+_estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
+
 setup_config = CMqlSetup(
     loglevel='INFO',
     warn='ignore',
     precision='mixed_bfloat16',
     tfdebug=False,
-    num_cores=8,
+    num_cores=_estimated_physical_cores,
     num_threads=1
 )
 
-global_logdir, global_logfile = setup_config.set_log_dir(
-    logdir=None,
-    logfile=xerces_logfile,
-    servername=xerces_servername,
-    ltuner=gtuner_model
-)
-logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
+from tsMqlOverrides import CMqlOverrides
+mql_overrides = CMqlOverrides() 
+app_params = mql_overrides.env.all_params().get("app", {})
+global_logdir = app_params.get('LOGDIR', 'Logdir')
+global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
+gtuner_model = app_params.get('gtuner_model', 'pytorch')  # or "tensorflow"
+backend = tune_params.get('backend', backend)  # or "tensorflow"
 
 
 
 # -- Logging headers --
-logger.info(f"Chief Using GTuner model: {gtuner_model}")
-logger.info(f"Chief Using backend: {backend}")
+logger.info(f"ServerMain: Using GTuner model: {gtuner_model}")
+logger.info(f"ServerMain: Using backend: {backend}")
 print(f"Global logdir: {global_logdir}")
 print(f"Global logfile: {global_logfile}")
 

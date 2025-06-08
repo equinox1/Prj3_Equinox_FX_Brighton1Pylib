@@ -1,18 +1,24 @@
+#!/usr/bin/env python3  # Uncomment for Linux
+# -*- coding: utf-8 -*-  # Uncomment for Linux
 """
-Filename: tsMqlDataProcess.py
-File: tsPyPackages/tsMqlDataProcess/tsMqlDataProcess.py
-Description: Simplified, optimized module for loading data, processing DataFrames, and interfacing with MetaTrader.
+Filename: tsMqlMLProcess.py
+Description: Load and add files and data parameters.
 Author: Tony Shepherd - Xercescloud
 Date: 2025-01-24
-Version: 2.0 (Refactored, simplified and optimized)
+Version: 1.2
 """
-
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+import os
+import sys
 import logging
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 from datetime import datetime
+import textwrap
 from tabulate import tabulate
-import os
 
 # Import platform dependencies
 from tsMqlPlatform import run_platform, platform_checker
@@ -20,42 +26,25 @@ from tsMqlEnvMgr import CMqlEnvMgr
 from tsMqlOverrides import CMqlOverrides
 
 # -- start of logging setup --
-from tsMqlSetup import CMqlSetup
-# Removed: from tsMqlOverrides import CMqlOverrides (already imported above)
-
-env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
-env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
-
-mql_overrides = CMqlOverrides()
-mql_overrides.env.override_params({
-    "mltune": {"backend": env_backend},
-    "app": {"gtuner_model": env_gtuner}
-})
-
+from tsMqlOverrides import CMqlOverrides
+mql_overrides = CMqlOverrides() 
 app_params = mql_overrides.env.all_params().get("app", {})
-gtuner_model = app_params.get('gtuner_model', 'pytorch')
+tune_params = mql_overrides.env.all_params().get("mltune", {})
+
+gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
+backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
+xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
-setup_config = CMqlSetup(
-    loglevel='INFO',
-    warn='ignore',
-    precision='mixed_bfloat16',
-    tfdebug=False,
-    num_cores=8,
-    num_threads=1
-)
-
-global_logdir, global_logfile = setup_config.set_log_dir(
-    logdir=None,
-    logfile=xerces_logfile,
-    servername=xerces_servername,
-    ltuner=gtuner_model
-)
-
-logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
-
+global_logdir = app_params.get('LOGDIR', 'Logdir')
+global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
+# -- Set up global logging --
+from tsMqlSetup import CMqlSetup 
+from tsMqlSetup import setup_logging
+setup_logging()  # Ensure logging is configured before getting the logger
+logger = logging.getLogger(__name__)
 
 # Initialize platform checker
 pchk = run_platform.RunPlatform()
@@ -64,213 +53,41 @@ loadmql = pchk.check_mql_state()
 logger.info(f"Running on: {os_platform}, loadmql state: {loadmql}")
 
 
-class CDataProcess:
+class CDMLProcess:
     def __init__(self, **kwargs):
         """Initialize data processing class."""
+        # Initialize print parameters
         self.colwidth = kwargs.get('colwidth', 20)
         self.hrows = kwargs.get('hrows', 5)
+
+        # Local data parameters
         self.lp_utc_from = kwargs.get('lp_utc_from', datetime.utcnow())
         self.lp_utc_to = kwargs.get('lp_utc_to', datetime.utcnow())
         self.mp_unit = kwargs.get('UNIT', {})
 
-        # Initialize MetaTrader and environment parameters
+        # Initialize run state parameters
         self._initialize_mql()
         self._set_envmgr_params(kwargs)
         self._set_global_parameters(kwargs)
-
-        # Set primary symbol and timeframe with defaults.
-        # This must be set before _set_ml_features because that method uses lp_app_primary_symbol.
+        # Set primary symbol and timeframe before ML features are set.
         self.lp_app_primary_symbol = kwargs.get(
             'lp_app_primary_symbol',
             self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD')
         )
         self.lp_timeframe = kwargs.get(
             'lp_timeframe',
-            self.params.get('data', {}).get('mp_data_timeframe', 'mt5.TIMEFRAME_M1')
+            self.params.get('data', {}).get('mp_data_timeframe', 'H4')
         )
         logger.info(f"Primary symbol: {self.lp_app_primary_symbol}, Timeframe: {self.lp_timeframe}")
-
-        # Set machine learning features, now that primary symbol is defined
+        
         self._set_ml_features(kwargs)
 
-        # Mapping definitions for column conversions and reordering
-        self.from_to_column_maps = {
-            'ticks1': {'time': 'T1_Date', 'bid': 'T1_Bid_Price', 'ask': 'T1_Ask_Price',
-                       'last': 'T1_Last Price', 'volume': 'T1_Volume', 'time_msc': 'T1_Time_Msc',
-                       'flags': 'T1_Flags', 'volume_real': 'T1_Real_Volume'},
-            'rates1': {'time': 'R1_Date', 'open': 'R1_Open', 'high': 'R1_High', 'low': 'R1_Low',
-                       'close': 'R1_Close', 'tick_volume': 'R1_Tick_Volume', 'spread': 'R1_spread',
-                       'real_volume': 'R1_Real_Volume'},
-            'ticks2': {'mDatetime': 'T2_mDatetime', 'Date': 'T2_Date', 'Timestamp': 'T2_Timestamp',
-                       'Bid Price': 'T2_Bid_Price', 'Ask Price': 'T2_Ask_Price', 'Last Price': 'T2_Last_Price',
-                       'Volume': 'T2_Volume'},
-            'rates2': {'mDatetime': 'R2_mDatetime', 'Date': 'R2_Date', 'Timestamp': 'R2_Timestamp',
-                       'Open': 'R2_Open', 'High': 'R2_High', 'Low': 'R2_Low', 'Close': 'R2_Close',
-                       'tick_volume': 'R2_Tick Volume', 'Volume': 'R2_Volume', 'vol2': 'R2_Vol1', 'vol3': 'R2_Vol3'}
-        }
-
-        self.date_columns = {
-            'ticks1': ('time', '%Y%m%d', 's', 'f'),
-            'rates1': ('time', '%Y%m%d', 's', 'f'),
-            'ticks2': ('Date', '%Y%m%d', 's', 'e'),
-            'rates2': ('Date', '%Y%m%d', 's', 'e'),
-        }
-
-        self.time_columns = {
-            'ticks1': ('time_msc', '%Y%m%d %H:%M:%S', 'ms', 'a'),
-            'ticks2': ('Timestamp', '%H:%M:%S', 'ms', 'a'),
-            'rates2': ('Timestamp', '%H:%M:%S', 's', 'a'),
-        }
-
-        self.conv_columns = {
-            'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 's', 'b'),
-            'rates1': ('R1_Date', '%Y%m%d %H:%M:%S.%f', 's', 'b'),
-            'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
-            'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 's', 'b'),
-        }
-
-        self.drop_columns = {
-            'ticks1': ('T1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g',
-                       ['T1_Time_Msc', 'T1_Flags', 'T1_Last Price', 'T1_Real_Volume', 'T1_Volume']),
-            'rates1': ('R1_Date', '%Y%m%d %H:%M:%S', 'ms', 'g',
-                       ['R1_Tick_Volume', 'R1_spread', 'R1_Real_Volume']),
-            'ticks2': ('T2_mDatetime', '%Y%m%d %H:%M:%S', 'ms', 'g',
-                       ['T2_Timestamp', 'T2_Volume', 'T2_Last_Price']),
-            'rates2': ('R2_mDatetime', '%Y%m%d %H:%M:%S', 'ms', 'g',
-                       ['R2_Timestamp', 'R2_Volume', 'R2_Vol1'])
-        }
-
-        self.merge_columns = {
-            'ticks1': ('T1_Date', 'T1_Timestamp', 'T1_mDatetime', '%Y%m%d %H:%M:%S', '%H:%M:%S'),
-            'rates1': ('R1_Date', 'R1_Timestamp', 'R1_mDatetime', '%Y%m%d %H:%M:%S', '%H:%M:%S'),
-            'ticks2': ('T2_Date', 'T2_Timestamp', 'T2_mDatetime', '%Y%m%d %H:%M:%S', '%Y%m%d %H:%M:%S'),
-            'rates2': ('R2_Date', 'R2_Timestamp', 'R2_mDatetime', '%Y%m%d %H:%M:%S', '%Y%m%d %H:%M:%S'),
-        }
-
-        # Updated mapping with keys that match the expected DataFrame names
-        self.first_columns = {
-            'df_api_ticks': 'T1_Date',
-            'df_api_rates': 'R1_Date',
-            'df_file_ticks': 'T2_mDatetime',
-            'df_file_rates': 'R2_mDatetime',
-        }
-
-        self.last_columns = {
-            'df_api_ticks': ('Close', 'Close_scaled'),
-            'df_api_rates': ('Close', 'Close_scaled'),
-            'df_file_ticks': ('Close', 'Close_scaled'),
-            'df_file_rates': ('Close', 'Close_scaled'),
-        }
-
-        # COLUMN_PARAMS holds all processing parameters for different DataFrame types.
-        self.COLUMN_PARAMS = {
-            "df_api_ticks": {
-                'bid_column': 'T1_Bid_Price',
-                'ask_column': 'T1_Ask_Price',
-                'column_in': 'T1_Bid_Price',
-                'column_out1': self.feature4,
-                'column_out2': self.feature4_scaled,
-                'lookahead_periods': self.lookahead_periods,
-                'ma_window': self.ma_window,
-                'hl_avg_col': self.hl_avg_col,
-                'ma_col': self.ma_col,
-                'returns_col': self.returns_col,
-                'shift_in': self.shift_in,
-                'create_label': self.create_label,
-                'df1_filter_int': self.params.get('data', {}).get('df1_filter_int', False),
-                'df1_filter_flt': self.params.get('data', {}).get('df1_filter_flt', False),
-                'df1_filter_obj': self.params.get('data', {}).get('df1_filter_obj', False),
-                'df1_filter_dtmi': self.params.get('data', {}).get('df1_filter_dtmi', False),
-                'df1_filter_dtmf': self.params.get('data', {}).get('df1_filter_dtmf', False),
-                'df1_mp_dropna': self.params.get('data', {}).get('df1_mp_dropna', True),
-                'df1_mp_merge': self.params.get('data', {}).get('df1_mp_merge', True),
-                'df1_mp_convert': self.params.get('data', {}).get('df1_mp_convert', True),
-                'df1_mp_drop': self.params.get('data', {}).get('df1_mp_drop', False)
-            },
-            "df_api_rates": {
-                'bid_column': 'R1_Open',
-                'ask_column': 'R1_Close',
-                'column_in': 'R1_Open',
-                'open_column': 'R1_Open',
-                'high_column': 'R1_High',
-                'low_column': 'R1_Low',
-                'close_column': 'R1_Close',
-                'column_out1': self.feature4,
-                'column_out2': self.feature4_scaled,
-                'lookahead_periods': self.lookahead_periods,
-                'ma_window': self.ma_window,
-                'hl_avg_col': self.hl_avg_col,
-                'ma_col': self.ma_col,
-                'returns_col': self.returns_col,
-                'shift_in': self.shift_in,
-                'create_label': self.create_label,
-                'df2_filter_int': self.params.get('data', {}).get('df2_filter_int', False),
-                'df2_filter_flt': self.params.get('data', {}).get('df2_filter_flt', False),
-                'df2_filter_obj': self.params.get('data', {}).get('df2_filter_obj', False),
-                'df2_filter_dtmi': self.params.get('data', {}).get('df2_filter_dtmi', False),
-                'df2_filter_dtmf': self.params.get('data', {}).get('df2_filter_dtmf', False),
-                'df2_mp_dropna': self.params.get('data', {}).get('df2_mp_dropna', True),
-                'df2_mp_merge': self.params.get('data', {}).get('df2_mp_merge', True),
-                'df2_mp_convert': self.params.get('data', {}).get('df2_mp_convert', True),
-                'df2_mp_drop': self.params.get('data', {}).get('df2_mp_drop', False)
-            },
-            "df_file_ticks": {
-                'bid_column': 'T2_Bid_Price',
-                'ask_column': 'T2_Ask_Price',
-                'column_in': 'T2_Bid_Price',
-                'column_out1': self.feature4,
-                'column_out2': self.feature4_scaled,
-                'lookahead_periods': self.lookahead_periods,
-                'ma_window': self.ma_window,
-                'hl_avg_col': self.hl_avg_col,
-                'ma_col': self.ma_col,
-                'returns_col': self.returns_col,
-                'shift_in': self.shift_in,
-                'create_label': self.create_label,
-                'df3_filter_int': self.params.get('data', {}).get('df3_filter_int', False),
-                'df3_filter_flt': self.params.get('data', {}).get('df3_filter_flt', False),
-                'df3_filter_obj': self.params.get('data', {}).get('df3_filter_obj', False),
-                'df3_filter_dtmi': self.params.get('data', {}).get('df3_filter_dtmi', False),
-                'df3_filter_dtmf': self.params.get('data', {}).get('df3_filter_dtmf', False),
-                'df3_mp_dropna': self.params.get('data', {}).get('df3_mp_dropna', True),
-                'df3_mp_merge': self.params.get('data', {}).get('df3_mp_merge', True),
-                'df3_mp_convert': self.params.get('data', {}).get('df3_mp_convert', True),
-                'df3_mp_drop': self.params.get('data', {}).get('df3_mp_drop', False)
-            },
-            "df_file_rates": {
-                'bid_column': 'R2_Open',
-                'ask_column': 'R2_Close',
-                'column_in': 'R2_Open',
-                'open_column': 'R2_Open',
-                'high_column': 'R2_High',
-                'low_column': 'R2_Low',
-                'close_column': 'R2_Close',
-                'column_out1': self.feature4,
-                'column_out2': self.feature4_scaled,
-                'lookahead_periods': self.lookahead_periods,
-                'ma_window': self.ma_window,
-                'hl_avg_col': self.hl_avg_col,
-                'ma_col': self.ma_col,
-                'returns_col': self.returns_col,
-                'shift_in': self.shift_in,
-                'create_label': self.create_label,
-                'df4_filter_int': self.params.get('data', {}).get('df4_filter_int', False),
-                'df4_filter_flt': self.params.get('data', {}).get('df4_filter_flt', False),
-                'df4_filter_obj': self.params.get('data', {}).get('df4_filter_obj', False),
-                'df4_filter_dtmi': self.params.get('data', {}).get('df4_filter_dtmi', False),
-                'df4_filter_dtmf': self.params.get('data', {}).get('df4_filter_dtmf', False),
-                'df4_mp_dropna': self.params.get('data', {}).get('df4_mp_dropna', True),
-                'df4_mp_merge': self.params.get('data', {}).get('df4_mp_merge', True),
-                'df4_mp_convert': self.params.get('data', {}).get('df4_mp_convert', True),
-                'df4_mp_drop': self.params.get('data', {}).get('df4_mp_drop', False)
-            }
-        }
-
     def _initialize_mql(self):
-        """Initialize MetaTrader5 if available."""
+        """Initialize MetaTrader5 module if available."""
         self.os_platform = platform_checker.get_platform()
         self.loadmql = pchk.check_mql_state()
         logger.info(f"Running on: {self.os_platform}, loadmql state: {self.loadmql}")
+
         if self.loadmql:
             try:
                 global mt5
@@ -284,7 +101,10 @@ class CDataProcess:
         """Extract environment parameters."""
         override_config = CMqlOverrides()
         self.params = override_config.env.all_params()
-        logger.info("Loaded environment parameters.")
+        logger.info(f"All Parameters: {self.params}")
+        self.params_sections = self.params.keys()
+        logger.info(f"PARAMS SECTIONS: {self.params_sections}")
+
         self.base_params = self.params.get("base", {})
         self.data_params = self.params.get("data", {})
         self.ml_params = self.params.get("ml", {})
@@ -292,339 +112,331 @@ class CDataProcess:
         self.app_params = self.params.get("app", {})
 
     def _set_global_parameters(self, kwargs):
-        """Placeholder for global parameter settings."""
+        """Set configuration parameters from environment or user input."""
+        # Implementation of global parameter setting as required.
         pass
 
     def _set_ml_features(self, kwargs):
         """Extract and set machine learning features."""
+        # Get feature configuration dictionary, if available
         self.ml_features_config = self.ml_params.get('mp_features', {})
-        self.feature4 = self.ml_params.get('feature4', self.ml_features_config.get('feature4', 'Close'))
-        self.feature4_scaled = self.ml_params.get('feature4_scaled', self.ml_features_config.get('feature4_scaled', 'Close_Scaled'))
+
+        # Explicitly get feature4 column from ml_params or fallback to configuration or default value.
+        self.feature4 = self.ml_params.get('Feature4', self.ml_features_config.get('Feature4', 'Feature4'))
+        if self.feature4 is None:
+            self.feature4 = 'feature4'
+        logger.info("Feature4: %s", self.feature4)
+
+        # Explicitly get the scaled feature4 column
+        self.feature4_scaled = self.ml_params.get('feature4_scaled', self.ml_features_config.get('feature4_scaled', 'feature4_Scaled'))
+        if self.feature4_scaled is None:
+            self.feature4_scaled = 'feature4_Scaled'
+        logger.info("feature4_scaled: %s", self.feature4_scaled)
+
+        # Explicitly get the label column
         self.label = self.ml_params.get('Label1', self.ml_features_config.get('Label1', 'Label'))
-        logger.info(f"ML features configured: {self.feature4}, {self.feature4_scaled}, {self.label}")
-        self.mp_ml_input_keyfeat = self.feature4
-        self.mp_ml_input_keyfeat_scaled = self.feature4_scaled
-        self.mp_ml_input_label = self.label
+        if self.label is None:
+            self.label = 'Label'
+        logger.info("Label: %s", self.label)
+
+        # Set input keys for the machine learning pipeline
+        self.mp_ml_input_keyfeat = self.ml_params.get(
+            'mp_ml_input_keyfeat', 
+            self.ml_features_config.get('mp_ml_input_keyfeat', 'Close')
+        )
+
+         # Set input keys for the machine learning pipeline
+        self.mp_ml_input_keyfeat_scaled = self.ml_params.get(
+            'mp_ml_input_keyfeat_scaled', 
+            self.ml_features_config.get('mp_ml_input_keyfeat_scaled', 'Close_Scaled')
+         )
+        
+         # Set input label for the machine learning pipeline
+        self.mp_ml_input_label = self.ml_params.get(
+               'mp_ml_input_label', 
+               self.ml_features_config.get('mp_ml_input_label', 'Label')
+            )  
+  
+        logger.info("Machine learning features configuration: %s", self.ml_features_config)
+        logger.info("Machine learning input key feature: %s", self.mp_ml_input_keyfeat)
+        logger.info("Machine learning input key feature scaled: %s", self.mp_ml_input_keyfeat_scaled)
+        logger.info("Machine learning input label: %s", self.mp_ml_input_label)
 
         # File parameters
         self.rownumber = self.ml_params.get('mp_rownumber', False)
         self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default1.csv')
         self.mp_data_filename2 = self.params.get('data', {}).get('mp_data_filename2', 'default2.csv')
+
+        logger.info("Data filename1: %s", self.mp_data_filename1)
+        logger.info("Data filename2: %s", self.mp_data_filename2)
+        logger.info("Row number: %s", self.rownumber)
+
+        # Machine learning parameters
         self.lookahead_periods = self.params.get('ml', {}).get('mp_lookahead_periods', 1)
         self.ma_window = self.params.get('ml', {}).get('mp_ml_tf_ma_windowin', 10)
         self.hl_avg_col = self.params.get('ml', {}).get('mp_ml_hl_avg_col', 'HL_Avg')
         self.ma_col = self.params.get('ml', {}).get('mp_ml_ma_col', 'MA')
         self.returns_col = self.params.get('ml', {}).get('mp_ml_returns_col', 'Returns')
         self.shift_in = self.params.get('ml', {}).get('mp_ml_tf_shiftin', 1)
+
+        # Fixed keys (removed extra quotes)
         self.run_avg = self.params.get('ml', {}).get('mp_ml_run_avg', False)
         self.run_avg_scaled = self.params.get('ml', {}).get('mp_ml_run_avg_scaled', False)
         self.log_stationary = self.params.get('ml', {}).get('mp_ml_log_stationary', False)
         self.remove_zeros = self.params.get('ml', {}).get('mp_ml_remove_zeros', False)
+
         self.last_col = self.params.get('ml', {}).get('mp_ml_last_col', False)
         self.last_col_scaled = self.params.get('ml', {}).get('mp_ml_last_col_scaled', False)
         self.first_col = self.params.get('ml', {}).get('mp_ml_first_col', False)
         self.mp_ml_dropna = self.params.get('ml', {}).get('mp_ml_dropna', False)
         self.mp_ml_dropna_scaled = self.params.get('ml', {}).get('mp_ml_dropna_scaled', False)
+
         self.create_label = self.params.get('ml', {}).get('mp_ml_create_label', False)
         self.create_label_scaled = self.params.get('ml', {}).get('mp_ml_create_label_scaled', False)
+
+        logger.info("Lookahead periods: %s", self.lookahead_periods)
+        logger.info("Moving average window: %s", self.ma_window)
+        logger.info("High-low average column: %s", self.hl_avg_col)
+        logger.info("Moving average column: %s", self.ma_col)
+        logger.info("Returns column: %s", self.returns_col)
+        logger.info("Shift in: %s", self.shift_in)
+        logger.info("Run average: %s", self.run_avg)
+        logger.info("Run average scaled: %s", self.run_avg_scaled)
+        logger.info("Log stationary: %s", self.log_stationary)
+        logger.info("Remove zeros: %s", self.remove_zeros)
+        logger.info("Last column: %s", self.last_col)
+        logger.info("Last column scaled: %s", self.last_col_scaled)
+        logger.info("First column: %s", self.first_col)
+        logger.info("Create label: %s", self.create_label)
+        logger.info("Create label scaled: %s", self.create_label_scaled)
+
+        # Data parameters
+        self.rownumber = self.params.get('data', {}).get('mp_data_rownumber', False)
         self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('mp_data_rows', 1000))
         self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
+
+        # Derived filenames
         self.mp_glob_data_path = kwargs.get('mp_glob_data_path', self.params.get('base', {}).get('mp_glob_data_path', 'Mql5Data'))
         self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
         self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
 
-        logger.info("Machine learning features configured.")
+    def get_feature_columns(self, feature_name="feature4"):
+        return_value = self.ml_features_config.get(feature_name, None)
+        if return_value is not None:
+            return [f"{return_value}"]
 
-    # --- Helper methods ---
-    def _convert_datetime(self, df: pd.DataFrame, column: str, fmt: str = None,
-                          unit: str = None, conv_type: str = None, drop_cols: list = None):
-        """Generalized datetime conversion (or dropping columns) helper."""
-        try:
-            if conv_type == 'a' or conv_type == 'e':
-                df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
-            elif conv_type == 'b':
-                df[column] = pd.to_datetime(df.pop(column), format=fmt, errors='coerce')
-            elif conv_type == 'c':
-                df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce', utc=True)
-                df[column] = pd.to_datetime(df[column].dt.strftime('%d/%m/%y %H:%M:%S.%f'),
-                                            format='%d/%m/%y %H:%M:%S.%f', errors='coerce', utc=True)
-            elif conv_type == 'd':
-                df[column] = df[column].map(pd.Timestamp.timestamp)
-            elif conv_type == 'f':
-                df[column] = pd.to_datetime(df[column], unit=unit, errors='coerce', utc=True)
-            elif conv_type == 'g' and drop_cols:
-                cols_to_drop = [col for col in drop_cols if col in df.columns]
-                if cols_to_drop:
-                    df.drop(cols_to_drop, axis=1, inplace=True)
-        except Exception as e:
-            logger.error(f"Error converting column {column} with type {conv_type}: {e}")
-        return df
+    def get_scaled_feature_columns(self, feature_name="feature4_Scaled"):
+        return_value = self.ml_features_config.get(feature_name, None)
+        if return_value is not None:
+            return [f"{return_value}"]
 
-    def _merge_datetime(self, df: pd.DataFrame, col_date: str, col_time: str, merged_col: str):
-        """Merge date and time columns into a single datetime column."""
-        try:
-            if col_date in df.columns and col_time in df.columns:
-                df[merged_col] = pd.to_datetime(
-                    df[col_date].dt.strftime('%Y-%m-%d') + ' ' + df[col_time].dt.strftime('%H:%M:%S.%f'),
-                    format='%Y-%m-%d %H:%M:%S.%f', errors='coerce', utc=True
-                )
-                df.drop([col_date, col_time], axis=1, inplace=True)
-                df = self._reorder_columns(df, merged_col)
-        except Exception as e:
-            logger.error(f"Error merging {col_date} and {col_time}: {e}")
-        return df
+    def get_label_columns(self, label_name="Label"):
+        return_value = self.ml_features_config.get(label_name, None)
+        if return_value is not None:
+            return [f"{return_value}"]
 
-    def _reorder_columns(self, df: pd.DataFrame, first_col: str):
-        """Place a specific column as the first column in the DataFrame."""
-        if first_col in df.columns:
-            cols = [first_col] + [col for col in df.columns if col != first_col]
-            return df[cols]
-        return df
-
-    # --- Data Wrangling Methods ---
-    def run_wrangle_service(self, **kwargs) -> pd.DataFrame:
-        """Run the wrangling service on a DataFrame based on its name."""
-        self.df = kwargs.get('df', pd.DataFrame())
-        self.df_name = kwargs.get('df_name')
-        if self.df.empty:
-            logger.warning("DataFrame is empty. Skipping wrangling.")
-            return self.df
-
-        # Map configuration based on DataFrame name
-        config_key = self.df_name
-        if config_key not in self.COLUMN_PARAMS:
-            logger.warning(f"No configuration for DataFrame: {self.df_name}")
-            return self.df
-
-        config = self.COLUMN_PARAMS[config_key]
-        # Set filtering and processing flags from kwargs or defaults
-        self.filter_int = kwargs.get('filter_int', config.get(f"{config_key.split('_')[1]}_filter_int", False))
-        self.filter_flt = kwargs.get('filter_flt', config.get(f"{config_key.split('_')[1]}_filter_flt", False))
-        self.filter_obj = kwargs.get('filter_obj', config.get(f"{config_key.split('_')[1]}_filter_obj", False))
-        self.filter_dtmi = kwargs.get('filter_dtmi', config.get(f"{config_key.split('_')[1]}_filter_dtmi", False))
-        self.filter_dtmf = kwargs.get('filter_dtmf', config.get(f"{config_key.split('_')[1]}_filter_dtmf", False))
-        self.mp_dropna = kwargs.get('mp_dropna', config.get(f"{config_key.split('_')[1]}_mp_dropna", True))
-        self.mp_merge = kwargs.get('mp_merge', config.get(f"{config_key.split('_')[1]}_mp_merge", True))
-        self.mp_convert = kwargs.get('mp_convert', config.get(f"{config_key.split('_')[1]}_mp_convert", True))
-        self.mp_drop = kwargs.get('mp_drop', config.get(f"{config_key.split('_')[1]}_mp_drop", False))
-
-        logger.info(f"Wrangling {self.df_name} data with merge: {self.mp_merge} and convert: {self.mp_convert}")
-
-        # Process columns based on file source keys (use 'ticks1'/'rates1' for API and 'ticks2'/'rates2' for file)
-        source_key = 'ticks1' if 'ticks' in self.df_name and 'api' in self.df_name else \
-                     'rates1' if 'rates' in self.df_name and 'api' in self.df_name else \
-                     'ticks2' if 'ticks' in self.df_name else 'rates2'
+    def create_XY_unscaled_feature_sequence(self, data, target_col, window_size):
+        """
+        Create feature sequences (X) and target values (y) from time series data.
         
-        # Apply datetime conversions if mapping are defined
-        if source_key in self.date_columns:
-            col, fmt, unit, conv_type = self.date_columns[source_key]
-            self.df = self._convert_datetime(self.df, col, fmt, unit, conv_type)
-            logger.info(f"DW: 1.1 Converted Date: {col} to datetime if found in mapping")
-        if source_key in self.time_columns:
-            col, fmt, unit, conv_type = self.time_columns[source_key]
-            self.df = self._convert_datetime(self.df, col, fmt, unit, conv_type)
-            logger.info(f"DW: 1.2 Converted Time: {col} to datetime if found in mapping")
+        Parameters:
+        - data (array-like: np.ndarray, pd.DataFrame, or list): The input time series data.
+        - target_col (str): The column name of the target variable.
+        - window_size (int): The number of past observations to use for predicting the next value.
         
-        # Rename columns
-        if source_key in self.from_to_column_maps:
-            self.df.rename(columns=self.from_to_column_maps[source_key], inplace=True)
-            logger.info(f"DW: 1.3 Renamed columns based on mapping")
+        Returns:
+        - X (np.ndarray): Feature sequences of shape (num_samples, window_size, num_features).
+        - y (np.ndarray): Target values of shape (num_samples,).
+        """
         
-        # Merge datetime columns if enabled
-        if source_key in self.merge_columns and self.mp_merge:
-            col_date, col_time, merged_col, _, _ = self.merge_columns[source_key]
-            self.df = self._merge_datetime(self.df, col_date, col_time, merged_col)
-            logger.info(f"DW: 1.4 Merged {col_date} and {col_time} into {merged_col} if enabled {self.mp_merge}")
+        # Use default if target_col is None
+        if target_col is None:
+            if hasattr(self, 'mp_ml_input_keyfeat') and self.mp_ml_input_keyfeat is not None:
+                target_col = self.mp_ml_input_keyfeat
+            else:
+                target_col = "feature4"
+            logger.warning("No target column specified. Falling back to default: %s", target_col)
         
-        # Convert datetime in specified column if enabled
-        if source_key in self.conv_columns and self.mp_convert:
-            col, fmt, unit, conv_type = self.conv_columns[source_key]
-            self.df = self._convert_datetime(self.df, col, fmt, unit, conv_type)
-            logger.info(f"DW: 1.5 Converted specific datetime  column : {col} if enabled {self.mp_convert}")
+        # Ensure window_size is an integer
+        window_size = int(window_size)
         
-        # Drop unnecessary columns if enabled
-        if source_key in self.drop_columns and self.mp_drop:
-            col, fmt, unit, conv_type, drop_cols = self.drop_columns[source_key]
-            self.df = self._convert_datetime(self.df, col, fmt, unit, conv_type, drop_cols)
-            logger.info(f"DW: 1.6 Dropped unnecessary columns if enabled {self.mp_drop}")
+        # Validate data type
+        if not isinstance(data, (np.ndarray, pd.DataFrame, list)):
+            raise ValueError(f"Expected data to be array-like, but got {type(data)}")
         
-        # Apply type filtering conversions
-        for dtype, flag in [('int64', self.filter_int), ('float64', self.filter_flt)]:
-            if flag:
-                for col in self.df.select_dtypes(include=[dtype]).columns:
-                    self.df[col] = pd.to_numeric(self.df[col], errors='coerce')
-                    logger.info(f"DF: 1.1 Converted {dtype} columns to numeric if enabled {flag}")
-        if self.filter_obj:
-            for col in self.df.select_dtypes(include=['object']).columns:
-                self.df[col] = pd.to_datetime(self.df[col], errors='coerce')
-                logger.info("DF: 1.2 Converted object columns to datetime if enabled")
-        if self.filter_dtmi:
-            for col in self.df.select_dtypes(include=['datetime64[ns]', 'datetime64[ns, UTC]', 'datetime64']).columns:
-                self.df[col] = pd.to_numeric(self.df[col].view('int64'))
-                logger.info("DF: 1.3 Converted datetime columns to int64 if enabled")
-        if self.filter_dtmf:
-            for col in self.df.select_dtypes(include=['datetime64[ns]', 'datetime64[ns, UTC]', 'datetime64']).columns:
-                self.df[col] = pd.to_numeric(self.df[col].view('float64'))
-                logger.info("DF: 1.4 Converted datetime columns to float64 if enabled")
-        if self.mp_dropna:
-            numeric_cols = self.df.select_dtypes(include=['number']).columns
-            self.df[numeric_cols] = self.df[numeric_cols].fillna(0)
-            logger.info("DF: 1.5 Filled NaN values with 0")
+        # If data is a DataFrame, extract target column index and convert to NumPy array
+        if isinstance(data, pd.DataFrame):
+            if isinstance(target_col, list):
+                if len(target_col) != 1:
+                    raise ValueError(f"Expected a single column name, but got {target_col}")
+                target_col = target_col[0]  # Extract the string from the list
             
+            if target_col not in data.columns:
+                raise ValueError(f"Column '{target_col}' not found in DataFrame.")
+            
+            target_col_index = data.columns.get_loc(target_col)
+            data = data.to_numpy()  # Convert DataFrame to NumPy array
+        else:
+            # If data is not a DataFrame, assume target_col is an index
+            try:
+                target_col_index = int(target_col)
+            except ValueError:
+                raise ValueError("When data is not a DataFrame, target_col must be an integer index.")
         
-        # Reorder columns if merged
-        if source_key in self.merge_columns and self.mp_merge:
-            _, _, merged_col, _, _ = self.merge_columns[source_key]
-            self.df = self._reorder_columns(self.df, merged_col)
+        # Create feature sequences (X) and target values (y)
+        X, y = [], []
+        for i in range(len(data) - window_size):
+            X.append(data[i:i + window_size])
+            y.append(data[i + window_size, target_col_index])  # Predicting target column
         
-        return self.df
+        return np.array(X), np.array(y)
 
-    def run_average_columns(self, df: pd.DataFrame, df_name: str) -> pd.DataFrame:
-        """Compute moving average, log returns, future returns, and optionally log stationarity."""
-        df = df.copy(deep=True)  # <--- FIX 2: Safe copy
-        try:
-            config = self.COLUMN_PARAMS.get(df_name, {})
-            col_in = config.get("column_in")
-            if col_in not in df.columns:
-                logger.error(f"Column {col_in} not found in DataFrame.")
-                return df
-
-            if self.ma_window and config.get("ma_col"):
-                df.loc[:, config["ma_col"]] = df[col_in].rolling(window=self.ma_window, min_periods=1).mean().bfill()
-                logger.info(f"Moving average calculated in column {config['ma_col']}.")
-
-            if self.shift_in and config.get("returns_col"):
-                df.loc[:, col_in] = df[col_in].ffill()
-                if (df[col_in] <= 0).any():
-                    raise ValueError(f"Non-positive values found in {col_in}, cannot compute log returns.")
-                df.loc[:, config["returns_col"]] = np.log(df[col_in] / df[col_in].shift(self.shift_in)).dropna()
-                logger.info(f"Log returns computed in column {config['returns_col']}.")
-
-            if self.log_stationary and config.get("ma_col") in df.columns:
-                df.loc[:, config["ma_col"]] = np.log(df[config["ma_col"]]).diff().fillna(0)
-                logger.info(f"Log stationary transformation applied on {config['ma_col']}.")
-
-            if self.lookahead_periods and config.get("returns_col"):
-                df.loc[:, config["returns_col"]] = df[col_in].pct_change(periods=self.lookahead_periods).fillna(0)
-                logger.info(f"Future returns computed in column {config['returns_col']}.")
-
-            if self.remove_zeros and config.get("returns_col") in df.columns:
-                df = df[df[config["returns_col"]] != 0]
-                logger.info("Rows with zero returns removed.")
-
-            return df
-
-        except Exception as e:
-            logger.error(f"Error in run_average_columns: {e}")
-            return df
-
-    def add_line_numbers(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Add a row number column if enabled."""
-        if self.rownumber:
-            df['rownumber'] = range(1, len(df) + 1)
-            logger.info("Row numbers added.")
-        return df
-
-    def move_col_to_end(self, df: pd.DataFrame, col_name: str) -> pd.DataFrame:
-        """Move a specified column to the end."""
-        if col_name is None or col_name not in df.columns:
-            logger.warning(f"Column {col_name} not found.")
-            return df
-        cols = [col for col in df.columns if col != col_name] + [col_name]
-        logger.info(f"Column {col_name} moved to end.")
-        return df[cols]
-
-    def move_col_to_start(self, df: pd.DataFrame, col_name: str) -> pd.DataFrame:
-        """Move a specified column to the start."""
-        if col_name not in df.columns:
-            logger.warning(f"Column {col_name} not found.")
-            return df
-        cols = [col_name] + [col for col in df.columns if col != col_name]
-        logger.info(f"Column {col_name} moved to start.")
-        return df[cols]
-
-    def create_index_column(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Set the first column as index after cleaning."""
-        first_col = df.columns[0]
-        # Convert the mDatetime' column to datetime objects if not already done
-        df[first_col] = pd.to_datetime(df[first_col])
-        # Set the datetime column as the DataFrame index
-        df.set_index(first_col, inplace=True)
-        df.sort_index(inplace=True)  # Optional: sort by the index if needed
-        return df
+    def create_Xy_scaled_feature_sequence(self, df, past_window, future_window, feature_column='Close', target_column='Close_Scaled'):
+        X, Y = [], []
+        
+        # Ensure past_window and future_window are integers
+        past_window = int(past_window)
+        future_window = int(future_window)
+        
+        for i in range(len(df) - past_window - future_window):
+            past = df.loc[i:i + past_window - 1, target_column].values
+            future = df.loc[i + past_window + future_window - 1, feature_column]
+            X.append(past)
+            Y.append(future)
+        
+        return np.array(X), np.array(Y)
 
 
-    def establish_common_feat_col(self, df: pd.DataFrame, df_name: str) -> pd.DataFrame:
-        """Establish a common feature column for tick (bid-ask average) or OHLC (close)."""
-        df = df.copy(deep=True)  # <--- FIX 1: Always copy at the start
-        config = self.COLUMN_PARAMS.get(df_name, {})
+    def  Create_Xy_input_and_target(self,df, back_window, forward_window, features):
+         # For each point in time where we have enough data for both windows,
+         # we create an input window (X) and the target (y)
+         X = []
+         y = []
 
-        if df_name in ["df_api_ticks", "df_file_ticks"]:
-            bid, ask, out = config.get("bid_column"), config.get("ask_column"), config.get("column_out1")
-            if not (bid and ask and out):
-                raise ValueError(f"Missing definitions for {df_name}")
-            df.loc[:, out] = (df[bid] + df[ask]) / 2  # Safe assignment
-            if self.run_avg and config.get("hl_avg_col"):
-                df.loc[:, config["hl_avg_col"]] = df[out]  # Safe assignment
-            logger.info("Bid-ask average computed for tick data.")
+         # We loop from index = back_window to len(df)-forward_window
+         for i in range(int(back_window), len(df) - int(forward_window) + 1):
+            # Extract the back window of OHLC data
+            window_data = df[features].iloc[i - int(back_window): i].values
+            X.append(window_data)
 
-        elif df_name in ["df_api_rates", "df_file_rates"]:
-            close = config.get("close_column")
-            if not close:
-                raise ValueError("`close_column` must be provided for OHLC data.")
-            df.loc[:, config.get("column_out1")] = df[close]  # Safe assignment
-            logger.info("Common feature column established for OHLC data.")
+            # Use the close price at the end of the forward window as target
+            target_close = df[features].iloc[i + int(forward_window) - 1]
+            y.append(target_close)
 
-        return df
+         # Convert lists to numpy arrays
+         X = np.array(X)
+         y = np.array(y)
+         return X, y
 
 
-    def establish_common_feat_col_scaled(self, df: pd.DataFrame, df_name: str) -> pd.DataFrame:
-        """Establish a scaled version of the common feature column."""
-        df = df.copy(deep=True)  # <--- FIX 3: Always copy before operations
-        config = self.COLUMN_PARAMS.get(df_name, {})
-        out, out_scaled = config.get("column_out1"), config.get("column_out2")
-        if not (out and out_scaled):
-            raise ValueError(f"Missing output column definitions for {df_name}")
-        if out in df.columns:
-            df.loc[:, out_scaled] = df[out].pct_change().fillna(0)
-            logger.info(f"Scaled feature column {out_scaled} created.")
-        return df
+    def create_ml_window(self, timeval):
+        """Select the data file based on the DataFrame name."""
+        self.feature4 = self.ml_features_config.get('feature4', 'feature4')
+        self.feature4_scaled = self.ml_features_config.get('feature4_Scaled', 'feature4_Scaled')
+        self.label = self.ml_features_config.get('Label', 'Label')
+        self.label_scaled = self.ml_features_config.get('Label_Scaled', 'Label_Scaled')
+        
+        past_width = int(self.ml_features_config.get("pasttimeperiods", 24)) * timeval
+        future_width = int(self.ml_features_config.get("futuretimeperiods", 24)) * timeval
+        pred_width = int(self.ml_features_config.get("predtimeperiods", 1)) * timeval
 
-    # --- Service Workflow ---
-    def run_dataprocess_services(self, **kwargs) -> pd.DataFrame:
-        """Run the complete data processing workflow."""
-        self.df = kwargs.get('df', pd.DataFrame())
-        self.df_name = kwargs.get('df_name')
-        logger.info(f"Starting data processing for {self.df_name} with shape {self.df.shape}")
+        logger.info("Past Width: %s, Future Width: %s, Prediction Width: %s", past_width, future_width, pred_width)
 
-        # Wrangle, average, establish features, reorder, and add index
-        logger.info(f"DP:1.0 Running data processing for {self.df_name}...")
-        logger.info(f"DP:1.1 Wrangling {self.df_name} data...")
-        ldf = self.run_wrangle_service(df=self.df, df_name=self.df_name)
-        logger.info(f"DP:1.2 Averaging columns for {self.df_name}...")
-        ldf = self.run_average_columns(ldf, self.df_name)
-        logger.info(f"DP:1.3 Establishing common feature column for {self.df_name}...")
-        ldf = self.establish_common_feat_col(ldf, self.df_name)
-        logger.info(f"DP:1.4 Moving columns to start {self.df_name} Column: {self.first_columns.get(self.df_name, ldf.columns[0])}")
-        ldf = self.move_col_to_start(ldf, self.first_columns.get(self.df_name, ldf.columns[0]))
-        logger.info(f"DP:1.5 Moving columns to End{self.df_name} Column: {self.last_columns.get(self.df_name, ())[0]}")
-        ldf = self.move_col_to_end(ldf, self.last_columns.get(self.df_name, ())[0] if self.last_col else None)
-        logger.info(f"DP:1.6 Add line Numbers {self.df_name}...")
-        ldf = self.add_line_numbers(ldf)
-        logger.info(f"DP:1.7 Create Index for {self.df_name}...")
-        ldf = self.create_index_column(ldf)
-        logger.info(ldf.index)
-        logger.info(f"DP:1.8 Data processing completed for {self.df_name} with shape {ldf.shape}")
-        return ldf
+        return past_width, future_width, pred_width
+
+    def split_dataset(self, X, y, train_size=0.7, val_size=0.15, test_size=0.15, random_state=None):
+        X_train, X_temp, y_train, y_temp = train_test_split(X, y, train_size=train_size, random_state=random_state)
+        val_test_ratio = val_size / (val_size + test_size)
+        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, train_size=val_test_ratio, random_state=random_state)
+        return X_train, X_val, X_test, y_train, y_val, y_test
+
+    def manual_split_data(self, X_train_in, y_train_in,train_end=None, val_end=None):
+         X_train, y_train = X_train_in[:train_end], y_train_in[:train_end]
+         X_val, y_val = X_train_in[train_end:val_end], y_train_in[train_end:val_end]
+         X_test, y_test = X_train_in[val_end:], y_train_in[val_end:]
+         return X_train, X_val, X_test, y_train, y_val, y_test
+
+    def preprocess_data(self, X):
+        """Convert timestamp columns to numeric format if they exist and ensure the data is numeric."""
+        if isinstance(X, pd.DataFrame):  
+            for col in X.select_dtypes(include=['datetime64', 'object']).columns:
+                X[col] = pd.to_datetime(X[col], errors='coerce').astype(int) // 10**9  # Convert to Unix timestamp
+            logger.info("Dataframe converted to Unix timestamp.")
+        
+        # Convert to numpy array and enforce dtype
+        if isinstance(X, pd.Series):
+            X = X.to_numpy()
+        
+        if isinstance(X, np.ndarray):
+            X = X.astype(np.float32)  # Ensure proper dtype for TensorFlow
+        
+        return X
+
+    def convert_to_tfds(self, X_train, y_train, X_val=None, y_val=None, X_test=None, y_test=None, batch_size=32, shuffle=True):
+        # Convert all inputs to NumPy arrays with float32 dtype
+        X_train = np.array(X_train, dtype=np.float32)
+        y_train = np.array(y_train, dtype=np.float32)
+        if X_val is not None:
+            X_val = np.array(X_val, dtype=np.float32)
+        if y_val is not None:
+            y_val = np.array(y_val, dtype=np.float32)
+        if X_test is not None:
+            X_test = np.array(X_test, dtype=np.float32)
+        if y_test is not None:
+            y_test = np.array(y_test, dtype=np.float32)
+        
+        # Check for NaN values and replace them if any
+        if np.isnan(X_train).any() or np.isnan(y_train).any():
+            logger.info("Warning: NaN values detected in the dataset!")
+            X_train = np.nan_to_num(X_train)
+            y_train = np.nan_to_num(y_train)
+
+        train_ds = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+        if shuffle:
+            train_ds = train_ds.shuffle(buffer_size=len(X_train))
+        train_ds = train_ds.batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+
+        val_ds = None
+        test_ds = None
+
+        if X_val is not None and y_val is not None:
+            val_ds = tf.data.Dataset.from_tensor_slices((X_val, y_val))
+            val_ds = val_ds.batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+
+        if X_test is not None and y_test is not None:
+            test_ds = tf.data.Dataset.from_tensor_slices((X_test, y_test))
+            test_ds = test_ds.batch(batch_size).prefetch(tf.data.experimental.AUTOTUNE)
+
+        return train_ds, val_ds, test_ds
+   
+    def create_simple_tf_dataset(self, X_train, y_train,X_val, y_val,X_test, y_test, batch_size=32,buffer_size=1000):
+         # Create training dataset
+         train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+         train_dataset = train_dataset.shuffle(buffer_size=buffer_size).batch(batch_size)
+         #train_dataset = train_dataset.batch(batch_size, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
+         # Create validation dataset
+         val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(batch_size)
+         #val_dataset = val_dataset.batch(batch_size, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
+         # Create test dataset
+         test_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(batch_size)
+         #test_dataset = test_dataset.batch(batch_size, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
+         return train_dataset, val_dataset, test_dataset
 
 
-def main(logger):
-    # Initialize data processing configuration with any required keyword arguments
-    UNIT = {}  # Define or load UNIT as needed
-    data_process = CDataProcess(mp_unit=UNIT)
-    logger.info("Data processing configuration initialized.")
-    # Further application logic can continue here...
+    def evaluate_model(self, model, X_test, y_test):
+        predictions = model.predict(X_test)
+        if predictions.ndim > 1:
+            predictions = predictions.argmax(axis=1)
+        average_type = 'binary' if len(set(y_test)) == 2 else 'weighted'
+        
+        metrics = {
+            "accuracy": accuracy_score(y_test, predictions),
+            "precision": precision_score(y_test, predictions, average=average_type),
+            "recall": recall_score(y_test, predictions, average=average_type),
+            "f1_score": f1_score(y_test, predictions, average=average_type)
+        }
 
-
-if __name__ == '__main__':
-    main(logger)
+        for metric, value in metrics.items():
+            print(f"{metric.capitalize()}: {value:.4f}")
+        
+        return metrics

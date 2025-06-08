@@ -36,6 +36,9 @@ from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
 # Keras Tuner components for manual trial management
 from keras_tuner.engine.trial import TrialStatus
 
+# Import mixed_precision
+from tensorflow.keras import mixed_precision
+
 
 # --- Environment Setup ---
 os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
@@ -43,30 +46,67 @@ os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TUNER_ID"] = "worker" # This is important for the client to identify itself
 
-# -- start of logging setup --
-# ✅ Logger and Logdir Setup
+from tsMqlSetup import CMqlSetup
+# Initialize CMqlSetup for the launcher itself, to ensure logging is configured
+# and setup_config is defined for any utility functions that might implicitly use it.
+# Dynamically determine num_cores and num_threads for optimal performance.
+# num_cores: Estimate physical cores. On systems with hyperthreading, this is often
+#            half the logical core count (os.cpu_count()). If os.cpu_count() is not available
+#            or is 1, default to 1.
+# num_threads: Typically 1 per core for numerical workloads to avoid hyperthreading
+#              contention, but can be set higher (e.g., 2) if testing proves beneficial.
+_logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
+_estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
+
 setup_config = CMqlSetup(
     loglevel='INFO',
     warn='ignore',
     precision='mixed_bfloat16',
     tfdebug=False,
-    num_cores=8,
+    num_cores=_estimated_physical_cores,
     num_threads=1
 )
+
 mql_overrides = CMqlOverrides()
 app_params = mql_overrides.env.all_params().get("app", {})
 tune_params = mql_overrides.env.all_params().get("mltune", {})
-gtuner_model = app_params.get('gtuner_model', 'pytorch')  # or "tensorflow"
-backend = tune_params.get('backend', gtuner_model)  # or "tensorflow"
+global_logdir = app_params.get('LOGDIR', 'Logdir')
+global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
+
+# -- Set up global logging (from tsMqlSetup) --
+from tsMqlSetup import CMqlSetup
+clientlog_config = CMqlSetup()
+
+# Retrieve global logfile path from environment variable
+GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
+if GLOBAL_LOGFILE_PATH:
+    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
+else:
+    clientlog_config.setup_logging() # Fallback to default if not provided
+    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for Chief. Using default logging.")
+
+logger = logging.getLogger(__name__) # Get logger for this module
+# -- end of logging setup ----
+
+
+gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
+backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch
+logger.info(f"Worker get: Using backend: {backend} and tuner type: {gtuner_model}")
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-tunerlogfile = xerces_logfile
-global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername, ltuner=gtuner_model)
 
-logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
+
 # -- end of logging setup ----
+
+# --- Set mixed precision policy if using TensorFlow backend ---
+if backend == 'tensorflow':
+    try:
+        mixed_precision.set_global_policy('mixed_bfloat16')
+        logger.info("✅ TensorFlow mixed precision policy set to 'mixed_bfloat16'.")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not set mixed precision policy: {e}. Falling back to default float type.")
 
 
 # --- Global Configuration ---
@@ -90,7 +130,8 @@ TRAIN_SPLIT_RATIO = ml_params.get('mp_ml_train_split_ratio', 0.8)
 FEATURES_TO_USE = ml_params.get('mp_ml_features_to_use', ['R1_Open', 'R1_High', 'R1_Low', 'R1_Close', 'R1_Tick_Volume', 'R1_spread', 'R1_Real_Volume'])
 TARGET_FEATURE = ml_params.get('mp_ml_target_feature', 'R1_Close')
 NORMALIZATION_METHOD = ml_params.get('mp_ml_normalization_method', 'StandardScaler')
-MLTUNE_BACKEND = tune_params.get('backend', 'tensorflow') # Default to tensorflow
+MLTUNE_BACKEND = backend
+MLTUNE_TUNER_TYPE = gtuner_model
 ORACLE_HOST = app_params.get('xerces_server', '192.168.1.103')
 ORACLE_PORT = app_params.get('xerces_port', 9000)
 
@@ -244,8 +285,9 @@ def main(logger):
 
     # Convert to TensorFlow Datasets or PyTorch Tensors
     if MLTUNE_BACKEND == 'tensorflow':
-        train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train)).batch(32)
-        val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(32)
+        # Reduced batch size to mitigate OOM errors
+        train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train)).batch(16)
+        val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(16)
         input_shape = (n_steps, n_features)
     elif MLTUNE_BACKEND == 'pytorch':
         import torch # Import torch here
@@ -257,9 +299,9 @@ def main(logger):
         sys.exit(1)
 
     # Initialize CMdtunerSelector for the worker
-    logger.info(f"Initializing CMdtunerSelector for worker with backend: {MLTUNE_BACKEND}")
+    logger.info(f"Worker Initializing CMdtunerSelector with backend: {MLTUNE_BACKEND} and tuner type: {MLTUNE_TUNER_TYPE}")
     tuner_config = CMdtunerSelector(
-        tuner_type=tune_params.get('tuner_type', 'hyperband'), # Worker doesn't strictly need tuner_type, but good for consistency
+        tuner_type=MLTUNE_TUNER_TYPE,
         backend=MLTUNE_BACKEND,
         oracle_client=oracle_client,
         train_dataset=train_dataset,
@@ -292,5 +334,3 @@ if __name__ == "__main__":
     finally:
         mt5.shutdown()
         logger.info("✅ MetaTrader5 shutdown.")
-        logger.info("✅ tsNeuroPredictWinMql_worker.py completed successfully.")
-        # Ensure MetaTrader5 is properly shutdown
