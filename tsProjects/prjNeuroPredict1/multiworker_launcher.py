@@ -1,4 +1,4 @@
-runtune="pt" # tf or pt
+runtune="tf" # tf or pt
 # Determine the global backend based on runtune
 GLOBAL_BACKEND = "tensorflow" if runtune == "tf" else "pytorch"
 FORCE_KILL = True
@@ -218,6 +218,6 @@ if __name__ == "__main__":
         if oracle_proc and oracle_proc.poll() is None:
             logger.info("Terminating OracleServer process...")
             oracle_proc.terminate()
-            oracle_proc.wait(timeout=10)
+            oracle_proc.wait(timeout=10)    
         logger.info("All child processes ensured terminated. Launcher shutting down.")
 

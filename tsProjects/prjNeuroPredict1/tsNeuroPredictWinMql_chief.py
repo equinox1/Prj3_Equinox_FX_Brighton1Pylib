@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# +------------------------------------------------------------------+
+# +------------------------------------------------------------------+\
 # |                                    tsNeuroPredictWinMql_chief.py |\
 # |                                                    Tony Shepherd |\
 # |                                    https://www.xercescloud.co.uk |\
@@ -61,6 +61,9 @@ os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TUNER_ID"] = "chief" # This is important for the client to identify itself
 
+# --- DETERMINE BACKEND FROM ENVIRONMENT VARIABLE FIRST ---
+MLTUNE_BACKEND = os.environ.get('MLTUNE_BACKEND', 'tensorflow').lower() # Default to 'tensorflow'
+
 
 # Dynamically determine num_cores and num_threads for optimal performance.
 _logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
@@ -88,7 +91,9 @@ else:
     clientlog_config.setup_logging() # Fallback to default if not provided
     print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for Chief. Using default logging.")
 
-logger = logging.getLogger(__name__) # Get logger for this module AFTER setup_logging has been called
+# Initialize logger AFTER setup_logging has been called
+logger = logging.getLogger(__name__)
+logger.info(f"🔧 Detected tuning backend from environment: {MLTUNE_BACKEND}")
 # -- end of logging setup ----
 
 
@@ -101,16 +106,13 @@ env_trials = int(os.environ.get("MLTUNE_TRIALS", 128))
 
 # -- Apply overrides before config extraction --
 mql_overrides = CMqlOverrides()
-tune_params = mql_overrides.env.all_params().get("mltune", {})
 
-gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
-backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch
-
+# IMPORTANT: Override the backend using the value from the environment variable
 mql_overrides.env.override_params({
     "mltune": {
-        "backend": backend,
+        "backend": MLTUNE_BACKEND, # Use the backend detected from env
         "num_trials": env_trials,
-        "tuner_type": gtuner_model,
+        "tuner_type": os.environ.get('MLTUNE_TUNER_TYPE', 'hyperband'), # Get tuner type from env
         "reset_trials": True, # Ensure chief always resets trials for a fresh start
         "overwrite": True, # Ensure tuner directory is overwritten
     }
@@ -125,8 +127,9 @@ app_params = all_params.get("app", {})
 ml_params = all_params.get("ml", {})
 tune_params = all_params.get("mltune", {}) # Re-fetch updated tune_params
 
-logger.info(f"Using MLTUNE_BACKEND: {backend}")
-logger.info(f"Using MLTUNE_TUNER_TYPE: {gtuner_model}")
+logger.info(f"Using MLTUNE_BACKEND: {MLTUNE_BACKEND}")
+MLTUNE_TUNER_TYPE = tune_params.get('tuner_type', 'hyperband') # Get updated tuner type
+logger.info(f"Using MLTUNE_TUNER_TYPE: {MLTUNE_TUNER_TYPE}")
 
 
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
@@ -134,8 +137,9 @@ xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
+
 # --- Set mixed precision policy if using TensorFlow backend ---
-if backend == 'tensorflow':
+if MLTUNE_BACKEND == 'tensorflow':
     try:
         mixed_precision.set_global_policy('mixed_bfloat16')
         logger.info("✅ TensorFlow mixed precision policy set to 'mixed_bfloat16'.")
@@ -155,8 +159,8 @@ TRAIN_SPLIT_RATIO = ml_params.get('mp_ml_train_split_ratio', 0.8)
 FEATURES_TO_USE = ml_params.get('mp_ml_features_to_use', ['R1_Open', 'R1_High', 'R1_Low', 'R1_Close', 'R1_Tick_Volume', 'R1_spread', 'R1_Real_Volume'])
 TARGET_FEATURE = ml_params.get('mp_ml_target_feature', 'R1_Close')
 NORMALIZATION_METHOD = ml_params.get('mp_ml_normalization_method', 'StandardScaler')
-MLTUNE_BACKEND = backend
-MLTUNE_TUNER_TYPE = gtuner_model
+# MLTUNE_BACKEND is already defined at the top
+# MLTUNE_TUNER_TYPE is already defined above
 # ORACLE_HOST and ORACLE_PORT are already defined via app_params, but OracleClient uses internal config.
 # Keeping these for clarity if they were to be used elsewhere, but not for OracleClient init.
 ORACLE_HOST = app_params.get('xerces_server', '192.168.1.103')
@@ -354,7 +358,7 @@ def main(logger):
     logger.info(f"Chief Initializing CMdtunerSelector with backend: {MLTUNE_BACKEND} and tuner type: {MLTUNE_TUNER_TYPE}")
     tuner_config = CMdtunerSelector(
         tuner_type=MLTUNE_TUNER_TYPE,
-        backend=MLTUNE_BACKEND,
+        backend=MLTUNE_BACKEND, # Use the correctly detected MLTUNE_BACKEND
         oracle_client=oracle_client,
         train_dataset=train_dataset,
         val_dataset=val_dataset,
@@ -394,17 +398,6 @@ def main(logger):
                 import onnxruntime as ort
 
                 # Define ONNX export path
-                # global_logdir is not defined in this scope.
-                # It should be derived from app_params or passed.
-                # Assuming app_params has a LOGDIR field, or use a default
-                # This needs to be consistent with how tsMqlSetup defines its logfile path
-                # For now, let's derive it from the base path or use a sensible default.
-                # A more robust solution would be to pass it from main to load_and_preprocess_data
-                # or ensure it's globally available.
-                # For now, let's assume it's part of app_params or construct based on app_params.
-                # Example: global_logdir = app_params.get('LOGDIR', Path(__file__).parent.parent / 'Logdir')
-                
-                # Retrieve global_logdir from all_params as it's passed from main
                 base_params = all_params.get("base", {})
                 global_logdir = base_params.get('mp_glob_base_log_path', Path(__file__).parent.parent.parent / 'Logdir')
                 

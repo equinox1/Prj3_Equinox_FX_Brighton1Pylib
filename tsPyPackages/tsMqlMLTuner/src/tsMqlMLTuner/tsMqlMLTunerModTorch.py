@@ -9,6 +9,7 @@ from .tsMqlMLOracleClient import OracleClient
 
 import logging # Ensure logging is imported
 import os # Import os to access environment variables
+import time # Import time for sleep
 
 # -- Set up global logging (from tsMqlSetup) --
 from tsMqlSetup import CMqlSetup
@@ -69,7 +70,8 @@ global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
 
 
 class PyTorchTuner:
-    def __init__(self, oracle_client, train_dataset, val_dataset, input_shape, num_classes, project_name, max_trials, hypermodel_params):
+    # Added 'directory' as a parameter to the constructor
+    def __init__(self, oracle_client, train_dataset, val_dataset, input_shape, num_classes, project_name, max_trials, hypermodel_params, directory="."):
         self.oracle = oracle_client
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
@@ -78,6 +80,7 @@ class PyTorchTuner:
         self.project_name = project_name
         self.max_trials = max_trials
         self.hypermodel_params = hypermodel_params
+        self.directory = directory # Store the directory
 
         # Extract relevant parameters from hypermodel_params
         mltune_params = self.hypermodel_params.get('mltune', {})
@@ -344,3 +347,4 @@ class PyTorchTuner:
         except Exception as e:
             logger.error(f"Error loading PyTorch model: {e}")
             return None
+

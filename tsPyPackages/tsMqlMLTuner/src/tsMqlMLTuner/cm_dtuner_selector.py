@@ -92,6 +92,8 @@ class CMdtunerSelector:
             logger.info("Initializing PyTorch Tuner (PyTorchTuner)...")
             self.tuneobj = PyTorchTuner(
                 oracle_client=self.oracle_client,
+                train_dataset=self.train_dataset, # Added train_dataset
+                val_dataset=self.val_dataset,     # Added val_dataset
                 input_shape=self.input_shape,
                 num_classes=self.num_classes,
                 project_name=self.project_name,
