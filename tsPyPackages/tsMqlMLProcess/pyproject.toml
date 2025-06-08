@@ -1,6 +1,6 @@
 [project]
 name = "tsmqlmlprocess"
-version = "2.7.67"
+version = "2.7.70"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]

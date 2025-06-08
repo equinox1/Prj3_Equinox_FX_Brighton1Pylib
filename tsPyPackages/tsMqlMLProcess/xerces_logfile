@@ -1,3 +1,0 @@
-2025-06-07 15:12:39,718 - INFO - tsMqlSetup.py - setup_global_logger - Logger initialized with file: xerces_logfile
-2025-06-07 15:12:39,720 - INFO - run_platform.py - __init__ - MetaTrader5 and ONNX are ready for use.
-2025-06-07 15:12:39,722 - INFO - tsMqlMLProcess.py - <module> - Running on: Windows, loadmql state: True

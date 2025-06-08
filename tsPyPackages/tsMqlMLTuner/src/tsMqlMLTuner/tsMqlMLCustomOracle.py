@@ -2,12 +2,12 @@
 from keras_tuner.engine.oracle import Oracle
 from keras_tuner.engine.hyperparameters import HyperParameters
 from keras_tuner.engine import trial as trial_lib
-from keras_tuner.engine.trial import TrialStatus # Import TrialStatus for consistency
 
-import logging # Ensure logging is imported
+import logging
 import os # Import os to access environment variables
+from pathlib import Path # Import Path for directory manipulation
 
-# -- Set up global logging (from tsMqlSetup) --
+# -- Set up global logging --
 from tsMqlSetup import CMqlSetup
 clientlog_config = CMqlSetup()
 
@@ -16,58 +16,67 @@ GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
 if GLOBAL_LOGFILE_PATH:
     clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
 else:
-    clientlog_config.setup_logging() # Fallback to default if not provided
+    clientlog_config.setup_logging()  # Fallback to default if not provided
     print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for CustomOracle. Using default logging.")
 
-logger = logging.getLogger(__name__) # Get logger for this module
+logger = logging.getLogger(__name__)
 # -- end of logging setup ----
+
 
 from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides()
 app_params = mql_overrides.env.all_params().get("app", {})
-global_logdir = app_params.get('LOGDIR', 'Logdir')
-global_logfile = app_params.get('LOGFILE', 'xerces_logfile') # This global_logfile is superseded by env variable
+
+# Use GLOBAL_LOGDIR_PATH for directory setting for consistency
+global_logdir_from_env = os.environ.get('GLOBAL_LOGDIR_PATH')
+# Fallback logic if environment variable is not set, though multiworker_launcher should set it.
+if global_logdir_from_env:
+    global_logdir = Path(global_logdir_from_env)
+else:
+    global_logdir = Path(app_params.get('LOGDIR', 'Logdir')) # Fallback to app_params if env var not set
+
+global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
 
 class CustomOracle(Oracle):
     def __init__(
         self,
         objective="val_loss",
         max_trials=50,
-        directory="oracle_dir",
+        directory="oracle_dir", # This will now be the path passed from oracle_server_main
         project_name="default_project",
         seed=42,
-        **kwargs
+        reset_trials=True,
+        **kwargs # Accept additional kwargs for potential future use
     ):
+        # The base KerasTuner Oracle.__init__ does NOT take 'directory' or 'project_name'
+        # directly as named arguments. Instead, these are often set as internal
+        # attributes (prefixed with an underscore) by the calling Tuner or directly
+        # by a custom Oracle subclass when it's instantiated independently.
         super().__init__(
             objective=objective,
             max_trials=max_trials,
-            directory=directory,
-            project_name=project_name,
             seed=seed,
-            **kwargs
+            **kwargs # Pass other arbitrary kwargs to super
         )
-        self.logger = logging.getLogger(self.__class__.__name__) # Logger for the Oracle instance
-        self.logger.info(f"[CustomOracle] Initialized with max_trials={max_trials}, project='{project_name}'")
-        self.logger.debug(f"Oracle directory: {directory}")
+        self.logger = logger # Use the global logger
+        self.reset_trials = reset_trials # Store reset_trials setting
+        
+        # Explicitly set the internal _directory and _project_name attributes
+        # that the base KerasTuner Oracle expects for managing its files.
+        self._directory = str(Path(directory).resolve()) # Resolve to absolute path
+        self._project_name = project_name
 
-        # Internal dictionary to store trials (can be improved with persistent storage if needed)
-        self._trials = {}
-        # Load existing trials if they exist in the directory (keras_tuner handles this via super().__init__)
-        # However, for custom serialization, you might need custom load/save logic.
-        self.load() # Attempt to load trials from disk
+        logger.info(f"CustomOracle initialized with objective: {objective}, max_trials: {max_trials}, directory: {self._directory}, project_name: {self._project_name}, reset_trials: {reset_trials}")
 
     def populate_space(self, trial_id):
-        # This method is called by KerasTuner to get hyperparameters for a new trial.
-        # We define the search space here.
+        """
+        Populates the hyperparameter space for a given trial.
+        This method is called by the base Oracle's `create_trial` method.
+        It should return a dictionary with 'status' and 'values' (hyperparameter values).
+        """
         hp = HyperParameters()
-        self._define_hyperparameters(hp)
-        return hp
+        self.logger.info(f"[CustomOracle] Populating hyperparameters for trial_id: {trial_id}")
 
-    def _define_hyperparameters(self, hp):
-        # Define your hyperparameter search space here
-        hp.Int("num_layers", 1, 3, default=2)
-        hp.Int("units", 32, 128, step=32, default=64)
-        hp.Choice("learning_rate", values=[1e-2, 1e-3, 1e-4], default=1e-3)
         hp.Choice("optimizer", ["Adam", "RMSprop", "SGD"], default="Adam")
         hp.Int("epochs", 5, 20, step=5, default=10)
         hp.Int("n_units1", 64, 256, step=64, default=128)
@@ -79,73 +88,64 @@ class CustomOracle(Oracle):
         hp.Int("trans_ff_dim", 64, 512, step=64, default=128)
         hp.Choice("loss", ["mse", "mae", "binary_crossentropy"], default="mse")
         hp.Choice("metric", ["mse", "mae", "accuracy"], default="mse")
-        return hp
+        
+        # Return a dictionary as expected by the base Oracle's populate_space
+        return {
+            "status": trial_lib.TrialStatus.RUNNING, # Or "STOPPED" if max trials reached
+            "values": hp.values
+        }
+
 
     def create_trial(self, tuner_id):
-        # This method is called by the client to request a new trial.
-        # It creates a new Trial object with proposed hyperparameters.
-        if len(self._trials) >= self.max_trials:
-            self.logger.info("[CustomOracle] Max trials reached. No new trial created.")
+        """Creates a new trial based on the populated space.
+        This method now defers to the base Oracle's create_trial, which will
+        internally call this CustomOracle's `populate_space` method.
+        """
+        try:
+            # Let the base Oracle handle the trial creation and population logic.
+            # It will internally call self.populate_space.
+            new_trial = super().create_trial(tuner_id=tuner_id)
+            if new_trial:
+                self.logger.info(f"[CustomOracle] Created trial {new_trial.trial_id} with HPs: {new_trial.hyperparameters.values}")
+                self.save() # Save the Oracle state after the base class creates a new trial
+            return new_trial
+        except Exception as e:
+            self.logger.error(f"[CustomOracle] Error creating trial via super().create_trial: {e}", exc_info=True)
             return None
 
-        # Delegate to KerasTuner's internal trial generation mechanism
-        # This will call populate_space internally to get HPs
-        trial = super().create_trial(tuner_id)
-        if trial:
-            self.logger.info(f"[CustomOracle] Created new trial_id: {trial.trial_id} for tuner: {tuner_id}")
-            self._trials[trial.trial_id] = trial # Store internally
-            self.save() # Save the updated state
-        else:
-            self.logger.warning("[CustomOracle] Failed to create a trial via KerasTuner super method.")
-        return trial
 
-    def update_trial(self, trial_id, score, hyperparameters):
-        # This method is called by the client to report results for a trial.
-        # It updates the internal state of the oracle.
-        self.logger.info(f"[CustomOracle] Updating trial {trial_id} with score {score}.")
-        if trial_id in self._trials:
-            trial = self._trials[trial_id]
-            trial.score = score
-            trial.status = TrialStatus.COMPLETED # Mark as completed
-            # This is where KerasTuner's Oracle.update_trial is usually called
-            # However, our server directly modifies `_trials` and then saves.
-            # If `super().update_trial` is used, it handles the `self.trials` dictionary for us.
-            # For simplicity with direct _trials manipulation in OracleServer, we'll keep this custom update.
-            self.save() # Save changes
-            self.logger.debug(f"Trial {trial_id} updated and saved.")
-        else:
-            self.logger.warning(f"[CustomOracle] Attempted to update non-existent trial: {trial_id}")
+    def update_trial(self, trial_id, status, score=None, hyperparameters=None):
+        """Updates the internal state of a trial, typically with its results."""
+        # This method is called by KerasTuner internally (via `super().update_trial`).
+        # We pass the update directly to the base Oracle.
+        try:
+            super().update_trial(trial_id, status, score, hyperparameters)
+            self.logger.info(f"[CustomOracle] Updated trial {trial_id} with status: {status}, score: {score}")
+            self.save() # Ensure state is saved after update
+        except Exception as e:
+            self.logger.error(f"[CustomOracle] Error updating trial via super().update_trial for trial {trial_id}: {e}", exc_info=True)
 
-    def get_best_trials(self, num_trials=1):
-        # Returns the best trials based on the objective.
-        self.logger.info(f"[CustomOracle] Retrieving top {num_trials} best trials.")
-        # Filter out trials without a score or not completed
-        scored_trials = [t for t in self._trials.values() if hasattr(t, 'score') and t.score is not None and t.status == TrialStatus.COMPLETED]
-        if not scored_trials:
-            self.logger.info("[CustomOracle] No completed trials with scores available.")
-            return []
 
-        # Sort trials by score (assuming lower score is better for val_loss objective)
-        sorted_trials = sorted(scored_trials, key=lambda t: t.score)
-        best_n_trials = sorted_trials[:num_trials]
-        self.logger.debug(f"[CustomOracle] Found {len(best_n_trials)} best trials.")
-        return best_n_trials
+    def new_trial_id(self):
+        """Generates a new unique trial ID. Overridden to use KerasTuner's default `_generate_id`."""
+        return super()._generate_id()
+
+    # REMOVED the @property decorator for 'trials' to prevent conflict with base Oracle
+    # The base class already manages the 'trials' dictionary.
+    # Access it directly via 'self.trials' if needed within CustomOracle.
+    # For clarity, commenting out the property but leaving the methods that might use it.
+    # @property
+    # def trials(self):
+    #     """Returns the dictionary of trials, directly from the base Oracle."""
+    #     return super().trials
 
     def save(self):
-        # Implement custom saving if needed beyond KerasTuner's default.
-        # KerasTuner's Oracle.save() typically handles saving `self.trials`.
+        """Saves the current state of the Oracle to disk."""
+        # KerasTuner's Oracle base class handles saving its state (e.g., `oracle.json`).
         super().save()
-        self.logger.info("[CustomOracle] Oracle state saved.")
+        self.logger.info(f"[CustomOracle] Oracle state saved to {self._directory}.") # Use _directory here
 
-    def load(self):
-        # Implement custom loading if needed beyond KerasTuner's default.
-        # KerasTuner's Oracle.reload() or internal loading handles loading `self.trials`.
-        # For simplicity, we assume super().load() does most of the work.
-        try:
-            super().reload() # This reloads trials into self.trials
-            # After reloading, populate our internal _trials dictionary from super's trials
-            self._trials = {trial.trial_id: trial for trial in self.trials}
-            self.logger.info(f"[CustomOracle] Oracle state loaded. Loaded {len(self._trials)} trials.")
-        except Exception as e:
-            self.logger.warning(f"[CustomOracle] Could not load previous oracle state: {e}. Starting fresh.")
-            self._trials = {} # Initialize empty if loading fails
+    def reload(self):
+        """Reloads the Oracle state from disk."""
+        super().reload()
+        self.logger.info(f"[CustomOracle] Oracle state reloaded from {self._directory}.") # Use _directory here

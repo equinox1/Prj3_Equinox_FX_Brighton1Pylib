@@ -1,12 +1,13 @@
 # ✅ oracle_server_main.py
 
 import os
+import sys
 import time
 from pathlib import Path
 import threading
 import logging
 import warnings
-from rich.logging import RichHandler
+from rich.logging import RichHandler # Keep this import for RichHandler if still used
 import uvicorn
 from datetime import datetime, date
 
@@ -19,121 +20,87 @@ from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
 from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
 from tsMqlOverrides import CMqlOverrides
 from tsMqlSetup import CMqlSetup
+
+# Initialize CMqlSetup to ensure logging is configured correctly for this process
+# Retrieve global logfile path and logdir from environment variable
+GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
+GLOBAL_LOGDIR_PATH = os.environ.get('GLOBAL_LOGDIR_PATH') # Also get logdir for CustomOracle
+
 clientlog_config = CMqlSetup()
-clientlog_config.setup_logging()  # Ensure logging is configured before getting the logger
+if GLOBAL_LOGFILE_PATH:
+    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
+else:
+    clientlog_config.setup_logging() # Fallback to default if not provided
+    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for OracleServer. Using default logging.")
+
 logger = logging.getLogger(__name__)
 
 # -- Suppress ONNX Windows version warning --
 warnings.filterwarnings("ignore", message="Unsupported Windows version")
 
 # -- Load environment variables first --
-
+# Get parameters from environment or defaults
 env_trials = int(os.environ.get("MLTUNE_TRIALS", 128))
-# -- Apply overrides before config extraction --
+# Retrieve backend and tuner_type from environment set by multiworker_launcher
+backend = os.environ.get('MLTUNE_BACKEND', 'tensorflow').lower()
+tuner_model = os.environ.get('TUNER_TYPE', 'hyperband') # Get tuner_type from env as well
+
+# -- Apply overrides from mql_overrides.env --
 mql_overrides = CMqlOverrides()
-tune_params = mql_overrides.env.all_params().get("mltune", {})
-
-gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
-backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch
-
-
+# No need to override backend/tuner_type here if they are passed via environment vars from launcher
+# If there are other mltune or app parameters you want to override from env, do it here.
+# For now, let's just make sure mql_overrides's internal state reflects the environment ones.
 mql_overrides.env.override_params({
     "mltune": {
-        "backend": backend,
+        "backend": backend, # Ensure mql_overrides knows the current backend
         "num_trials": env_trials,
-        "tuner_type": gtuner_model,
-        "reset_trials": True,        # 👈 ensures all previous trials are cleared
-        "overwrite": True,           # 👈 allows tuner to recreate directory/files
-        "tuner_id": "chief"          # 👈 ensures a clean session per run
+        "tuner_type": tuner_model, # Ensure mql_overrides knows the current tuner_type
+        "reset_trials": mql_overrides.env.all_params().get("mltune", {}).get("reset_trials", True), # Keep existing if set
+        "overwrite": mql_overrides.env.all_params().get("mltune", {}).get("overwrite", True),
+        "tuner_id": os.environ.get('TUNER_ID', 'chief') # Use the tuner_id from environment
     },
-   
 })
 
-print(f"Num trials: {env_trials}")
-num_trials = mql_overrides.env.all_params().get("mltune", {}).get("num_trials", 50)
-
-
-# -- Extract config after overrides are in place --
+# Re-fetch potentially overridden params for local use
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
 tune_params = all_params.get("mltune", {})
 
-
-xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
+# Use parameters for OracleServer setup
+num_trials = tune_params.get('num_trials', 128)
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = int(app_params.get('xerces_port', 9000))
-xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
+tuner_id_from_env = os.environ.get('TUNER_ID', 'oracle_default') # Get tuner_id from environment
 
-from tsMqlSetup import CMqlSetup
-# Initialize CMqlSetup for the launcher itself, to ensure logging is configured
-# and setup_config is defined for any utility functions that might implicitly use it.
-# Dynamically determine num_cores and num_threads for optimal performance.
-# num_cores: Estimate physical cores. On systems with hyperthreading, this is often
-#            half the logical core count (os.cpu_count()). If os.cpu_count() is not available
-#            or is 1, default to 1.
-# num_threads: Typically 1 per core for numerical workloads to avoid hyperthreading
-#              contention, but can be set higher (e.g., 2) if testing proves beneficial.
-_logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
-_estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
+# Define the directory for the Oracle's internal state
+# Use GLOBAL_LOGDIR_PATH for consistency
+if GLOBAL_LOGDIR_PATH:
+    oracle_dir = Path(GLOBAL_LOGDIR_PATH) / f"oracle_state_{backend}" / tuner_id_from_env
+else:
+    # Fallback if GLOBAL_LOGDIR_PATH is not set (should not happen if launcher sets it)
+    oracle_dir = Path(os.getcwd()) / "oracle_state" / tuner_id_from_env
 
-setup_config = CMqlSetup(
-    loglevel='INFO',
-    warn='ignore',
-    precision='mixed_bfloat16',
-    tfdebug=False,
-    num_cores=_estimated_physical_cores,
-    num_threads=1
-)
-
-from tsMqlOverrides import CMqlOverrides
-mql_overrides = CMqlOverrides() 
-app_params = mql_overrides.env.all_params().get("app", {})
-global_logdir = app_params.get('LOGDIR', 'Logdir')
-global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
-gtuner_model = app_params.get('gtuner_model', 'pytorch')  # or "tensorflow"
-backend = tune_params.get('backend', backend)  # or "tensorflow"
-
-
-
-# -- Logging headers --
-logger.info(f"ServerMain: Using GTuner model: {gtuner_model}")
-logger.info(f"ServerMain: Using backend: {backend}")
-print(f"Global logdir: {global_logdir}")
-print(f"Global logfile: {global_logfile}")
+oracle_dir.mkdir(parents=True, exist_ok=True)
+logger.info(f"Oracle state directory: {oracle_dir}")
 
 # -- Uvicorn runner --
 def run_uvicorn(app, host, port):
+    """Function to run uvicorn in a separate thread."""
     try:
-        log_config = {
-            "version": 1,
-            "disable_existing_loggers": False,
-            "formatters": {
-                "default": {
-                    "format": "%(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s",
-                },
-            },
-            "handlers": {
-                "file": {
-                    "class": "logging.FileHandler",
-                    "filename": global_logfile,
-                    "formatter": "default",
-                    "level": "DEBUG",
-                },
-            },
-            "root": {
-                "handlers": ["file"],
-                "level": "DEBUG",
-            },
-        }
-        uvicorn.run(app, host=host, port=port, log_level="debug", log_config=log_config)
+        # Uvicorn's log_config should ideally use the same FileHandler from CMqlSetup
+        # For simplicity and to avoid Uvicorn's default formatting interfering,
+        # we disable Uvicorn's default access log and let the root logger handle it.
+        uvicorn.run(app, host=host, port=port, log_level="info", access_log=False)
     except Exception as e:
         logger.exception(f"❌ Uvicorn failed to start: {e}")
 
-def clean_stale_trials_from_oracle(logdir):
+def clean_stale_trials_from_oracle(logdir, project_name):
     import json
     from pathlib import Path
 
-    oracle_file = Path(logdir) / "oracle.json"
+    # The oracle.json file is inside the project_name directory within the oracle_dir
+    oracle_file = Path(logdir) / project_name / "oracle.json"
+    
     if not oracle_file.exists():
         logger.warning(f"No oracle.json found at {oracle_file}")
         return
@@ -162,66 +129,75 @@ def clean_stale_trials_from_oracle(logdir):
 
 # -- Main launcher --
 def main():
+    logger.info(f"ServerMain: Using GTuner model: {tuner_model}") # Log updated tuner model
+    logger.info(f"ServerMain: Using backend: {backend}") # Log updated backend
+
     # -- Clean up stale trials from previous runs --
     if tune_params.get("reset_trials", True):
-        oracle_file = Path(global_logdir) / "oracle.json"
-        if oracle_file.exists():
-            logger.info(f"🗑️ Deleting existing oracle.json at {oracle_file} for a fresh start.")
+        # Oracle directory for KerasTuner is `directory/project_name`
+        oracle_project_path = oracle_dir / tuner_id_from_env
+        if oracle_project_path.exists():
+            logger.info(f"🗑️ Deleting existing Oracle project directory at {oracle_project_path} for a fresh start.")
             try:
-                os.remove(oracle_file)
+                import shutil
+                shutil.rmtree(oracle_project_path)
             except Exception as e:
-                logger.error(f"❌ Failed to delete oracle.json: {e}")
+                logger.error(f"❌ Failed to delete Oracle project directory: {e}")
     else:
-        clean_stale_trials_from_oracle(global_logdir)
+        # Only clean stale trials within the specific project's oracle directory
+        clean_stale_trials_from_oracle(oracle_dir, tuner_id_from_env)
 
     try:
         logger.info("🧠 Creating CustomOracle...")
-        num_trials = tune_params.get("num_trials", 50)
-       # oracle = CustomOracle(objective="val_loss", max_trials=num_trials, log=global_logdir, seed=42, reset_trials=True)
-
-        # Example variables (adjust as per your actual context)
-        tuner_id = f"tuner_run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        oracle_dir = Path(global_logdir)
-        logger.info(f"Oracle directory created at: {oracle_dir}")
+        num_trials_for_oracle = tune_params.get("num_trials", 50)
+        
         # Create the Oracle instance
-        logger.info(f"Creating CustomOracle with max_trials={num_trials}, directory={oracle_dir}, project_name={tuner_id}")
+        logger.info(f"Creating CustomOracle with max_trials={num_trials_for_oracle}, directory={oracle_dir}, project_name={tuner_id_from_env}")
 
         oracle = CustomOracle(
             objective="val_loss",
-            max_trials=num_trials,
-            directory=str(oracle_dir),
-            project_name=tuner_id,
-            reset_trials=True,
-            seed=42,
+            max_trials=num_trials_for_oracle,
+            directory=str(oracle_dir), # Pass as string
+            project_name=tuner_id_from_env,
+            reset_trials=tune_params.get('reset_trials', False),
+            seed=tune_params.get('seed', 42),
         )
 
-        # 👇 Prepopulate trials
-        logger.info(f"🧪 Pre-populating {oracle.max_trials} trials in Oracle...")
-        for _ in range(oracle.max_trials):
-            oracle.create_trial("chief")
-        oracle.save()
-        logger.info(f"✅ Trial population complete. Oracle now has {len(oracle.trials)} trials.")
+        # Prepopulate trials - only if reset_trials is True or if no trials exist in the oracle
+        # The `oracle.trials` property (inherited from KerasTuner's Oracle) will load existing trials if `reset_trials` is False.
+        if tune_params.get('reset_trials', False) or not oracle.trials:
+            logger.info(f"🧪 Pre-populating {oracle.max_trials} trials in Oracle...")
+            for _ in range(oracle.max_trials):
+                oracle.create_trial(f"chief_{os.getpid()}") # Use process ID for uniqueness
+            oracle.save() # Save the initial state of the Oracle
+            logger.info(f"✅ Trial population complete. Oracle now has {len(oracle.trials)} trials.")
+        else:
+            logger.info(f"⏩ Not resetting trials. Oracle already has {len(oracle.trials)} trials.")
+
 
         logger.info(f"🚀 Starting OracleServer at http://{xerces_server}:{xerces_port}")
-        server = OracleServer(oracle, tuner_id="chief",)
+        server = OracleServer(oracle, tuner_id=tuner_id_from_env) # Pass the Oracle instance and tuner_id
 
-        thread = threading.Thread(target=run_uvicorn, args=(server.app, xerces_server, xerces_port))
+        thread = threading.Thread(target=run_uvicorn, args=(server.app, xerces_server, xerces_port), daemon=True)
         thread.start()
 
         time.sleep(1)
         if not thread.is_alive():
-            logger.error("❌ Uvicorn server thread died immediately after starting.")
+            logger.error("❌ Uvicorn server thread died immediately after starting. Check configuration or port.")
             raise RuntimeError("Uvicorn failed to start. Check configuration or port.")
 
-        logger.info("[OK] OracleServer is now running.")
+        logger.info("[OK] OracleServer is now running and awaiting requests.")
         while True:
             time.sleep(60)
 
     except Exception as e:
-        logger.error(f"❌ Failed to start OracleServer: {e}")
-        logger.info("⚙️ Cleaning up resources...")
+        logger.critical(f"❌ Failed to start OracleServer: {e}", exc_info=True)
+        logger.info("⚙️ Cleaning up resources (if any)...")
+        # Add any cleanup logic here if necessary
         logger.info("[OK] Cleanup completed.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
     main()
+

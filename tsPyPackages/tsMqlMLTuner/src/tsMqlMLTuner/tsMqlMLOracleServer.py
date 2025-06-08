@@ -6,158 +6,141 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import traceback
-import logging # Ensure logging is imported
-import os # Import os to access environment variables
-
-# -- Set up global logging (from tsMqlSetup) --
+import logging
+# -- Set up global logging --
 from tsMqlSetup import CMqlSetup
 clientlog_config = CMqlSetup()
-
-# Retrieve global logfile path from environment variable
-GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
-if GLOBAL_LOGFILE_PATH:
-    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
-else:
-    # Fallback or error if not set (should be set by multiworker_launcher.py)
-    clientlog_config.setup_logging() # Use default if not provided via env
-    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for OracleServer. Using default logging.")
-
-logger = logging.getLogger(__name__) # Get logger for this module
+clientlog_config.setup_logging()  # Ensure logging is configured before getting the logger
+logger = logging.getLogger(__name__)
 # -- end of logging setup ----
+
 
 from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides()
 app_params = mql_overrides.env.all_params().get("app", {})
-tune_params = mql_overrides.env.all_params().get("mltune", {})
+tune_params = mql_overrides.env.all_params().get('mltune', {})
 
-# Tuner and backend parameters from environment or defaults
-tuner_model = tune_params.get('tuner_type', 'hyperband')
-backend = tune_params.get('backend', 'tensorflow')
+gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
+backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
-# Custom imports
-from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
-from keras_tuner.engine.trial import TrialStatus
+app_params = mql_overrides.env.all_params().get("app", {})
+global_logdir = app_params.get('LOGDIR', 'Logdir')
+global_logfile = app_params.get('LOGFILE', 'xerces_logfile') # This should be the same as above.
 
-# Pydantic models for request bodies
-class TrialUpdate(BaseModel):
-    trial_id: str
-    status: str
+class TrialRequest(BaseModel):
+    tuner_id: str
 
-class TrialResult(BaseModel):
+class ReportResultRequest(BaseModel):
     trial_id: str
     result: dict
 
+class UpdateStatusRequest(BaseModel):
+    trial_id: str
+    status: str
+
 class OracleServer:
-    def __init__(self, oracle: CustomOracle, tuner_id: str):
+    def __init__(self, oracle, tuner_id="chief"):
         self.oracle = oracle
         self.tuner_id = tuner_id
-        self.app = FastAPI(title="Oracle Server API", version="1.0.0")
+        self.app = FastAPI()
         self._server_thread = None
         self._setup_routes()
         logger.info(f"[OracleServer] Initialized for tuner_id: {self.tuner_id}")
-        logger.debug(f"[OracleServer] Backend: {backend}, Tuner Model: {tuner_model}")
+        logger.debug(f"[OracleServer] Backend: {backend}, Tuner Model: {gtuner_model}")
+
 
     def _setup_routes(self):
-        @self.app.get("/")
-        async def root():
-            logger.info("[OracleServer] Root endpoint accessed.")
-            return {"message": "Oracle Server is running!"}
+        @self.app.get("/heartbeat")
+        async def heartbeat():
+            logger.info("[OracleServer] Heartbeat received.")
+            return {"status": "ok", "timestamp": datetime.datetime.now().isoformat()}
 
-        @self.app.post("/get_trial")
-        async def get_trial():
-            logger.info("[OracleServer] Request to get a new trial.")
-            try:
-                trial = self.oracle.create_trial(self.tuner_id)
-                if trial:
-                    logger.info(f"[OracleServer] Assigned new trial_id: {trial.trial_id} with status: {trial.status}")
-                    return JSONResponse(content={
-                        "trial_id": trial.trial_id,
-                        "hyperparameters": trial.hyperparameters.values,
-                        "status": trial.status
-                    })
-                logger.warning("[OracleServer] No new trials available. Max trials reached or no trials created.")
-                return JSONResponse(content={"trial_id": None, "message": "No new trials available"}, status_code=404)
-            except Exception as e:
-                tb = traceback.format_exc()
-                logger.error(f"[OracleServer] Exception in get_trial:\n{tb}")
-                raise HTTPException(status_code=500, detail=f"Failed to get trial: {str(e)}")
+        @self.app.post("/request_trial")
+        async def request_trial(request: TrialRequest):
+            logger.info(f"[OracleServer] Request for new trial from tuner_id: {request.tuner_id}")
+            trial = self.oracle.create_trial(tuner_id=request.tuner_id)
+            if trial:
+                hyperparameters = {hp.name: hp.current_value for hp in trial.hyperparameters.space}
+                logger.info(f"[OracleServer] Returning trial {trial.trial_id} with HPs: {hyperparameters}")
+                return {
+                    "trial_id": trial.trial_id,
+                    "hyperparameters": hyperparameters,
+                    "status": trial.status,
+                }
+            logger.warning(f"[OracleServer] No new trial available for tuner_id: {request.tuner_id}")
+            raise HTTPException(status_code=404, detail="No more trials available.")
 
         @self.app.post("/report_result")
-        async def report_result(update: TrialResult):
-            logger.info(f"[OracleServer] Reporting result for trial_id: {update.trial_id}, result: {update.result}")
+        async def report_result(update: ReportResultRequest):
+            logger.info(f"[OracleServer] Reporting result for trial {update.trial_id}: {update.result}")
             try:
-                if update.trial_id in self.oracle._trials:
-                    trial = self.oracle._trials[update.trial_id]
-                    # Assuming 'score' is the metric reported for the trial
-                    score = update.result.get("score")
-                    if score is not None:
-                        trial.score = score
-                        trial.status = TrialStatus.COMPLETED # Mark as completed
-                        self.oracle.update_trial(trial.trial_id, score, trial.hyperparameters) # Update oracle's internal state
-                        logger.info(f"[OracleServer] Trial {update.trial_id} completed with score: {score}")
-                        return {"status": "success", "trial_id": update.trial_id, "score": score}
-                    else:
-                        logger.warning(f"[OracleServer] Result for trial {update.trial_id} is missing 'score'.")
-                        return {"status": "failed", "trial_id": update.trial_id, "message": "Result missing 'score'"}
-                logger.warning(f"[OracleServer] Trial {update.trial_id} not found for result reporting.")
-                return {"status": "not_found", "trial_id": update.trial_id}
+                # Assuming result contains 'score' and other metrics
+                score = update.result.get('score')
+                status = update.result.get('status', 'COMPLETED') # Default to COMPLETED
+                self.oracle.update_trial(
+                    trial_id=update.trial_id,
+                    status=status,
+                    score=score,
+                    hyperparameters=update.result.get('hyperparameters', None) # Pass HPs if available
+                )
+                return {"status": "received", "trial_id": update.trial_id}
             except Exception as e:
                 tb = traceback.format_exc()
-                logger.error(f"[OracleServer] Exception in report_result for trial {update.trial_id}:\n{tb}")
-                raise HTTPException(status_code=500, detail=f"Report failed: {str(e)}")
+                print(f"[OracleServer] Exception in report_result:\n{tb}")
+                raise HTTPException(status_code=500, detail=f"Result reporting failed: {str(e)}")
 
         @self.app.post("/update_status")
-        async def update_status(update: TrialUpdate):
-            logger.info(f"[OracleServer] Updating status for trial_id: {update.trial_id} to {update.status}")
+        async def update_status(update: UpdateStatusRequest):
+            logger.info(f"[OracleServer] Updating status for trial {update.trial_id} to {update.status}")
             try:
-                if update.trial_id in self.oracle._trials:
-                    self.oracle._trials[update.trial_id].status = update.status
-                    logger.info(f"[OracleServer] Status updated for trial {update.trial_id}.")
-                    return {"status": "updated", "trial_id": update.trial_id}
-                logger.warning(f"[OracleServer] Trial {update.trial_id} not found for status update.")
-                return {"status": "not_found", "trial_id": update.trial_id}
+                # Use the update_trial method with only status
+                self.oracle.update_trial(trial_id=update.trial_id, status=update.status)
+                return {"status": "updated", "trial_id": update.trial_id}
             except Exception as e:
                 tb = traceback.format_exc()
-                logger.error(f"[OracleServer] Exception in update_status for trial {update.trial_id}:\n{tb}")
+                print(f"[OracleServer] Exception in update_status:\n{tb}")
                 raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
 
         @self.app.get("/list_trials")
         async def list_trials():
             logger.info("[OracleServer] Listing all trials.")
-            trials = []
-            for trial_id, trial in self.oracle._trials.items():
-                trials.append({
+            trials_list = []
+            # CORRECTED: Access self.oracle.trials directly, which is a dictionary managed by KerasTuner Oracle
+            for trial_id, trial in self.oracle.trials.items():
+                trials_list.append({
                     "trial_id": trial_id,
-                    "status": trial.status.name if hasattr(trial.status, 'name') else trial.status, # Handle enum or string status
+                    "status": trial.status,
                     "score": getattr(trial, "score", None),
-                    "hyperparameters": trial.hyperparameters.values
+                    "hyperparameters": getattr(trial, "hyperparameters", {}).values
                 })
-            logger.debug(f"[OracleServer] Retrieved {len(trials)} trials.")
-            return {"trials": trials}
+            return {"trials": trials_list}
 
     def start(self, host="0.0.0.0", port=9000):
-        if self._server_thread is not None:
-            logger.warning("Oracle Server already running.")
+        if self._server_thread is not None and self._server_thread.is_alive():
+            print("Oracle Server already running.")
             return
 
         def run_server():
-            # Use reload=False in production to avoid issues with multiple instances
+            # Use '127.0.0.1' for local testing if '0.0.0.0' causes issues,
+            # but '0.0.0.0' is generally preferred for broader network access.
             uvicorn.run(self.app, host=host, port=port, log_level="info")
 
         self._server_thread = threading.Thread(target=run_server, daemon=True)
         self._server_thread.start()
-        logger.info(f"[OracleServer] Server thread started on {host}:{port}.")
+        logger.info(f"[OracleServer] Started server thread on {host}:{port}")
 
     def stop(self):
-        if self._server_thread is not None:
-            # Uvicorn doesn't have a direct stop method for its server programmatically from outside its loop.
-            # For a graceful shutdown in a real application, you'd send a signal or use a shared event.
-            # For this example, stopping the daemon thread will exit with the main program.
-            logger.info("Oracle Server stop requested. Daemon thread will exit with main process.")
-            self._server_thread = None # Mark as stopped
-        else:
-            logger.info("Oracle Server is not running.")
+        # Stopping Uvicorn gracefully is not straightforward when run in a separate thread.
+        # For simple cases, marking the thread as daemon and allowing the main program to exit works.
+        # For more complex shutdowns, Uvicorn's Server class would be needed.
+        # Here, we just log a message and let the daemon thread terminate with the main process.
+        logger.info("[OracleServer] Attempting to stop server (daemon thread will terminate with main process).")
+        if self._server_thread and self._server_thread.is_alive():
+            # In a real-world scenario, you'd need a more robust shutdown mechanism
+            # for the uvicorn server, e.g., by using `uvicorn.Server` directly.
+            pass # Daemon thread will exit on main program termination.
+

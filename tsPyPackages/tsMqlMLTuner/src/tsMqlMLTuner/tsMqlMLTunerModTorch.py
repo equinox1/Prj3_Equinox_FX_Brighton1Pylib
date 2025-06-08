@@ -7,7 +7,24 @@ import torch.nn.functional as F
 # CORRECTED: Changed to relative import for OracleClient
 from .tsMqlMLOracleClient import OracleClient
 
-import logging
+import logging # Ensure logging is imported
+import os # Import os to access environment variables
+
+# -- Set up global logging (from tsMqlSetup) --
+from tsMqlSetup import CMqlSetup
+clientlog_config = CMqlSetup()
+
+# Retrieve global logfile path from environment variable
+GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
+if GLOBAL_LOGFILE_PATH:
+    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
+else:
+    clientlog_config.setup_logging() # Fallback to default if not provided
+    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for tsMqlMLTunerMod. Using default logging.")
+
+logger = logging.getLogger(__name__) # Get logger for this module
+# -- end of logging setup ----
+
 import os
 import pathlib
 import uuid  # Ensure uuid is imported for use in get_callbacks
@@ -49,11 +66,6 @@ xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 app_params = mql_overrides.env.all_params().get("app", {})
 global_logdir = app_params.get('LOGDIR', 'Logdir')
 global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
-# -- Set up global logging --
-from tsMqlSetup import CMqlSetup 
-from tsMqlSetup import setup_logging
-setup_logging(logfile=global_logfile)  # Ensure logging is configured before getting the logger
-logger = logging.getLogger(__name__)
 
 
 class PyTorchTuner:

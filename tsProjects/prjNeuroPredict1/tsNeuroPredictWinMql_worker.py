@@ -5,7 +5,8 @@
 # +------------------------------------------------------------------+\
 
 import os
-import logging
+import sys
+import logging # Import logging first
 import numpy as np
 import time
 from datetime import datetime
@@ -46,7 +47,7 @@ os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TUNER_ID"] = "worker" # This is important for the client to identify itself
 
-from tsMqlSetup import CMqlSetup
+
 # Initialize CMqlSetup for the launcher itself, to ensure logging is configured
 # and setup_config is defined for any utility functions that might implicitly use it.
 # Dynamically determine num_cores and num_threads for optimal performance.
@@ -74,7 +75,7 @@ global_logdir = app_params.get('LOGDIR', 'Logdir')
 global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
 
 # -- Set up global logging (from tsMqlSetup) --
-from tsMqlSetup import CMqlSetup
+# This block configures the root logger, so it should run before any logger.getLogger(__name__) calls
 clientlog_config = CMqlSetup()
 
 # Retrieve global logfile path from environment variable
@@ -83,9 +84,9 @@ if GLOBAL_LOGFILE_PATH:
     clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
 else:
     clientlog_config.setup_logging() # Fallback to default if not provided
-    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for Chief. Using default logging.")
+    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for Worker. Using default logging.")
 
-logger = logging.getLogger(__name__) # Get logger for this module
+logger = logging.getLogger(__name__) # Get logger for this module AFTER setup_logging
 # -- end of logging setup ----
 
 
@@ -97,8 +98,6 @@ xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
-
-# -- end of logging setup ----
 
 # --- Set mixed precision policy if using TensorFlow backend ---
 if backend == 'tensorflow':
@@ -253,7 +252,9 @@ def main(logger):
     logger.info("🚀 Starting tsNeuroPredictWinMql_worker.py...")
 
     # Initialize OracleClient
-    oracle_client = OracleClient(host=ORACLE_HOST, port=ORACLE_PORT)
+    # OracleClient's __init__ does not accept host and port directly;
+    # it retrieves these from the mql_overrides configuration internally.
+    oracle_client = OracleClient()
 
     # Load and preprocess data
     X, y, n_steps, n_features, feature_scaler, target_scaler = load_and_preprocess_data(
@@ -323,13 +324,14 @@ def main(logger):
 if __name__ == "__main__":
     # Ensure MetaTrader5 is initialized and finalized
     if not mt5.initialize():
-        logger.error("❌ mt5.initialize() failed, error code =", mt5.last_error())
+        # Use a print statement here or a temporary logger since the main logger might not be fully configured yet
+        print("ERROR: mt5.initialize() failed, error code =", mt5.last_error())
         sys.exit(1)
     else:
-        logger.info("✅ MetaTrader5 initialized successfully.")
+        print("INFO: MetaTrader5 initialized successfully.") # Use print for early messages
 
     try:
-        # Run the main function
+        # Run the main function, passing the logger to it
         main(logger)
     finally:
         mt5.shutdown()

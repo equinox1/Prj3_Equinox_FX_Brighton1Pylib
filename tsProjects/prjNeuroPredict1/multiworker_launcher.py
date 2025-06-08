@@ -14,7 +14,7 @@ import psutil
 import logging # Import logging
 from pathlib import Path # Import Path for path manipulations
 
-from tsMqlSetup import CMqlSetup
+
 from tsMqlOverrides import CMqlOverrides
 
 # Initialize CMqlSetup for the launcher itself, to ensure logging is configured
@@ -23,6 +23,7 @@ from tsMqlOverrides import CMqlOverrides
 _logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
 _estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
 
+from tsMqlSetup import CMqlSetup
 setup_config = CMqlSetup(
     loglevel='INFO',
     warn='ignore',
@@ -58,6 +59,7 @@ global_logdir, global_logfile = setup_config.set_log_dir(
     backend=GLOBAL_BACKEND
 )
 # Configure logging for this master process
+
 setup_config.setup_logging(logfile=global_logfile)
 
 # Get the logger instance for this module after setup_logging has been called

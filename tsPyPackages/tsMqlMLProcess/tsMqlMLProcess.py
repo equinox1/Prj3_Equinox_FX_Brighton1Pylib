@@ -12,7 +12,10 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import os
 import sys
-import logging
+
+from tsMqlSetup import CMqlSetup # Correctly import the class
+
+    
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -20,6 +23,21 @@ from datetime import datetime
 import textwrap
 from tabulate import tabulate
 
+import logging
+# -- Set up global logging (from tsMqlSetup) --
+from tsMqlSetup import CMqlSetup
+clientlog_config = CMqlSetup()
+
+# Retrieve global logfile path from environment variable
+GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
+if GLOBAL_LOGFILE_PATH:
+    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
+else:
+    clientlog_config.setup_logging() # Fallback to default if not provided
+    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for Chief. Using default logging.")
+
+logger = logging.getLogger(__name__) # Get logger for this module
+# -- end of logging setup ----
 # Import platform dependencies
 from tsMqlPlatform import run_platform, platform_checker
 from tsMqlEnvMgr import CMqlEnvMgr
@@ -40,11 +58,7 @@ xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
 global_logdir = app_params.get('LOGDIR', 'Logdir')
 global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
-# -- Set up global logging --
-from tsMqlSetup import CMqlSetup 
-from tsMqlSetup import setup_logging
-setup_logging()  # Ensure logging is configured before getting the logger
-logger = logging.getLogger(__name__)
+
 
 # Initialize platform checker
 pchk = run_platform.RunPlatform()

@@ -10,14 +10,24 @@ Version: 1.3.1 (Optimized for reduced memory usage and increased execution perfo
 License: MIT License
 """
 
-import logging
-import logging
-# -- Set up global logging --
+import logging # Ensure logging is imported
+import os # Import os to access environment variables
+
+# -- Set up global logging (from tsMqlSetup) --
 from tsMqlSetup import CMqlSetup
 clientlog_config = CMqlSetup()
-clientlog_config.setup_logging()  # Ensure logging is configured before getting the logger
-logger = logging.getLogger(__name__)
+
+# Retrieve global logfile path from environment variable
+GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
+if GLOBAL_LOGFILE_PATH:
+    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
+else:
+    clientlog_config.setup_logging() # Fallback to default if not provided
+    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for tsMqlMLTunerMod. Using default logging.")
+
+logger = logging.getLogger(__name__) # Get logger for this module
 # -- end of logging setup ----
+
 
 import os
 import pathlib

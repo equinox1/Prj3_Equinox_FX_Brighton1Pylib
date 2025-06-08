@@ -1,8 +1,20 @@
 import logging
+import os
+from tsMqlSetup import CMqlSetup # Correctly import the class
+
+# Initialize CMqlSetup and then call its method
+clientlog_config = CMqlSetup()
+# Retrieve global logfile path from environment variable or define it as needed
+GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH') # Assuming os is imported
+if GLOBAL_LOGFILE_PATH:
+    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
+else:
+    clientlog_config.setup_logging() # Fallback to default if not provided
+
 from datetime import datetime
 import tzlocal
 import zoneinfo  # Import zoneinfo
-import os
+
 
 # -- start of logging setup --
 from tsMqlOverrides import CMqlOverrides
@@ -19,11 +31,6 @@ xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
 global_logdir = app_params.get('LOGDIR', 'Logdir')
 global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
-# -- Set up global logging --
-from tsMqlSetup import CMqlSetup 
-from tsMqlSetup import setup_logging
-setup_logging()  # Ensure logging is configured before getting the logger
-logger = logging.getLogger(__name__)
 
 
 try:
