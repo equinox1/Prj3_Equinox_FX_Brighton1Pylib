@@ -14,6 +14,10 @@ import logging
 from pathlib import Path
 import threading
 
+import sys
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
+
 
 
 from tsMqlSetup import CMqlSetup
@@ -102,7 +106,7 @@ PYTHON_EXEC = sys.executable # Path to the current Python interpreter
 def is_port_in_use(port):
     """Checks if a given port is currently in use."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(('xerces_server', port)) == 0
+        return s.connect_ex((xerces_server, port)) == 0
 
 def wait_for_oracle_ready():
     """Waits for the Oracle Server to become responsive."""

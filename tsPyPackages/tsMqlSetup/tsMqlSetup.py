@@ -6,11 +6,16 @@ import socket
 import codecs
 import io
 import sys
+from loguru import logger as loguru_logger
+import colorlog
 
 # Set environment variables for TensorFlow optimizations
 os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
 os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
+sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
 
 import tensorflow as tf
 from tensorflow.keras.mixed_precision import Policy
@@ -204,86 +209,92 @@ class CMqlSetup:
         return self.global_logdir, self.global_logfile
 
     def setup_logging(self, **kwargs):
-        """Sets up the logging configuration using RichHandler to log to a logfile and console."""
+        """Sets up the logging configuration using RichHandler, loguru, and colorlog."""
+
+        import sys
+        import logging
+        import os
+        from loguru import logger as loguru_logger
+        import colorlog
+        from rich.console import Console
+        from rich.logging import RichHandler
+        from rich.traceback import install
+
         logfile = kwargs.get('logfile', None)
 
-        # Avoid duplicate setup if already configured with the same logfile
-        existing_handlers = logging.getLogger().handlers
-        if existing_handlers:
-            for handler in existing_handlers:
-                if isinstance(handler, logging.FileHandler):
-                    if handler.baseFilename == str(logfile or self.global_logfile):
-                        return  # Already set up correctly — skip reinitialization
-        
-        # CRITICAL: Configure console encoding for Windows before any Rich initialization
+        # Ensure Windows terminal supports UTF-8
         if sys.platform.startswith('win'):
             try:
-                # Set the console's code page to UTF-8. `> nul` suppresses its output.
-                # This should be executed via os.system for the current cmd window.
                 os.system('chcp 65001 > nul')
-                # Set environment variables, crucial for child processes to inherit UTF-8
                 os.environ['PYTHONIOENCODING'] = 'utf-8'
                 os.environ['PYTHONLEGACYWINDOWSSTDIO'] = 'utf-8'
             except Exception as e:
-                # Use logger.info() here as logging might not be fully configured yet
-                logger.info(f"WARNING: Failed to set console encoding to UTF-8: {e}")
+                print(f"WARNING: Failed to set Windows console encoding: {e}")
 
-        # Ensure Rich's traceback handler is installed early
+        # Install rich traceback
         install(show_locals=True)
 
-        # Get the root logger
-        logger = logging.getLogger()
-        logger.setLevel(self.loglevel) # Use the loglevel from CMqlSetup instance
-
-        # Remove any existing handlers to prevent duplicate logs if setup_logging is called multiple times
-        # This is important if this function is called more than once.
-        if logger.hasHandlers():
-            for handler in list(logger.handlers): # Iterate over a copy to safely remove
-                logger.removeHandler(handler)
-
-        # Determine the log file path. Prioritize kwargs, then instance attribute.
-        final_logfile_path = logfile
-        if not final_logfile_path and self.global_logfile:
-            final_logfile_path = self.global_logfile
-        
-        # Fallback if no specific logfile path is provided even after self.global_logfile check
+        # Determine final logfile path
+        final_logfile_path = logfile or self.global_logfile
         if not final_logfile_path:
-            # A very basic fallback path, primarily for dev/debugging if set_log_dir isn't called first
             default_log_dir = Path(os.getcwd()) / "default_logs"
             default_log_dir.mkdir(parents=True, exist_ok=True)
             final_logfile_path = str(default_log_dir / "default_app.log")
-            logger.info(f"WARNING: No specific logfile path provided. Defaulting to: {final_logfile_path}")
+            print(f"WARNING: Defaulting log file path to: {final_logfile_path}")
 
+        # --- Setup colorlog as backup standard logging handler ---
+        root_logger = logging.getLogger()
+        root_logger.setLevel(self.loglevel)
 
-        # Create a file handler, always specifying UTF-8 encoding
-        try:
-            file_handler = logging.FileHandler(final_logfile_path, encoding='utf-8')
-            file_handler.setLevel(self.loglevel)
-            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-            file_handler.setFormatter(formatter)
-            logger.addHandler(file_handler)
-        except Exception as e:
-            logger.info(f"ERROR: Failed to set up file logging to {final_logfile_path}: {e}")
+        # Remove all existing logging handlers
+        for handler in list(root_logger.handlers):
+            root_logger.removeHandler(handler)
 
-        # --- Corrected RichHandler setup for console output ---
-        # Create a Console object with the desired width
-        # Adjust 'width' to your preferred column size (e.g., 120, 150)
-        console = Console(width=120)
-
-        # Pass the created Console object to the RichHandler
-        console_handler = RichHandler(
-            level=self.loglevel,
-            show_time=True,
-            show_level=True,
-            rich_tracebacks=True,
-            log_time_format="[%m/%d/%y %H:%M:%S]",
-            console=console # <--- Pass the custom Console object here
+        color_formatter = colorlog.ColoredFormatter(
+            "%(log_color)s%(levelname)-8s%(reset)s %(white)s%(message)s",
+            log_colors={
+                'DEBUG': 'cyan',
+                'INFO': 'green',
+                'WARNING': 'yellow',
+                'ERROR': 'red',
+                'CRITICAL': 'bold_red',
+            }
         )
-        logger.addHandler(console_handler)
+        color_handler = colorlog.StreamHandler()
+        color_handler.setFormatter(color_formatter)
+        color_handler.setLevel(self.loglevel)
+        root_logger.addHandler(color_handler)
+
+        # --- Setup loguru ---
+        loguru_logger.remove()
+
+        # File sink
+        loguru_logger.add(
+        final_logfile_path,
+        level=self.loglevel.upper(),  # ✅ correct: returns 'DEBUG'
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
+        encoding="utf-8",
+        enqueue=True
+        )
+
+        # Rich-compatible console sink
+        console = Console(width=120)
+        loguru_logger.add(lambda msg: console.print(msg, end=""), level=self.loglevel.upper())
 
 
-        # Register a lenient error handler for codecs, in case of lingering issues
+        # --- Redirect standard logging to loguru ---
+        class InterceptHandler(logging.Handler):
+            def emit(self, record):
+                try:
+                    level = loguru_logger.level(record.levelname).name
+                except Exception:
+                    level = record.levelno
+                loguru_logger.opt(depth=6, exception=record.exc_info).log(level, record.getMessage())
+
+        logging.basicConfig(handlers=[InterceptHandler()], level=self.loglevel)
+
+        # Register a fallback error handler for codecs if needed
+        import codecs
         codecs.register_error('strict', codecs.ignore_errors)
 
-        logging.info(f"Logging setup complete. Messages will be logged to {final_logfile_path}")
-
+        loguru_logger.info(f"Logging initialized. Logfile: {final_logfile_path}")
