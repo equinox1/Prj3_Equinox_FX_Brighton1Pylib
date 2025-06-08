@@ -1,5 +1,3 @@
-# ✅ oracle_server_main.py
-
 import os
 import sys
 import time
@@ -7,197 +5,216 @@ from pathlib import Path
 import threading
 import logging
 import warnings
-from rich.logging import RichHandler # Keep this import for RichHandler if still used
-import uvicorn
-from datetime import datetime, date
 
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from typing import Dict, Optional
-import time
 
-from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer 
+# Local imports
 from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
 from tsMqlOverrides import CMqlOverrides
 from tsMqlSetup import CMqlSetup
+import uvicorn # Ensure uvicorn is imported if running directly
 
-# Initialize CMqlSetup to ensure logging is configured correctly for this process
-# Retrieve global logfile path and logdir from environment variable
-GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
-GLOBAL_LOGDIR_PATH = os.environ.get('GLOBAL_LOGDIR_PATH') # Also get logdir for CustomOracle
+# ----------------------------
+# Global Configuration & Logger Setup
+# ----------------------------
 
+# Load environment variables and app parameters using CMqlOverrides early
+mql_overrides = CMqlOverrides()
+app_params = mql_overrides.env.all_params().get("app", {})
+tune_params = mql_overrides.env.all_params().get('mltune', {})
+
+# Server network configuration from app_params
+xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
+xerces_server = app_params.get('xerces_server', '192.168.1.103')
+xerces_port = app_params.get('xerces_port', 9000)
+
+# Extract backend for logging path
+backend = tune_params.get('backend', 'pytorch') # Assuming PyTorch as default for this context
+
+# Initialize CMqlSetup
 clientlog_config = CMqlSetup()
-if GLOBAL_LOGFILE_PATH:
-    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
-else:
-    clientlog_config.setup_logging() # Fallback to default if not provided
-    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for OracleServer. Using default logging.")
 
+# Set the global log directory and file path using CMqlSetup's method
+# This is crucial to ensure the FileHandler has a valid, existing directory.
+try:
+    # Pass necessary parameters to set_log_dir for proper path construction
+    final_logdir, final_logfile_path = clientlog_config.set_log_dir(
+        logdir=app_params.get('LOGDIR'), # Use LOGDIR from app_params if available
+        logfile=app_params.get('LOGFILE', 'tsneuropredict_app.log'), # Use LOGFILE from app_params or default
+        servername=xerces_servername,
+        backend=backend
+    )
+    logger_initial_print_message = f"Logging directory set to: {final_logdir}, file: {final_logfile_path}"
+except Exception as e:
+    # Fallback if set_log_dir fails early (use print as logger might not be fully configured yet)
+    print(f"CRITICAL ERROR: Failed to set up log directories via CMqlSetup: {e}")
+    sys.exit(1)
+
+# Now, configure the actual logging using CMqlSetup's setup_logging method,
+# passing the determined logfile path.
+clientlog_config.setup_logging(logfile=final_logfile_path)
+
+# Get the logger instance after setup_logging has been called.
+# Using __name__ is best practice for module-specific loggers.
 logger = logging.getLogger(__name__)
+logger.info(logger_initial_print_message) # Log the path setup now that logger is ready
 
-# -- Suppress ONNX Windows version warning --
+# Suppress ONNX Windows version warning, if applicable
 warnings.filterwarnings("ignore", message="Unsupported Windows version")
 
-# -- Load environment variables first --
-# Get parameters from environment or defaults
-env_trials = int(os.environ.get("MLTUNE_TRIALS", 128))
-# Retrieve backend and tuner_type from environment set by multiworker_launcher
-backend = os.environ.get('MLTUNE_BACKEND', 'tensorflow').lower()
-tuner_model = os.environ.get('TUNER_TYPE', 'hyperband') # Get tuner_type from env as well
+# Extract necessary configuration for CustomOracle from tune_params
+max_trials = tune_params.get('num_trials', int(os.environ.get("MLTUNE_TRIALS", 128)))
+project_name = app_params.get('project_name', 'PyTorchTuningProject')
+objective_name = tune_params.get('objective', 'val_loss')
 
-# -- Apply overrides from mql_overrides.env --
-mql_overrides = CMqlOverrides()
-# No need to override backend/tuner_type here if they are passed via environment vars from launcher
-# If there are other mltune or app parameters you want to override from env, do it here.
-# For now, let's just make sure mql_overrides's internal state reflects the environment ones.
-mql_overrides.env.override_params({
-    "mltune": {
-        "backend": backend, # Ensure mql_overrides knows the current backend
-        "num_trials": env_trials,
-        "tuner_type": tuner_model, # Ensure mql_overrides knows the current tuner_type
-        "reset_trials": mql_overrides.env.all_params().get("mltune", {}).get("reset_trials", True), # Keep existing if set
-        "overwrite": mql_overrides.env.all_params().get("mltune", {}).get("overwrite", True),
-        "tuner_id": os.environ.get('TUNER_ID', 'chief') # Use the tuner_id from environment
-    },
-})
+# The Oracle's state directory will be a sub-directory within the final_logdir
+# This should match how tsMqlMLCustomOracle.py expects its directory.
+oracle_directory = Path(final_logdir) / "oracle_state" # Placing it directly under the final_logdir
 
-# Re-fetch potentially overridden params for local use
-all_params = mql_overrides.env.all_params()
-app_params = all_params.get("app", {})
-tune_params = all_params.get("mltune", {})
+# Ensure the Oracle's directory exists before initialization
+try:
+    oracle_directory.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Oracle state directory ensured: {oracle_directory}")
+except Exception as e:
+    logger.critical(f"❌ Failed to create Oracle state directory {oracle_directory}: {e}")
+    sys.exit(1) # Exit if we cannot create the necessary directory
 
-# Use parameters for OracleServer setup
-num_trials = tune_params.get('num_trials', 128)
-xerces_server = app_params.get('xerces_server', '192.168.1.103')
-xerces_port = int(app_params.get('xerces_port', 9000))
-tuner_id_from_env = os.environ.get('TUNER_ID', 'oracle_default') # Get tuner_id from environment
+# ----------------------------
+# FastAPI Application and Oracle Instance
+# ----------------------------
+app = FastAPI()
 
-# Define the directory for the Oracle's internal state
-# Use GLOBAL_LOGDIR_PATH for consistency
-if GLOBAL_LOGDIR_PATH:
-    oracle_dir = Path(GLOBAL_LOGDIR_PATH) / f"oracle_state_{backend}" / tuner_id_from_env
-else:
-    # Fallback if GLOBAL_LOGDIR_PATH is not set (should not happen if launcher sets it)
-    oracle_dir = Path(os.getcwd()) / "oracle_state" / tuner_id_from_env
+# Initialize CustomOracle with all required parameters.
+# Make sure the directory passed is a string, as KerasTuner expects it.
+oracle = CustomOracle(
+    objective=objective_name,
+    max_trials=max_trials,
+    directory=str(oracle_directory), # Pass as string
+    project_name=project_name,
+    seed=None, # Set a specific seed for reproducibility if needed (e.g., 42)
+    reset_trials=True # Set to False if you want to resume previous tuning runs
+)
 
-oracle_dir.mkdir(parents=True, exist_ok=True)
-logger.info(f"Oracle state directory: {oracle_dir}")
+# Initialize a threading.Lock for thread-safe access to the Oracle
+lock = threading.Lock()
 
-# -- Uvicorn runner --
-def run_uvicorn(app, host, port):
-    """Function to run uvicorn in a separate thread."""
-    try:
-        # Uvicorn's log_config should ideally use the same FileHandler from CMqlSetup
-        # For simplicity and to avoid Uvicorn's default formatting interfering,
-        # we disable Uvicorn's default access log and let the root logger handle it.
-        uvicorn.run(app, host=host, port=port, log_level="info", access_log=False)
-    except Exception as e:
-        logger.exception(f"❌ Uvicorn failed to start: {e}")
+# ----------------------------
+# Pydantic Request/Response Models
+# ----------------------------
+class TrialRequest(BaseModel):
+    tuner_id: str
 
-def clean_stale_trials_from_oracle(logdir, project_name):
-    import json
-    from pathlib import Path
+class TrialScore(BaseModel):
+    trial_id: str
+    score: float # For a simple score, e.g., validation loss
 
-    # The oracle.json file is inside the project_name directory within the oracle_dir
-    oracle_file = Path(logdir) / project_name / "oracle.json"
-    
-    if not oracle_file.exists():
-        logger.warning(f"No oracle.json found at {oracle_file}")
-        return
+class TrialResult(BaseModel):
+    trial_id: str
+    # 'result' should be a dictionary of metrics, compatible with KerasTuner's update_trial
+    result: Dict[str, float] # e.g., {'val_loss': 0.05, 'val_accuracy': 0.92}
 
-    try:
-        with open(oracle_file, "r", encoding="utf-8") as f:
-            data = json.load(f)
+class TrialStatusUpdate(BaseModel):
+    trial_id: str
+    status: str # e.g., "RUNNING", "COMPLETED", "STOPPED", "INVALID"
 
-        trials = data.get("trials", {})
-        updated = False
+# ----------------------------
+# FastAPI Endpoints
+# ----------------------------
 
-        for trial_id, trial_data in trials.items():
-            if trial_data.get("status") == "RUNNING":
-                logger.info(f"Marking stale trial {trial_id} as FAILED")
-                trial_data["status"] = "FAILED"
-                updated = True
-
-        if updated:
-            with open(oracle_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-            logger.info("Stale trials have been marked as FAILED.")
-        else:
-            logger.info("No stale trials found to clean.")
-    except Exception as e:
-        logger.exception(f"Failed to clean stale trials: {e}")
-
-# -- Main launcher --
-def main():
-    logger.info(f"ServerMain: Using GTuner model: {tuner_model}") # Log updated tuner model
-    logger.info(f"ServerMain: Using backend: {backend}") # Log updated backend
-
-    # -- Clean up stale trials from previous runs --
-    if tune_params.get("reset_trials", True):
-        # Oracle directory for KerasTuner is `directory/project_name`
-        oracle_project_path = oracle_dir / tuner_id_from_env
-        if oracle_project_path.exists():
-            logger.info(f"🗑️ Deleting existing Oracle project directory at {oracle_project_path} for a fresh start.")
-            try:
-                import shutil
-                shutil.rmtree(oracle_project_path)
-            except Exception as e:
-                logger.error(f"❌ Failed to delete Oracle project directory: {e}")
-    else:
-        # Only clean stale trials within the specific project's oracle directory
-        clean_stale_trials_from_oracle(oracle_dir, tuner_id_from_env)
-
-    try:
-        logger.info("🧠 Creating CustomOracle...")
-        num_trials_for_oracle = tune_params.get("num_trials", 50)
+@app.post("/request_trial")
+def handle_request_trial(request: TrialRequest):
+    """
+    Endpoint for a tuner to request a new trial (hyperparameter configuration).
+    """
+    with lock:
+        logger.info(f"Request for new trial from tuner_id: {request.tuner_id}")
+        # KerasTuner's Oracle.create_trial handles the population of hyperparameters
+        trial = oracle.create_trial(request.tuner_id)
         
-        # Create the Oracle instance
-        logger.info(f"Creating CustomOracle with max_trials={num_trials_for_oracle}, directory={oracle_dir}, project_name={tuner_id_from_env}")
+        if trial is None:
+            logger.info("No trial available (e.g., max_trials reached or no more configurations to explore).")
+            return {"trial_id": None, "hyperparameters": {}}
 
-        oracle = CustomOracle(
-            objective="val_loss",
-            max_trials=num_trials_for_oracle,
-            directory=str(oracle_dir), # Pass as string
-            project_name=tuner_id_from_env,
-            reset_trials=tune_params.get('reset_trials', False),
-            seed=tune_params.get('seed', 42),
+        logger.info(f"Returning trial {trial.trial_id} with HPs: {trial.hyperparameters.values}")
+        return {
+            "trial_id": trial.trial_id,
+            "hyperparameters": trial.hyperparameters.values
+        }
+
+@app.post("/report_result")
+def handle_report_result(data: TrialResult):
+    """
+    Endpoint for a tuner to report the full results (metrics) of a completed trial.
+    This aligns with the `report_trial_result` in `tsMqlMLOracleClient.py`.
+    """
+    with lock:
+        logger.info(f"Reporting result for trial {data.trial_id} with metrics: {data.result}")
+        # KerasTuner's Oracle.update_trial takes `metrics` as a dictionary
+        oracle.update_trial(
+            trial_id=data.trial_id,
+            metrics=data.result,
+            status='COMPLETED' # Mark as completed when results are reported
         )
+        return {"status": "ok", "message": f"Trial {data.trial_id} results reported and updated."}
 
-        # Prepopulate trials - only if reset_trials is True or if no trials exist in the oracle
-        # The `oracle.trials` property (inherited from KerasTuner's Oracle) will load existing trials if `reset_trials` is False.
-        if tune_params.get('reset_trials', False) or not oracle.trials:
-            logger.info(f"🧪 Pre-populating {oracle.max_trials} trials in Oracle...")
-            for _ in range(oracle.max_trials):
-                oracle.create_trial(f"chief_{os.getpid()}") # Use process ID for uniqueness
-            oracle.save() # Save the initial state of the Oracle
-            logger.info(f"✅ Trial population complete. Oracle now has {len(oracle.trials)} trials.")
-        else:
-            logger.info(f"⏩ Not resetting trials. Oracle already has {len(oracle.trials)} trials.")
+@app.post("/update_status")
+def handle_update_status(data: TrialStatusUpdate):
+    """
+    Endpoint for a tuner to update the status of a trial (e.g., FAILED, RUNNING).
+    This aligns with the `update_trial_status` in `tsMqlMLOracleClient.py`.
+    """
+    with lock:
+        logger.info(f"Updating status for trial {data.trial_id} to: {data.status}")
+        oracle.update_trial(
+            trial_id=data.trial_id,
+            status=data.status
+        )
+        return {"status": "ok", "message": f"Trial {data.trial_id} status updated to {data.status}."}
+
+@app.get("/list_trials")
+def list_trials():
+    """
+    Endpoint to list all trials known by the Oracle.
+    Used by OracleClient.get_best_trial to retrieve all trials and find the best one.
+    """
+    with lock:
+        trials_list = []
+        for trial_id, trial_obj in oracle.trials.items():
+            trial_info = {
+                "trial_id": trial_id,
+                "hyperparameters": trial_obj.hyperparameters.values,
+                "score": trial_obj.score if hasattr(trial_obj, 'score') else None,
+                "status": trial_obj.status
+            }
+            trials_list.append(trial_info)
+        logger.info(f"Returning {len(trials_list)} trials.")
+        return {"trials": trials_list}
 
 
-        logger.info(f"🚀 Starting OracleServer at http://{xerces_server}:{xerces_port}")
-        server = OracleServer(oracle, tuner_id=tuner_id_from_env) # Pass the Oracle instance and tuner_id
+@app.get("/status")
+def health_check():
+    """
+    Basic health check endpoint for the server.
+    """
+    logger.info("Health check received.")
+    return {"status": "Oracle Server is running.", "max_trials": oracle.max_trials, "active_trials": len(oracle.ongoing_trials)}
 
-        thread = threading.Thread(target=run_uvicorn, args=(server.app, xerces_server, xerces_port), daemon=True)
-        thread.start()
-
-        time.sleep(1)
-        if not thread.is_alive():
-            logger.error("❌ Uvicorn server thread died immediately after starting. Check configuration or port.")
-            raise RuntimeError("Uvicorn failed to start. Check configuration or port.")
-
-        logger.info("[OK] OracleServer is now running and awaiting requests.")
-        while True:
-            time.sleep(60)
-
-    except Exception as e:
-        logger.critical(f"❌ Failed to start OracleServer: {e}", exc_info=True)
-        logger.info("⚙️ Cleaning up resources (if any)...")
-        # Add any cleanup logic here if necessary
-        logger.info("[OK] Cleanup completed.")
-        sys.exit(1)
-
-
+# ----------------------------
+# Server Runner
+# ----------------------------
 if __name__ == "__main__":
-    main()
+    # The port value should come from your configuration.
+    server_host = xerces_server
+    server_port = xerces_port
 
+    logger.info(f"🚀 Attempting to start Oracle Server at http://{server_host}:{server_port}")
+
+    try:
+        # This will block and run the Uvicorn server until it's manually stopped (e.g., Ctrl+C)
+        uvicorn.run(app, host=server_host, port=server_port)
+        logger.info("✅ Oracle Server shut down gracefully.")
+    except Exception as e:
+        logger.critical(f"❌ Oracle Server crashed unexpectedly: {e}", exc_info=True)
+        sys.exit(1) # Exit with an error code to signal failure

@@ -4,14 +4,25 @@ import logging
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 import uvicorn
-from tsMqlMLCustomOracle import CustomOracle
 
+from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
+from tsMqlOverrides import CMqlOverrides
+from tsMqlSetup import CMqlSetup
 # ----------------------------
 # Logger Setup
 # ----------------------------
-log_dir = os.path.join(os.getcwd(), "logs")
-os.makedirs(log_dir, exist_ok=True)
-log_file_path = os.path.join(log_dir, "oracle_server.log")
+mql_overrides = CMqlOverrides()
+app_params = mql_overrides.env.all_params().get("app", {})
+global_logdir = app_params.get('LOGDIR', 'Logdir')
+global_logfile = app_params.get('LOGFILE', 'xerces_logfile') # This should be the same as above.
+xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
+xerces_server = app_params.get('xerces_server', '192.168.1.103')
+xerces_port = app_params.get('xerces_port', 9000)
+xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
+
+
+log_dir = global_logfile if global_logfile else global_logdir
+log_file_path = os.path.join(log_dir, global_logdir)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -80,7 +91,7 @@ def health_check():
 # Server Runner
 # ----------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("ORACLE_PORT", 9000))
+    port = int(os.environ.get(xerces_port, 9000))
     logger.info(f"Starting Oracle Server on port {port}...")
     logger.info(f"Logging to file: {log_file_path}")
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host=xerces_server, port=xerces_port)
