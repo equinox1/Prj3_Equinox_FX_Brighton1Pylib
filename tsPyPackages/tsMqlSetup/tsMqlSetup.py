@@ -15,8 +15,10 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 import tensorflow as tf
 from tensorflow.keras.mixed_precision import Policy
 from tsMqlPlatform import run_platform, platform_checker
+from rich.console import Console
 from rich.logging import RichHandler
 from rich.traceback import install
+from pathlib import Path
 from pathlib import Path # Import Path for directory handling
 
 # Initialize platform checkers
@@ -105,12 +107,12 @@ class CMqlSetup:
         if gpus:
             try:
                 mem_info = tf.config.experimental.get_memory_info('GPU:0')
-                print("GPU Memory Info:", mem_info)
+                logger.info("GPU Memory Info:", mem_info)
             except Exception as e:
                 logging.warning(f"GPU memory info not available: {e}")
 
         import psutil
-        print("RAM Used:", psutil.virtual_memory().used / 1e9, "GB")
+        logger.info("RAM Used:", psutil.virtual_memory().used / 1e9, "GB")
 
         tf.keras.backend.clear_session()
         gc.collect()
@@ -120,7 +122,7 @@ class CMqlSetup:
             tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
             tf.config.experimental_connect_to_cluster(tpu)
             tf.tpu.experimental.initialize_tpu_system(tpu)
-            print("Using TPU")
+            logger.info("Using TPU")
             return tf.distribute.TPUStrategy(tpu)
         except Exception:
             pass
@@ -134,7 +136,7 @@ class CMqlSetup:
         ]:
             try:
                 strategy = strategy_cls()
-                print(f" Using {label}")
+                logger.info(f" Using {label}")
                 return strategy
             except Exception as e:
                 logging.warning(f"{label} failed: {e}")
@@ -143,7 +145,7 @@ class CMqlSetup:
 
     def set_log_dir(self, logdir=None, logfile='tslog', servername=None, backend=None):
         hostname = socket.gethostname()
-        # print(f"Hostname: {hostname}") # This print can be problematic before logging is fully set up
+        # logger.info(f"Hostname: {hostname}") # This logger.info can be problematic before logging is fully set up
 
         if logdir is None:
             # Determine base path dynamically
@@ -195,8 +197,8 @@ class CMqlSetup:
             with open(self.global_logfile, 'a', encoding='utf-8') as f:
                 f.write('') # Just touch the file to ensure it's writable
         except Exception as e:
-            # Use print() here as logging might not be fully configured yet
-            print(f"ERROR: Could not create logfile at {self.global_logfile}: {e}")
+            # Use logger.info() here as logging might not be fully configured yet
+            logger.info(f"ERROR: Could not create logfile at {self.global_logfile}: {e}")
             raise
 
         return self.global_logdir, self.global_logfile
@@ -205,6 +207,14 @@ class CMqlSetup:
         """Sets up the logging configuration using RichHandler to log to a logfile and console."""
         logfile = kwargs.get('logfile', None)
 
+        # Avoid duplicate setup if already configured with the same logfile
+        existing_handlers = logging.getLogger().handlers
+        if existing_handlers:
+            for handler in existing_handlers:
+                if isinstance(handler, logging.FileHandler):
+                    if handler.baseFilename == str(logfile or self.global_logfile):
+                        return  # Already set up correctly — skip reinitialization
+        
         # CRITICAL: Configure console encoding for Windows before any Rich initialization
         if sys.platform.startswith('win'):
             try:
@@ -215,8 +225,8 @@ class CMqlSetup:
                 os.environ['PYTHONIOENCODING'] = 'utf-8'
                 os.environ['PYTHONLEGACYWINDOWSSTDIO'] = 'utf-8'
             except Exception as e:
-                # Use print() here as logging might not be fully configured yet
-                print(f"WARNING: Failed to set console encoding to UTF-8: {e}")
+                # Use logger.info() here as logging might not be fully configured yet
+                logger.info(f"WARNING: Failed to set console encoding to UTF-8: {e}")
 
         # Ensure Rich's traceback handler is installed early
         install(show_locals=True)
@@ -242,7 +252,7 @@ class CMqlSetup:
             default_log_dir = Path(os.getcwd()) / "default_logs"
             default_log_dir.mkdir(parents=True, exist_ok=True)
             final_logfile_path = str(default_log_dir / "default_app.log")
-            print(f"WARNING: No specific logfile path provided. Defaulting to: {final_logfile_path}")
+            logger.info(f"WARNING: No specific logfile path provided. Defaulting to: {final_logfile_path}")
 
 
         # Create a file handler, always specifying UTF-8 encoding
@@ -253,20 +263,27 @@ class CMqlSetup:
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
         except Exception as e:
-            print(f"ERROR: Failed to set up file logging to {final_logfile_path}: {e}")
+            logger.info(f"ERROR: Failed to set up file logging to {final_logfile_path}: {e}")
 
-        # Create a RichHandler for console output
-        # Rich will use the `sys.stdout` stream, which we've attempted to configure for UTF-8
+        # --- Corrected RichHandler setup for console output ---
+        # Create a Console object with the desired width
+        # Adjust 'width' to your preferred column size (e.g., 120, 150)
+        console = Console(width=120)
+
+        # Pass the created Console object to the RichHandler
         console_handler = RichHandler(
             level=self.loglevel,
             show_time=True,
             show_level=True,
             rich_tracebacks=True,
-            log_time_format="[%m/%d/%y %H:%M:%S]" # Consistent time format
+            log_time_format="[%m/%d/%y %H:%M:%S]",
+            console=console # <--- Pass the custom Console object here
         )
         logger.addHandler(console_handler)
+
 
         # Register a lenient error handler for codecs, in case of lingering issues
         codecs.register_error('strict', codecs.ignore_errors)
 
         logging.info(f"Logging setup complete. Messages will be logged to {final_logfile_path}")
+
