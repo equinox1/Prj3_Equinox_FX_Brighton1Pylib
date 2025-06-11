@@ -225,9 +225,10 @@ class CMqlSetup:
         # Ensure Windows terminal supports UTF-8
         if sys.platform.startswith('win'):
             try:
-                os.system('chcp 65001 > nul')
+                os.system('chcp 65001 > null')# Set console to UTF-8 encoding
+                
                 os.environ['PYTHONIOENCODING'] = 'utf-8'
-                os.environ['PYTHONLEGACYWINDOWSSTDIO'] = 'utf-8'
+                os.environ['PYTHONLEGACYWINDOWSSTDIO'] = 'utf-8'    
             except Exception as e:
                 print(f"WARNING: Failed to set Windows console encoding: {e}")
 

@@ -1,8 +1,8 @@
-runtune="pt" # tf or pt
+runtune="tf" # tf or pt
 # Determine the global backend based on runtune
 GLOBAL_BACKEND = "tensorflow" if runtune == "tf" else "pytorch"
 FORCE_KILL = True
-NUM_WORKERS = 1  # Number of worker processes to launch
+NUM_WORKERS = 12  # Number of worker processes to launch
 import subprocess
 import time
 import os
@@ -17,8 +17,6 @@ import threading
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
-
-
 
 from tsMqlSetup import CMqlSetup
 # Initialize CMqlSetup for the launcher itself, to ensure logging is configured

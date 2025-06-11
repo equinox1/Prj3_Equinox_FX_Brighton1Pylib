@@ -8,6 +8,7 @@
 # License: MIT License (Optional)
 
 
+import logging
 import pandas as pd
 import numpy as np
 import pytz
@@ -30,12 +31,16 @@ else:
 
 logger = logging.getLogger(__name__) # Get logger for this module
 # -- end of logging setup ----
+# Import platform dependencies
 
-# -- start of logging setup --
 from tsMqlOverrides import CMqlOverrides
-mql_overrides = CMqlOverrides() 
+
+mql_overrides = CMqlOverrides()
+env_mgr = mql_overrides.env
+all_params = env_mgr.all_params()
 app_params = mql_overrides.env.all_params().get("app", {})
-tune_params = mql_overrides.env.all_params().get("mltune", {})
+app_params = all_params.get("app", {})
+tune_params = all_params.get("mltune", {})
 
 gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
 backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch
@@ -44,7 +49,6 @@ xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
-app_params = mql_overrides.env.all_params().get("app", {})
 global_logdir = app_params.get('LOGDIR', 'Logdir')
 global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
 
@@ -218,6 +222,3 @@ class CDataLoader:
                 df_file_rates = self.load_data(df=df, df_name=df_name)
 
         return df_api_ticks, df_api_rates, df_file_ticks, df_file_rates 
-
-
-    

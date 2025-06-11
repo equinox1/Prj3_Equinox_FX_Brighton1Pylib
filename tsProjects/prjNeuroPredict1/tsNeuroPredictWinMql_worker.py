@@ -48,7 +48,6 @@ os.environ["TUNER_ID"] = "worker" # This is important for the client to identify
 
 # --- DETERMINE BACKEND FROM ENVIRONMENT VARIABLE FIRST ---
 MLTUNE_BACKEND = os.environ.get('MLTUNE_BACKEND', 'tensorflow').lower() # Default to 'tensorflow'
-logger.info(f"🔧 Detected tuning backend from environment: {MLTUNE_BACKEND}")
 
 
 # Dynamically determine num_cores and num_threads for optimal performance.
@@ -65,8 +64,9 @@ setup_config = CMqlSetup(
     num_threads=1
 )
 
-# Set up global logging using a dedicated CMqlSetup instance
-clientlog_config = CMqlSetup()
+#Set up global logging using a dedicated CMqlSetup instance
+# This block configures the root logger, so it should run before any logger.getLogger(__name__) calls
+clientlog_config = CMqlSetup() # Create a separate instance for logging setup
 
 # Retrieve global logfile path from environment variable
 GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
@@ -74,10 +74,13 @@ if GLOBAL_LOGFILE_PATH:
     clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
 else:
     clientlog_config.setup_logging() # Fallback to default if not provided
-    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for Worker. Using default logging.")
+    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for Chief. Using default logging.")
 
-logger = logging.getLogger(__name__) # Get logger for this module AFTER setup_logging has been called
+# Initialize logger AFTER setup_logging has been called
+logger = logging.getLogger(__name__)
+logger.info(f"🔧 Detected tuning backend from environment: {MLTUNE_BACKEND}")
 # -- end of logging setup ----
+
 
 
 # -- Suppress ONNX Windows version warning --
