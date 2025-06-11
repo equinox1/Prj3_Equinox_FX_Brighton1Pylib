@@ -7,35 +7,16 @@ import logging
 import os # Import os to access environment variables
 from pathlib import Path # Import Path for directory manipulation
 
-# -- Set up global logging --
-from tsMqlSetup import CMqlSetup
-clientlog_config = CMqlSetup()
-
-# Retrieve global logfile path from environment variable
-GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
-if GLOBAL_LOGFILE_PATH:
-    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
-else:
-    clientlog_config.setup_logging()  # Fallback to default if not provided
-    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for CustomOracle. Using default logging.")
-
+# --- Logging setup ---
+# This script now *only* gets a logger. The root logger is configured by multiworker_launcher.py.
+# This prevents repeated "Logging initialized" messages and ensures a consistent log file.
 logger = logging.getLogger(__name__)
 # -- end of logging setup ----
-
 
 from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides()
 app_params = mql_overrides.env.all_params().get("app", {})
 
-# Use GLOBAL_LOGDIR_PATH for directory setting for consistency
-global_logdir_from_env = os.environ.get('GLOBAL_LOGDIR_PATH')
-# Fallback logic if environment variable is not set, though multiworker_launcher should set it.
-if global_logdir_from_env:
-    global_logdir = Path(global_logdir_from_env)
-else:
-    global_logdir = Path(app_params.get('LOGDIR', 'Logdir')) # Fallback to app_params if env var not set
-
-global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
 
 class CustomOracle(Oracle):
     def __init__(
@@ -45,7 +26,7 @@ class CustomOracle(Oracle):
         directory="oracle_dir", # This will now be the path passed from oracle_server_main
         project_name="default_project",
         seed=42,
-        reset_trials=True,
+        reset_trials=True, # Keep this here if CustomOracle needs to manage it internally
         **kwargs # Accept additional kwargs for potential future use
     ):
         # The base KerasTuner Oracle.__init__ does NOT take 'directory' or 'project_name'
@@ -56,6 +37,7 @@ class CustomOracle(Oracle):
             objective=objective,
             max_trials=max_trials,
             seed=seed,
+            # Removed `reset_trials=reset_trials` from super().__init__() call
             **kwargs # Pass other arbitrary kwargs to super
         )
         self.logger = logger # Use the global logger
@@ -114,13 +96,15 @@ class CustomOracle(Oracle):
             return None
 
 
-    def update_trial(self, trial_id, status, score=None, hyperparameters=None):
-        """Updates the internal state of a trial, typically with its results."""
+    def update_trial(self, trial_id, status, score=None, metrics=None, hyperparameters=None):
+        """Updates the internal state of a trial, typically with its results.
+        Added 'metrics' parameter to align with KerasTuner's Oracle.update_trial.
+        """
         # This method is called by KerasTuner internally (via `super().update_trial`).
         # We pass the update directly to the base Oracle.
         try:
-            super().update_trial(trial_id, status, score, hyperparameters)
-            self.logger.info(f"[CustomOracle] Updated trial {trial_id} with status: {status}, score: {score}")
+            super().update_trial(trial_id, status, score=score, metrics=metrics, hyperparameters=hyperparameters)
+            self.logger.info(f"[CustomOracle] Updated trial {trial_id} with status: {status}, score: {score}, metrics: {metrics}")
             self.save() # Ensure state is saved after update
         except Exception as e:
             self.logger.error(f"[CustomOracle] Error updating trial via super().update_trial for trial {trial_id}: {e}", exc_info=True)

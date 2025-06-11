@@ -5,10 +5,9 @@
 # |                                    https://www.xercescloud.co.uk |\
 # +------------------------------------------------------------------+\
 
-
 import os
 import sys
-import logging # Import logging first
+import logging # Import logging, but do NOT configure the root logger here.
 import threading
 import pathlib
 from pathlib import Path
@@ -31,8 +30,8 @@ import onnxruntime as ort
 import MetaTrader5 as mt5
 
 # Custom modules
-from tsMqlSetup import CMqlSetup # Import CMqlSetup early
-from tsMqlOverrides import CMqlOverrides # Ensure CMqlOverrides is imported early
+from tsMqlSetup import CMqlSetup # Import CMqlSetup for non-logging config, but not for root logger setup.
+from tsMqlOverrides import CMqlOverrides
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
 from tsMqlEnvMgr import CMqlEnvMgr
 
@@ -41,7 +40,7 @@ from tsMqlReference import CMqlRefConfig
 from tsMqlConnect import CMqlBrokerConfig
 from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
-from tsMqlMLProcess import CDMLProcess # Ensure CDMLProcess is imported
+from tsMqlMLProcess import CDMLProcess
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
 from tsMqlMLTuner.tsMqlMLTunerMod import CMdtuner # For TensorFlow
@@ -64,36 +63,24 @@ os.environ["TUNER_ID"] = "chief" # This is important for the client to identify 
 # --- DETERMINE BACKEND FROM ENVIRONMENT VARIABLE FIRST ---
 MLTUNE_BACKEND = os.environ.get('MLTUNE_BACKEND', 'tensorflow').lower() # Default to 'tensorflow'
 
-
-# Dynamically determine num_cores and num_threads for optimal performance.
-_logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
-_estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
-
-# Initialize CMqlSetup for general configuration parameters first
-setup_config = CMqlSetup(
-    loglevel='INFO',
+# Initialize CMqlSetup for general (non-logging) configuration parameters
+# This instance will handle things like TensorFlow optimizations, but NOT root logging setup.
+# Its __init__ is now more idempotent, so it won't interfere.
+setup_config_instance = CMqlSetup(
+    loglevel='INFO', # This loglevel will be used by CMqlSetup's internal logic, not for the root logger
     warn='ignore',
     precision='mixed_bfloat16',
     tfdebug=False,
-    num_cores=_estimated_physical_cores,
+    num_cores=os.cpu_count() // 2 if os.cpu_count() is not None and os.cpu_count() > 1 else 1,
     num_threads=1
 )
 
-# Set up global logging using a dedicated CMqlSetup instance
-# This block configures the root logger, so it should run before any logger.getLogger(__name__) calls
-clientlog_config = CMqlSetup() # Create a separate instance for logging setup
-
-# Retrieve global logfile path from environment variable
-GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
-if GLOBAL_LOGFILE_PATH:
-    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
-else:
-    clientlog_config.setup_logging() # Fallback to default if not provided
-    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for Chief. Using default logging.")
-
-# Initialize logger AFTER setup_logging has been called
+# --- Logging setup for this module ---
+# IMPORTANT: Do NOT call CMqlSetup().setup_logging() or logging.basicConfig() here.
+# The root logger is configured by multiworker_launcher.py.
+# This script simply gets its module-specific logger, inheriting the root configuration.
 logger = logging.getLogger(__name__)
-logger.info(f"🔧 Detected tuning backend from environment: {MLTUNE_BACKEND}")
+logger.info(f"🔧 Detected tuning backend from environment: {MLTUNE_BACKEND} (Chief)")
 # -- end of logging setup ----
 
 
@@ -127,9 +114,9 @@ app_params = all_params.get("app", {})
 ml_params = all_params.get("ml", {})
 tune_params = all_params.get("mltune", {}) # Re-fetch updated tune_params
 
-logger.info(f"Using MLTUNE_BACKEND: {MLTUNE_BACKEND}")
+logger.info(f"Using MLTUNE_BACKEND: {MLTUNE_BACKEND} (from chief's params)")
 MLTUNE_TUNER_TYPE = tune_params.get('tuner_type', 'hyperband') # Get updated tuner type
-logger.info(f"Using MLTUNE_TUNER_TYPE: {MLTUNE_TUNER_TYPE}")
+logger.info(f"Using MLTUNE_TUNER_TYPE: {MLTUNE_TUNER_TYPE} (from chief's params)")
 
 
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
@@ -159,36 +146,17 @@ TRAIN_SPLIT_RATIO = ml_params.get('mp_ml_train_split_ratio', 0.8)
 FEATURES_TO_USE = ml_params.get('mp_ml_features_to_use', ['R1_Open', 'R1_High', 'R1_Low', 'R1_Close', 'R1_Tick_Volume', 'R1_spread', 'R1_Real_Volume'])
 TARGET_FEATURE = ml_params.get('mp_ml_target_feature', 'R1_Close')
 NORMALIZATION_METHOD = ml_params.get('mp_ml_normalization_method', 'StandardScaler')
-# MLTUNE_BACKEND is already defined at the top
-# MLTUNE_TUNER_TYPE is already defined above
-# ORACLE_HOST and ORACLE_PORT are already defined via app_params, but OracleClient uses internal config.
-# Keeping these for clarity if they were to be used elsewhere, but not for OracleClient init.
 ORACLE_HOST = app_params.get('xerces_server', '192.168.1.103')
 ORACLE_PORT = app_params.get('xerces_port', 9000)
 
 
 # Mapping for MetaTrader5 timeframes
 MT5_TIMEFRAME_MAP = {
-    'M1': mt5.TIMEFRAME_M1,
-    'M2': mt5.TIMEFRAME_M2,
-    'M3': mt5.TIMEFRAME_M3,
-    'M4': mt5.TIMEFRAME_M4,
-    'M5': mt5.TIMEFRAME_M5,
-    'M6': mt5.TIMEFRAME_M6,
-    'M10': mt5.TIMEFRAME_M10,
-    'M12': mt5.TIMEFRAME_M12,
-    'M15': mt5.TIMEFRAME_M15,
-    'M20': mt5.TIMEFRAME_M20,
-    'M30': mt5.TIMEFRAME_M30,
-    'H1': mt5.TIMEFRAME_H1,
-    'H2': mt5.TIMEFRAME_H2,
-    'H3': mt5.TIMEFRAME_H3,
-    'H4': mt5.TIMEFRAME_H4,
-    'H6': mt5.TIMEFRAME_H6,
-    'H8': mt5.TIMEFRAME_H8,
-    'H12': mt5.TIMEFRAME_H12,
-    'D1': mt5.TIMEFRAME_D1,
-    'W1': mt5.TIMEFRAME_W1,
+    'M1': mt5.TIMEFRAME_M1, 'M2': mt5.TIMEFRAME_M2, 'M3': mt5.TIMEFRAME_M3, 'M4': mt5.TIMEFRAME_M4,
+    'M5': mt5.TIMEFRAME_M5, 'M6': mt5.TIMEFRAME_M6, 'M10': mt5.TIMEFRAME_M10, 'M12': mt5.TIMEFRAME_M12,
+    'M15': mt5.TIMEFRAME_M15, 'M20': mt5.TIMEFRAME_M20, 'M30': mt5.TIMEFRAME_M30, 'H1': mt5.TIMEFRAME_H1,
+    'H2': mt5.TIMEFRAME_H2, 'H3': mt5.TIMEFRAME_H3, 'H4': mt5.TIMEFRAME_H4, 'H6': mt5.TIMEFRAME_H6,
+    'H8': mt5.TIMEFRAME_H8, 'H12': mt5.TIMEFRAME_H12, 'D1': mt5.TIMEFRAME_D1, 'W1': mt5.TIMEFRAME_W1,
     'MN1': mt5.TIMEFRAME_MN1,
 }
 
@@ -196,31 +164,25 @@ MT5_TIMEFRAME_MAP = {
 def load_and_preprocess_data(symbol, timeframe_str, num_candles, look_back, prediction_horizon, features_to_use, target_feature, normalization_method):
     logger.info(f"📊 Loading data for {symbol} {timeframe_str}...")
     
-    # Convert string timeframe to mt5.TIMEFRAME_* constant
     timeframe_mt5 = MT5_TIMEFRAME_MAP.get(timeframe_str)
     if timeframe_mt5 is None:
         logger.error(f"❌ Invalid timeframe string: {timeframe_str}. Please use one of: {list(MT5_TIMEFRAME_MAP.keys())}")
-        return None, None, None, None, None, None # Returns 6 Nones. This path is fine.
+        return None, None, None, None, None, None
 
-    # Initialize CDataLoader with the correct mt5 timeframe constant
     data_loader = CDataLoader(
         lp_app_primary_symbol=symbol,
-        lp_timeframe=timeframe_mt5, # Pass the mt5 constant
-        lp_data_rows=num_candles # Assuming num_candles corresponds to lp_data_rows
+        lp_timeframe=timeframe_mt5,
+        lp_data_rows=num_candles
     )
     
-    # Call run_dataloader_services to get the dataframes
     df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader.run_dataloader_services()
-
-    # Assuming 'df_api_rates' is the primary dataframe for historical rates
     data_df = df_api_rates 
 
     if data_df.empty:
         logger.error(f"❌ No data loaded for {symbol}.")
-        return None, None, None, None, None, None # Returns 6 Nones. This path is fine.
+        return None, None, None, None, None, None
 
     logger.info("⚙️ Preprocessing data (CDataProcess)...")
-    # Initialize CDataProcess with keyword arguments
     data_process = CDataProcess(
         look_back=look_back,
         prediction_horizon=prediction_horizon,
@@ -228,12 +190,11 @@ def load_and_preprocess_data(symbol, timeframe_str, num_candles, look_back, pred
         target_feature=target_feature
     )
     
-    # Call run_dataprocess_services to process the dataframe
-    processed_data_df = data_process.run_dataprocess_services(df=data_df, df_name='df_api_rates') # Pass df and df_name
+    processed_data_df = data_process.run_dataprocess_services(df=data_df, df_name='df_api_rates')
 
     if processed_data_df.empty:
         logger.error("❌ Data processing resulted in an empty DataFrame.")
-        return None, None, None, None, None, None # Returns 6 Nones. This path is fine.
+        return None, None, None, None, None, None
 
     logger.info("⚙️ Creating ML sequences (CDMLProcess)...")
     ml_process = CDMLProcess(
@@ -248,13 +209,12 @@ def load_and_preprocess_data(symbol, timeframe_str, num_candles, look_back, pred
         df=processed_data_df,
         back_window=look_back,
         forward_window=prediction_horizon,
-        features=features_to_use # Pass the list of features
+        features=features_to_use
     )
 
-    # --- Debugging: Add checks for X and y from Create_Xy_input_and_target ---
     if not isinstance(X, np.ndarray) or not isinstance(y, np.ndarray):
         logger.error(f"❌ CDMLProcess.Create_Xy_input_and_target did not return numpy arrays. X type: {type(X)}, y type: {type(y)}")
-        return None, None, None, None, None, None # Return 6 Nones if types are wrong
+        return None, None, None, None, None, None
 
     if X is None or y is None or X.size == 0 or y.size == 0:
         logger.error(f"❌ Failed to create sequences after data processing. X shape: {X.shape if X is not None else 'None'}, y shape: {y.shape if y is not None else 'None'}")
@@ -281,9 +241,6 @@ def load_and_preprocess_data(symbol, timeframe_str, num_candles, look_back, pred
     logger.info(f"y scaled shape: {y_scaled.shape}")
 
     logger.info("✅ Data preprocessing complete. Preparing return values.")
-    # Debugging: Log the values about to be returned
-    # Explicitly verify each component right before the return
-    # The error is not here, but in how the main function unpacks this return.
     returned_values = (X_scaled, y_scaled, n_steps, n_features, feature_scaler, target_scaler)
     logger.debug(f"Returning: {len(returned_values)} values. Types: {[type(val) for val in returned_values]}")
     logger.debug(f"X_scaled shape={X_scaled.shape}, y_scaled shape={y_scaled.shape}, n_steps={n_steps}, n_features={n_features}, feature_scaler_type={type(feature_scaler)}, target_scaler_type={type(target_scaler)}")
@@ -291,8 +248,8 @@ def load_and_preprocess_data(symbol, timeframe_str, num_candles, look_back, pred
     return returned_values
 
 
-def main(logger):
-    logger.info("🚀 Starting tsNeuroPredictWinMql_chief.py...")
+def main():
+    logger.info("🚀 Starting tsNeuroPredictWinMql_chief.py main function...")
 
     # Initialize OracleClient
     # OracleClient's __init__ does not accept host and port directly;
@@ -399,43 +356,46 @@ def main(logger):
 
                 # Define ONNX export path
                 base_params = all_params.get("base", {})
-                global_logdir = base_params.get('mp_glob_base_log_path', Path(__file__).parent.parent.parent / 'Logdir')
-                
-                onnx_path = Path(global_logdir) / xerces_servername / MLTUNE_BACKEND / f"{MODEL_NAME}.onnx"
-                onnx_path.parent.mkdir(parents=True, exist_ok=True)
+                # It's better to explicitly get global_logdir from os.environ as it's set by the launcher
+                global_logdir_path = os.environ.get('GLOBAL_LOGDIR_PATH')
+                if not global_logdir_path:
+                    logger.error("GLOBAL_LOGDIR_PATH environment variable not set. Cannot save ONNX model.")
+                else:
+                    onnx_path = Path(global_logdir_path) / xerces_servername / MLTUNE_BACKEND / f"{MODEL_NAME}.onnx"
+                    onnx_path.parent.mkdir(parents=True, exist_ok=True) # Ensure parent directory exists
 
-                logger.info(f"Attempting to convert TensorFlow model to ONNX at {onnx_path}")
-                # Ensure input_signature is correct for your model
-                # Assuming `input_shape` is (timesteps, features)
-                # Keras models expect a batch dimension as the first dimension
-                input_signature = [
-                    tf.TensorSpec(shape=(None, input_shape[0], input_shape[1]), dtype=tf.float32, name="input")
-                ]
-                
-                # Convert the Keras model (best_model is a tf.keras.Model)
-                onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature, opset=13)
-                with open(onnx_path, "wb") as f:
-                    f.write(onnx_model.SerializeToString())
-                logger.info("✅ TensorFlow model successfully converted to ONNX.")
+                    logger.info(f"Attempting to convert TensorFlow model to ONNX at {onnx_path}")
+                    # Ensure input_signature is correct for your model
+                    # Assuming `input_shape` is (timesteps, features)
+                    # Keras models expect a batch dimension as the first dimension
+                    input_signature = [
+                        tf.TensorSpec(shape=(None, input_shape[0], input_shape[1]), dtype=tf.float32, name="input")
+                    ]
+                    
+                    # Convert the Keras model (best_model is a tf.keras.Model)
+                    onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature, opset=13)
+                    with open(onnx_path, "wb") as f:
+                        f.write(onnx_model.SerializeToString())
+                    logger.info("✅ TensorFlow model successfully converted to ONNX.")
 
-                # Check ONNX model
-                onnx_model_checked = onnx.load(onnx_path)
-                checker.check_model(onnx_model_checked)
-                logger.info("✅ ONNX model check successful.")
+                    # Check ONNX model
+                    onnx_model_checked = onnx.load(onnx_path)
+                    checker.check_model(onnx_model_checked)
+                    logger.info("✅ ONNX model check successful.")
 
-                # Optional: Run inference with ONNX Runtime to verify
-                ort_session = ort.InferenceSession(onnx_path)
-                input_name = ort_session.get_inputs()[0].name
-                output_name = ort_session.get_outputs()[0].name
+                    # Optional: Run inference with ONNX Runtime to verify
+                    ort_session = ort.InferenceSession(onnx_path)
+                    input_name = ort_session.get_inputs()[0].name
+                    output_name = ort_session.get_outputs()[0].name
 
-                # Use a small subset of X_val for ONNX inference test
-                # Ensure the test_input has the correct batch dimension (None, timesteps, features)
-                test_input = X_val[:1].astype(np.float32) # Get first sample, ensure float32
-                if test_input.ndim == 2: # If input is (timesteps, features), add batch dim
-                    test_input = np.expand_dims(test_input, axis=0)
+                    # Use a small subset of X_val for ONNX inference test
+                    # Ensure the test_input has the correct batch dimension (None, timesteps, features)
+                    test_input = X_val[:1].astype(np.float32) # Get first sample, ensure float32
+                    if test_input.ndim == 2: # If input is (timesteps, features), add batch dim
+                        test_input = np.expand_dims(test_input, axis=0)
 
-                ort_outs = ort_session.run([output_name], {input_name: test_input})
-                logger.info(f"✅ ONNX Runtime inference test successful. Output shape: {ort_outs[0].shape}")
+                    ort_outs = ort_session.run([output_name], {input_name: test_input})
+                    logger.info(f"✅ ONNX Runtime inference test successful. Output shape: {ort_outs[0].shape}")
 
             except ImportError:
                 logger.warning("tf2onnx or onnx not installed. Skipping ONNX conversion.")
@@ -450,15 +410,14 @@ def main(logger):
 if __name__ == "__main__":
     # Ensure MetaTrader5 is initialized and finalized
     if not mt5.initialize():
-        # Use print for early messages before main logger is fully configured
-        print("ERROR: mt5.initialize() failed, error code =", mt5.last_error())
+        logger.error(f"❌ mt5.initialize() failed, error code = {mt5.last_error()}")
         sys.exit(1)
     else:
-        print("INFO: MetaTrader5 initialized successfully.")
+        logger.info("✅ MetaTrader5 initialized successfully.")
 
     try:
-        # Run the main function, passing the logger to it
-        main(logger)
+        # Run the main function
+        main()
     finally:
         mt5.shutdown()
         logger.info("✅ MetaTrader5 shutdown.")

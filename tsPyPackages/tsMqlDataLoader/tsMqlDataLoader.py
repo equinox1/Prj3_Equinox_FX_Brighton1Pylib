@@ -21,16 +21,13 @@ import logging
 from tsMqlSetup import CMqlSetup
 clientlog_config = CMqlSetup()
 
-# Retrieve global logfile path from environment variable
-GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
-if GLOBAL_LOGFILE_PATH:
-    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
-else:
-    clientlog_config.setup_logging() # Fallback to default if not provided
-    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for Chief. Using default logging.")
-
-logger = logging.getLogger(__name__) # Get logger for this module
+# --- Logging setup ---
+# This script now *only* gets a logger. The root logger is configured by multiworker_launcher.py.
+# This prevents repeated "Logging initialized" messages and ensures a consistent log file.
+logger = logging.getLogger(__name__)
 # -- end of logging setup ----
+
+
 # Import platform dependencies
 
 from tsMqlOverrides import CMqlOverrides

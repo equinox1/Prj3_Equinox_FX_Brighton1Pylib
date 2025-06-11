@@ -15,50 +15,13 @@ from typing import Dict, Optional # <--- ADDED: Import Dict and Optional from ty
 from tsMqlSetup import CMqlSetup
 clientlog_config = CMqlSetup()
 
-# Retrieve global logfile path from environment variable
-GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
-if GLOBAL_LOGFILE_PATH:
-    # If the global path is set, use it for this module's logging
-    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
-else:
-    # Fallback to default if not provided via environment variable
-    # This ensures logging is configured even if GLOBAL_LOGFILE_PATH isn't immediately available.
-    clientlog_config.setup_logging()
-    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for tsMqlMLOracleServer. Using default logging.")
-
-logger = logging.getLogger(__name__) # Get logger for this module
+# --- Logging setup ---
+# This script now *only* gets a logger. The root logger is configured by multiworker_launcher.py.
+# This prevents repeated "Logging initialized" messages and ensures a consistent log file.
+logger = logging.getLogger(__name__)
 # -- end of logging setup ----
 
-# --- REMOVED: Redundant logging.basicConfig block that was causing FileNotFoundError ---
-# from tsMqlOverrides import CMqlOverrides
-# mql_overrides = CMqlOverrides()
-# app_params = mql_overrides.env.all_params().get("app", {})
-# tune_params = mql_overrides.env.all_params().get('mltune', {})
 
-# tuner_model = tune_params.get('tuner_type', 'hyperband')
-# backend = tune_params.get('backend', 'tensorflow')
-# xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
-# xerces_server = app_params.get('xerces_server', '192.168.1.103')
-# xerces_port = app_params.get('xerces_port', 9000)
-# xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-
-# app_params = mql_overrides.env.all_params().get("app", {})
-# global_logdir = app_params.get('LOGDIR', 'Logdir')
-# global_logfile = app_params.get('LOGFILE', 'xerces_logfile') # This should be the same as above.
-
-# log_dir = global_logfile if global_logfile else global_logdir
-# log_file_path = os.path.join(log_dir, global_logdir)
-
-# logging.basicConfig(
-#     level=logging.INFO,
-#     format='[%(asctime)s] %(levelname)s - %(message)s',
-#     handlers=[
-#         logging.FileHandler(log_file_path, encoding='utf-8'),
-#         logging.StreamHandler()
-#     ]
-# )
-# logger = logging.getLogger("OracleServer")
-# --- END REMOVED BLOCK ---
 
 
 # Pydantic models for request bodies

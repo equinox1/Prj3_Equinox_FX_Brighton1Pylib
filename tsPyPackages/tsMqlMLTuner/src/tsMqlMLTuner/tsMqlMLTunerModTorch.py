@@ -11,20 +11,12 @@ import logging # Ensure logging is imported
 import os # Import os to access environment variables
 import time # Import time for sleep
 
-# -- Set up global logging (from tsMqlSetup) --
-from tsMqlSetup import CMqlSetup
-clientlog_config = CMqlSetup()
-
-# Retrieve global logfile path from environment variable
-GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
-if GLOBAL_LOGFILE_PATH:
-    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
-else:
-    clientlog_config.setup_logging() # Fallback to default if not provided
-    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for tsMqlMLTunerMod. Using default logging.")
-
-logger = logging.getLogger(__name__) # Get logger for this module
+# --- Logging setup ---
+# This script now *only* gets a logger. The root logger is configured by multiworker_launcher.py.
+# This prevents repeated "Logging initialized" messages and ensures a consistent log file.
+logger = logging.getLogger(__name__)
 # -- end of logging setup ----
+
 
 import os
 import pathlib
@@ -208,11 +200,11 @@ class PyTorchTuner:
 
         while True:
             try:
-                trial_resp = self.oracle.get_trial()
-                trial = trial_resp.get("trial") if isinstance(trial_resp, dict) else trial_resp
+                # Direct assignment as OracleClient.get_trial() now returns the dict directly
+                trial = self.oracle.get_trial() 
 
-                if not trial or "trial_id" not in trial:
-                    logger.info("[PyTorchTuner] 💤 No more trials available. Exiting.")
+                if not trial or trial.get("trial_id") is None: # Check for None trial_id to signify no more trials
+                    logger.info("[PyTorchTuner] 💤 No more trials available (or an error occurred). Exiting.")
                     break
 
                 trial_id = trial["trial_id"]
@@ -227,7 +219,7 @@ class PyTorchTuner:
                 val_loss = self.objective_from_hp(hp)
 
                 logger.info(f"[PyTorchTuner] ✅ Trial {trial_id} completed. val_loss = {val_loss:.5f}")
-                self.oracle.report_trial_result(trial_id, val_loss)
+                self.oracle.report_trial_result(trial_id, {'val_loss': val_loss}) # Report result as dictionary
                 self.oracle.update_trial_status(trial_id, "COMPLETED")
 
             except Exception as e:
@@ -347,4 +339,3 @@ class PyTorchTuner:
         except Exception as e:
             logger.error(f"Error loading PyTorch model: {e}")
             return None
-

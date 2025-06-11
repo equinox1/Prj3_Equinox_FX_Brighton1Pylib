@@ -1,8 +1,8 @@
-runtune="tf" # tf or pt
+runtune="pt" # tf or pt
 # Determine the global backend based on runtune
 GLOBAL_BACKEND = "tensorflow" if runtune == "tf" else "pytorch"
 FORCE_KILL = True
-NUM_WORKERS = 12  # Number of worker processes to launch
+NUM_WORKERS = 1  # Number of worker processes to launch
 import subprocess
 import time
 import os
@@ -71,15 +71,40 @@ os.environ['MLTUNE_BACKEND'] = GLOBAL_BACKEND
 os.environ['MLTUNE_TUNER_TYPE'] = tune_params.get('tuner_type', 'hyperband')
 os.environ['MLTUNE_TRIALS'] = str(tune_params.get('num_trials', 128))
 
-# Set up logging for the launcher itself
-# Need to initialize CMqlSetup again for the launcher process's logger
-launcher_log_config = CMqlSetup()
-launcher_log_config.setup_logging(logfile=str(global_logfile))
-logger = logging.getLogger(__name__) # Get logger for the launcher script
+# Initialize CMqlSetup for logging.
+# This block ensures that the root logger is configured only once across the application,
+# preventing duplicate log messages or repeated file handler creations.
+root_logger = logging.getLogger()
+logger_initial_print_message = "" # Initialize message
+if not root_logger.handlers: # Check if the root logger has any handlers configured already
+    # If no handlers exist, proceed with setting up the logging
+    clientlog_config = CMqlSetup()
+    try:
+        # Determine the final log directory and file path
+        final_logdir, final_logfile_path = clientlog_config.set_log_dir(
+            logdir=app_params.get('LOGDIR'), # Use LOGDIR from app_params if available
+            logfile=app_params.get('LOGFILE', 'tsneuropredict_app.log'), # Use LOGFILE from app_params or default
+            servername=xerces_servername,
+            backend=backend
+        )
+        # Configure the logging system
+        clientlog_config.setup_logging(logfile=final_logfile_path)
+        logger_initial_print_message = f"Logging initialized. Logfile: {final_logfile_path}"
+    except Exception as e:
+        # If logging setup fails, print a critical error to stderr and exit
+        print(f"CRITICAL ERROR: Failed to set up log directories or configure logging via CMqlSetup: {e}", file=sys.stderr)
+        sys.exit(1)
+else:
+    # If handlers already exist, it means logging was configured by another module.
+    # In this case, we skip re-initialization to avoid issues.
+    logger_initial_print_message = "Logging already configured. Skipping re-initialization."
 
-logger.info(f"🚀 Multiworker Launcher started with Global Backend: {GLOBAL_BACKEND}")
-logger.info(f"All processes will log to: {global_logfile}")
-logger.info(f"Log directory set to: {global_logdir}")
+# Get the logger instance for this specific module.
+# This should always be done AFTER the root logger has been configured.
+logger = logging.getLogger(__name__)
+# Log the initial message, confirming whether logging was set up or already existed.
+logger.info(logger_initial_print_message)
+
 # Define servername before using it in the logging statement
 servername = xerces_servername # Assign the value from app_params
 logger.debug(f"Servername: {servername}")
@@ -97,7 +122,7 @@ ORACLE_DAEMON_SCRIPT = BASE_PATH / 'tsProjects' / 'prjNeuroPredict1' / \
 
 ORACLE_HOST = xerces_server # Use the IP from config
 ORACLE_PORT = xerces_port # Use the port from config
-ORACLE_READY_TIMEOUT = 60 # Seconds to wait for Oracle Server to become ready
+ORACLE_READY_TIMEOUT = 30 # Seconds to wait for Oracle Server to become ready
 
 PYTHON_EXEC = sys.executable # Path to the current Python interpreter
 

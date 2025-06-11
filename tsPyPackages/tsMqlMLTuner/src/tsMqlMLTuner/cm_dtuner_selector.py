@@ -4,15 +4,12 @@ from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient # This is crucial for 
 
 import os # Ensure os is imported
 import logging
-# -- Set up global logging --
-from tsMqlSetup import CMqlSetup
-clientlog_config = CMqlSetup()
-clientlog_config.setup_logging()  # Ensure logging is configured before getting the logger
+# --- Logging setup ---
+# This script now *only* gets a logger. The root logger is configured by multiworker_launcher.py.
+# This prevents repeated "Logging initialized" messages and ensures a consistent log file.
 logger = logging.getLogger(__name__)
 # -- end of logging setup ----
 
-# Initialize CMqlSetup for the launcher itself, to ensure logging is configured
-# and setup_config is defined for any utility functions that might implicitly use it.
 # Dynamically determine num_cores and num_threads for optimal performance.
 # num_cores: Estimate physical cores. On systems with hyperthreading, this is often
 #            half the logical core count (os.cpu_count()). If os.cpu_count() is not available
@@ -22,14 +19,8 @@ logger = logging.getLogger(__name__)
 _logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
 _estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
 
-setup_config = CMqlSetup(
-    loglevel='INFO',
-    warn='ignore',
-    precision='mixed_bfloat16',
-    tfdebug=False,
-    num_cores=_estimated_physical_cores,
-    num_threads=1
-)
+# Removed: setup_config = CMqlSetup(...)
+# This instantiation is not strictly necessary in this module's scope and was causing a NameError.
 
 # --- Global Configuration ---
 from tsMqlOverrides import CMqlOverrides
@@ -41,17 +32,6 @@ tune_params = mql_overrides.env.all_params().get("mltune", {})
 GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
 GLOBAL_LOGDIR_PATH = os.environ.get('GLOBAL_LOGDIR_PATH') # Also get logdir for CustomOracle
 
-# Initialize CMqlSetup to ensure logging is configured correctly for this process
-clientlog_config = CMqlSetup()
-if GLOBAL_LOGFILE_PATH:
-    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
-else:
-    clientlog_config.setup_logging() # Fallback to default if not provided
-    logger.warning("GLOBAL_LOGFILE_PATH not found in environment for cm_dtuner_selector. Using default logging.")
-
-# Ensure logger is re-obtained after setup_logging to use the configured handlers
-logger = logging.getLogger(__name__)
-logger.info(f"Loaded config: app_params={app_params}, tune_params={tune_params}")
 
 class CMdtunerSelector:
     def __init__(self, tuner_type, backend, oracle_client, train_dataset, val_dataset, input_shape, num_classes, project_name, max_trials, hypermodel_params, test_dataset=None, overwrite=False):
@@ -65,7 +45,7 @@ class CMdtunerSelector:
         self.num_classes = num_classes
         self.project_name = project_name
         self.max_trials = max_trials
-        self.overwrite = overwrite # Now optional
+        self.overwrite = overwrite # Keep this for CMdtunerSelector's own use if needed
         self.hypermodel_params = hypermodel_params
         self.tuneobj = None
         self._initialize_tuner()
@@ -83,7 +63,7 @@ class CMdtunerSelector:
                 project_name=self.project_name,
                 hypermodel_params=self.hypermodel_params,
                 tuner_type=self.tuner_type,
-                overwrite=self.overwrite,
+                overwrite=self.overwrite, # CMdtuner expects overwrite explicitly
                 # Pass datasets during initialization of CMdtuner
                 train_dataset=self.train_dataset,
                 val_dataset=self.val_dataset
@@ -100,6 +80,8 @@ class CMdtunerSelector:
                 max_trials=self.max_trials,
                 directory=GLOBAL_LOGDIR_PATH, # Use the global logdir path for tuner directory
                 hypermodel_params=self.hypermodel_params
+                # Removed 'overwrite=self.overwrite' from here.
+                # PyTorchTuner should retrieve this from hypermodel_params if needed.
             )
         else:
             logger.error(f"Unsupported backend for tuner: {self.backend}")

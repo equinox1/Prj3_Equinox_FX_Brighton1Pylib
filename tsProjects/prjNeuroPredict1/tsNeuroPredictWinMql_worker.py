@@ -64,19 +64,9 @@ setup_config = CMqlSetup(
     num_threads=1
 )
 
-#Set up global logging using a dedicated CMqlSetup instance
-# This block configures the root logger, so it should run before any logger.getLogger(__name__) calls
-clientlog_config = CMqlSetup() # Create a separate instance for logging setup
-
-# Retrieve global logfile path from environment variable
-GLOBAL_LOGFILE_PATH = os.environ.get('GLOBAL_LOGFILE_PATH')
-if GLOBAL_LOGFILE_PATH:
-    clientlog_config.setup_logging(logfile=GLOBAL_LOGFILE_PATH)
-else:
-    clientlog_config.setup_logging() # Fallback to default if not provided
-    print("WARNING: GLOBAL_LOGFILE_PATH not found in environment for Chief. Using default logging.")
-
-# Initialize logger AFTER setup_logging has been called
+# --- Logging setup ---
+# This script now *only* gets a logger. The root logger is configured by multiworker_launcher.py.
+# This prevents repeated "Logging initialized" messages and ensures a consistent log file.
 logger = logging.getLogger(__name__)
 logger.info(f"🔧 Detected tuning backend from environment: {MLTUNE_BACKEND}")
 # -- end of logging setup ----
@@ -347,6 +337,7 @@ def main(): # Removed logger argument as it's global now
         num_classes=num_classes, # Use the dynamically determined num_classes
         project_name=MODEL_NAME, # Workers also need project_name for logging/directories
         max_trials=tune_params.get('num_trials', 1), # Workers typically run one trial at a time
+        overwrite=tune_params.get('overwrite', False), # ADDED: Pass the 'overwrite' argument
         hypermodel_params=all_params # Pass all_params to the tuner for configuration
     )
 
