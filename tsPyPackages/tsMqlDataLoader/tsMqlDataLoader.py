@@ -53,12 +53,19 @@ global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
 class CDataLoader:
     """Class to manage and load market data with override capability."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, symbol, timeframe, start_date_str, end_date_str, data_path, **kwargs):
         self.env = CMqlEnvMgr()
         self.local_data_params = {}  
         self._initialize_mql()
 
         self.params = self.env.all_params()
+
+        # Assign positional arguments directly
+        self.lp_app_primary_symbol = symbol
+        self.lp_timeframe = timeframe
+        self.lp_start_date_str = start_date_str
+        self.lp_end_date_str = end_date_str
+        self.mp_glob_base_data_path = data_path # Using this directly for data_path
 
         # Ensure default values before calling _set_global_parameters
         self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default_filename1.csv')
@@ -69,10 +76,9 @@ class CDataLoader:
 
         self.lp_utc_from = kwargs.get('lp_utc_from', default_utc_from)
         self.lp_utc_to = kwargs.get('lp_utc_to', default_utc_to)
-        self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
-        self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('"mp_data_rows', 1000))
+        # Use existing lp_data_rows from kwargs or params, but prioritize kwargs
+        self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('mp_data_rows', 1000))
         self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
-        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('data', {}).get('mp_data_timeframe', 'mt5.TIMEFRAME_M1'))
        
         self._set_global_parameters(kwargs)  # Now safe to call
 
@@ -112,8 +118,9 @@ class CDataLoader:
         for section in param_sections:
             setattr(self, f"{section}_params", self.params.get(section, {}))
 
-  
-        self.mp_glob_base_data_path = self.params.get('base', {}).get('mp_glob_base_data_path', 'Mql5Data')
+        # mp_glob_base_data_path is now set directly in __init__ from data_path
+        # self.mp_glob_base_data_path = self.params.get('base', {}).get('mp_glob_base_data_path', 'Mql5Data')
+        
         self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
         self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
         self.mp_data_loadapiticks = kwargs.get('mp_data_loadapiticks', self.params.get('data', {}).get('mp_data_loadapiticks', True))

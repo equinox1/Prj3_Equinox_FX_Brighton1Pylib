@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# +------------------------------------------------------------------+\
-# |                                    tsNeuroPredictWinMql_chief.py |\
-# |                                                    Tony Shepherd |\
-# |                                    https://www.xercescloud.co.uk |\
-# +------------------------------------------------------------------+\
+# +------------------------------------------------------------------+
+# |                                    tsNeuroPredictWinMql_chief.py |
+# |                                                    Tony Shepherd |
+# |                                    https://www.xercescloud.co.uk |
+# +------------------------------------------------------------------+
 
 import os
 import sys
@@ -41,361 +41,255 @@ from tsMqlConnect import CMqlBrokerConfig
 from tsMqlDataLoader import CDataLoader
 from tsMqlDataProcess import CDataProcess
 from tsMqlMLProcess import CDMLProcess
+
+# Distributed tuner system
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
-from tsMqlMLTuner.tsMqlMLTunerMod import CMdtuner # For TensorFlow
-from tsMqlMLTuner.tsMqlMLTunerModTorch import PyTorchTuner # For PyTorch
 
 
 # Keras Tuner components for manual trial management
 from keras_tuner.engine.trial import TrialStatus
 
-
 # Import mixed_precision
 from tensorflow.keras import mixed_precision
+
 
 # --- Environment Setup ---
 os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
 os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-os.environ["TUNER_ID"] = "chief" # This is important for the client to identify itself
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # Suppress TensorFlow logging
 
-# --- DETERMINE BACKEND FROM ENVIRONMENT VARIABLE FIRST ---
-MLTUNE_BACKEND = os.environ.get('MLTUNE_BACKEND', 'tensorflow').lower() # Default to 'tensorflow'
+# --- Global Configuration & Logger Setup ---
+# Initialize CMqlSetup for the chief itself, to ensure logging is configured
+# and setup_config is defined for any utility functions that might implicitly use it.
+# Dynamically determine num_cores and num_threads for optimal performance.
+_logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
+_estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
 
-# Initialize CMqlSetup for general (non-logging) configuration parameters
-# This instance will handle things like TensorFlow optimizations, but NOT root logging setup.
-# Its __init__ is now more idempotent, so it won't interfere.
-setup_config_instance = CMqlSetup(
-    loglevel='INFO', # This loglevel will be used by CMqlSetup's internal logic, not for the root logger
+setup_config = CMqlSetup(
+    loglevel='INFO',
     warn='ignore',
     precision='mixed_bfloat16',
     tfdebug=False,
-    num_cores=os.cpu_count() // 2 if os.cpu_count() is not None and os.cpu_count() > 1 else 1,
-    num_threads=1
+    num_cores=_estimated_physical_cores,
+    num_threads=_logical_cores # Use logical cores for threads
 )
+setup_config.setup_logging() # Configure logging for this script
 
-# --- Logging setup for this module ---
-# IMPORTANT: Do NOT call CMqlSetup().setup_logging() or logging.basicConfig() here.
-# The root logger is configured by multiworker_launcher.py.
-# This script simply gets its module-specific logger, inheriting the root configuration.
 logger = logging.getLogger(__name__)
-logger.info(f"🔧 Detected tuning backend from environment: {MLTUNE_BACKEND} (Chief)")
-# -- end of logging setup ----
 
-
-# -- Suppress ONNX Windows version warning --
-import warnings
-warnings.filterwarnings("ignore", message="Unsupported Windows version")
-
-# -- Load environment variables first --
-env_trials = int(os.environ.get("MLTUNE_TRIALS", 128))
-
-# -- Apply overrides before config extraction --
+# Load environment variables and app parameters using CMqlOverrides early
 mql_overrides = CMqlOverrides()
-
-# IMPORTANT: Override the backend using the value from the environment variable
-mql_overrides.env.override_params({
-    "mltune": {
-        "backend": MLTUNE_BACKEND, # Use the backend detected from env
-        "num_trials": env_trials,
-        "tuner_type": os.environ.get('MLTUNE_TUNER_TYPE', 'hyperband'), # Get tuner type from env
-        "reset_trials": True, # Ensure chief always resets trials for a fresh start
-        "overwrite": True, # Ensure tuner directory is overwritten
-    }
-})
-
-# Use CMqlEnvMgr to get all parameters after overrides
-env_mgr = CMqlEnvMgr()
-all_params = env_mgr.all_params()
-
-# Update parameters based on overrides
+all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
-ml_params = all_params.get("ml", {})
-tune_params = all_params.get("mltune", {}) # Re-fetch updated tune_params
+tune_params = all_params.get('mltune', {})
+base_params = all_params.get("base", {})
 
-logger.info(f"Using MLTUNE_BACKEND: {MLTUNE_BACKEND} (from chief's params)")
-MLTUNE_TUNER_TYPE = tune_params.get('tuner_type', 'hyperband') # Get updated tuner type
-logger.info(f"Using MLTUNE_TUNER_TYPE: {MLTUNE_TUNER_TYPE} (from chief's params)")
-
-
-xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
-xerces_server = app_params.get('xerces_server', '192.168.1.103')
-xerces_port = app_params.get('xerces_port', 9000)
-xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-
-
-# --- Set mixed precision policy if using TensorFlow backend ---
-if MLTUNE_BACKEND == 'tensorflow':
-    try:
-        mixed_precision.set_global_policy('mixed_bfloat16')
-        logger.info("✅ TensorFlow mixed precision policy set to 'mixed_bfloat16'.")
-    except Exception as e:
-        logger.warning(f"⚠️ Could not set mixed precision policy: {e}. Falling back to default float type.")
+# Use the loaded parameters
+SYMBOL = app_params.get('SYMBOL', 'EURUSD')
+TIMEFRAME = getattr(mt5, app_params.get('TIMEFRAME', 'TIMEFRAME_H1'))
+START_DATE_STR = app_params.get('START_DATE', '2023-01-01')
+END_DATE_STR = app_params.get('END_DATE', '2023-12-31')
+MODEL_NAME = app_params.get('MODEL_NAME', 'tsneuromodel')
+DATA_PATH = app_params.get('DATA_PATH', 'tsModelData')
+TRAIN_SPLIT = app_params.get('TRAIN_SPLIT', 0.8)
+VAL_SPLIT = app_params.get('VAL_SPLIT', 0.1)
+PRED_HORIZON = app_params.get('PRED_HORIZON', 1)
+MLTUNE_BACKEND = tune_params.get('backend', 'tensorflow').lower() # tensorflow or pytorch
+EPOCHS = tune_params.get('epochs', 10)
+BATCH_SIZE = tune_params.get('batch_size', 32)
+NUM_TRIALS = tune_params.get('num_trials', 1)
+OVERWRITE = tune_params.get('overwrite', False)
 
 
-# --- Global Configuration ---
-# Extract necessary parameters for Chief
-SYMBOLS = app_params.get('mp_app_symbols', ['EURUSD'])
-TIMEFRAME = app_params.get('mp_app_timeframe', 'M1')
-NUM_CANDLES = app_params.get('mp_app_num_candles', 10000)
-MODEL_NAME = app_params.get('mp_glob_sub_ml_model_name', 'ts_mql_model')
-LOOK_BACK = ml_params.get('mp_ml_look_back', 60)
-PREDICTION_HORIZON = ml_params.get('mp_ml_prediction_horizon', 1)
-TRAIN_SPLIT_RATIO = ml_params.get('mp_ml_train_split_ratio', 0.8)
-FEATURES_TO_USE = ml_params.get('mp_ml_features_to_use', ['R1_Open', 'R1_High', 'R1_Low', 'R1_Close', 'R1_Tick_Volume', 'R1_spread', 'R1_Real_Volume'])
-TARGET_FEATURE = ml_params.get('mp_ml_target_feature', 'R1_Close')
-NORMALIZATION_METHOD = ml_params.get('mp_ml_normalization_method', 'StandardScaler')
-ORACLE_HOST = app_params.get('xerces_server', '192.168.1.103')
-ORACLE_PORT = app_params.get('xerces_port', 9000)
+logger.info(f"🔧 MLTUNE_BACKEND set to: {MLTUNE_BACKEND}")
+logger.info(f"🔧 Project directory: {Path(DATA_PATH) / MODEL_NAME}")
+
+# Set mixed precision policy based on configuration
+policy_name = setup_config.precision
+if policy_name == 'mixed_float16':
+    policy = mixed_precision.Policy('mixed_float16')
+elif policy_name == 'mixed_bfloat16':
+    policy = mixed_precision.Policy('mixed_bfloat16')
+else:
+    policy = mixed_precision.Policy('float32') # Default to float32
+mixed_precision.set_global_policy(policy)
+logger.info(f"✨ Global mixed precision policy set to: {mixed_precision.global_policy().name}")
 
 
-# Mapping for MetaTrader5 timeframes
-MT5_TIMEFRAME_MAP = {
-    'M1': mt5.TIMEFRAME_M1, 'M2': mt5.TIMEFRAME_M2, 'M3': mt5.TIMEFRAME_M3, 'M4': mt5.TIMEFRAME_M4,
-    'M5': mt5.TIMEFRAME_M5, 'M6': mt5.TIMEFRAME_M6, 'M10': mt5.TIMEFRAME_M10, 'M12': mt5.TIMEFRAME_M12,
-    'M15': mt5.TIMEFRAME_M15, 'M20': mt5.TIMEFRAME_M20, 'M30': mt5.TIMEFRAME_M30, 'H1': mt5.TIMEFRAME_H1,
-    'H2': mt5.TIMEFRAME_H2, 'H3': mt5.TIMEFRAME_H3, 'H4': mt5.TIMEFRAME_H4, 'H6': mt5.TIMEFRAME_H6,
-    'H8': mt5.TIMEFRAME_H8, 'H12': mt5.TIMEFRAME_H12, 'D1': mt5.TIMEFRAME_D1, 'W1': mt5.TIMEFRAME_W1,
-    'MN1': mt5.TIMEFRAME_MN1,
-}
-
-# --- Data Loading and Preprocessing ---
-def load_and_preprocess_data(symbol, timeframe_str, num_candles, look_back, prediction_horizon, features_to_use, target_feature, normalization_method):
-    logger.info(f"📊 Loading data for {symbol} {timeframe_str}...")
-    
-    timeframe_mt5 = MT5_TIMEFRAME_MAP.get(timeframe_str)
-    if timeframe_mt5 is None:
-        logger.error(f"❌ Invalid timeframe string: {timeframe_str}. Please use one of: {list(MT5_TIMEFRAME_MAP.keys())}")
-        return None, None, None, None, None, None
-
-    data_loader = CDataLoader(
-        lp_app_primary_symbol=symbol,
-        lp_timeframe=timeframe_mt5,
-        lp_data_rows=num_candles
-    )
-    
-    df_api_ticks, df_api_rates, df_file_ticks, df_file_rates = data_loader.run_dataloader_services()
-    data_df = df_api_rates 
-
-    if data_df.empty:
-        logger.error(f"❌ No data loaded for {symbol}.")
-        return None, None, None, None, None, None
-
-    logger.info("⚙️ Preprocessing data (CDataProcess)...")
-    data_process = CDataProcess(
-        look_back=look_back,
-        prediction_horizon=prediction_horizon,
-        features_to_use=features_to_use,
-        target_feature=target_feature
-    )
-    
-    processed_data_df = data_process.run_dataprocess_services(df=data_df, df_name='df_api_rates')
-
-    if processed_data_df.empty:
-        logger.error("❌ Data processing resulted in an empty DataFrame.")
-        return None, None, None, None, None, None
-
-    logger.info("⚙️ Creating ML sequences (CDMLProcess)...")
-    ml_process = CDMLProcess(
-        look_back=look_back,
-        prediction_horizon=prediction_horizon,
-        features_to_use=features_to_use,
-        target_feature=target_feature
-    )
-
-    logger.info(f"Attempting to create sequences with processed_data_df shape: {processed_data_df.shape}, look_back: {look_back}, prediction_horizon: {prediction_horizon}, features: {features_to_use}")
-    X, y = ml_process.Create_Xy_input_and_target(
-        df=processed_data_df,
-        back_window=look_back,
-        forward_window=prediction_horizon,
-        features=features_to_use
-    )
-
-    if not isinstance(X, np.ndarray) or not isinstance(y, np.ndarray):
-        logger.error(f"❌ CDMLProcess.Create_Xy_input_and_target did not return numpy arrays. X type: {type(X)}, y type: {type(y)}")
-        return None, None, None, None, None, None
-
-    if X is None or y is None or X.size == 0 or y.size == 0:
-        logger.error(f"❌ Failed to create sequences after data processing. X shape: {X.shape if X is not None else 'None'}, y shape: {y.shape if y is not None else 'None'}")
-        return None, None, None, None, None, None
-
-    n_steps = X.shape[1]
-    n_features = X.shape[2]
-    logger.info(f"✅ Sequences created. X shape: {X.shape}, y shape: {y.shape}")
-
-    if y.ndim == 1:
-        y_reshaped_for_scaler = y.reshape(-1, 1)
-    else:
-        y_reshaped_for_scaler = y
-
-    feature_scaler = StandardScaler()
-    X_scaled = feature_scaler.fit_transform(X.reshape(-1, n_features)).reshape(X.shape)
-    logger.info(f"X scaled shape: {X_scaled.shape}")
-
-    target_scaler = StandardScaler()
-    y_scaled = target_scaler.fit_transform(y_reshaped_for_scaler)
-
-    if y.ndim == 1:
-        y_scaled = y_scaled.flatten()
-    logger.info(f"y scaled shape: {y_scaled.shape}")
-
-    logger.info("✅ Data preprocessing complete. Preparing return values.")
-    returned_values = (X_scaled, y_scaled, n_steps, n_features, feature_scaler, target_scaler)
-    logger.debug(f"Returning: {len(returned_values)} values. Types: {[type(val) for val in returned_values]}")
-    logger.debug(f"X_scaled shape={X_scaled.shape}, y_scaled shape={y_scaled.shape}, n_steps={n_steps}, n_features={n_features}, feature_scaler_type={type(feature_scaler)}, target_scaler_type={type(target_scaler)}")
-    
-    return returned_values
-
+def create_sequences(data, seq_length, pred_horizon):
+    xs = []
+    ys = []
+    for i in range(len(data) - seq_length - pred_horizon + 1):
+        x = data[i:(i + seq_length)]
+        y = data[(i + seq_length):(i + seq_length + pred_horizon)]
+        xs.append(x)
+        ys.append(y)
+    return np.array(xs), np.array(ys)
 
 def main():
-    logger.info("🚀 Starting tsNeuroPredictWinMql_chief.py main function...")
+    logger.info("🚀 Starting tsNeuroPredictWinMql_chief.py")
 
-    # Initialize OracleClient
-    # OracleClient's __init__ does not accept host and port directly;
-    # it retrieves these from the mql_overrides configuration internally.
-    oracle_client = OracleClient()
+    # ----------------------------
+    # Data Loading and Preprocessing
+    # ----------------------------
+    logger.info("📊 Loading and preprocessing data...")
+    data_loader = CDataLoader(SYMBOL, TIMEFRAME, START_DATE_STR, END_DATE_STR, DATA_PATH)
+    data_df = data_loader.load_data()
 
-    # Load and preprocess data
-    X, y, n_steps, n_features, feature_scaler, target_scaler = load_and_preprocess_data(
-        symbol=SYMBOLS[0], # Assuming single symbol for now
-        timeframe_str=TIMEFRAME,
-        num_candles=NUM_CANDLES,
-        look_back=LOOK_BACK,
-        prediction_horizon=PREDICTION_HORIZON,
-        features_to_use=FEATURES_TO_USE,
-        target_feature=TARGET_FEATURE,
-        normalization_method=NORMALIZATION_METHOD
-    )
-
-    if X is None:
-        logger.error("❌ Data loading and preprocessing failed. Exiting.")
+    if data_df is None or data_df.empty:
+        logger.error("❌ Failed to load data or data is empty.")
         sys.exit(1)
 
-    # Corrected Data Splitting
-    # First, split into training set and a combined validation/test set
-    X_train, X_val_test, y_train, y_val_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-    logger.info(f"Initial data split: Train {len(X_train)} samples, Validation/Test {len(X_val_test)} samples.")
+    data_process = CDataProcess(data_df)
+    processed_data = data_process.process_data()
 
-    # Second, split the combined validation/test set into separate validation and test sets
-    X_val, X_test, y_val, y_test = train_test_split(
-        X_val_test, y_val_test, test_size=0.5, random_state=42 # 0.5 of the 20% = 10% for test, 10% for val
-    )
-    logger.info(f"Final data split: Train {len(X_train)} samples, Validation {len(X_val)} samples, Test {len(X_test)} samples.")
-
-
-    # Determine num_classes dynamically from y's shape
-    if y.ndim == 1:
-        num_classes = 1
-    else:
-        num_classes = y.shape[-1]
-    logger.info(f"Determined num_classes for model output: {num_classes}")
-
-
-    # Convert to TensorFlow Datasets or PyTorch Tensors
-    if MLTUNE_BACKEND == 'tensorflow':
-        # Reduced batch size to mitigate OOM errors
-        train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train)).batch(16)
-        val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(16)
-        test_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(16)
-        input_shape = (n_steps, n_features)
-    elif MLTUNE_BACKEND == 'pytorch':
-        import torch # Import torch here
-        train_dataset = (torch.tensor(X_train).float(), torch.tensor(y_train).float())
-        val_dataset = (torch.tensor(X_val).float(), torch.tensor(y_val).float())
-        test_dataset = (torch.tensor(X_test).float(), torch.tensor(y_test).float())
-        input_shape = (n_steps, n_features)
-    else:
-        logger.error(f"Unsupported MLTUNE_BACKEND: {MLTUNE_BACKEND}")
+    if processed_data is None or processed_data.empty:
+        logger.error("❌ Processed data is empty.")
         sys.exit(1)
+
+    # Convert DataFrame to NumPy array for scaling and sequence creation
+    features = processed_data[['open', 'high', 'low', 'close', 'tick_volume', 'spread', 'real_volume']].values
+    labels = processed_data[['open', 'high', 'low', 'close']].values # Example: predict next 4 price points
+
+    # Scale features and labels
+    feature_scaler = StandardScaler()
+    labels_scaler = StandardScaler()
+
+    scaled_features = feature_scaler.fit_transform(features)
+    scaled_labels = labels_scaler.fit_transform(labels) # Scale labels as well
+
+    # Determine sequence length based on some configuration (e.g., from tune_params)
+    SEQ_LENGTH = tune_params.get('sequence_length', 60) # Default to 60 if not specified
+
+    # Create sequences
+    X, y = create_sequences(scaled_features, SEQ_LENGTH, PRED_HORIZON)
+
+    # Reshape y to be 3D (samples, pred_horizon, num_label_features) for consistency
+    num_label_features = scaled_labels.shape[1]
+    y_reshaped = []
+    for i in range(len(scaled_labels) - SEQ_LENGTH - PRED_HORIZON + 1):
+        y_reshaped.append(scaled_labels[(i + SEQ_LENGTH):(i + SEQ_LENGTH + PRED_HORIZON)])
+    y_reshaped = np.array(y_reshaped)
+
+    if X.shape[0] == 0 or y_reshaped.shape[0] == 0:
+        logger.error("❌ Not enough data to create sequences. Adjust SEQ_LENGTH or data range.")
+        sys.exit(1)
+
+    # Determine num_classes (number of features in the output sequence for prediction)
+    num_classes = y_reshaped.shape[-1]
+    logger.info(f"Dynamically determined num_classes (output features): {num_classes}")
+
+    # Split data into training, validation, and test sets
+    X_train_val, X_test, y_train_val, y_test = train_test_split(X, y_reshaped, test_size=1 - TRAIN_SPLIT - VAL_SPLIT, random_state=42)
+    X_train, X_val, y_train, y_val = train_test_split(X_train_val, y_train_val, test_size=VAL_SPLIT/(TRAIN_SPLIT + VAL_SPLIT), random_state=42)
+
+    logger.info(f"Dataset shapes: X_train:{X_train.shape}, y_train:{y_train.shape}")
+    logger.info(f"Dataset shapes: X_val:{X_val.shape}, y_val:{y_val.shape}")
+    logger.info(f"Dataset shapes: X_test:{X_test.shape}, y_test:{y_test.shape}")
+
+    # Ensure datasets are TensorFlow tf.data.Dataset objects for CMdtunerSelector
+    # For PyTorch, these will be converted to DataLoader internally by PyTorchTuner
+    train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train)).batch(BATCH_SIZE).cache().prefetch(tf.data.AUTOTUNE)
+    val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(BATCH_SIZE).cache().prefetch(tf.data.AUTOTUNE)
+    test_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(BATCH_SIZE).cache().prefetch(tf.data.AUTOTUNE)
+
+    # Determine input_shape for the model
+    input_shape = X_train.shape[1:]
+    logger.info(f"Dynamically determined input_shape for model: {input_shape}")
+
+    # ----------------------------
+    # OracleClient and Tuner Setup
+    # ----------------------------
+    logger.info("Setting up Oracle Client...")
+    oracle_client = OracleClient(
+        host=app_params.get('xerces_server', '127.0.0.1'),
+        port=app_params.get('xerces_port', 9000)
+    )
 
     # Initialize CMdtunerSelector
-    logger.info(f"Chief Initializing CMdtunerSelector with backend: {MLTUNE_BACKEND} and tuner type: {MLTUNE_TUNER_TYPE}")
+    logger.info("Initializing CMdtunerSelector (Chief)...")
     tuner_config = CMdtunerSelector(
-        tuner_type=MLTUNE_TUNER_TYPE,
-        backend=MLTUNE_BACKEND, # Use the correctly detected MLTUNE_BACKEND
+        tuner_id="chief",
+        backend=MLTUNE_BACKEND,
         oracle_client=oracle_client,
         train_dataset=train_dataset,
         val_dataset=val_dataset,
         test_dataset=test_dataset, # Pass test_dataset for final evaluation
         input_shape=input_shape,
-        num_classes=num_classes,
-        project_name=MODEL_NAME,
-        max_trials=tune_params.get('num_trials', 64),
-        overwrite=tune_params.get('overwrite', True),
+        num_classes=num_classes, # Use the dynamically determined num_classes
+        project_name=MODEL_NAME, # Workers also need project_name for logging/directories
+        max_trials=NUM_TRIALS, # Chief should typically run all trials
+        overwrite=OVERWRITE, # Pass the 'overwrite' argument
         hypermodel_params=all_params # Pass all_params to the tuner for configuration
+        # IMPORTANT: Do NOT pass 'tuner_type' as a direct keyword argument here.
+        # It is already part of 'hypermodel_params' within the 'mltune' key.
     )
 
-    logger.info("Chief starting tuning process...")
-    best_model = tuner_config.run()
+    # Run the tuning process
+    logger.info("Chief starting its tuning process...")
+    best_model = tuner_config.run() # Call the 'run' method for the chief
 
     if best_model:
         logger.info("✅ Best model found and exported by Chief.")
-        
-        # Evaluate the best model on the test dataset
+        # ----------------------------
+        # Final Evaluation on Test Set
+        # ----------------------------
         logger.info("📈 Evaluating the best model on the test dataset...")
-        test_loss, test_metrics = tuner_config.evaluate_best_model(best_model, test_dataset)
-        
-        # Check if test_metrics is a dictionary before iterating
-        if test_loss is not None and isinstance(test_metrics, dict):
-            logger.info(f"Final Test Loss: {test_loss}")
+        test_loss, test_metrics = tuner_config.evaluate_best_model(best_model, (X_test, y_test) if MLTUNE_BACKEND == 'pytorch' else test_dataset)
+
+        if test_metrics and isinstance(test_metrics, dict):
+            logger.info("📊 Test Evaluation Results:")
             for metric_name, metric_value in test_metrics.items():
-                logger.info(f"Final Test {metric_name}: {metric_value}")
+                logger.info(f"  {metric_name}: {metric_value:.5f}")
+
+            # Optionally, save a report to a file
+            report_path = Path(DATA_PATH) / MODEL_NAME / "test_evaluation_report.json"
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(report_path, 'w') as f:
+                json.dump(test_metrics, f, indent=4)
+            logger.info(f"📋 Test evaluation report saved to {report_path}")
         else:
             logger.warning("⚠️ Failed to retrieve valid test evaluation results or test_metrics is not a dictionary. Skipping metrics display.")
 
-        # Optional: ONNX conversion for TensorFlow models
+        # ----------------------------
+        # Model Saving and Conversion (for TF only)
+        # ----------------------------
         if MLTUNE_BACKEND == 'tensorflow':
+            logger.info("💾 Saving and converting TensorFlow model...")
+            model_save_path = Path(DATA_PATH) / MODEL_NAME / "best_model_tf"
+            model_save_path.mkdir(parents=True, exist_ok=True)
+            best_model.save(model_save_path)
+            logger.info(f"✅ TensorFlow model saved to {model_save_path}")
+
+            # Attempt ONNX conversion
             try:
-                import tf2onnx # Import here for lazy loading
-                import onnx
-                from onnx import checker
-                import onnxruntime as ort
+                logger.info("🔄 Attempting to convert TensorFlow model to ONNX...")
+                onnx_model_path = Path(DATA_PATH) / MODEL_NAME / "best_model.onnx"
+                spec = (tf.TensorSpec(input_shape, tf.float32, name="input"),)
+                onnx_model, _ = tf2onnx.convert.from_keras(best_model, spec, opset=13, output_path=str(onnx_model_path))
+                logger.info(f"✅ ONNX model converted and saved to {onnx_model_path}")
 
-                # Define ONNX export path
-                base_params = all_params.get("base", {})
-                # It's better to explicitly get global_logdir from os.environ as it's set by the launcher
-                global_logdir_path = os.environ.get('GLOBAL_LOGDIR_PATH')
-                if not global_logdir_path:
-                    logger.error("GLOBAL_LOGDIR_PATH environment variable not set. Cannot save ONNX model.")
-                else:
-                    onnx_path = Path(global_logdir_path) / xerces_servername / MLTUNE_BACKEND / f"{MODEL_NAME}.onnx"
-                    onnx_path.parent.mkdir(parents=True, exist_ok=True) # Ensure parent directory exists
+                # Verify ONNX model
+                logger.info("🔍 Verifying ONNX model...")
+                onnx.checker.check_model(onnx_model)
+                logger.info("✅ ONNX model verification successful.")
 
-                    logger.info(f"Attempting to convert TensorFlow model to ONNX at {onnx_path}")
-                    # Ensure input_signature is correct for your model
-                    # Assuming `input_shape` is (timesteps, features)
-                    # Keras models expect a batch dimension as the first dimension
-                    input_signature = [
-                        tf.TensorSpec(shape=(None, input_shape[0], input_shape[1]), dtype=tf.float32, name="input")
-                    ]
-                    
-                    # Convert the Keras model (best_model is a tf.keras.Model)
-                    onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature, opset=13)
-                    with open(onnx_path, "wb") as f:
-                        f.write(onnx_model.SerializeToString())
-                    logger.info("✅ TensorFlow model successfully converted to ONNX.")
+                # Test ONNX Runtime inference
+                logger.info("🧪 Testing ONNX Runtime inference...")
+                ort_session = ort.InferenceSession(str(onnx_model_path))
+                input_name = ort_session.get_inputs()[0].name
+                output_name = ort_session.get_outputs()[0].name
 
-                    # Check ONNX model
-                    onnx_model_checked = onnx.load(onnx_path)
-                    checker.check_model(onnx_model_checked)
-                    logger.info("✅ ONNX model check successful.")
+                # Use a small subset of X_val for ONNX inference test
+                # Ensure the test_input has the correct batch dimension (None, timesteps, features)
+                test_input = X_val[:1].astype(np.float32) # Get first sample, ensure float32
+                if test_input.ndim == 2: # If input is (timesteps, features), add batch dim
+                    test_input = np.expand_dims(test_input, axis=0)
 
-                    # Optional: Run inference with ONNX Runtime to verify
-                    ort_session = ort.InferenceSession(onnx_path)
-                    input_name = ort_session.get_inputs()[0].name
-                    output_name = ort_session.get_outputs()[0].name
-
-                    # Use a small subset of X_val for ONNX inference test
-                    # Ensure the test_input has the correct batch dimension (None, timesteps, features)
-                    test_input = X_val[:1].astype(np.float32) # Get first sample, ensure float32
-                    if test_input.ndim == 2: # If input is (timesteps, features), add batch dim
-                        test_input = np.expand_dims(test_input, axis=0)
-
-                    ort_outs = ort_session.run([output_name], {input_name: test_input})
-                    logger.info(f"✅ ONNX Runtime inference test successful. Output shape: {ort_outs[0].shape}")
+                ort_outs = ort_session.run([output_name], {input_name: test_input})
+                logger.info(f"✅ ONNX Runtime inference test successful. Output shape: {ort_outs[0].shape}")
 
             except ImportError:
                 logger.warning("tf2onnx or onnx not installed. Skipping ONNX conversion.")

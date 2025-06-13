@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# +------------------------------------------------------------------+\
-# |                            tsNeuroPredictWinMql_worker.py        |\
-# |                        Refactored with CMdtunerSelector          |\
-# +------------------------------------------------------------------+\
+# +------------------------------------------------------------------+
+# |                            tsNeuroPredictWinMql_worker.py        |
+# |                        Refactored with CMdtunerSelector          |
+# +------------------------------------------------------------------+
 
 import os
 import logging
@@ -44,204 +44,169 @@ from tensorflow.keras import mixed_precision
 os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
 os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-os.environ["TUNING_DEBUG_MODE"] = "True" # Set this to True to enable additional debug logging in the CustomOracle
-
-# --- Logging setup ---
-# This script now *only* gets a logger. The root logger is configured by multiworker_launcher.py.
-# This prevents repeated "Logging initialized" messages and ensures a consistent log file.
-logger = logging.getLogger(__name__)
-# -- end of logging setup ----
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # Suppress TensorFlow logging
 
 
 # --- Global Configuration & Logger Setup ---
+# Initialize CMqlSetup for the worker itself
+_logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
+_estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
+
+setup_config = CMqlSetup(
+    loglevel='INFO',
+    warn='ignore',
+    precision='mixed_bfloat16',
+    tfdebug=False,
+    num_cores=_estimated_physical_cores,
+    num_threads=_logical_cores # Use logical cores for threads
+)
+setup_config.setup_logging() # Configure logging for this script
+
+logger = logging.getLogger(__name__)
+
 # Load environment variables and app parameters using CMqlOverrides early
 mql_overrides = CMqlOverrides()
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
-tune_params = all_params.get("mltune", {})
-ml_params = all_params.get("ml", {})
-data_params = all_params.get("data", {})
+tune_params = all_params.get('mltune', {})
+base_params = all_params.get("base", {})
 
-# Determine the global backend and tuner type from environment variables, if set
-MLTUNE_BACKEND = os.environ.get('MLTUNE_BACKEND', app_params.get('backend', 'tensorflow')).lower()
-MLTUNE_TUNER_TYPE = os.environ.get('MLTUNE_TUNER_TYPE', tune_params.get('tuner_type', 'hyperband')).lower() # Ensure this is read
+# Worker-specific configuration based on passed arguments or defaults
+# tuner_id is typically passed as a command-line argument to the worker process
+import sys
+if len(sys.argv) > 1:
+    tuner_id = sys.argv[1]
+else:
+    tuner_id = "worker_default"
+    logger.warning("No tuner_id provided as command-line argument. Using default.")
 
-logger.info(f"Using MLTUNE_BACKEND: {MLTUNE_BACKEND}")
-logger.info(f"Using MLTUNE_TUNER_TYPE: {MLTUNE_TUNER_TYPE}")
+SYMBOL = app_params.get('SYMBOL', 'EURUSD')
+TIMEFRAME = getattr(mt5, app_params.get('TIMEFRAME', 'TIMEFRAME_H1'))
+START_DATE_STR = app_params.get('START_DATE', '2023-01-01')
+END_DATE_STR = app_params.get('END_DATE', '2023-12-31')
+MODEL_NAME = app_params.get('MODEL_NAME', 'tsneuromodel')
+DATA_PATH = app_params.get('DATA_PATH', 'tsModelData')
+TRAIN_SPLIT = app_params.get('TRAIN_SPLIT', 0.8)
+VAL_SPLIT = app_params.get('VAL_SPLIT', 0.1)
+PRED_HORIZON = app_params.get('PRED_HORIZON', 1)
+MLTUNE_BACKEND = tune_params.get('backend', 'tensorflow').lower() # tensorflow or pytorch
+EPOCHS = tune_params.get('epochs', 10)
+BATCH_SIZE = tune_params.get('batch_size', 32)
+NUM_TRIALS_WORKER = 1 # Workers typically run one trial at a time
+OVERWRITE = tune_params.get('overwrite', False)
 
-# Retrieve global log file and directory paths from environment variables.
-final_logdir = os.environ.get('GLOBAL_LOGDIR_PATH')
-final_logfile_path = os.environ.get('GLOBAL_LOGFILE_PATH')
 
-# Model and project naming
-MODEL_NAME = mql_overrides.env.ml_model_name() # e.g., 'tshybrid_ensemble_tuning_prod'
-PROJECT_ID = mql_overrides.env.ml_project_unique_id() # e.g., '1'
-PROJECT_NAME = f"{MODEL_NAME}_{PROJECT_ID}" # Combined project name for KerasTuner
+logger.info(f"🔧 Worker {tuner_id} backend set to: {MLTUNE_BACKEND}")
+logger.info(f"🔧 Project directory: {Path(DATA_PATH) / MODEL_NAME}")
 
-# Derived paths for the worker
-WORKER_LOG_DIR = Path(final_logdir) / app_params.get('xerces_servername', 'default_server') / MLTUNE_BACKEND
-WORKER_MODEL_DIR = mql_overrides.env.ml_project_dir() # This should resolve to model_data/tshybrid_ensemble_tuning_prod/1
-WORKER_MODEL_DIR.mkdir(parents=True, exist_ok=True) # Ensure it exists
 
-logger.info(f"Worker Log Directory: {WORKER_LOG_DIR}")
-logger.info(f"Worker Model Directory: {WORKER_MODEL_DIR}")
-
-# Configure mixed precision if enabled
-if mql_overrides.env.mixed_precision_enabled():
+# Set mixed precision policy based on configuration
+policy_name = setup_config.precision
+if policy_name == 'mixed_float16':
+    policy = mixed_precision.Policy('mixed_float16')
+elif policy_name == 'mixed_bfloat16':
     policy = mixed_precision.Policy('mixed_bfloat16')
-    mixed_precision.set_global_policy(policy)
-    logger.info("Mixed precision policy set to mixed_bfloat16.")
+else:
+    policy = mixed_precision.Policy('float32') # Default to float32
+mixed_precision.set_global_policy(policy)
+logger.info(f"✨ Global mixed precision policy set to: {mixed_precision.global_policy().name}")
 
-# Check platform and dependencies
-platform_checker()
 
-# --- Data Loading and Preprocessing ---
-def load_and_preprocess_data(all_params, logger):
-    """
-    Loads and preprocesses data for training and evaluation.
-    This function should be robust and return consistent data shapes.
-    """
-    logger.info("Starting data loading and preprocessing...")
-    data_loader = CDataLoader(all_params)
-    data_process = CDataProcess(all_params)
-    ml_process = CDMLProcess(all_params)
+def create_sequences(data, seq_length, pred_horizon):
+    xs = []
+    ys = []
+    for i in range(len(data) - seq_length - pred_horizon + 1):
+        x = data[i:(i + seq_length)]
+        y = data[(i + seq_length):(i + seq_length + pred_horizon)]
+        xs.append(x)
+        ys.append(y)
+    return np.array(xs), np.array(ys)
 
-    df = data_loader.load_data()
-    if df is None or df.empty:
-        logger.error("❌ Failed to load data or dataframe is empty.")
-        return None, None, None, None, None, None, None, None, None, None, None, None
-
-    # Apply processing steps based on configuration
-    if ml_process.ml_config.run_avg_enabled():
-        df = data_process.create_hl_average(df)
-        df = data_process.create_sma(df)
-    if ml_process.ml_config.run_returns_enabled():
-        df = data_process.create_log_returns(df)
-
-    # Scale data (features and labels)
-    features = [f"R1_{feat}" for feat in app_params.get('feature_columns', ['Open', 'High', 'Low', 'Close', 'Tick_Volume', 'spread', 'Real_Volume'])]
-    
-    # Ensure all features exist in the DataFrame
-    missing_features = [f for f in features if f not in df.columns]
-    if missing_features:
-        logger.error(f"❌ Missing expected features in DataFrame: {missing_features}")
-        logger.error(f"Available columns: {df.columns.tolist()}")
-        return None, None, None, None, None, None, None, None, None, None, None, None
-
-    X = df[features].values
-    
-    # Ensure y has the correct number of features for multi-output models
-    # Here, we assume y has the same features as X for prediction horizon 1
-    y = df[features].values 
-
-    # Reshape X for time series (samples, timesteps, features)
-    n_steps = ml_params.get('mp_ml_pasttimeperiods', 60) # Default to 60 for look-back
-    n_features = len(features) # Number of features
-    prediction_horizon = ml_params.get('mp_ml_predtimeperiods', 1) # Default to 1 for prediction horizon
-
-    if len(X) < n_steps + prediction_horizon:
-        logger.error(f"❌ Not enough data to create sequences. Need at least {n_steps + prediction_horizon} rows, have {len(X)}.")
-        return None, None, None, None, None, None, None, None, None, None, None, None
-
-    X_sequences = np.array([X[i:i + n_steps] for i in range(len(X) - n_steps - prediction_horizon + 1)])
-    y_sequences = np.array([y[i + n_steps : i + n_steps + prediction_horizon] for i in range(len(y) - n_steps - prediction_horizon + 1)])
-
-    # If y_sequences is (samples, 1, features), reshape to (samples, features) for common regression tasks
-    # Only reshape if prediction_horizon is 1, otherwise keep (samples, horizon, features)
-    if prediction_horizon == 1:
-        y_sequences = y_sequences.reshape(y_sequences.shape[0], y_sequences.shape[2])
-
-    logger.info(f"Attempting to create sequences with processed_data_df shape: {df.shape}, look_back: {n_steps}, prediction_horizon: {prediction_horizon}, features: {features}")
-    logger.info(f"✅ Sequences created. X shape: {X_sequences.shape}, y shape: {y_sequences.shape}")
-
-    # Initialize scalers
-    feature_scaler = StandardScaler()
-    target_scaler = StandardScaler()
-
-    # Flatten X_sequences for scaling, then reshape back
-    original_x_shape = X_sequences.shape
-    X_scaled = feature_scaler.fit_transform(X_sequences.reshape(-1, original_x_shape[-1]))
-    X_scaled = X_scaled.reshape(original_x_shape)
-    logger.info(f"X scaled shape: {X_scaled.shape}")
-
-    # Flatten y_sequences for scaling, then reshape back (careful with prediction_horizon > 1)
-    original_y_shape = y_sequences.shape
-    if prediction_horizon == 1:
-        y_scaled = target_scaler.fit_transform(y_sequences)
-    else:
-        # If y_sequences is (samples, horizon, features), flatten to (samples * horizon, features) for scaling
-        y_scaled = target_scaler.fit_transform(y_sequences.reshape(-1, original_y_shape[-1]))
-        y_scaled = y_scaled.reshape(original_y_shape)
-    logger.info(f"y scaled shape: {y_scaled.shape}")
-    
-    logger.info("✅ Data preprocessing complete. Preparing return values.")
-    logger.debug(f"Returning: 6 values. Types: {[type(val) for val in [X_scaled, y_scaled, n_steps, n_features, feature_scaler, target_scaler]]}")
-    logger.debug(f"X_scaled shape={X_scaled.shape}, y_scaled shape={y_scaled.shape}, n_steps={n_steps}, n_features={n_features}, feature_scaler_type={type(feature_scaler)}, target_scaler_type={type(target_scaler)}")
-
-    return X_scaled, y_scaled, n_steps, n_features, feature_scaler, target_scaler, df, features, X_sequences, y_sequences, ml_process.ml_config.ml_input_keyfeat() # Return all necessary values
-
-# --- Main Worker Logic ---
 def main():
-    logger.info("🚀 tsNeuroPredictWinMql_worker.py started.")
+    logger.info(f"🚀 Starting tsNeuroPredictWinMql_worker.py with tuner_id: {tuner_id}")
 
-    # Load and preprocess data
-    (X_scaled, y_scaled, n_steps, n_features, 
-     feature_scaler, target_scaler, 
-     raw_df, original_features, X_sequences, y_sequences, ml_input_keyfeat) = load_and_preprocess_data(all_params, logger)
+    # ----------------------------
+    # Data Loading and Preprocessing
+    # ----------------------------
+    logger.info("📊 Loading and preprocessing data...")
+    data_loader = CDataLoader(SYMBOL, TIMEFRAME, START_DATE_STR, END_DATE_STR, DATA_PATH)
+    data_df = data_loader.load_data()
 
-    if X_scaled is None:
-        logger.error("❌ Data loading or preprocessing failed. Exiting worker.")
+    if data_df is None or data_df.empty:
+        logger.error("❌ Failed to load data or data is empty.")
         sys.exit(1)
 
+    data_process = CDataProcess(data_df)
+    processed_data = data_process.process_data()
+
+    if processed_data is None or processed_data.empty:
+        logger.error("❌ Processed data is empty.")
+        sys.exit(1)
+
+    # Convert DataFrame to NumPy array for scaling and sequence creation
+    features = processed_data[['open', 'high', 'low', 'close', 'tick_volume', 'spread', 'real_volume']].values
+    labels = processed_data[['open', 'high', 'low', 'close']].values # Example: predict next 4 price points
+
+    # Scale features and labels
+    feature_scaler = StandardScaler()
+    labels_scaler = StandardScaler()
+
+    scaled_features = feature_scaler.fit_transform(features)
+    scaled_labels = labels_scaler.fit_transform(labels) # Scale labels as well
+
+    # Determine sequence length based on some configuration (e.g., from tune_params)
+    SEQ_LENGTH = tune_params.get('sequence_length', 60) # Default to 60 if not specified
+
+    # Create sequences
+    X, y = create_sequences(scaled_features, SEQ_LENGTH, PRED_HORIZON)
+
+    # Reshape y to be 3D (samples, pred_horizon, num_label_features) for consistency
+    num_label_features = scaled_labels.shape[1]
+    y_reshaped = []
+    for i in range(len(scaled_labels) - SEQ_LENGTH - PRED_HORIZON + 1):
+        y_reshaped.append(scaled_labels[(i + SEQ_LENGTH):(i + SEQ_LENGTH + PRED_HORIZON)])
+    y_reshaped = np.array(y_reshaped)
+
+    if X.shape[0] == 0 or y_reshaped.shape[0] == 0:
+        logger.error("❌ Not enough data to create sequences. Adjust SEQ_LENGTH or data range.")
+        sys.exit(1)
+
+    # Determine num_classes (number of features in the output sequence for prediction)
+    num_classes = y_reshaped.shape[-1]
+    logger.info(f"Dynamically determined num_classes (output features): {num_classes}")
+
     # Split data into training, validation, and test sets
-    test_size_ratio = tune_params.get('test_size_ratio', 0.2) # Default to 20%
-    val_size_ratio = tune_params.get('val_size_ratio', 0.5) # Default to 50% of the test set for validation
+    # Workers only need train and val for tuning, but test_dataset is passed for consistency
+    X_train_val, X_test, y_train_val, y_test = train_test_split(X, y_reshaped, test_size=1 - TRAIN_SPLIT - VAL_SPLIT, random_state=42)
+    X_train, X_val, y_train, y_val = train_test_split(X_train_val, y_train_val, test_size=VAL_SPLIT/(TRAIN_SPLIT + VAL_SPLIT), random_state=42)
 
-    # First split: Separate out a combined validation/test set
-    X_train, X_val_test, y_train, y_val_test = train_test_split(
-        X_scaled, y_scaled, test_size=test_size_ratio, random_state=tune_params.get('seed', 42)
-    )
-    logger.info(f"Initial data split: Train {X_train.shape[0]} samples, Validation/Test {X_val_test.shape[0]} samples.")
+    logger.info(f"Dataset shapes: X_train:{X_train.shape}, y_train:{y_train.shape}")
+    logger.info(f"Dataset shapes: X_val:{X_val.shape}, y_val:{y_val.shape}")
+    logger.info(f"Dataset shapes: X_test:{X_test.shape}, y_test:{y_test.shape}")
 
-    # Second split: Divide the validation/test set into separate validation and test sets
-    if val_size_ratio > 0 and X_val_test.shape[0] > 0:
-        X_val, X_test, y_val, y_test = train_test_split(
-            X_val_test, y_val_test, test_size=1 - val_size_ratio, random_state=tune_params.get('seed', 42)
-        )
-    else:
-        # If no validation set needed, use the entire val_test as test set
-        X_val, y_val = None, None
-        # CORRECTED: Ensure y_test is assigned correctly here. y_val should remain None.
-        X_test, y_test = X_val_test, y_val_test 
-        logger.info(f"Warning: val_size_ratio is 0 or X_val_test is empty. Validation set will be empty. X_test shape: {X_test.shape}")
+    # Ensure datasets are TensorFlow tf.data.Dataset objects for CMdtunerSelector
+    train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train)).batch(BATCH_SIZE).cache().prefetch(tf.data.AUTOTUNE)
+    val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(BATCH_SIZE).cache().prefetch(tf.data.AUTOTUNE)
+    test_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(BATCH_SIZE).cache().prefetch(tf.data.AUTOTUNE)
 
 
-    logger.info(f"Final data split: Train {X_train.shape[0]} samples, Validation {X_val.shape[0] if X_val is not None else 0} samples, Test {X_test.shape[0]} samples.")
-    
-    input_shape = (X_train.shape[1], n_features) # (timesteps, features)
-    num_classes = y_train.shape[1] if y_train.ndim > 1 else 1 # Number of output features
+    # Determine input_shape for the model
+    input_shape = X_train.shape[1:]
+    logger.info(f"Dynamically determined input_shape for model: {input_shape}")
 
-    logger.info(f"Determined num_classes for model output: {num_classes}")
-
-    # Convert numpy arrays to PyTorch Tensors and create DataLoader
-    # Using float32 for PyTorch model inputs
-    train_dataset = TensorDataset(torch.from_numpy(X_train).float(), torch.from_numpy(y_train).float())
-    val_dataset = TensorDataset(torch.from_numpy(X_val).float(), torch.from_numpy(y_val).float()) if X_val is not None else None
-    test_dataset = TensorDataset(torch.from_numpy(X_test).float(), torch.from_numpy(y_test).float()) if X_test is not None else None
-
-    # Initialize OracleClient
+    # ----------------------------
+    # OracleClient and Tuner Setup
+    # ----------------------------
+    logger.info("Setting up Oracle Client...")
     oracle_client = OracleClient(
-        host=app_params.get('xerces_server', '192.168.1.103'),
-        port=app_params.get('xerces_port', 9000),
-        tuner_id=os.environ.get('TUNER_ID', 'worker'), # Get tuner_id from env, default to 'worker'
-        max_retries=tune_params.get('max_retries_per_trial', 3),
-        retry_delay=5
+        host=app_params.get('xerces_server', '127.0.0.1'),
+        port=app_params.get('xerces_port', 9000)
     )
-    
-    logger.info(f"Worker Initializing CMdtunerSelector with backend: {MLTUNE_BACKEND} and tuner type: {MLTUNE_TUNER_TYPE}")
-    # Initialize CMdtunerSelector for the worker
+
+    # Initialize CMdtunerSelector
+    logger.info(f"Initializing CMdtunerSelector (Worker {tuner_id})...")
     tuner_config = CMdtunerSelector(
-        tuner_type=MLTUNE_TUNER_TYPE,
+        tuner_id=tuner_id,
         backend=MLTUNE_BACKEND, # Pass the correctly detected MLTUNE_BACKEND
         oracle_client=oracle_client,
         train_dataset=train_dataset,
@@ -250,16 +215,18 @@ def main():
         input_shape=input_shape,
         num_classes=num_classes, # Use the dynamically determined num_classes
         project_name=MODEL_NAME, # Workers also need project_name for logging/directories
-        max_trials=tune_params.get('num_trials', 1), # Workers typically run one trial at a time
-        overwrite=tune_params.get('overwrite', False), # ADDED: Pass the 'overwrite' argument
+        max_trials=NUM_TRIALS_WORKER, # Workers typically run one trial at a time
+        overwrite=OVERWRITE, # Pass the 'overwrite' argument
         hypermodel_params=all_params # Pass all_params to the tuner for configuration
+        # IMPORTANT: Do NOT pass 'tuner_type' as a direct keyword argument here.
+        # It is already part of 'hypermodel_params' within the 'mltune' key.
     )
 
     # Run the worker's tuning process (which will fetch trials from Oracle)
-    logger.info("Worker starting its tuning process...")
+    logger.info(f"Worker {tuner_id} starting its tuning process...")
     tuner_config.run() # Call the 'run' method for workers
 
-    logger.info("🏁 tsNeuroPredictWinMql_worker.py finished.")
+    logger.info(f"🏁 tsNeuroPredictWinMql_worker.py finished for tuner_id: {tuner_id}.")
 
 
 if __name__ == "__main__":
