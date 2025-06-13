@@ -12,10 +12,14 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import os
 import sys
+<<<<<<< HEAD
 
 from tsMqlSetup import CMqlSetup # Correctly import the class
 
     
+=======
+import logging
+>>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -23,6 +27,7 @@ from datetime import datetime
 import textwrap
 from tabulate import tabulate
 
+<<<<<<< HEAD
 import logging
 # --- Logging setup ---
 # This script now *only* gets a logger. The root logger is configured by multiworker_launcher.py.
@@ -31,12 +36,15 @@ logger = logging.getLogger(__name__)
 # -- end of logging setup ----
 
 
+=======
+>>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 # Import platform dependencies
 from tsMqlPlatform import run_platform, platform_checker
 from tsMqlEnvMgr import CMqlEnvMgr
 from tsMqlOverrides import CMqlOverrides
 
 # -- start of logging setup --
+<<<<<<< HEAD
 from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides() 
 app_params = mql_overrides.env.all_params().get("app", {})
@@ -52,6 +60,43 @@ xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 global_logdir = app_params.get('LOGDIR', 'Logdir')
 global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
 
+=======
+from tsMqlSetup import CMqlSetup
+from tsMqlOverrides import CMqlOverrides
+
+env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
+env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
+
+mql_overrides = CMqlOverrides()
+mql_overrides.env.override_params({
+    "mltune": {"backend": env_backend},
+    "app": {"gtuner_model": env_gtuner}
+})
+
+app_params = mql_overrides.env.all_params().get("app", {})
+gtuner_model = app_params.get('gtuner_model', 'pytorch')
+xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
+xerces_server = app_params.get('xerces_server', '192.168.1.103')
+xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
+
+setup_config = CMqlSetup(
+    loglevel='INFO',
+    warn='ignore',
+    precision='mixed_bfloat16',
+    tfdebug=False,
+    num_cores=8,
+    num_threads=1
+)
+
+global_logdir, global_logfile = setup_config.set_log_dir(
+    logdir=None,
+    logfile=xerces_logfile,
+    servername=xerces_servername,
+    ltuner=gtuner_model
+)
+
+logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
+>>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
 # Initialize platform checker
 pchk = run_platform.RunPlatform()
@@ -446,4 +491,8 @@ class CDMLProcess:
         for metric, value in metrics.items():
             print(f"{metric.capitalize()}: {value:.4f}")
         
+<<<<<<< HEAD
         return metrics
+=======
+        return metrics
+>>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2

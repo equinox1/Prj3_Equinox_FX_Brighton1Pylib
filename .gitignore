@@ -224,7 +224,10 @@ venvwin1/*
 venvlin1/*
 venvlin2/*
 tsModelData/*
+<<<<<<< HEAD
 Models/*
+=======
+>>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 Workspaces/*
 .venv/*
 

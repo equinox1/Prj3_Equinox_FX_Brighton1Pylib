@@ -1,4 +1,5 @@
 import logging
+<<<<<<< HEAD
 import os
 from tsMqlSetup import CMqlSetup # Correctly import the class
 
@@ -27,6 +28,49 @@ xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
 global_logdir = app_params.get('LOGDIR', 'Logdir')
 global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
+=======
+from datetime import datetime
+import tzlocal
+import zoneinfo  # Import zoneinfo
+import os
+
+# -- start of logging setup --
+from tsMqlSetup import CMqlSetup
+from tsMqlOverrides import CMqlOverrides
+
+env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
+env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
+
+mql_overrides = CMqlOverrides()
+mql_overrides.env.override_params({
+    "mltune": {"backend": env_backend},
+    "app": {"gtuner_model": env_gtuner}
+})
+
+app_params = mql_overrides.env.all_params().get("app", {})
+gtuner_model = app_params.get('gtuner_model', 'pytorch')
+xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
+xerces_server = app_params.get('xerces_server', '192.168.1.103')
+xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
+
+setup_config = CMqlSetup(
+    loglevel='INFO',
+    warn='ignore',
+    precision='mixed_bfloat16',
+    tfdebug=False,
+    num_cores=8,
+    num_threads=1
+)
+
+global_logdir, global_logfile = setup_config.set_log_dir(
+    logdir=None,
+    logfile=xerces_logfile,
+    servername=xerces_servername,
+    ltuner=gtuner_model
+)
+
+logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
+>>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
 
 try:

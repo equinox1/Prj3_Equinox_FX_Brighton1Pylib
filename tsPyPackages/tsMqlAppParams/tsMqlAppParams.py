@@ -37,8 +37,13 @@ class CMqlEnvAppParams(CEnvCore):
         "xerces_server" :'192.168.1.103',
         "xerces_port" : 9000,
         "xerces_logfile" : 'tsneuropredict_app.log',
+<<<<<<< HEAD
         "LOGDIR" : 'Logdir',
         "LOGFILE" : 'xerces_logfile',
+=======
+        "gtuner_model": "tensorflow",  # or "tensorflow"
+       
+>>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
     }
 
     def __init__(self, **kwargs):

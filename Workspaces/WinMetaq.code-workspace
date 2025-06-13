@@ -4,7 +4,11 @@
 			"path": ".."
 		}
 	],
+<<<<<<< HEAD
 	"settings": {
 		"terminal.integrated.enableImages": true
 	}
+=======
+	"settings": {}
+>>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 }
