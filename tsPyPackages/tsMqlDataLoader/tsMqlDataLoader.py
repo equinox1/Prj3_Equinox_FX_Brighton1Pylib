@@ -17,7 +17,6 @@ from datetime import datetime
 from tsMqlPlatform import run_platform, platform_checker, get_config
 from tsMqlEnvMgr import CMqlEnvMgr
 import logging
-<<<<<<< HEAD
 # -- Set up global logging (from tsMqlSetup) --
 from tsMqlSetup import CMqlSetup
 clientlog_config = CMqlSetup()
@@ -50,62 +49,17 @@ xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 global_logdir = app_params.get('LOGDIR', 'Logdir')
 global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
 
-=======
-
-
-# -- start of logging setup --
-from tsMqlSetup import CMqlSetup
-from tsMqlOverrides import CMqlOverrides
-
-env_backend = os.environ.get("MLTUNE_BACKEND", "tensorflow")
-env_gtuner = os.environ.get("GTUNER_MODEL", env_backend)
-
-mql_overrides = CMqlOverrides()
-mql_overrides.env.override_params({
-    "mltune": {"backend": env_backend},
-    "app": {"gtuner_model": env_gtuner}
-})
-
-app_params = mql_overrides.env.all_params().get("app", {})
-gtuner_model = app_params.get('gtuner_model', 'pytorch')
-xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
-xerces_server = app_params.get('xerces_server', '192.168.1.103')
-xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-
-setup_config = CMqlSetup(
-    loglevel='INFO',
-    warn='ignore',
-    precision='mixed_bfloat16',
-    tfdebug=False,
-    num_cores=8,
-    num_threads=1
-)
-
-global_logdir, global_logfile = setup_config.set_log_dir(
-    logdir=None,
-    logfile=xerces_logfile,
-    servername=xerces_servername,
-    ltuner=gtuner_model
-)
-
-logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
 class CDataLoader:
     """Class to manage and load market data with override capability."""
 
-<<<<<<< HEAD
     def __init__(self, symbol, timeframe, start_date_str, end_date_str, data_path, **kwargs):
-=======
-    def __init__(self, **kwargs):
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         self.env = CMqlEnvMgr()
         self.local_data_params = {}  
         self._initialize_mql()
 
         self.params = self.env.all_params()
 
-<<<<<<< HEAD
         # Assign positional arguments directly
         self.lp_app_primary_symbol = symbol
         self.lp_timeframe = timeframe
@@ -113,8 +67,6 @@ class CDataLoader:
         self.lp_end_date_str = end_date_str
         self.mp_glob_base_data_path = data_path # Using this directly for data_path
 
-=======
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         # Ensure default values before calling _set_global_parameters
         self.mp_data_filename1 = self.params.get('data', {}).get('mp_data_filename1', 'default_filename1.csv')
         self.mp_data_filename2 = self.params.get('data', {}).get('mp_data_filename2', 'default_filename2.csv')
@@ -124,16 +76,9 @@ class CDataLoader:
 
         self.lp_utc_from = kwargs.get('lp_utc_from', default_utc_from)
         self.lp_utc_to = kwargs.get('lp_utc_to', default_utc_to)
-<<<<<<< HEAD
         # Use existing lp_data_rows from kwargs or params, but prioritize kwargs
         self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('mp_data_rows', 1000))
         self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
-=======
-        self.lp_app_primary_symbol = kwargs.get('lp_app_primary_symbol', self.params.get('app', {}).get('mp_app_primary_symbol', 'EURUSD'))
-        self.lp_data_rows = kwargs.get('lp_data_rows', self.params.get('data', {}).get('"mp_data_rows', 1000))
-        self.lp_data_rowcount = kwargs.get('lp_data_rowcount', self.params.get('data', {}).get('mp_data_rowcount', 10000))
-        self.lp_timeframe = kwargs.get('lp_timeframe', self.params.get('data', {}).get('mp_data_timeframe', 'mt5.TIMEFRAME_M1'))
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
        
         self._set_global_parameters(kwargs)  # Now safe to call
 
@@ -173,14 +118,9 @@ class CDataLoader:
         for section in param_sections:
             setattr(self, f"{section}_params", self.params.get(section, {}))
 
-<<<<<<< HEAD
         # mp_glob_base_data_path is now set directly in __init__ from data_path
         # self.mp_glob_base_data_path = self.params.get('base', {}).get('mp_glob_base_data_path', 'Mql5Data')
         
-=======
-  
-        self.mp_glob_base_data_path = self.params.get('base', {}).get('mp_glob_base_data_path', 'Mql5Data')
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         self.mp_data_filename1_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename1}.csv"
         self.mp_data_filename2_merge = f"{self.lp_app_primary_symbol}_{self.mp_data_filename2}.csv"
         self.mp_data_loadapiticks = kwargs.get('mp_data_loadapiticks', self.params.get('data', {}).get('mp_data_loadapiticks', True))
@@ -286,9 +226,3 @@ class CDataLoader:
                 df_file_rates = self.load_data(df=df, df_name=df_name)
 
         return df_api_ticks, df_api_rates, df_file_ticks, df_file_rates 
-<<<<<<< HEAD
-=======
-
-
-    
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2

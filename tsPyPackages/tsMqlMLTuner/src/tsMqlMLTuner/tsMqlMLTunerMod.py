@@ -10,7 +10,6 @@ Version: 1.3.1 (Optimized for reduced memory usage and increased execution perfo
 License: MIT License
 """
 
-<<<<<<< HEAD
 import logging # Ensure logging is imported
 import os # Import os to access environment variables
 
@@ -21,9 +20,6 @@ logger = logging.getLogger(__name__)
 # -- end of logging setup ----
 
 
-=======
-import logging
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 import os
 import pathlib
 import uuid  # Ensure uuid is imported for use in get_callbacks
@@ -31,7 +27,6 @@ import uuid  # Ensure uuid is imported for use in get_callbacks
 os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
 os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-<<<<<<< HEAD
 
 # ✅ Determine backend from environment
 backend = os.environ.get('MLTUNE_BACKEND', 'tensorflow').lower()
@@ -40,13 +35,10 @@ logger.setLevel(logging.INFO)
 logger.info(f"🔧 Detected tuning backend from environment: {backend}")
 
 
-=======
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 import tensorflow as tf
 from datetime import date
 import numpy as np
 from keras_tuner.engine.hyperparameters import HyperParameters
-<<<<<<< HEAD
 # CORRECTED: Changed to relative imports for OracleServer and OracleClient
 from .tsMqlMLOracleServer import OracleServer
 from .tsMqlMLOracleClient import OracleClient
@@ -64,61 +56,33 @@ from tsMqlSetup import CMqlSetup
 _logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
 _estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
 
-=======
-from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
-from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
-
-
-# -- start of logging setup --
-from tsMqlSetup import CMqlSetup
-# ✅ Logger and Logdir Setup
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 setup_config = CMqlSetup(
     loglevel='INFO',
     warn='ignore',
     precision='mixed_bfloat16',
     tfdebug=False,
-<<<<<<< HEAD
     num_cores=_estimated_physical_cores,
     num_threads=1
 )
 
 
-=======
-    num_cores=8,
-    num_threads=1
-)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides() 
 app_params = mql_overrides.env.all_params().get("app", {})
 tune_params = mql_overrides.env.all_params().get("mltune", {})
-<<<<<<< HEAD
 
 gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
 backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch
-=======
-from tsMqlSetup import CMqlSetup
-gtuner_model = app_params.get('gtuner_model', 'pytorch')  # or "tensorflow"
-backend = tune_params.get('backend', gtuner_model)  # or "tensorflow"
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-<<<<<<< HEAD
 
 app_params = mql_overrides.env.all_params().get("app", {})
 global_logdir = app_params.get('LOGDIR', 'Logdir')
 global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
 
 
-=======
-tunerlogfile = xerces_logfile
-global_logdir, global_logfile = setup_config.set_log_dir(logdir=None, logfile=tunerlogfile, servername=xerces_servername,ltuner=gtuner_model)
-
-logger = setup_config.setup_global_logger(global_logfile, force_reset=True)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 # -- end of logging setup ----
 # Platform imports
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
@@ -160,7 +124,6 @@ class CMdtuner:
         self.hypermodel_params = kwargs.get('hypermodel_params', {})
         logger.info(f"Hypermodel parameters: {self.hypermodel_params}")
 
-<<<<<<< HEAD
         self.oracle = kwargs.get("oracle_client", None) # Use oracle_client from kwargs
 
         # Get relevant parameters from hypermodel_params
@@ -205,35 +168,6 @@ class CMdtuner:
         logger.info(f"CMdtuner: Constructed modeldatapath: {self.modeldatapath}")
         logger.info(f"CMdtuner: Constructed checkpoint_filepath: {self.checkpoint_filepath}")
 
-=======
-        self.oracle = kwargs.get("oracle", None)
-
-        base = self.hypermodel_params.get('base', {})
-        self.mp_pl_platform_base       = base.get('mp_glob_base_platform_dir', None)
-        self.checkpoint_filepath       = base.get('mp_glob_base_ml_checkpoint_filepath', None)
-        self.modeldatapath             = base.get('mp_glob_sub_ml_src_modeldata', None)
-        # Model path
-        self.base_path                 = base.get('mp_glob_base_path', None)
-        self.project_dir               = base.get('mp_glob_base_ml_project_dir', None)
-        self.baseuniq                  = base.get('mp_glob_sub_ml_baseuniq', None)
-        self.modelname                 = base.get('mp_glob_sub_ml_model_name', None)
-        self.modelpath                 = os.path.join(self.project_dir, self.modelname)
-
-
-        logger.info(f"TuneParams: mp_pl_platform_base: {self.mp_pl_platform_base}")
-        logger.info(f"TuneParams: checkpoint_filepath: {self.checkpoint_filepath}")
-        logger.info(f"TuneParams: base_path          : {self.base_path}")
-        logger.info(f"TuneParams: project_dir        : {self.project_dir}")
-        logger.info(f"TuneParams: baseuniq           : {self.baseuniq}")
-        logger.info(f"TuneParams: modeldatapath      : {self.modeldatapath}")
-        logger.info(f"TuneParams: modelname          : {self.modelname}")
-        logger.info(f"TuneParams: modelpath          : {self.modelpath}")
-       
-        if not self.base_path:
-            raise ValueError("The 'mp_glob_base_path' parameter must be provided in hypermodel_params.")
-        if not self.project_dir:
-            raise ValueError("The 'mp_glob_base_ml_project_dir' parameter must be provided in hypermodel_params.")
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
         # Data parameters
         data = self.hypermodel_params.get('data', {})
@@ -266,7 +200,6 @@ class CMdtuner:
         logger.info(f"ML parameters: feature5: {self.feature5}")
 
         # Tuning parameters
-<<<<<<< HEAD
         self.today                   = mltune_params.get('today', '2025-03-16 17:27:46')
         # CORRECTED: Ensure tunemode is stored in lowercase to avoid lookup issues
         self.tunemode                = mltune_params.get('tunemode', 'Hyperband').lower() 
@@ -295,33 +228,6 @@ class CMdtuner:
         # Ensure input_width and shift have valid numeric values
         self.input_width = mltune_params.get('input_width', 24)
         self.shift = mltune_params.get('shift', 24)
-=======
-        mltune = self.hypermodel_params.get('mltune', {})
-        self.today                   = mltune.get('today', '2025-03-16 17:27:46')
-        self.seed                    = mltune.get('seed', 42)
-        self.tunemode                = mltune.get('tunemode', 'Hyperband')
-        self.tunemodeepochs          = mltune.get('tunemodeepochs', True)
-        self.batch_size              = mltune.get('batch_size', 16)  # Reduced batch size
-        self.epochs                  = mltune.get('epochs', 2)
-        self.num_trials              = mltune.get('num_trials', 3)
-        self.max_epochs              = mltune.get('max_epochs', 120)
-        self.min_epochs              = mltune.get('min_epochs', 10)
-        self.hyperband_iterations    = mltune.get('hyperband_iterations', 1)
-        self.factor                  = mltune.get('factor', 10)
-        self.objective               = mltune.get('objective', 'val_loss')
-        self.input_shape             = mltune.get('input_shape', None)
-        self.data_input_shape        = mltune.get('data_input_shape', None)
-        self.multi_inputs            = mltune.get('multi_inputs', False)
-        self.multi_branches          = mltune.get('multi_branches', True)
-        self.multi_outputs           = mltune.get('multi_outputs', False)
-        self.label_columns           = mltune.get('label_columns', None)
-        self.shift                   = mltune.get('shift', 24)
-        self.input_width             = mltune.get('input_width', 1440)
-
-        # Ensure input_width and shift have valid numeric values
-        self.input_width = mltune.get('input_width', 24)
-        self.shift = mltune.get('shift', 24)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
         # Final fallback in case they are explicitly None
         if self.input_width is None:
@@ -331,21 +237,12 @@ class CMdtuner:
 
         self.total_window_size = self.input_width + self.shift
 
-<<<<<<< HEAD
         self.tune_new_entries       = mltune_params.get('tune_new_entries', True)
         self.allow_new_entries       = mltune_params.get('allow_new_entries', True)
         self.max_retries_per_trial   = mltune_params.get('max_retries_per_trial', 5)
         self.max_consecutive_failed_trials = mltune_params.get('max_consecutive_failed_trials', 3)
         self.executions_per_trial    = mltune_params.get('executions_per_trial', 1)
         self.overwrite               = mltune_params.get('overwrite', True)
-=======
-        self.tune_new_entries       = mltune.get('tune_new_entries', True)
-        self.allow_new_entries       = mltune.get('allow_new_entries', True)
-        self.max_retries_per_trial   = mltune.get('max_retries_per_trial', 5)
-        self.max_consecutive_failed_trials = mltune.get('max_consecutive_failed_trials', 3)
-        self.executions_per_trial    = mltune.get('executions_per_trial', 1)
-        self.overwrite               = mltune.get('overwrite', False)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
         logger.info(f"Tuning parameters: today            : {self.today}")
         logger.info(f"Tuning parameters: seed             : {self.seed}")
@@ -375,7 +272,6 @@ class CMdtuner:
         logger.info(f"Tuning parameters: executions_per_trial: {self.executions_per_trial}")
         logger.info(f"Tuning parameters: overwrite        : {self.overwrite}")
 
-<<<<<<< HEAD
         # Corrected: Derive num_classes if multi_outputs is True and label_columns are provided
         if self.multi_outputs and self.label_columns is not None:
             if isinstance(self.label_columns, (list, tuple)):
@@ -416,39 +312,6 @@ class CMdtuner:
         #Threading parameters - Removed as they are not expected by Keras Tuner's internal model.fit
         # self.use_multiprocessing = mltune_params.get('use_multiprocessing', True)
         # self.workers = mltune_params.get('workers', 32)
-=======
-
-        # New tuning parameters 
-        self.unitmin         = mltune.get('unitmin', 32)
-        self.unitmax         = mltune.get('unitmax', 512)
-        self.unitstep        = mltune.get('unitstep', 32)
-        self.defaultunits    = mltune.get('defaultunits', 128)
-        self.all_modelscale  = mltune.get('all_modelscale', 8.0)
-        self.cnn_modelscale  = mltune.get('cnn_modelscale', 8.0)
-        self.lstm_modelscale = mltune.get('lstm_modelscale', 8.0)
-        self.gru_modelscale  = mltune.get('gru_modelscale', 8.0)
-        self.trans_modelscale = mltune.get('trans_modelscale', 8.0)
-        self.transh_modelscale = mltune.get('transh_modelscale', 8.0)
-        self.transff_modelscale = mltune.get('transff_modelscale', 8.0)
-        self.dense_modelscale = mltune.get('dense_modelscale', 8.0)
-        self.trans_dim_min      = mltune.get('trans_dim_min', 32 // self.trans_modelscale)
-        self.trans_dim_max      = mltune.get('trans_dim_max', 256 // self.trans_modelscale)
-        self.trans_dim_step     = mltune.get('trans_dim_step', 32 // self.trans_modelscale)
-        self.trans_dim_default  = mltune.get('trans_dim_default', 64 // self.trans_modelscale)
-        self.trans_heads_min    = mltune.get('trans_heads_min', 2)
-        self.trans_heads_max    = mltune.get('trans_heads_max', 8)
-        self.trans_heads_step   = mltune.get('trans_heads_step', 2)
-        self.trans_ff_min       = mltune.get('trans_ff_min', int(64 // self.transff_modelscale))
-        self.trans_ff_max       = mltune.get('trans_ff_max', int(512 // self.transff_modelscale))
-        self.trans_ff_step      = mltune.get('trans_ff_step', int(64 // self.transff_modelscale))
-        self.dense_units_min    = mltune.get('dense_units_min', int(32 // self.dense_modelscale))
-        self.dense_units_max    = mltune.get('dense_units_max', int(128 // self.dense_modelscale))
-        self.dense_units_step   = mltune.get('dense_units_step', int(32 // self.dense_modelscale))
-
-        #Threading parameters
-        self.use_multiprocessing = mltune.get('use_multiprocessing', True)
-        self.workers = mltune.get('workers', 32)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
       
         logger.info(f"Tuning parameters: unitmin          : {self.unitmin}")
         logger.info(f"Tuning parameters: unitmax          : {self.unitmax}")
@@ -475,18 +338,12 @@ class CMdtuner:
         logger.info(f"Tuning parameters: 'dense_units_min': {self.dense_units_min}")
         logger.info(f"Tuning parameters: 'dense_units_max': {self.dense_units_max}")
         logger.info(f"Tuning parameters: 'dense_units_step': {self.dense_units_step}")
-<<<<<<< HEAD
         # logger.info(f"Tuning parameters: 'use_multiprocessing': {self.use_multiprocessing}") # Removed
         # logger.info(f"Tuning parameters: 'workers': {self.workers}") # Removed
-=======
-        logger.info(f"Tuning parameters: 'use_multiprocessing': {self.use_multiprocessing}")
-        logger.info(f"Tuning parameters: 'workers': {self.workers}")
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
        
 
         # Checkpoint parameters  
-<<<<<<< HEAD
         self.checkpoint_dir = os.path.dirname(self.checkpoint_filepath) # Use the directory of the checkpoint file
         self.overwrite = mltune_params.get('overwrite', True)
         self.chk_fullmodel = mltune_params.get('chk_fullmodel', True)
@@ -496,17 +353,6 @@ class CMdtuner:
         self.chk_sav_freq = mltune_params.get('chk_sav_freq', 'epoch')
         self.chk_patience = mltune_params.get('chk_patience', 10)
         self.save_best_only = mltune_params.get('save_best_only', True)
-=======
-        self.checkpoint_dir = self.checkpoint_filepath
-        self.overwrite = mltune.get('overwrite', False)
-        self.chk_fullmodel = mltune.get('chk_fullmodel', True)
-        self.chk_verbosity = mltune.get('chk_verbosity', 1)
-        self.chk_mode = mltune.get('chk_mode', 'min')
-        self.chk_monitor = mltune.get('chk_monitor', 'val_loss')
-        self.chk_sav_freq = mltune.get('chk_sav_freq', 'epoch')
-        self.chk_patience = mltune.get('chk_patience', 10)
-        self.save_best_only = mltune.get('save_best_only', True)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
         logger.info(f"Checkpoint parameters: checkpoint_dir: {self.checkpoint_dir}")
         logger.info(f"Checkpoint parameters: overwrite: {self.overwrite}")
@@ -519,15 +365,9 @@ class CMdtuner:
         logger.info(f"Checkpoint parameters: save_best_only: {self.save_best_only}")
 
         # Datasets and cast mode setup
-<<<<<<< HEAD
         self.traindataset = kwargs.get('train_dataset') # Corrected to train_dataset
         self.valdataset   = kwargs.get('val_dataset')   # Corrected to val_dataset
         self.testdataset  = kwargs.get('test_dataset')  # Corrected to test_dataset (if used)
-=======
-        self.traindataset = kwargs.get('traindataset')
-        self.valdataset   = kwargs.get('valdataset')
-        self.testdataset  = kwargs.get('testdataset')
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         self.castmode     = kwargs.get('castmode', 'float64')
         if self.castmode == 'float64':
             self.castval = self.cast_to_float64
@@ -555,19 +395,11 @@ class CMdtuner:
 
         self.prepare_shapes()
 
-<<<<<<< HEAD
         self.cnn_model         = mltune_params.get('cnn_model', True)
         self.lstm_model        = mltune_params.get('lstm_model', True)
         self.gru_model         = mltune_params.get('gru_model', True)
         self.transformer_model = mltune_params.get('transformer_model', True)
         self.multiactivate     = mltune_params.get('multiactivate', True)
-=======
-        self.cnn_model         = mltune.get('cnn_model', True)
-        self.lstm_model        = mltune.get('lstm_model', True)
-        self.gru_model         = mltune.get('gru_model', True)
-        self.transformer_model = mltune.get('transformer_model', True)
-        self.multiactivate     = mltune.get('multiactivate', True)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         if not (self.cnn_model or self.lstm_model or self.gru_model or self.transformer_model):
             raise ValueError("At least one model type (CNN, LSTM, GRU, Transformer) must be enabled.")
 
@@ -602,7 +434,6 @@ class CMdtuner:
             
 
     def prepare_shapes(self):
-<<<<<<< HEAD
         if not self.input_shape: # Use self.input_shape which is passed from CMdtunerSelector
             raise ValueError("Input shape must be specified.")
         # Normalize 4D input shape (batch, time, features, channels) to 3D (time, features)
@@ -618,21 +449,6 @@ class CMdtuner:
         
         logger.info(f"Main input shape for Keras model: {self.main_input_shape}")
 
-=======
-        if not self.data_input_shape:
-            raise ValueError("Data input shape must be specified.")
-        # Normalize 4D input shape (batch, time, features, channels) to 3D (time, features)
-        if len(self.data_input_shape) == 4:
-            self.data_input_shape = self.data_input_shape[1:3]  # Remove batch and channel dimensions
-            logger.info(f"Adjusted 4D data input shape to 3D: {self.data_input_shape}")
-        elif len(self.data_input_shape) == 2:
-            self.data_input_shape = (*self.data_input_shape, 1)
-        elif len(self.data_input_shape) == 3:
-            self.data_input_shape = self.data_input_shape[1:]  # Remove batch dimension if present
-            logger.info(f"Adjusted 3D data input shape: {self.data_input_shape}")
-        self.main_input_shape = self.get_shape(self.data_input_shape)
-        logger.info(f"Main input shape: {self.main_input_shape}") # Add this line
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
     @staticmethod
     def get_shape(data_shape):
@@ -649,11 +465,7 @@ class CMdtuner:
         hp.Choice('learning_rate', [1e-2, 1e-3, 1e-4, 1e-5])
         hp.Choice('loss', ['binary_crossentropy', 'mse', 'mae', 'mape', 'msle', 'poisson', 'kld', 'cosine_similarity'])
         hp.Choice('dense_1_activation', ['relu', 'tanh'])
-<<<<<<< HEAD
         hp.Choice('metric', ['accuracy', 'mae', 'mse', 'mape', 'msle', 'poisson', 'kld', 'cosine_similarity']) # Added kld and cosine_similarity
-=======
-        hp.Choice('metric', ['accuracy', 'mae', 'mse', 'mape', 'msle', 'poisson', 'cosine_similarity'])
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         hp.Float('l2_reg', min_value=1e-6, max_value=1e-2, sampling='log', default=1e-4)
 
         if self.tunemodeepochs:
@@ -696,12 +508,8 @@ class CMdtuner:
             'bayesian': kt.BayesianOptimization
         }
 
-<<<<<<< HEAD
         # The self.tunemode is already converted to lowercase in __init__
         if self.tunemode not in tuner_classes: 
-=======
-        if self.tunemode not in tuner_classes:
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
             logger.error(f"Unsupported tuner type: {self.tunemode}")
             self.tuner = None
             return
@@ -711,13 +519,8 @@ class CMdtuner:
                 "hypermodel": self.build_model,
                 "hyperparameters": hp,
                 "objective": self.objective,
-<<<<<<< HEAD
                 "directory": self.project_dir, # Use the resolved project_dir
                 "project_name": self.modelname, # Use the resolved modelname
-=======
-                "directory": self.project_dir,
-                "project_name": self.modelname,
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
                 "overwrite": self.overwrite,
                 "tune_new_entries": self.tune_new_entries,
                 "allow_new_entries": self.allow_new_entries,
@@ -726,11 +529,7 @@ class CMdtuner:
                 "executions_per_trial": self.executions_per_trial,
             }
 
-<<<<<<< HEAD
             if self.tunemode == 'hyperband': # Now self.tunemode is already lowercase
-=======
-            if self.tunemode == 'hyperband':
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
                 tuner_args.update({
                     "max_epochs": self.max_epochs,
                     "factor": self.factor,
@@ -738,11 +537,7 @@ class CMdtuner:
                 })
 
             logger.info(f"Tuner arguments: {tuner_args}")
-<<<<<<< HEAD
             self.tuner = tuner_classes[self.tunemode](**tuner_args) # Use self.tunemode directly
-=======
-            self.tuner = tuner_classes[self.tunemode](**tuner_args)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
             logger.info(f"Tuner initialized: {self.tunemode}")
             self.tuner._save_model = lambda: None  # Disable weight-saving to avoid file lock issues on Windows
             logger.info(f"Tuner model save method overridden to avoid file lock issues on Windows.")
@@ -769,21 +564,12 @@ class CMdtuner:
             cnn_branch = cnn_input
 
             shape = int_shape(cnn_branch)
-<<<<<<< HEAD
             # Ensure the input to Conv1D is 3D (batch, steps, features)
             if len(shape) == 4: # (None, steps, features, 1) -> (None, steps, features)
                 cnn_branch = Reshape((shape[1], shape[2]))(cnn_branch)
             elif len(shape) == 2: # (None, features) -> (None, features, 1) to make it 3D
                 cnn_branch = Reshape((shape[1], 1))(cnn_branch)
             # If len(shape) == 3, it's already (None, steps, features) which is good for Conv1D
-=======
-            if len(shape) == 4:
-                cnn_branch = Reshape((shape[1], shape[2]))(cnn_branch)
-            elif len(shape) == 2:
-                cnn_branch = Reshape((shape[1], 1))(cnn_branch)
-            elif len(shape) == 3 and shape[-1] != 1:
-                cnn_branch = Dense(1)(cnn_branch)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
             if self.tunemode:
                 num_cnn_layers = hp.values.get('num_cnn_layers', 1)
@@ -814,15 +600,10 @@ class CMdtuner:
             lstm_branch = lstm_input
 
             shape = int_shape(lstm_branch)
-<<<<<<< HEAD
             if len(shape) == 4: # (None, steps, features, 1) -> (None, steps, features)
                 lstm_branch = Reshape((shape[1], shape[2]))(lstm_branch)
             elif len(shape) == 2: # (None, features) -> (None, features, 1) to make it 3D
                 lstm_branch = Reshape((shape[1], 1))(lstm_branch)
-=======
-            if len(shape) == 4:
-                lstm_branch = Reshape((shape[1], shape[2]))(lstm_branch)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
             num_lstm_layers = hp.values.get('num_lstm_layers', 1)
             for i in range(num_lstm_layers):
@@ -844,15 +625,10 @@ class CMdtuner:
             gru_branch = gru_input
 
             shape = int_shape(gru_branch)
-<<<<<<< HEAD
             if len(shape) == 4: # (None, steps, features, 1) -> (None, steps, features)
                 gru_branch = Reshape((shape[1], shape[2]))(gru_branch)
             elif len(shape) == 2: # (None, features) -> (None, features, 1) to make it 3D
                 gru_branch = Reshape((shape[1], 1))(gru_branch)
-=======
-            if len(shape) == 4:
-                gru_branch = Reshape((shape[1], shape[2]))(gru_branch)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
             num_gru_layers = hp.values.get('num_gru_layers', 1)
             for i in range(num_gru_layers):
@@ -874,38 +650,28 @@ class CMdtuner:
             transformer_branch = transformer_input
 
             shape = int_shape(transformer_branch)
-<<<<<<< HEAD
             if len(shape) == 4: # (None, steps, features, 1) -> (None, steps, features)
                 transformer_branch = Reshape((shape[1], shape[2]))(transformer_branch)
             elif len(shape) == 2: # (None, features) -> (None, features, 1) to make it 3D
                 transformer_branch = Reshape((shape[1], 1))(transformer_branch)
 
-=======
-            if len(shape) == 4:
-                transformer_branch = Reshape((shape[1], shape[2]))(transformer_branch)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
             key_dim = hp.values.get('key_dim_0', 64)
             num_heads = hp.values.get('num_heads_0', 4)
             projected_dim = key_dim * num_heads
 
-<<<<<<< HEAD
             # Ensure the input to the transformer block has the correct dimension for positional encoding
             # If the input_shape is (steps, features), and features is not equal to projected_dim,
             # we need a Dense layer to project it to projected_dim before positional encoding.
             if self.main_input_shape[-1] != projected_dim:
                 transformer_branch = Dense(projected_dim)(transformer_branch)
 
-=======
-            transformer_branch = Dense(projected_dim)(transformer_branch)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
             transformer_branch = self.transformer_block(transformer_branch, hp, 0, dim=projected_dim)
             transformer_branch = GlobalAveragePooling1D()(transformer_branch)
 
             branches.append(transformer_branch)
 
         # Combine branches and dense layers
-<<<<<<< HEAD
         concatenated = Concatenate()(branches) if self.multi_branches and len(branches) > 1 else branches[0]
         
         # Ensure the output layer matches the number of classes (regression task)
@@ -923,9 +689,6 @@ class CMdtuner:
         elif self.hypermodel_params.get('is_binary_classification', False): # Add a param to distinguish binary
             output_activation = 'sigmoid' # For single-output binary classification
 
-=======
-        concatenated = Concatenate()(branches) if self.multi_branches else branches[0]
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         merged = Dense(512, activation='relu')(concatenated)
         dense_1 = Dense(
             units=hp.values.get('dense_1_units', 64),
@@ -933,19 +696,14 @@ class CMdtuner:
             kernel_regularizer=tf.keras.regularizers.l2(hp.values.get('l2_reg', 1e-4))
         )(merged)
         dense_dropout = Dropout(0.2)(dense_1)
-<<<<<<< HEAD
         # IMPORTANT FIX: Set the units of the final Dense layer to self.num_classes
         # This resolves the `target.shape=(None, 7), output.shape=(None, 1)` mismatch.
         output = Dense(self.num_classes, activation=output_activation)(dense_dropout)
-=======
-        output = Dense(1, activation='sigmoid')(dense_dropout)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
         model = Model(inputs=inputs if self.multi_inputs else inputs[0], outputs=output)
 
         # Final compile
         optimizer = self.get_optimizer(hp.values.get('optimizer', 'adam'), hp.values.get('learning_rate', 1e-3))
-<<<<<<< HEAD
         
         # Resolve the loss function
         loss_str = hp.values.get('loss', 'mse')
@@ -1010,12 +768,6 @@ class CMdtuner:
             optimizer=optimizer,
             loss=resolved_loss,
             metrics=[resolved_metric]
-=======
-        model.compile(
-            optimizer=optimizer,
-            loss=tf.keras.losses.get(hp.values.get('loss', 'mse')),
-            metrics=[tf.keras.metrics.get(hp.values.get('metric', 'mse'))]
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         )
 
         return model
@@ -1037,12 +789,8 @@ class CMdtuner:
 
     def get_callbacks(self):
         tuner_id = os.environ.get("TUNER_ID", f"worker_{uuid.uuid4().hex[:6]}")
-<<<<<<< HEAD
         # Use self.checkpoint_filepath which is already constructed in __init__
         checkpoint_filepath = self.checkpoint_filepath 
-=======
-        checkpoint_filepath = os.path.join(self.modeldatapath, f"{self.modelname}_{tuner_id}.keras")
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
         callbacks = [
             tf.keras.callbacks.EarlyStopping(monitor=self.chk_monitor, patience=self.chk_patience,
@@ -1054,11 +802,8 @@ class CMdtuner:
         ]
 
         if tuner_id.lower() == "chief":
-<<<<<<< HEAD
             # Ensure the directory for the checkpoint exists
             os.makedirs(os.path.dirname(checkpoint_filepath), exist_ok=True)
-=======
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
             callbacks.insert(1, tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_filepath,
                                                                 save_best_only=self.save_best_only,
                                                                 verbose=self.chk_verbosity))
@@ -1076,7 +821,6 @@ class CMdtuner:
                 return
 
             best_model = self.tuner.get_best_models(num_models=1)[0]
-<<<<<<< HEAD
             # Use self.modeldatapath for export path
             export_path = self.modeldatapath
             os.makedirs(os.path.dirname(export_path), exist_ok=True) # Ensure directory exists
@@ -1087,17 +831,6 @@ class CMdtuner:
                 logger.info(f"Model saved to {export_filepath}")
             else: # Default to .keras format
                 export_filepath = os.path.join(export_path, f"{self.modelname}.keras")
-=======
-            export_path = os.path.join(self.project_dir, self.modelname)
-            os.makedirs(os.path.dirname(export_path), exist_ok=True)
-            logger.info(f"Exporting best model to {export_path}")
-            if ftype == 'h5':
-                export_filepath = export_path + '.h5'
-                best_model.save(export_filepath)
-                logger.info(f"Model saved to {export_filepath}")
-            else:
-                export_filepath = export_path + '.keras'
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
                 best_model.save(export_filepath)
                 logger.info(f"Model saved to {export_filepath}")
         except IndexError:
@@ -1118,27 +851,18 @@ class CMdtuner:
 
         # Multi-head attention block
         attn_output = tf.keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=key_dim)(x, x)
-<<<<<<< HEAD
         attn_output = tf.keras.layers.Dropout(0.2)(attn_output) # Increased dropout for attention
-=======
-        attn_output = tf.keras.layers.Dropout(0.1)(attn_output)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         out1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)(x + attn_output)
 
         # Feed-forward block
         ffn_output = tf.keras.layers.Dense(projected_dim * 2, activation='relu')(out1)
         ffn_output = tf.keras.layers.Dense(projected_dim)(ffn_output)
-<<<<<<< HEAD
         ffn_output = tf.keras.layers.Dropout(0.2)(ffn_output) # Increased dropout for FFN
-=======
-        ffn_output = tf.keras.layers.Dropout(0.1)(ffn_output)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
         # Final residual connection
         return tf.keras.layers.LayerNormalization(epsilon=1e-6)(out1 + ffn_output)
         
     
-<<<<<<< HEAD
    
     def _objective(self, hp):
         """Objective function for evaluating a trial's performance."""
@@ -1259,105 +983,6 @@ class CMdtuner:
             self.export_best_model() # Export best model after search
         except Exception as e:
             logger.error(f"Error during tuning process: {e}", exc_info=True)
-=======
-  
-    def run_search(self):
-        logger.info("Running custom tuner search via OracleClient...")
-        logger.debug(f"run_search: input_shape = {self.input_shape}")
-        logger.debug(f"run_search: hypermodel_params keys = {list(self.hypermodel_params.get('mltune', {}).keys())}")
-
-        if not self.oracle or not isinstance(self.oracle, OracleClient):
-            raise RuntimeError("OracleClient not initialized in distributed mode.")
-
-        while True:
-            try:
-                trial = self.oracle.get_trial()
-                if not trial:
-                    logger.info("No more trials received from OracleServer. Exiting.")
-                    break
-                trial_id = trial.get("trial_id")
-                hp_config = trial.get("hyperparameters", {})
-                if not trial_id:
-                    logger.warning("Received trial without trial_id; skipping.")
-                    continue
-                if not isinstance(hp_config, dict) or len(hp_config) == 0:
-                    logger.warning(f"Trial {trial_id} has empty hyperparameters. Marking as FAILED.")
-                    self.oracle.update_trial_status(trial_id, "FAILED")
-                    continue
-                hp = HyperParameters()
-                hp.values = hp_config
-                logger.info(f"Running trial {trial_id} with hyperparameters: {hp_config}")
-                val_loss = self._objective(hp)
-                logger.info(f"✅ Trial {trial_id} completed. val_loss={val_loss:.5f}")
-                self.oracle.report_trial_result(trial_id, val_loss)
-            except Exception as e:
-                logger.error(f"❌ Exception during trial {trial_id if 'trial_id' in locals() else '[UNKNOWN]'}: {str(e)}")
-                if "trial_id" in locals():
-                    self.oracle.update_trial_status(trial_id, "FAILED")
-                break
-
-        logger.info("Custom tuner search completed.")
-        return True
-
-
-   
-    def _objective(self, hp):
-        loss_str = hp.values.get("loss", "mse")
-        metric_str = hp.values.get("metric", "mse")
-
-        try:
-            if isinstance(loss_str, str):
-                if loss_str.lower() in ["mse", "mean_squared_error"]:
-                    self.loss = tf.keras.losses.MeanSquaredError()
-                elif loss_str.lower() in ["mae", "mean_absolute_error"]:
-                    self.loss = tf.keras.losses.MeanAbsoluteError()
-                else:
-                    loss = tf.keras.losses.get(loss_str)
-                    self.loss = loss() if isinstance(loss, type) else loss
-            else:
-                self.loss = loss_str
-        except Exception as e:
-            logger.error(f"[OBJECTIVE] Invalid loss: {loss_str} — {e}")
-            raise
-
-        try:
-            if isinstance(metric_str, str):
-                if metric_str.lower() in ["mse", "mean_squared_error"]:
-                    self.metric = tf.keras.metrics.MeanSquaredError()
-                elif metric_str.lower() in ["mae", "mean_absolute_error"]:
-                    self.metric = tf.keras.metrics.MeanAbsoluteError()
-                else:
-                    metric = tf.keras.metrics.get(metric_str)
-                    self.metric = metric() if isinstance(metric, type) else metric
-            else:
-                self.metric = metric_str
-        except Exception as e:
-            logger.error(f"[OBJECTIVE] Invalid metric: {metric_str} — {e}")
-            raise
-
-        logger.info(f"[OBJECTIVE] Resolved loss={self.loss} ({type(self.loss)}), metric={self.metric} ({type(self.metric)})")
-
-        model = self.build_model(hp)
-        model.compile(optimizer=tf.keras.optimizers.Adam(), loss=self.loss, metrics=[self.metric])
-        history = model.fit(
-            self.traindataset,
-            validation_data=self.valdataset,
-            epochs=hp.values.get("epochs", 10),
-            verbose=0,
-            callbacks=self.get_callbacks()
-        )
-
-        val_loss = history.history.get("val_loss", [None])[-1]
-        if val_loss is None:
-            logger.warning("Trial produced no validation loss.")
-            val_loss = float("inf")
-        else:
-            logger.info(f"✅ Trial completed. val_loss={val_loss:.5f}")
-
-        return val_loss
-
-
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
 
     def _predict_graph(self, model, test_data):
@@ -1411,23 +1036,16 @@ class CMdtuner:
 
     def get_best_hyperparameters(self):
         try:
-<<<<<<< HEAD
             best_hps = self.tuner.get_best_hyperparameters(num_trials=1)
             if not best_hps:
                 logger.info("No best hyperparameters found. Returning None.")
                 return None
             return best_hps[0]
-=======
-            return self.tuner.get_best_hyperparameters(num_trials=1)[0]
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         except Exception as e:
             logger.info(f"Error retrieving best hyperparameters: {e}")
             return None
 
-<<<<<<< HEAD
 
-=======
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
     def get_positional_encoding(self, seq_len, dim):
         position = tf.range(seq_len, dtype=tf.float32)[:, tf.newaxis]
         div_term = tf.exp(tf.range(0, dim, 2, dtype=tf.float32) * (-tf.math.log(10000.0) / dim))
@@ -1454,7 +1072,6 @@ class AddPositionalEncoding(tf.keras.layers.Layer):
         cosines = tf.cos(angle_rads[:, 1::2])
         pos_encoding = tf.concat([sines, cosines], axis=-1)
         pos_encoding = tf.expand_dims(pos_encoding, axis=0)  # (1, seq_len, dim)
-<<<<<<< HEAD
         return x + tf.cast(pos_encoding, x.dtype)
 
     def finalize_best_trial(self):
@@ -1469,6 +1086,3 @@ class AddPositionalEncoding(tf.keras.layers.Layer):
         except Exception as e:
             logger.error(f"❌ Failed to fetch or finalize best trial from OracleClient: {e}")
             return None
-=======
-        return x + tf.cast(pos_encoding, x.dtype)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2

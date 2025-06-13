@@ -35,10 +35,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
             "today": get_current_datetime(),
             "seed": 42,
             "tuner_id": None,
-<<<<<<< HEAD
             "ml_model_name": "tsneuromodel",
-=======
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         }
 
         self.TUNER_MODE_PARAMS = {
@@ -92,28 +89,16 @@ class CMqlEnvMLTunerParams(CEnvCore):
         }
 
         self.CORE_TUNER_PARAMS = {
-<<<<<<< HEAD
             "num_trials": 64,
-=======
-            "num_trials": 3,
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
             "max_retries_per_trial": 5,
             "max_consecutive_failed_trials": 3,
             "steps_per_execution": 1,
             "executions_per_trial": 1,
-<<<<<<< HEAD
             "overwrite": True,
-=======
-            "overwrite": False,
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
             "max_retries_per_trial": 5,
             "max_consecutive_failed_trials": 3,
             "executions_per_trial": 1,
             "distribution_strategy": "auto",
-<<<<<<< HEAD
-=======
-            "tuner_id": None,
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         }
 
         self.EXTRA_TUNER_PARAMS = {
@@ -148,13 +133,9 @@ class CMqlEnvMLTunerParams(CEnvCore):
             "unitmax": 512,
             "unitstep": 32,
             "defaultunits": 128,
-<<<<<<< HEAD
             "backend": "tensorflow" , # or "pytorch"
             "tuner_type": "hyperband",  # Options: 'randomsearch', 'bayesian', 'hyperband'
             "tuner_id": None,  # Unique identifier for the tuner instance
-=======
-            "backend": "tensorflow"  # or "pytorch"
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         }
 
         self.MODEL_SCALE_PARAMS = {

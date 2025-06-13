@@ -3,7 +3,6 @@ import warnings
 import gc
 import logging
 import socket
-<<<<<<< HEAD
 import codecs
 import io
 import sys
@@ -11,14 +10,10 @@ from loguru import logger as loguru_logger
 import colorlog
 
 # Set environment variables for TensorFlow optimizations
-=======
-
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
 os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
-<<<<<<< HEAD
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 
@@ -31,28 +26,16 @@ from rich.traceback import install
 from pathlib import Path
 
 # Initialize platform checkers
-=======
-import tensorflow as tf
-from tensorflow.keras.mixed_precision import Policy
-from tsMqlPlatform import run_platform, platform_checker
-from rich.logging import RichHandler
-
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
 
 class CMqlSetup:
-<<<<<<< HEAD
     _log_setup_done = False # Class-level flag to track if initial logging is done
 
     def __init__(self, loglevel='DEBUG', tflog=2, warn='ignore', precision='mixed_float16', tfdebug=False, num_cores=48, num_threads=8, **kwargs):
         self.tflog = tflog
         self.loglevel = loglevel.upper()
-=======
-    def __init__(self, tflog='2', warn='ignore', precision='mixed_float16', tfdebug=False, num_cores=28, num_threads=2, **kwargs):
-        self.tflog = tflog
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         self.warn = warn
         self.precision = precision
         self.tfdebug = tfdebug
@@ -62,30 +45,22 @@ class CMqlSetup:
         self.gtuner_model = kwargs.get('gtuner_model', 'tensorflow')
         self.kwargs = kwargs
 
-<<<<<<< HEAD
         # Initialize global logfile and logdir paths as None; they will be set by set_log_dir
         self.global_logdir = None
         self.global_logfile = None
 
         # These setups should be safe to call multiple times or are idempotent
-=======
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         self._setup_warnings()
         self._setup_tf_logging()
         self._set_precision_policy()
         self._configure_tf()
-<<<<<<< HEAD
         # _configure_debug might try to log, so ensure main logger is set up first by launcher
         # self._configure_debug() 
-=======
-        self._configure_debug()
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
     def _setup_warnings(self):
         warnings.filterwarnings(self.warn)
 
     def _setup_tf_logging(self):
-<<<<<<< HEAD
         # This only sets an environment variable, which is idempotent
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = str(self.tflog)
 
@@ -95,14 +70,6 @@ class CMqlSetup:
 
     def _configure_tf(self):
         # Environment variable updates and TensorFlow config are idempotent
-=======
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = self.tflog
-
-    def _set_precision_policy(self):
-        tf.keras.mixed_precision.set_global_policy(Policy(self.precision))
-
-    def _configure_tf(self):
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         os.environ.update({
             "OMP_NUM_THREADS": str(self.sumthreads),
             "TF_NUM_INTRAOP_THREADS": str(self.sumthreads),
@@ -134,7 +101,6 @@ class CMqlSetup:
         try:
             for gpu in tf.config.list_physical_devices('GPU'):
                 tf.config.experimental.set_memory_growth(gpu, True)
-<<<<<<< HEAD
                 logging.info(f"Enabled memory growth for GPU: {gpu}")
         except RuntimeError as e:
             # Use print() here, as logging might not be fully configured yet
@@ -146,12 +112,6 @@ class CMqlSetup:
         # This method is called conditionally and can contain logging.
         # It's safer to only call this AFTER the main logging is set up
         # or handle its output carefully (e.g., using print for early messages).
-=======
-        except RuntimeError as e:
-            logging.warning(f"Failed to set memory growth: {e}")
-
-    def _configure_debug(self):
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         if not self.tfdebug:
             return
 
@@ -160,53 +120,31 @@ class CMqlSetup:
         tf.config.optimizer.set_jit(False)
 
         gpus = tf.config.list_physical_devices('GPU')
-<<<<<<< HEAD
         logging.info(f"GPUs available: {gpus}") # This logging.info will use the configured root logger
-=======
-        logging.info(f"GPUs available: {gpus}")
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
         if gpus:
             try:
                 mem_info = tf.config.experimental.get_memory_info('GPU:0')
-<<<<<<< HEAD
                 logging.info(f"GPU Memory Info: {mem_info}")
-=======
-                print("GPU Memory Info:", mem_info)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
             except Exception as e:
                 logging.warning(f"GPU memory info not available: {e}")
 
         import psutil
-<<<<<<< HEAD
         logging.info(f"RAM Used: {psutil.virtual_memory().used / 1e9:.2f} GB")
-=======
-        print("RAM Used:", psutil.virtual_memory().used / 1e9, "GB")
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
         tf.keras.backend.clear_session()
         gc.collect()
 
     def get_computation_strategy(self):
-<<<<<<< HEAD
         """Determines and returns the appropriate TensorFlow distribution strategy."""
-=======
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         try:
             tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
             tf.config.experimental_connect_to_cluster(tpu)
             tf.tpu.experimental.initialize_tpu_system(tpu)
-<<<<<<< HEAD
             logging.info("Using TPU")
             return tf.distribute.TPUStrategy(tpu)
         except Exception:
             pass # TPU not available or failed to connect
-=======
-            print("✅ Using TPU")
-            return tf.distribute.TPUStrategy(tpu)
-        except Exception:
-            pass
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
         for strategy_cls, label in [
             (tf.distribute.MultiWorkerMirroredStrategy, "MultiWorker GPU/CPU"),
@@ -217,16 +155,11 @@ class CMqlSetup:
         ]:
             try:
                 strategy = strategy_cls()
-<<<<<<< HEAD
                 logging.info(f" Using {label}")
-=======
-                print(f"✅ Using {label}")
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
                 return strategy
             except Exception as e:
                 logging.warning(f"{label} failed: {e}")
 
-<<<<<<< HEAD
         raise RuntimeError("No valid strategy available.")
 
     def set_log_dir(self, logdir=None, logfile='tslog.log', servername=None, backend=None):
@@ -279,42 +212,10 @@ class CMqlSetup:
         except Exception as e:
             # Use print to report critical errors before full logging is guaranteed to be up
             print(f"CRITICAL ERROR: Could not create logfile at {self.global_logfile}: {e}", file=sys.stderr)
-=======
-        raise RuntimeError("❌ No valid strategy available.")
-
-    def set_log_dir(self, logdir=None, logfile='tslog', servername=None, ltuner=None):
-        hostname = socket.gethostname()
-        print(f"Hostname: {hostname}")
-
-        if logdir is None:
-            if hostname == servername and os_platform == 'Windows':
-                base_path = r'C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir'
-            elif os_platform == 'Linux':
-                base_path = '/mnt/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir'
-            elif os_platform == 'Darwin':
-                base_path = '/Users/shepa/OneDrive/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir'
-            else:
-                base_path = os.path.expanduser('~/EQUINRUN/Logdir')
-        else:
-            base_path = logdir
-
-        final_logdir = os.path.join(base_path, hostname, ltuner)
-        os.makedirs(final_logdir, exist_ok=True)
-
-        self.global_logdir = final_logdir
-        self.global_logfile = os.path.join(final_logdir, 'tsneuropredict_app.log')
-
-        try:
-            with open(self.global_logfile, 'a') as f:
-                f.write('')
-        except Exception as e:
-            print(f"Could not create logfile at {self.global_logfile}: {e}")
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
             raise
 
         return self.global_logdir, self.global_logfile
 
-<<<<<<< HEAD
     def setup_logging(self, **kwargs):
         """
         Sets up the logging configuration using RichHandler, loguru, and colorlog.
@@ -438,33 +339,3 @@ class CMqlSetup:
         CMqlSetup._log_setup_done = True
         loguru_logger.info(f"Logging initialized. Logfile: {final_logfile_path}")
 
-=======
-    def setup_global_logger(self, logfilein=None, force_reset=True):
-        if logfilein is None:
-            logfilein = getattr(self, 'global_logfile', 'tsneuropredict_app.log')
-
-        logger = logging.getLogger()
-
-        if logger.hasHandlers() and not force_reset:
-            return logger
-
-        if force_reset:
-            for handler in logger.handlers[:]:
-                logger.removeHandler(handler)
-
-        logger.setLevel(logging.DEBUG)
-
-        fh = logging.FileHandler(logfilein, mode='a', encoding='utf-8')
-        log_prefix = f"[{os.environ.get('TUNER_ID', 'main').upper()}]"
-        file_formatter = logging.Formatter(f'{log_prefix} %(asctime)s - %(levelname)s - %(filename)s - %(funcName)s - %(message)s')
-        fh.setFormatter(file_formatter)
-        logger.addHandler(fh)
-
-        rich_handler = RichHandler(rich_tracebacks=True, markup=True)
-        console_formatter = logging.Formatter('%(message)s')
-        rich_handler.setFormatter(console_formatter)
-        logger.addHandler(rich_handler)
-
-        logger.info(f"Logger initialized with file: {logfilein}")
-        return logger
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2

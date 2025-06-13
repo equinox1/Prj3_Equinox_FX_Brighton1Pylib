@@ -15,34 +15,22 @@ logger.setLevel(logging.DEBUG)
 
 # Dynamically resolve log file
 def resolve_logfile():
-<<<<<<< HEAD
     # Base path for the log directory, adjust if your setup is different
     base_path = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir"
     # Search for tsneuropredict_app.log recursively within the base_path
     matches = glob.glob(os.path.join(base_path, "**", "tsneuropredict_app.log"), recursive=True)
     if matches:
         # Return the most recently modified log file
-=======
-    base_path = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir"
-    matches = glob.glob(os.path.join(base_path, "**", "tsneuropredict_app.log"), recursive=True)
-    if matches:
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         return max(matches, key=os.path.getmtime)
     return None
 
 LOG_FILE = resolve_logfile()
-<<<<<<< HEAD
 # Oracle API address and port, fetched from environment variable or default
-=======
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 ORACLE_API = os.getenv("ORACLE_API", "http://192.168.1.103:9000")
 
 app = FastAPI(title="Tuner Dashboard")
 
-<<<<<<< HEAD
 # Configure CORS middleware to allow requests from any origin
-=======
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -51,46 +39,31 @@ app.add_middleware(
 )
 
 def html_template(title: str, body: str, extra_scripts: str = "") -> str:
-<<<<<<< HEAD
     """
     Generates the basic HTML structure for the dashboard pages.
     """
-=======
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
     return f"""
     <html>
         <head>
             <title>{title}</title>
             <meta id='refresh-meta' http-equiv="refresh" content="10">
             <script>
-<<<<<<< HEAD
             // Toggles the display of an element by its ID
-=======
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
             function toggle(id) {{
                 const el = document.getElementById(id);
                 el.style.display = el.style.display === 'none' ? 'block' : 'none';
             }}
-<<<<<<< HEAD
             // Filters table rows based on selected status
-=======
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
             function filterTable() {{
                 const filter = document.getElementById('statusFilter').value;
                 const rows = document.querySelectorAll("table tr");
                 rows.forEach((row, index) => {{
-<<<<<<< HEAD
                     if (index === 0) return; // Skip header row
                     const statusCell = row.cells[1]; // Status is in the second column
-=======
-                    if (index === 0) return;
-                    const statusCell = row.cells[1];
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
                     const show = !filter || statusCell.textContent.trim() === filter;
                     row.style.display = show ? "" : "none";
                 }});
             }}
-<<<<<<< HEAD
             // Copies text content of an element to the clipboard
             function copyToClipboard(id) {{
                 const el = document.getElementById(id);
@@ -106,12 +79,6 @@ def html_template(title: str, body: str, extra_scripts: str = "") -> str:
                 // alert('Copied to clipboard!');
             }}
             // Toggles auto-refreshing of the page
-=======
-            function copyToClipboard(id) {{
-                const el = document.getElementById(id);
-                navigator.clipboard.writeText(el.innerText);
-            }}
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
             function toggleRefresh() {{
                 const meta = document.getElementById('refresh-meta');
                 meta.content = document.getElementById('autorefresh').checked ? "10" : "";
@@ -119,7 +86,6 @@ def html_template(title: str, body: str, extra_scripts: str = "") -> str:
             {extra_scripts}
             </script>
             <style>
-<<<<<<< HEAD
                 body {{ font-family: 'Inter', monospace; padding: 20px; background-color: #f4f7f6; color: #333; }}
                 .container {{ max-width: 1200px; margin: 20px auto; background-color: #fff; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 30px; }}
                 .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }}
@@ -143,31 +109,13 @@ def html_template(title: str, body: str, extra_scripts: str = "") -> str:
                 button {{ background-color: #007bff; color: white; border: none; border-radius: 5px; padding: 8px 12px; cursor: pointer; font-size: 0.8em; }}
                 button:hover {{ background-color: #0056b3; }}
                 select, input[type="checkbox"] {{ margin-right: 10px; }}
-=======
-                body {{ font-family: monospace; padding: 20px; }}
-                .container {{ max-width: 1200px; margin: auto; }}
-                .logbox {{ white-space: pre-wrap; background: #f9f9f9; border: 1px solid #ccc; padding: 10px; height: 600px; overflow-y: scroll; }}
-                table {{ width: 100%; border-collapse: collapse; }}
-                th, td {{ padding: 8px; border: 1px solid #ddd; }}
-                th {{ background-color: #f0f0f0; }}
-                a {{ display: inline-block; margin-top: 15px; }}
-                .status-RUNNING {{ color: orange; font-weight: bold; }}
-                .status-COMPLETED {{ color: green; font-weight: bold; }}
-                .status-FAILED {{ color: red; font-weight: bold; }}
-                .toggle-btn {{ cursor: pointer; color: blue; text-decoration: underline; }}
-                .best-trial {{ background-color: #dff0d8 !important; }}
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
             </style>
         </head>
         <body>
             <div class="container">
-<<<<<<< HEAD
                 <div class="header">
                     <label><input type="checkbox" id="autorefresh" checked onchange="toggleRefresh()"> Auto-refresh</label>
                 </div>
-=======
-                <label><input type="checkbox" id="autorefresh" checked onchange="toggleRefresh()"> Auto-refresh</label>
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
                 {body}
             </div>
         </body>
@@ -175,10 +123,7 @@ def html_template(title: str, body: str, extra_scripts: str = "") -> str:
     """
 
 def safe_str(obj):
-<<<<<<< HEAD
     """Safely converts an object to a string, handling potential encoding issues."""
-=======
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
     try:
         return str(obj)
     except Exception:
@@ -186,7 +131,6 @@ def safe_str(obj):
 
 @app.get("/", response_class=HTMLResponse)
 def show_logs():
-<<<<<<< HEAD
     """
     Displays the live logs from the tsneuropredict_app.log file.
     """
@@ -198,13 +142,6 @@ def show_logs():
             lines = f.readlines()[-300:] # Get the last 300 lines for live view
     except Exception as e:
         return HTMLResponse(html_template("Log Viewer", f"<div class='error-message'><h3>Error reading log file:</h3><p>{html.escape(str(e))}</p></div>"), status_code=500)
-=======
-    if not LOG_FILE or not os.path.exists(LOG_FILE):
-        return HTMLResponse(html_template("Log Viewer", "<h3>No log file found.</h3>"), status_code=404)
-
-    with open(LOG_FILE, "r", encoding="utf-8") as f:
-        lines = f.readlines()[-300:]
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
 
     escaped_log = html.escape("".join(lines))
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -213,7 +150,6 @@ def show_logs():
 
 @app.get("/trials", response_class=HTMLResponse)
 def show_trials():
-<<<<<<< HEAD
     """
     Displays a dashboard of tuning trials fetched from the Oracle server.
     Includes summary, progress, and detailed trial information.
@@ -317,35 +253,6 @@ def show_trials():
         <li>Completed: {completed_trials_count}</li>
         <li>Failed: {failed_trials_count}</li>
         <li>Best Score: {best_score_trial.get("score") if best_score_trial else "N/A"}</li>
-=======
-    try:
-        response = requests.get(f"{ORACLE_API}/list_trials", timeout=5)
-        response.raise_for_status()
-        trials = response.json().get("trials", [])
-    except Exception as e:
-        return HTMLResponse(html_template("Trials Error", f"<h3>Error: {html.escape(str(e))}</h3>"), status_code=502)
-
-    if not trials:
-        return HTMLResponse(html_template("No Trials", "<h3>No trials available yet.</h3><a href='/'>← Back to Logs</a>"))
-
-    trials.sort(key=lambda t: t.get('score') if t.get('score') is not None else float('inf'))
-    best_id = trials[0]['trial_id'] if trials[0].get("score") is not None else None
-
-    summary = {
-        "total": len(trials),
-        "completed": sum(t["status"] == "COMPLETED" for t in trials),
-        "failed": sum(t["status"] == "FAILED" for t in trials),
-        "best_score": min((t.get("score", float("inf")) for t in trials if t.get("score") is not None), default="N/A")
-    }
-
-    summary_html = f"""
-    <h3>Summary</h3>
-    <ul>
-        <li>Total Trials: {summary['total']}</li>
-        <li>Completed: {summary['completed']}</li>
-        <li>Failed: {summary['failed']}</li>
-        <li>Best Score: {summary['best_score']}</li>
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
     </ul>
     """
 
@@ -353,7 +260,6 @@ def show_trials():
     for idx, trial in enumerate(trials):
         hp_id = f"hp_{idx}"
         status_class = f"status-{trial['status']}"
-<<<<<<< HEAD
         score = trial.get("score")
         # Display score with 4 decimal places if it's a number, otherwise "N/A"
         score_display = f"{score:.4f}" if isinstance(score, (int, float)) else "N/A"
@@ -363,21 +269,11 @@ def show_trials():
         
         hp_dict = trial.get('hyperparameters', {})
         # Escape hyperparameters for safe display in HTML
-=======
-        score = trial.get("score", "")
-        score_style = "color:green;font-weight:bold" if isinstance(score, (int, float)) and score < 0.05 else ""
-        row_class = "class='best-trial'" if trial["trial_id"] == best_id else ""
-        hp_dict = trial.get('hyperparameters', {})
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         hp_pretty = html.escape("\n".join(f"{safe_str(k)}: {safe_str(v)}" for k, v in hp_dict.items()), quote=True)
         rows += f"""<tr {row_class}>
             <td>{trial['trial_id']}</td>
             <td class='{status_class}'>{trial['status']}</td>
-<<<<<<< HEAD
             <td>{score_display}</td>
-=======
-            <td style='{score_style}'>{score}</td>
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
             <td>
                 <span class='toggle-btn' onclick=\"toggle('{hp_id}')\">Show/Hide</span>
                 <button onclick=\"copyToClipboard('{hp_id}')\">\ud83d\udccb</button>
@@ -394,7 +290,6 @@ def show_trials():
         <option value="RUNNING">RUNNING</option>
         <option value="COMPLETED">COMPLETED</option>
         <option value="FAILED">FAILED</option>
-<<<<<<< HEAD
         <option value="STOPPED">STOPPED</option>
         <option value="IDLE">IDLE</option>
     </select>
@@ -405,12 +300,6 @@ def show_trials():
         <tbody>
             {rows}
         </tbody>
-=======
-    </select>
-    <table id="trialTable">
-        <tr><th>Trial ID</th><th>Status</th><th>Score</th><th>Hyperparameters</th></tr>
-        {rows}
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
     </table>
     <a href="/">\u2190 Back to Logs</a> | <a href="/api/trials">🔗 Raw JSON</a>
     """
@@ -419,25 +308,16 @@ def show_trials():
 
 @app.get("/api/logs", response_class=JSONResponse)
 def get_logs_json():
-<<<<<<< HEAD
     """API endpoint to get raw log data."""
     if not LOG_FILE or not os.path.exists(LOG_FILE):
         return JSONResponse(content={"error": "Log file not found"}, status_code=404)
     with open(LOG_FILE, "r", encoding="utf-8", errors='ignore') as f:
-=======
-    if not LOG_FILE or not os.path.exists(LOG_FILE):
-        return JSONResponse(content={"error": "Log file not found"}, status_code=404)
-    with open(LOG_FILE, "r", encoding="utf-8") as f:
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
         lines = f.readlines()[-300:]
     return {"log": lines}
 
 @app.get("/api/trials", response_class=JSONResponse)
 def get_trials_json(status: str = None, skip: int = 0, limit: int = 50):
-<<<<<<< HEAD
     """API endpoint to get raw trial data, with optional filtering and pagination."""
-=======
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
     try:
         response = requests.get(f"{ORACLE_API}/list_trials", timeout=5)
         response.raise_for_status()
@@ -446,7 +326,6 @@ def get_trials_json(status: str = None, skip: int = 0, limit: int = 50):
             trials = [t for t in trials if t["status"] == status]
         return {"trials": trials[skip:skip+limit]}
     except Exception as e:
-<<<<<<< HEAD
         logger.error(f"Error in /api/trials: {e}", exc_info=True)
         return JSONResponse(content={"error": str(e)}, status_code=502)
 
@@ -466,18 +345,3 @@ if __name__ == "__main__":
     import uvicorn
     # Run the FastAPI application
     uvicorn.run(app, host="192.168.1.103", port=8080)
-=======
-        return JSONResponse(content={"error": str(e)}, status_code=502)
-
-@app.get("/health", response_class=JSONResponse)
-def oracle_health():
-    try:
-        r = requests.get(f"{ORACLE_API}/heartbeat", timeout=5)
-        return {"status": "alive" if r.status_code == 200 else "unresponsive"}
-    except Exception as e:
-        return {"status": "error", "detail": str(e)}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="192.168.1.103", port=8080)
->>>>>>> 57ddb757d2636855e085392350ea7a26f8ad05f2
