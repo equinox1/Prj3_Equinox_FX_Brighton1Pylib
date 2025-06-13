@@ -47,6 +47,7 @@ all_params = env_mgr.all_params()
 
 app_params = all_params.get("app", {})
 tune_params = all_params.get("mltune", {})
+base_params = all_params.get('base', {})
 
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
@@ -132,19 +133,22 @@ def is_port_in_use(port):
         return s.connect_ex((xerces_server, port)) == 0
 
 def wait_for_oracle_ready():
-    """Waits for the Oracle Server to become responsive."""
+    """Waits for the Oracle Server to become responsive using the /status endpoint."""
     logger.info(f"Waiting for OracleServer to be ready at "
-                f"http://{ORACLE_HOST}:{ORACLE_PORT}...")
+                f"http://{ORACLE_HOST}:{ORACLE_PORT}/status...")
     start_time = time.time()
     while time.time() - start_time < ORACLE_READY_TIMEOUT:
         try:
-            response = requests.get(f"http://{ORACLE_HOST}:{ORACLE_PORT}/list_trials",
+            # CORRECTED: Use /status endpoint for health check
+            response = requests.get(f"http://{ORACLE_HOST}:{ORACLE_PORT}/status",
                                     timeout=5)
-            if response.status_code == 200:
+            if response.status_code == 200 and response.json().get("status") == "Oracle Server is running.":
                 logger.info("✅ OracleServer is ready.")
                 return True
+            else:
+                logger.debug(f"OracleServer /status check returned: {response.status_code} - {response.text}")
         except requests.exceptions.ConnectionError:
-            logger.debug(f"OracleServer not yet ready, retrying in 2 seconds...")
+            logger.debug(f"OracleServer not yet ready (connection error), retrying in 2 seconds...")
             time.sleep(2)
         except Exception as e:
             logger.error(f"Error checking OracleServer status: {e}")
@@ -260,10 +264,11 @@ if __name__ == "__main__":
             terminate_process_and_children(chief_proc.pid)
         for worker in workers:
             if worker and worker.poll() is None:
-                logger.info(f"Terminating Worker process {worker.pid}...")
+                logger.info(f"Terminating Worker process {worker.pid}...\n") # Added newline
                 terminate_process_and_children(worker.pid)
         if oracle_proc and oracle_proc.poll() is None:
-            logger.info("Terminating OracleServer process...")
+            logger.info("Terminating OracleServer process...\n") # Added newline
             terminate_process_and_children(oracle_proc.pid)
         
         logger.info("All child processes ensured terminated. Launcher shutting down.")
+

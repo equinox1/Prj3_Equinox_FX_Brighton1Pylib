@@ -67,9 +67,16 @@ def html_template(title: str, body: str, extra_scripts: str = "") -> str:
             // Copies text content of an element to the clipboard
             function copyToClipboard(id) {{
                 const el = document.getElementById(id);
-                navigator.clipboard.writeText(el.innerText)
-                    .then(() => {{ /* success */ }})
-                    .catch(err => console.error('Failed to copy: ', err));
+                // Using document.execCommand('copy') for better compatibility within iframes
+                const range = document.createRange();
+                range.selectNode(el);
+                window.getSelection().removeAllRanges();
+                window.getSelection().addRange(range);
+                document.execCommand('copy');
+                window.getSelection().removeAllRanges();
+                // Optionally provide user feedback that text has been copied
+                // A more robust UI would use a temporary message box instead of alert
+                // alert('Copied to clipboard!');
             }}
             // Toggles auto-refreshing of the page
             function toggleRefresh() {{
@@ -195,7 +202,7 @@ def show_trials():
         status = t.get("status")
         score = t.get("score")
         if status == "COMPLETED" and score is not None:
-            return (0, score) # Completed trials, sort by score
+            return (0, score) # Completed trials, sort by score (assuming lower is better)
         elif status == "RUNNING":
             return (1, 0) # Running trials, higher priority than failed
         elif status == "FAILED":
@@ -209,7 +216,8 @@ def show_trials():
     best_score_trial = None
     for t in trials:
         if t.get("status") == "COMPLETED" and t.get("score") is not None:
-            if best_score_trial is None or t["score"] < best_score_trial["score"]: # Assuming lower score is better
+            # Assuming lower score is better (e.g., loss)
+            if best_score_trial is None or t["score"] < best_score_trial["score"]: 
                 best_score_trial = t
     best_id = best_score_trial['trial_id'] if best_score_trial else None
 

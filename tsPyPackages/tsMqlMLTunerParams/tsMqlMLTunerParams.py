@@ -35,6 +35,7 @@ class CMqlEnvMLTunerParams(CEnvCore):
             "today": get_current_datetime(),
             "seed": 42,
             "tuner_id": None,
+            "ml_model_name": "tsneuromodel",
         }
 
         self.TUNER_MODE_PARAMS = {
