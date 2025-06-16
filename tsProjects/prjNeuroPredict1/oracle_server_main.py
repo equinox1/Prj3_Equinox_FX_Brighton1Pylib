@@ -13,59 +13,40 @@ from typing import Dict, Optional
 
 # Local imports
 from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
-# CORRECTED: Import OracleServer from tsMqlMLOracleServer
-from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer 
+from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
 from tsMqlOverrides import CMqlOverrides
-from tsMqlSetup import CMqlSetup
-import uvicorn # Ensure uvicorn is imported if running directly
 
-# ----------------------------
-# Global Configuration & Logger Setup
-# ----------------------------
+
+# Import the logging setup service directly
+from tsMqlLogService import CMqlLogService # Use CMqlLogService, not CMqlSetup for raw logging init
 
 # Load environment variables and app parameters using CMqlOverrides early
+# This needs to be done *before* initializing the logger if logger depends on these params
 mql_overrides = CMqlOverrides()
-# Define all_params once
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
 tune_params = all_params.get('mltune', {})
-base_params = all_params.get("base", {}) # Now 'all_params' is defined
+base_params = all_params.get("base", {})
+
+# Extract backend for logging path - crucial for correct log file path
+# This will be passed to initialize_logging. It can also be obtained from env if passed by launcher.
+backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch')) # Default to pytorch if not specified
+
+from tsMqlLogService import CMLogServiceSetup
+logger = CMLogServiceSetup.initialize_logging(
+    role_hint=__name__,
+    loglevel='INFO',
+    # Explicitly set the logfile name to ensure consistency
+    logfile='tsneuropredict_app.log',
+    # Pass the determined backend so logging goes into the correct subdirectory
+    backend=backend_for_log # Pass the backend to the logging setup
+)
+
 
 # Server network configuration from app_params
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
-
-# Extract backend for logging path
-backend = tune_params.get('backend', 'pytorch') # Assuming PyTorch as default for this context
-
-# Retrieve global log file and directory paths from environment variables.
-# These variables are expected to be set by the multiworker_launcher.
-final_logdir = os.environ.get('GLOBAL_LOGDIR_PATH')
-final_logfile_path = os.environ.get('GLOBAL_LOGFILE_PATH')
-
-# Critical check: Ensure the global log directory is set
-if not final_logdir:
-    # Fallback or exit if essential environment variables are not set
-    print("CRITICAL ERROR: GLOBAL_LOGDIR_PATH environment variable not set. Exiting.")
-    sys.exit(1)
-
-# Configure logging for the Oracle server
-# This setup ensures logs go to the designated global log file
-log_file_path = Path(final_logdir) / xerces_servername / backend / app_params.get('xerces_logfile', 'tsneuropredict_app.log')
-log_file_path.parent.mkdir(parents=True, exist_ok=True) # Ensure directory exists
-
-# Basic logging configuration for the Oracle server
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s:%(lineno)d - %(message)s',
-    handlers=[
-        logging.FileHandler(log_file_path),
-        logging.StreamHandler(sys.stdout) # Also log to console
-    ]
-)
-logger = logging.getLogger(__name__)
-logger.info("Oracle Server Logging initialized.")
 
 
 # Suppress specific KerasTuner warnings that are not relevant to the server's operation
@@ -75,39 +56,39 @@ warnings.filterwarnings(
 )
 
 # ----------------------------
-# KerasTuner Oracle Instance
+# Oracle Initialization
 # ----------------------------
-import random
-# Create a unique project directory for the Oracle based on parameters
-# This ensures that different runs/backends don't collide with Oracle's internal files
-model_name = tune_params.get('ml_model_name', 'default_model') # Default model name if not specified
-# Project ID should ideally come from configuration or be dynamically generated for distinct runs
-project_id = random.randrange(1,1024) # Use method from env manager
-project_name = f"{model_name}_{project_id}" # Combined project name
+import random # Already imported, but ensuring it's available for random.randrange
 
-# Determine the Oracle's directory based on the global model data path
-oracle_base_dir = base_params.get('mp_glob_sub_ml_src_modeldata', Path(final_logdir) / 'oracle_data')
+# Determine the full path for the Oracle directory
+# This should be consistent with how base_path is determined in CMqlSetup or multiworker_launcher
+oracle_base_dir = Path(base_params.get('mp_glob_sub_ml_src_modeldata', Path(__file__).parent / 'oracle_data'))
+model_name = tune_params.get('ml_model_name', 'default_model')
+project_id = base_params.get('mp_glob_sub_ml_baseuniq', random.randrange(1, 1024)) # Use mp_glob_sub_ml_baseuniq if available
+project_name = f"{model_name}_{project_id}"
+
 oracle_full_path = oracle_base_dir / project_name
 oracle_full_path.mkdir(parents=True, exist_ok=True) # Ensure the directory exists
+logger.info(f"Oracle data directory: {oracle_full_path}")
+
 
 # DEBUG: Print the path of the CustomOracle module being loaded
-logger.info(f"DEBUG: CustomOracle class loaded from: {inspect.getfile(CustomOracle)}")
+logger.debug(f"CustomOracle class loaded from: {inspect.getfile(CustomOracle)}")
 
 # Instantiate CustomOracle
-logger.info(f"Initializing CustomOracle with directory: {oracle_full_path}, project_name: {project_name}")
+logger.info(f"Initializing CustomOracle with directory: {oracle_full_path.parent}, project_name: {oracle_full_path.name}")
 oracle_instance = CustomOracle(
-    objective="val_loss",
+    objective=tune_params.get('objective', "val_loss"),
     max_trials=tune_params.get('num_trials', 50),
-    directory=str(oracle_full_path), # Pass as string
-    project_name=project_name,
+    directory=str(oracle_full_path.parent), # directory is the parent of project_name
+    project_name=oracle_full_path.name, # project_name is the last part of the path
     seed=tune_params.get('seed', 42),
     overwrite=tune_params.get('overwrite', False) # Pass overwrite flag
 )
 logger.info("CustomOracle instance created.")
 
 
-# CORRECTED: Instantiate OracleServer and use its FastAPI app
-# This replaces the direct FastAPI app creation and route definitions in oracle_server_main.py
+# Instantiate OracleServer and use its FastAPI app
 oracle_server = OracleServer(oracle_instance=oracle_instance, tuner_id="oracle_main_server")
 app = oracle_server.app # Get the FastAPI app from the OracleServer instance
 logger.info("FastAPI app obtained from OracleServer instance.")
@@ -124,10 +105,18 @@ if __name__ == "__main__":
     logger.info(f"🚀 Attempting to start Oracle Server at http://{server_host}:{server_port}")
 
     try:
-        # This will block and run the Uvicorn server until it's manually stopped (e.g., Ctrl+C)
-        # Use the 'app' object retrieved from oracle_server.app
-        uvicorn.run(app, host=server_host, port=server_port)
-        logger.info("✅ Oracle Server shut down gracefully.")
+        # Use the OracleServer's start method to run Uvicorn in a separate thread
+        oracle_server.start(host=server_host, port=server_port)
+        logger.info("✅ Oracle Server start method called. Server running in background thread.")
+
+        # Keep the main thread alive while the server (daemon thread) runs
+        # The multiworker_launcher.py will terminate this process when it's done.
+        while True:
+            time.sleep(1) # Sleep to prevent busy-waiting
+    except KeyboardInterrupt:
+        logger.info("👋 Oracle Server received KeyboardInterrupt. Shutting down gracefully.")
+        oracle_server.stop() # Call stop method if it has clean shutdown logic
+        sys.exit(0)
     except Exception as e:
         # Log any unexpected crashes and exit with an error code
         logger.critical(f"❌ Oracle Server crashed unexpectedly: {e}", exc_info=True)

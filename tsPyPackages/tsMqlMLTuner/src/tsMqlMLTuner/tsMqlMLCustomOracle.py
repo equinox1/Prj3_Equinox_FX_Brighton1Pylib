@@ -11,13 +11,31 @@ import random # Import random for sampling hyperparameters
 import uuid # Import uuid for generating unique IDs
 from typing import Optional # Import Optional for type hinting
 
-logger = logging.getLogger(__name__)
 
 from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides()
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
 tune_params = all_params.get('mltune', {})
+
+# Extract backend for logging path - crucial for correct log file path
+# This will be passed to initialize_logging. It can also be obtained from env if passed by launcher.
+backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch')) # Default to pytorch if not specified
+
+from tsMqlLogService import CMLogServiceSetup
+logger = CMLogServiceSetup.initialize_logging(
+    role_hint=__name__,
+    loglevel='INFO',
+    # Explicitly set the logfile name to ensure consistency
+    logfile='tsneuropredict_app.log',
+    # Pass the determined backend so logging goes into the correct subdirectory
+    backend=backend_for_log # Pass the backend to the logging setup
+)
+
+
+
+
+
 
 class CustomOracle(Oracle):
     def __init__(

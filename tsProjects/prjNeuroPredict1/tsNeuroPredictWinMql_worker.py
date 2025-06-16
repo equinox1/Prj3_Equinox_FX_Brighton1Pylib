@@ -9,10 +9,12 @@ import logging
 import numpy as np
 import time
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path # Ensure Path is imported for type hints and path operations
 import tensorflow as tf
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
+from tabulate import tabulate # Added for potential debug logging of DataFrames
+import sys # Import the sys module to use sys.exit()
 
 import MetaTrader5 as mt5
 
@@ -32,211 +34,273 @@ from tsMqlMLProcess import CDMLProcess
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
 
-
 # Keras Tuner components for manual trial management
 from keras_tuner.engine.trial import TrialStatus
-
 # Import mixed_precision
 from tensorflow.keras import mixed_precision
 
-
-# --- Environment Setup ---
-os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
-os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # Suppress TensorFlow logging
-
-
-# --- Global Configuration & Logger Setup ---
-# Initialize CMqlSetup for the worker itself
-_logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
-_estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
-
-setup_config = CMqlSetup(
-    loglevel='INFO',
-    warn='ignore',
-    precision='mixed_bfloat16',
-    tfdebug=False,
-    num_cores=_estimated_physical_cores,
-    num_threads=_logical_cores # Use logical cores for threads
-)
-setup_config.setup_logging() # Configure logging for this script
-
-logger = logging.getLogger(__name__)
-
-# Load environment variables and app parameters using CMqlOverrides early
-mql_overrides = CMqlOverrides()
+# Load environment variables and app parameters
+mql_overrides = CMqlOverrides() 
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
 tune_params = all_params.get('mltune', {})
-base_params = all_params.get("base", {})
 
-# Worker-specific configuration based on passed arguments or defaults
-# tuner_id is typically passed as a command-line argument to the worker process
-import sys
-if len(sys.argv) > 1:
-    tuner_id = sys.argv[1]
-else:
-    tuner_id = "worker_default"
-    logger.warning("No tuner_id provided as command-line argument. Using default.")
+# Extract backend for logging path - crucial for correct log file path
+# This will be passed to initialize_logging. It can also be obtained from env if passed by launcher.
+backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch')) # Default to pytorch if not specified
 
-SYMBOL = app_params.get('SYMBOL', 'EURUSD')
-TIMEFRAME = getattr(mt5, app_params.get('TIMEFRAME', 'TIMEFRAME_H1'))
-START_DATE_STR = app_params.get('START_DATE', '2023-01-01')
-END_DATE_STR = app_params.get('END_DATE', '2023-12-31')
-MODEL_NAME = app_params.get('MODEL_NAME', 'tsneuromodel')
-DATA_PATH = app_params.get('DATA_PATH', 'tsModelData')
-TRAIN_SPLIT = app_params.get('TRAIN_SPLIT', 0.8)
-VAL_SPLIT = app_params.get('VAL_SPLIT', 0.1)
-PRED_HORIZON = app_params.get('PRED_HORIZON', 1)
-MLTUNE_BACKEND = tune_params.get('backend', 'tensorflow').lower() # tensorflow or pytorch
-EPOCHS = tune_params.get('epochs', 10)
-BATCH_SIZE = tune_params.get('batch_size', 32)
-NUM_TRIALS_WORKER = 1 # Workers typically run one trial at a time
-OVERWRITE = tune_params.get('overwrite', False)
+from tsMqlLogService import CMLogServiceSetup
+logger = CMLogServiceSetup.initialize_logging(
+    role_hint=__name__,
+    loglevel='INFO',
+    # Explicitly set the logfile name to ensure consistency
+    logfile='tsneuropredict_app.log',
+    # Pass the determined backend so logging goes into the correct subdirectory
+    backend=backend_for_log # Pass the backend to the logging setup
+)
 
 
-logger.info(f"🔧 Worker {tuner_id} backend set to: {MLTUNE_BACKEND}")
-logger.info(f"🔧 Project directory: {Path(DATA_PATH) / MODEL_NAME}")
+# Retrieve global log file and directory paths from environment variables.
+# These variables are expected to be set by the multiworker_launcher.
+LOGDIR = Path(str(app_params.get('LOGDIR', 'Logdir'))).expanduser().resolve()
+LOGFILE = app_params.get('LOGFILE', 'tsneuropredict_app.log')
 
 
-# Set mixed precision policy based on configuration
-policy_name = setup_config.precision
-if policy_name == 'mixed_float16':
-    policy = mixed_precision.Policy('mixed_float16')
-elif policy_name == 'mixed_bfloat16':
-    policy = mixed_precision.Policy('mixed_bfloat16')
-else:
-    policy = mixed_precision.Policy('float32') # Default to float32
+# Global tuner configuration
+TUNER_ID = os.environ.get('TUNER_ID', 'default_worker')
+ORACLE_DIR = LOGDIR / "tsOracle" # Oracle working directory
+MODEL_DIR = Path(app_params.get('mp_glob_base_path')) / Path(app_params.get('mp_glob_sub_ml_src_modeldata')) # Path to save models
+MODEL_NAME = tune_params.get('ml_model_name', 'tsneuromodel')
+
+
+# Set TensorFlow mixed precision policy
+policy = mixed_precision.Policy(app_params.get('precision', 'float32'))
 mixed_precision.set_global_policy(policy)
-logger.info(f"✨ Global mixed precision policy set to: {mixed_precision.global_policy().name}")
+logger.info(f"TensorFlow global mixed precision policy set to: {policy.name}")
 
 
-def create_sequences(data, seq_length, pred_horizon):
-    xs = []
-    ys = []
-    for i in range(len(data) - seq_length - pred_horizon + 1):
-        x = data[i:(i + seq_length)]
-        y = data[(i + seq_length):(i + seq_length + pred_horizon)]
-        xs.append(x)
-        ys.append(y)
-    return np.array(xs), np.array(ys)
+def build_and_compile_model(hp, input_shape):
+    """
+    Builds a deep learning model for Keras Tuner.
+    
+    Args:
+        hp: HyperParameters object from KerasTuner.
+        input_shape (tuple): The shape of the input data (timesteps, features).
+    
+    Returns:
+        tf.keras.Model: Compiled TensorFlow Keras model.
+    """
+    model = tf.keras.Sequential([
+        tf.keras.layers.LSTM(
+            hp.Int('units_1', min_value=32, max_value=256, step=32),
+            return_sequences=True,
+            input_shape=input_shape
+        ),
+        tf.keras.layers.Dropout(hp.Float('dropout_1', min_value=0.2, max_value=0.5, step=0.1)),
+        tf.keras.layers.LSTM(
+            hp.Int('units_2', min_value=32, max_value=256, step=32)
+        ),
+        tf.keras.layers.Dropout(hp.Float('dropout_2', min_value=0.2, max_value=0.5, step=0.1)),
+        tf.keras.layers.Dense(1) # Output layer for regression (e.g., predicting next price change)
+    ])
+
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(
+            hp.Choice('learning_rate', values=[1e-2, 1e-3, 1e-4])
+        ),
+        loss='mse', # Mean Squared Error for regression
+        metrics=['mae'] # Mean Absolute Error as an additional metric
+    )
+    return model
+
 
 def main():
-    logger.info(f"🚀 Starting tsNeuroPredictWinMql_worker.py with tuner_id: {tuner_id}")
-
-    # ----------------------------
-    # Data Loading and Preprocessing
-    # ----------------------------
-    logger.info("📊 Loading and preprocessing data...")
-    data_loader = CDataLoader(SYMBOL, TIMEFRAME, START_DATE_STR, END_DATE_STR, DATA_PATH)
-    data_df = data_loader.load_data()
-
-    if data_df is None or data_df.empty:
-        logger.error("❌ Failed to load data or data is empty.")
+    logger.info(f"Worker {TUNER_ID} main function started.")
+    
+    # 1. Initialize OracleClient for communication with OracleServer
+    oracle_client = OracleClient() # Initialize without tuner_id
+    # Register the client with the OracleServer
+    registration_response = oracle_client.register_client(tuner_id=TUNER_ID)
+    if registration_response:
+        logger.info(f"OracleClient initialized and registered for tuner_id: {TUNER_ID}")
+    else:
+        logger.error(f"Failed to register OracleClient for tuner_id: {TUNER_ID}. Exiting.")
         sys.exit(1)
 
-    data_process = CDataProcess(data_df)
-    processed_data = data_process.process_data()
+    # 2. Data Loading (using CDataLoader and CDataProcess)
+    try:
+        # Configuration for data loading from app_params
+        data_load_config = {
+            'lp_app_primary_symbol': app_params.get('mp_app_primary_symbol', 'EURUSD'),
+            'lp_data_rows': app_params.get('mp_data_rows', 1000),
+            'lp_data_rowcount': app_params.get('mp_data_rowcount', 10000),
+            'lp_timeframe': app_params.get('mp_data_timeframe', 'mt5.TIMEFRAME_H4'),
+            'mp_data_filename1': app_params.get('mp_data_filename1', 'default1'),
+            'mp_data_filename2': app_params.get('mp_data_filename2', 'default2'),
+            'mp_glob_base_data_path': app_params.get('mp_glob_base_data_path', 'Mql5Data'),
+            'mp_app_cfg_usedata': app_params.get('mp_app_cfg_usedata', 'df_file_rates') # Ensure this is set
+        }
 
-    if processed_data is None or processed_data.empty:
-        logger.error("❌ Processed data is empty.")
+        # Initialize CDataLoader
+        data_loader = CDataLoader(**data_load_config)
+        logger.info("CDataLoader initialized.")
+
+        # Load data based on mp_app_cfg_usedata
+        if data_load_config['mp_app_cfg_usedata'] == 'df_file_rates':
+            data_df = data_loader.load_file_rates()
+        elif data_load_config['mp_app_cfg_usedata'] == 'df_api_rates':
+            data_df = data_loader.load_api_rates()
+        elif data_load_config['mp_app_cfg_usedata'] == 'df_file_ticks':
+            data_df = data_loader.load_file_ticks()
+        elif data_load_config['mp_app_cfg_usedata'] == 'df_api_ticks':
+            data_df = data_loader.load_api_ticks()
+        else:
+            logger.error(f"Unsupported mp_app_cfg_usedata: {data_load_config['mp_app_cfg_usedata']}")
+            sys.exit(1)
+
+        if data_df.empty:
+            logger.error("Loaded DataFrame is empty. Exiting.")
+            sys.exit(1)
+        logger.info(f"Data loaded successfully. Initial shape: {data_df.shape}")
+        
+        # Process data using CDataProcess
+        data_processor = CDataProcess(data_df, **data_load_config)
+        processed_df = data_processor.process_data()
+
+        if processed_df.empty:
+            logger.error("Processed DataFrame is empty after CDataProcess. Exiting.")
+            sys.exit(1)
+        logger.info(f"Data processed successfully. Final shape: {processed_df.shape}")
+        logger.info("\nProcessed DataFrame Head:\n%s", tabulate(processed_df.head(), headers='keys', tablefmt='psql'))
+
+
+    except Exception as e:
+        logger.error(f"Error during data loading or processing: {e}", exc_info=True)
         sys.exit(1)
 
-    # Convert DataFrame to NumPy array for scaling and sequence creation
-    features = processed_data[['open', 'high', 'low', 'close', 'tick_volume', 'spread', 'real_volume']].values
-    labels = processed_data[['open', 'high', 'low', 'close']].values # Example: predict next 4 price points
 
-    # Scale features and labels
-    feature_scaler = StandardScaler()
-    labels_scaler = StandardScaler()
-
-    scaled_features = feature_scaler.fit_transform(features)
-    scaled_labels = labels_scaler.fit_transform(labels) # Scale labels as well
-
-    # Determine sequence length based on some configuration (e.g., from tune_params)
-    SEQ_LENGTH = tune_params.get('sequence_length', 60) # Default to 60 if not specified
-
-    # Create sequences
-    X, y = create_sequences(scaled_features, SEQ_LENGTH, PRED_HORIZON)
-
-    # Reshape y to be 3D (samples, pred_horizon, num_label_features) for consistency
-    num_label_features = scaled_labels.shape[1]
-    y_reshaped = []
-    for i in range(len(scaled_labels) - SEQ_LENGTH - PRED_HORIZON + 1):
-        y_reshaped.append(scaled_labels[(i + SEQ_LENGTH):(i + SEQ_LENGTH + PRED_HORIZON)])
-    y_reshaped = np.array(y_reshaped)
-
-    if X.shape[0] == 0 or y_reshaped.shape[0] == 0:
-        logger.error("❌ Not enough data to create sequences. Adjust SEQ_LENGTH or data range.")
-        sys.exit(1)
-
-    # Determine num_classes (number of features in the output sequence for prediction)
-    num_classes = y_reshaped.shape[-1]
-    logger.info(f"Dynamically determined num_classes (output features): {num_classes}")
-
-    # Split data into training, validation, and test sets
-    # Workers only need train and val for tuning, but test_dataset is passed for consistency
-    X_train_val, X_test, y_train_val, y_test = train_test_split(X, y_reshaped, test_size=1 - TRAIN_SPLIT - VAL_SPLIT, random_state=42)
-    X_train, X_val, y_train, y_val = train_test_split(X_train_val, y_train_val, test_size=VAL_SPLIT/(TRAIN_SPLIT + VAL_SPLIT), random_state=42)
-
-    logger.info(f"Dataset shapes: X_train:{X_train.shape}, y_train:{y_train.shape}")
-    logger.info(f"Dataset shapes: X_val:{X_val.shape}, y_val:{y_val.shape}")
-    logger.info(f"Dataset shapes: X_test:{X_test.shape}, y_test:{y_test.shape}")
-
-    # Ensure datasets are TensorFlow tf.data.Dataset objects for CMdtunerSelector
-    train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train)).batch(BATCH_SIZE).cache().prefetch(tf.data.AUTOTUNE)
-    val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(BATCH_SIZE).cache().prefetch(tf.data.AUTOTUNE)
-    test_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(BATCH_SIZE).cache().prefetch(tf.data.AUTOTUNE)
+    # 3. Prepare data for ML processing (CDMLProcess)
+    # Ensure 'mp_ml_input_keyfeat' and 'mp_ml_input_label' are correctly mapped
+    # The CDataProcess class should have set these up based on config.
+    key_feature = data_processor.mp_ml_input_keyfeat # e.g., 'Close'
+    label_feature = data_processor.mp_ml_input_label # e.g., 'Label'
+    history_size = data_processor.data_params.get('mp_data_history_size', 5)
 
 
-    # Determine input_shape for the model
-    input_shape = X_train.shape[1:]
-    logger.info(f"Dynamically determined input_shape for model: {input_shape}")
-
-    # ----------------------------
-    # OracleClient and Tuner Setup
-    # ----------------------------
-    logger.info("Setting up Oracle Client...")
-    oracle_client = OracleClient(
-        host=app_params.get('xerces_server', '127.0.0.1'),
-        port=app_params.get('xerces_port', 9000)
+    # Initialize CDMLProcess
+    ml_processor = CDMLProcess(
+        df=processed_df, 
+        input_key_feature=key_feature, # Use the actual column name for input feature
+        label_key_feature=label_feature, # Use the actual column name for label
+        history_size=history_size
     )
+    logger.info("CDMLProcess initialized.")
+    
+    # Generate datasets (X and y)
+    X, y = ml_processor.create_datasets()
+    if X is None or y is None or X.size == 0 or y.size == 0:
+        logger.error("X or y dataset is empty after create_datasets. Exiting.")
+        sys.exit(1)
+    logger.info(f"Datasets created. X shape: {X.shape}, y shape: {y.shape}")
 
-    # Initialize CMdtunerSelector
-    logger.info(f"Initializing CMdtunerSelector (Worker {tuner_id})...")
-    tuner_config = CMdtunerSelector(
-        tuner_id=tuner_id,
-        backend=MLTUNE_BACKEND, # Pass the correctly detected MLTUNE_BACKEND
-        oracle_client=oracle_client,
-        train_dataset=train_dataset,
-        val_dataset=val_dataset,
-        test_dataset=test_dataset, # Pass test_dataset for final evaluation
-        input_shape=input_shape,
-        num_classes=num_classes, # Use the dynamically determined num_classes
-        project_name=MODEL_NAME, # Workers also need project_name for logging/directories
-        max_trials=NUM_TRIALS_WORKER, # Workers typically run one trial at a time
-        overwrite=OVERWRITE, # Pass the 'overwrite' argument
-        hypermodel_params=all_params # Pass all_params to the tuner for configuration
-        # IMPORTANT: Do NOT pass 'tuner_type' as a direct keyword argument here.
-        # It is already part of 'hypermodel_params' within the 'mltune' key.
-    )
+    # Split and prepare TensorFlow datasets
+    train_dataset, val_dataset, test_dataset = ml_processor.prepare_tensorflow_datasets(X, y)
+    logger.info("TensorFlow datasets prepared.")
 
-    # Run the worker's tuning process (which will fetch trials from Oracle)
-    logger.info(f"Worker {tuner_id} starting its tuning process...")
-    tuner_config.run() # Call the 'run' method for workers
+    # 4. Distributed Tuning Loop
+    tuner_epochs = tune_params.get('tunemodeepochs', 10)
+    max_trials_per_worker = tune_params.get('max_trials_per_worker', 100) # Define a limit for trials per worker
 
-    logger.info(f"🏁 tsNeuroPredictWinMql_worker.py finished for tuner_id: {tuner_id}.")
+    for trial_num in range(max_trials_per_worker):
+        logger.info(f"Worker {TUNER_ID}: Requesting trial {trial_num + 1}/{max_trials_per_worker} from OracleServer.")
+        
+        trial_response = oracle_client.get_trial()
+        
+        if trial_response is None:
+            logger.error("Failed to get trial from Oracle Server. Exiting worker.")
+            break
+        
+        trial_data = trial_response.get("trial")
+        if trial_data is None:
+            logger.info("Oracle Server reported no more trials available or an empty trial. Shutting down worker.")
+            break
+
+        trial_id = trial_data["trial_id"]
+        hyperparameters_json = trial_data["hyperparameters"]
+
+        # Reconstruct HyperParameters object from JSON (if necessary, for KerasTuner's build_model signature)
+        # For simple cases, you might just extract values directly.
+        # This part depends on how 'build_and_compile_model' expects 'hp'
+        hp = tf.keras.src.applications.resnet.HyperParameters() # Using a dummy instance, or load properly
+        for param_name, param_value in hyperparameters_json.items():
+            # This is a simplification; a proper KerasTuner HP object might need more complex reconstruction
+            # For 'Int' and 'Float', direct assignment might be sufficient for basic usage.
+            if 'units' in param_name:
+                hp.Int(param_name, min_value=32, max_value=256, step=32, default=param_value)
+            elif 'dropout' in param_name:
+                hp.Float(param_name, min_value=0.2, max_value=0.5, step=0.1, default=param_value)
+            elif 'learning_rate' in param_name:
+                hp.Choice(param_name, values=[1e-2, 1e-3, 1e-4], default=param_value)
+            # Add other hyperparameter types as needed
+
+        logger.info(f"Worker {TUNER_ID}: Starting trial {trial_id} with hyperparameters: {hyperparameters_json}")
+        
+        try:
+            # Build the model using the hyperparameters for this trial
+            # Ensure input_shape is correct for your data (e.g., (history_size, num_features))
+            input_shape = (X.shape[1], X.shape[2]) if X.ndim == 3 else (X.shape[1],)
+            model = build_and_compile_model(hp, input_shape)
+
+            # Train the model
+            history = model.fit(
+                train_dataset,
+                epochs=tuner_epochs,
+                validation_data=val_dataset,
+                verbose=1 # Show progress
+            )
+
+            # Get the best validation loss from this trial's training history
+            val_loss = min(history.history['val_loss'])
+            
+            # Report result to OracleServer
+            oracle_client.report_trial_result(trial_id, {"val_loss": val_loss})
+            oracle_client.update_trial_status(trial_id, status="COMPLETED")
+            logger.info(f"Worker {TUNER_ID}: Trial {trial_id} completed with val_loss: {val_loss}")
+
+        except Exception as e:
+            logger.error(f"Worker {TUNER_ID}: Error during trial {trial_id} training: {e}", exc_info=True)
+            oracle_client.update_trial_status(trial_id, status="FAILED")
+            continue # Continue to next trial if current one fails
+
+    logger.info(f"🏁 tsNeuroPredictWinMql_worker.py finished for tuner_id: {TUNER_ID}.")
 
 
 if __name__ == "__main__":
-    # Ensure MetaTrader5 is initialized and finalized
-    if not mt5.initialize():
-        # CORRECTED: Use an f-string for the log message to prevent TypeError
-        logger.error(f"❌ mt5.initialize() failed, error code = {mt5.last_error()}")
-        sys.exit(1)
+    # Ensure MetaTrader5 is initialized and finalized with authentication details
+    #mt5_login = app_params.get('mp_app_login', 123456) # Replace with your actual login
+    #mt5_password = app_params.get('mp_app_password', 'your_password') # Replace with your actual password
+    # Default to a common demo server if not specified or empty
+    #mt5_server = app_params.get('mp_app_server', 'MetaQuotes-Demo') 
+
+    # Add checks for placeholder credentials
+    #if mt5_login == 123456:
+    #    logger.warning("⚠️ Using placeholder MetaTrader5 login. Please update 'mp_app_login' in your config.")
+    #if mt5_password == 'your_password':
+    #    logger.warning("⚠️ Using placeholder MetaTrader5 password. Please update 'mp_app_password' in your config.")
+    #if mt5_server == 'your_server_name' or mt5_server == '':
+    #    logger.warning("⚠️ Using placeholder/empty MetaTrader5 server. Please update 'mp_app_server' in your config. Defaulting to 'MetaQuotes-Demo'.")
+
+
+    # ----- Broker Login -----
+    logger.info("PARAM HEADER: MP_APP_BROKER: %s", app_params.get('mp_app_broker'))
+    broker_config = CMqlBrokerConfig(app_params.get('mp_app_broker'))
+    mqqlobj = broker_config.run_mql_login()
+    if mqqlobj is True:
+        logger.info("Successfully logged in to MetaTrader 5.")
     else:
-        logger.info("✅ MetaTrader5 initialized successfully.")
+        logger.info("Failed to login. Error code: %s", mqqlobj)
+        sys.exit(1)
+
 
     try:
         # Run the main function

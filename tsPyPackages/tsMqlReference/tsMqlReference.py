@@ -2,11 +2,7 @@ import logging
 import os
 from tsMqlSetup import CMqlSetup # Correctly import the class
 
-# --- Logging setup ---
-# This script now *only* gets a logger. The root logger is configured by multiworker_launcher.py.
-# This prevents repeated "Logging initialized" messages and ensures a consistent log file.
-logger = logging.getLogger(__name__)
-# -- end of logging setup ----
+
 from datetime import datetime
 import tzlocal
 import zoneinfo  # Import zoneinfo
@@ -17,6 +13,15 @@ from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides() 
 app_params = mql_overrides.env.all_params().get("app", {})
 tune_params = mql_overrides.env.all_params().get("mltune", {})
+
+from tsMqlLogService import CMLogServiceSetup
+logger = CMLogServiceSetup.initialize_logging(
+    role_hint=__name__, 
+    loglevel='INFO',
+    logfile='tsneuropredict_app.log'
+)
+
+
 
 gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
 backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch

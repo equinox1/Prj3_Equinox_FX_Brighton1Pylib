@@ -9,9 +9,7 @@ import glob
 import json
 from datetime import datetime
 
-# Logger setup
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+
 
 # Dynamically resolve log file
 def resolve_logfile():

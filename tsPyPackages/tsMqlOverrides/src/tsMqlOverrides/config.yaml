@@ -28,42 +28,42 @@ DATA_PARAMS:
   mp_data_filename1: 'tickdata1'
   mp_data_filename2: 'ratesdata1'
 
-# Data filter settings for different data sources
-df1_filter_int: False
-df1_filter_flt: False
-df1_filter_obj: False
-df1_filter_dtmi: False
-df1_filter_dtmf: False
-df1_merge: False
-df1_convert: False
-df1_drop: False
+  # Data filter settings for different data sources
+  df1_filter_int: False
+  df1_filter_flt: False
+  df1_filter_obj: False
+  df1_filter_dtmi: False
+  df1_filter_dtmf: False
+  df1_merge: False
+  df1_convert: False
+  df1_drop: False
 
-df2_filter_int: False
-df2_filter_flt: False
-df2_filter_obj: False
-df2_filter_dtmi: False
-df2_filter_dtmf: False
-df2_merge: False
-df2_convert: False
-df2_drop: False
+  df2_filter_int: False
+  df2_filter_flt: False
+  df2_filter_obj: False
+  df2_filter_dtmi: False
+  df2_filter_dtmf: False
+  df2_merge: False
+  df2_convert: False
+  df2_drop: False
 
-df3_filter_int: False
-df3_filter_flt: False
-df3_filter_obj: False
-df3_filter_dtmi: False
-df3_filter_dtmf: False
-df3_merge: False
-df3_convert: False
-df3_drop: False
+  df3_filter_int: False
+  df3_filter_flt: False
+  df3_filter_obj: False
+  df3_filter_dtmi: False
+  df3_filter_dtmf: False
+  df3_merge: False
+  df3_convert: False
+  df3_drop: False
 
-df4_filter_int: False
-df4_filter_flt: False
-df4_filter_obj: False
-df4_filter_dtmi: False
-df4_filter_dtmf: False
-df4_merge: False
-df4_convert: False
-df4_drop: False
+  df4_filter_int: False
+  df4_filter_flt: False
+  df4_filter_obj: False
+  df4_filter_dtmi: False
+  df4_filter_dtmf: False
+  df4_merge: False
+  df4_convert: False
+  df4_drop: False
 
 # Api ML Settings
 ML_PARAMS:
@@ -134,16 +134,16 @@ ML_TUNING_PARAMS:
 
 
 APP_PARAMS:
-  mp_app_primary_symbol: "EURUSD"  # Corrected typo
+  mp_app_primary_symbol: "EURUSD"
   mp_app_secondary_symbol: "EURCHF"
   mp_app_broker: "METAQUOTES"
-  mp_app_server: ""
+  mp_app_server: "MetaQuotes-Demo" # <--- IMPORTANT: Set your actual server name here
   mp_app_timeout: 60000
   mp_app_portable: True
   mp_app_env: "demo"
   mp_app_dfname1: "df_rates1"
   mp_app_dfname2: "df_rates2"
-  mp_app_cfg_usedata: 'df_file_rates' #  df_api_ticks, df_api_rates, df_file_ticks, df_file_rates
+  mp_app_cfg_usedata: 'df_file_rates'
   mp_app_rows: 2000
   mp_app_rowcount: 10000
   mp_app_ONNX_save: False
@@ -161,3 +161,5 @@ APP_PARAMS:
   mp_app_transh_modelscale: 1
   mp_app_transff_modelscale: 4
   mp_app_dense_modelscale: 2
+  mp_app_login: 1234567 # <--- IMPORTANT: Your MT5 login
+  mp_app_password: "YourActualPassword" # <--- IMPORTANT: Your MT5 password

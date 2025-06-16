@@ -10,16 +10,33 @@ import logging
 import os # Import os to access environment variables
 from typing import Dict, Optional # <--- ADDED: Import Dict and Optional from typing
 
-# -- Set up global logging (from tsMqlSetup) --
-# This ensures consistency across all modules.
-from tsMqlSetup import CMqlSetup
-clientlog_config = CMqlSetup()
+from tsMqlOverrides import CMqlOverrides
 
-# --- Logging setup ---
-# This script now *only* gets a logger. The root logger is configured by multiworker_launcher.py.
-# This prevents repeated "Logging initialized" messages and ensures a consistent log file.
-logger = logging.getLogger(__name__)
-# -- end of logging setup ----
+
+# Import the logging setup service directly
+from tsMqlLogService import CMqlLogService # Use CMqlLogService, not CMqlSetup for raw logging init
+
+# Load environment variables and app parameters using CMqlOverrides early
+# This needs to be done *before* initializing the logger if logger depends on these params
+mql_overrides = CMqlOverrides()
+all_params = mql_overrides.env.all_params()
+app_params = all_params.get("app", {})
+tune_params = all_params.get('mltune', {})
+base_params = all_params.get("base", {})
+
+# Extract backend for logging path - crucial for correct log file path
+# This will be passed to initialize_logging. It can also be obtained from env if passed by launcher.
+backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch')) # Default to pytorch if not specified
+
+from tsMqlLogService import CMLogServiceSetup
+logger = CMLogServiceSetup.initialize_logging(
+    role_hint=__name__,
+    loglevel='INFO',
+    # Explicitly set the logfile name to ensure consistency
+    logfile='tsneuropredict_app.log',
+    # Pass the determined backend so logging goes into the correct subdirectory
+    backend=backend_for_log # Pass the backend to the logging setup
+)
 
 
 

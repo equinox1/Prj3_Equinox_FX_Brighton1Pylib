@@ -36,212 +36,188 @@ setup_config = CMqlSetup(
     precision='mixed_bfloat16',
     tfdebug=False,
     num_cores=_estimated_physical_cores,
-    num_threads=1
+    num_threads=_estimated_physical_cores
 )
-# --- Global Configuration ---
-from tsMqlOverrides import CMqlOverrides
-mql_overrides = CMqlOverrides()
-# Get all parameters after overrides
-env_mgr = mql_overrides.env
-all_params = env_mgr.all_params()
 
+
+# Import environment manager and overrides after logging setup
+from tsMqlEnvMgr import CMqlEnvMgr
+from tsMqlOverrides import CMqlOverrides
+
+mql_overrides = CMqlOverrides()
+all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
 tune_params = all_params.get("mltune", {})
-base_params = all_params.get('base', {})
 
-xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
-xerces_server = app_params.get('xerces_server', '192.168.1.103')
-xerces_port = app_params.get('xerces_port', 9000)
-xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
+from tsMqlLogService import CMLogServiceSetup
+logger = CMLogServiceSetup.initialize_logging(
+    role_hint=__name__,
+    loglevel='INFO',
+    # Explicitly set the logfile name to ensure consistency
+    logfile='tsneuropredict_app.log',
+    # Pass the determined backend so logging goes into the correct subdirectory
+    backend=GLOBAL_BACKEND # Pass the backend to the logging setup
+)
 
-# Determine global logfile and logdir based on config
-global_log_base_path = all_params.get('base', {}).get('mp_glob_base_log_path', 'Logdir')
-global_logfile = Path(global_log_base_path) / xerces_servername / \
-                 GLOBAL_BACKEND / xerces_logfile
-global_logdir = Path(global_log_base_path) / xerces_servername / GLOBAL_BACKEND
 
-# Ensure log directories exist
-global_logdir.mkdir(parents=True, exist_ok=True)
-# Ensure parent directory for logfile exists (Path.parent returns the parent directory)
-global_logfile.parent.mkdir(parents=True, exist_ok=True) 
 
-# Set environment variables for child processes to inherit logging configuration
-os.environ['GLOBAL_LOGFILE_PATH'] = str(global_logfile)
-os.environ['GLOBAL_LOGDIR_PATH'] = str(global_logdir)
-os.environ['MLTUNE_BACKEND'] = GLOBAL_BACKEND
-os.environ['MLTUNE_TUNER_TYPE'] = tune_params.get('tuner_type', 'hyperband')
-os.environ['MLTUNE_TRIALS'] = str(tune_params.get('num_trials', 128))
+# Use the configured values for server and port
+ORACLE_SERVER_HOST = app_params.get('xerces_server', '192.168.1.103')
+ORACLE_SERVER_PORT = app_params.get('xerces_port', 9000)
 
-# Initialize CMqlSetup for logging.
-# This block ensures that the root logger is configured only once across the application,
-# preventing duplicate log messages or repeated file handler creations.
-root_logger = logging.getLogger()
-logger_initial_print_message = "" # Initialize message
-if not root_logger.handlers: # Check if the root logger has any handlers configured already
-    # If no handlers exist, proceed with setting up the logging
-    clientlog_config = CMqlSetup()
-    try:
-        # Determine the final log directory and file path
-        final_logdir, final_logfile_path = clientlog_config.set_log_dir(
-            logdir=app_params.get('LOGDIR'), # Use LOGDIR from app_params if available
-            logfile=app_params.get('LOGFILE', 'tsneuropredict_app.log'), # Use LOGFILE from app_params or default
-            servername=xerces_servername,
-            backend=backend
-        )
-        # Configure the logging system
-        clientlog_config.setup_logging(logfile=final_logfile_path)
-        logger_initial_print_message = f"Logging initialized. Logfile: {final_logfile_path}"
-    except Exception as e:
-        # If logging setup fails, print a critical error to stderr and exit
-        print(f"CRITICAL ERROR: Failed to set up log directories or configure logging via CMqlSetup: {e}", file=sys.stderr)
-        sys.exit(1)
-else:
-    # If handlers already exist, it means logging was configured by another module.
-    # In this case, we skip re-initialization to avoid issues.
-    logger_initial_print_message = "Logging already configured. Skipping re-initialization."
+CHIEF_SCRIPT = "tsNeuroPredictWinMql_chief.py"
+WORKER_SCRIPT = "tsNeuroPredictWinMql_worker.py"
+ORACLE_SERVER_SCRIPT = "oracle_server_main.py"
 
-# Get the logger instance for this specific module.
-# This should always be done AFTER the root logger has been configured.
-logger = logging.getLogger(__name__)
-# Log the initial message, confirming whether logging was set up or already existed.
-logger.info(logger_initial_print_message)
-
-# Define servername before using it in the logging statement
-servername = xerces_servername # Assign the value from app_params
-logger.debug(f"Servername: {servername}")
-
-# Define scripts relative to the current file
-# Assuming this script is in PythonLib/tsProjects/prjNeuroPredict1
-BASE_PATH = Path(__file__).resolve().parent.parent.parent
-CHIEF_SCRIPT = BASE_PATH / 'tsProjects' / 'prjNeuroPredict1' / \
-               'tsNeuroPredictWinMql_chief.py'
-WORKER_SCRIPT = BASE_PATH / 'tsProjects' / 'prjNeuroPredict1' / \
-                'tsNeuroPredictWinMql_worker.py'
-# Path to your OracleServer daemon script
-ORACLE_DAEMON_SCRIPT = BASE_PATH / 'tsProjects' / 'prjNeuroPredict1' / \
-                       'oracle_server_main.py'
-
-ORACLE_HOST = xerces_server # Use the IP from config
-ORACLE_PORT = xerces_port # Use the port from config
-ORACLE_READY_TIMEOUT = 30 # Seconds to wait for Oracle Server to become ready
-
-PYTHON_EXEC = sys.executable # Path to the current Python interpreter
-
-def is_port_in_use(port):
-    """Checks if a given port is currently in use."""
+# Function to check if a port is in use
+def is_port_in_use(host, port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex((xerces_server, port)) == 0
-
-def wait_for_oracle_ready():
-    """Waits for the Oracle Server to become responsive using the /status endpoint."""
-    logger.info(f"Waiting for OracleServer to be ready at "
-                f"http://{ORACLE_HOST}:{ORACLE_PORT}/status...")
-    start_time = time.time()
-    while time.time() - start_time < ORACLE_READY_TIMEOUT:
         try:
-            # CORRECTED: Use /status endpoint for health check
-            response = requests.get(f"http://{ORACLE_HOST}:{ORACLE_PORT}/status",
-                                    timeout=5)
-            if response.status_code == 200 and response.json().get("status") == "Oracle Server is running.":
-                logger.info("✅ OracleServer is ready.")
-                return True
-            else:
-                logger.debug(f"OracleServer /status check returned: {response.status_code} - {response.text}")
-        except requests.exceptions.ConnectionError:
-            logger.debug(f"OracleServer not yet ready (connection error), retrying in 2 seconds...")
-            time.sleep(2)
-        except Exception as e:
-            logger.error(f"Error checking OracleServer status: {e}")
-            time.sleep(2)
-    logger.error("❌ OracleServer did not become ready within the timeout period.")
-    return False
+            s.bind((host, port))
+            return False
+        except socket.error:
+            return True
 
+# Function to terminate a process and its children
 def terminate_process_and_children(pid):
-    """Terminates a process and its children recursively."""
     try:
-        parent = psutil.Process(pid)
-        children = parent.children(recursive=True)
-        for child in children:
-            if FORCE_KILL:
-                child.kill()
-            else:
-                child.terminate()
-        if FORCE_KILL:
-            parent.kill()
-        else:
-            parent.terminate()
-        gone, alive = psutil.wait_procs(children + [parent], timeout=5)
-        for p in alive:
-            logger.warning(f"Process {p.pid} ({p.name()}) did not terminate, forcing kill.")
-            p.kill()
+        process = psutil.Process(pid)
+        for child in process.children(recursive=True):
+            child.terminate()
+        process.terminate()
+        logger.info(f"Terminated process {pid} and its children.")
     except psutil.NoSuchProcess:
-        logger.info(f"Process {pid} already terminated.")
+        logger.info(f"Process {pid} already terminated or does not exist.")
     except Exception as e:
-        logger.error(f"Error terminating process {pid}: {e}")
+        logger.error(f"Error terminating process {pid}: {e}", exc_info=True)
 
-def launch_process(script_path, tuner_id, backend):
+
+def launch_process(script_name, tuner_id=None, backend=None):
     """Launches a Python script as a subprocess."""
-    logger.info(f"Launching {script_path.name} with TUNER_ID={tuner_id}, "
-                f"MLTUNE_BACKEND={backend}")
     env = os.environ.copy()
-    env['TUNER_ID'] = tuner_id
-    env['MLTUNE_BACKEND'] = backend
-    # Ensure child processes use the same logfile and logdir
-    env['GLOBAL_LOGFILE_PATH'] = str(global_logfile)
-    env['GLOBAL_LOGDIR_PATH'] = str(global_logdir)
+    if tuner_id:
+        env['TUNER_ID'] = tuner_id
+        logger.info(f"Setting TUNER_ID={tuner_id} for {script_name}")
+    if backend:
+        env['BACKEND'] = backend
+        logger.info(f"Setting BACKEND={backend} for {script_name}")
 
-    # Explicitly pass the full path to the Python executable
-    process = subprocess.Popen([PYTHON_EXEC, str(script_path)], env=env,
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    # Pass the Oracle server details as environment variables
+    env['ORACLE_SERVER_HOST'] = ORACLE_SERVER_HOST
+    env['ORACLE_SERVER_PORT'] = str(ORACLE_SERVER_PORT)
 
-    # Start a thread to read stdout/stderr to prevent deadlock and log output
-    def log_output(process_obj, process_name):
-        for line in process_obj.stdout:
-            # Filter out known TensorFlow/PyTorch verbose output if not in debug mode
-            if "I tensorflow/compiler" in line or "E tensorflow/compiler" in line:
-                logger.debug(f"[{process_name} TF/PT Output] {line.strip()}")
+    # REMOVED: No longer explicitly pass LOGDIR and LOGFILE.
+    # Child processes will call CMLogServiceSetup.initialize_logging and
+    # derive these paths based on backend and their own logfile argument.
+    # env['LOGDIR'] = str(setup_config.global_logdir)
+    # env['LOGFILE'] = setup_config.global_logfile
+
+    # IMPORTANT: Ensure all environment variables are strings
+    # Iterate over a copy of items to allow modification during iteration
+    for key, value in list(env.items()):
+        env[key] = str(value)
+
+    python_executable = sys.executable # Use the current Python interpreter
+
+    # Use Path objects for script paths for better OS compatibility
+    script_path = Path(__file__).parent / script_name
+
+    command = [python_executable, str(script_path)]
+    logger.info(f"Launching process: {command} with env TUNER_ID={env.get('TUNER_ID')}, BACKEND={env.get('BACKEND')}")
+
+    # Redirect stdout and stderr to a pipe for unified logging
+    process = subprocess.Popen(
+        command,
+        env=env, # Pass the sanitized environment
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True, # Decode stdout/stderr as text
+        bufsize=1, # Line-buffered
+        universal_newlines=True # Handle different line endings
+    )
+
+    # Start a thread to read and log the output
+    def log_stream(stream, process_name):
+        for line in iter(stream.readline, ''):
+            # Add prefix to distinguish logs from different processes
+            # Remove extra newlines that might be added by print() in subprocesses
+            logged_line = f"[{process_name}] {line.strip()}"
+            if "INFO:" in logged_line:
+                logger.info(logged_line)
+            elif "WARNING:" in logged_line:
+                logger.warning(logged_line)
+            elif "ERROR:" in logged_line:
+                logger.error(logged_line)
+            elif "CRITICAL:" in logged_line:
+                logger.critical(logged_line)
+            elif "DEBUG:" in logged_line:
+                logger.debug(logged_line)
             else:
-                logger.info(f"[{process_name}] {line.strip()}")
-        process_obj.stdout.close()
+                logger.info(logged_line) # Default to info for unclassified lines
+        stream.close()
 
-    threading.Thread(target=log_output, args=(process, script_path.name),
-                     daemon=True).start()
-    
-    logger.info(f"Started {script_path.name} with PID: {process.pid}")
+    # Start separate threads for stdout and stderr to prevent blocking
+    threading.Thread(target=log_stream, args=(process.stdout, script_name.split('.')[0]), daemon=True).start()
+    # If stderr is also piped to STDOUT, no need for a separate stderr thread
+    # threading.Thread(target=log_stream, args=(process.stderr, f"{script_name.split('.')[0]}_ERR"), daemon=True).start()
+
     return process
 
+def wait_for_server(host, port, timeout=60, interval=2):
+    """
+    Waits for the server to become available at the given host and port.
+    Performs a health check with retries.
+    """
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            response = requests.get(f"http://{host}:{port}/status", timeout=5)
+            response.raise_for_status()
+            logger.info(f"Oracle Server health check successful: {response.json()}")
+            return True
+        except requests.exceptions.ConnectionError:
+            logger.warning(f"Connection refused to Oracle Server at {host}:{port}. Retrying in {interval} seconds...")
+            time.sleep(interval)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error during Oracle Server health check: {e}", exc_info=True)
+            time.sleep(interval)
+        except Exception as e:
+            logger.error(f"Unexpected error during server health check: {e}", exc_info=True)
+            time.sleep(interval)
+    logger.error(f"Oracle Server did not become available at {host}:{port} within {timeout} seconds.")
+    return False
+
+
 if __name__ == "__main__":
-    oracle_proc = None
     chief_proc = None
     workers = []
+    oracle_proc = None
 
     try:
-        # Check if Oracle Server is already running
-        if is_port_in_use(ORACLE_PORT):
-            logger.info(f"⚠️ Port {ORACLE_PORT} already in use. Assuming Oracle is running.")
-            # We don't need to launch it, just ensure it's responsive
-            if not wait_for_oracle_ready():
-                logger.error("❌ Aborting: Existing OracleServer at port "
-                             f"{ORACLE_PORT} is not responsive.")
-                sys.exit(1)
-            oracle_proc = None # No process to manage if it's already running
+        # 1. Launch Oracle Server (if not already running)
+        logger.info(f"Checking if Oracle Server is running on {ORACLE_SERVER_HOST}:{ORACLE_SERVER_PORT}...")
+        if is_port_in_use(ORACLE_SERVER_HOST, ORACLE_SERVER_PORT):
+            logger.info(f"Port {ORACLE_SERVER_PORT} is already in use. Assuming Oracle Server is running.")
+            # If the server is already running, we don't need to launch it.
+            # We also don't have its PID, so we won't try to terminate it later.
         else:
-            logger.info("🚀 Launching OracleServer Daemon...")
-            oracle_proc = launch_process(ORACLE_DAEMON_SCRIPT, tuner_id="oracle",
-                                         backend=GLOBAL_BACKEND)
-            if not wait_for_oracle_ready():
-                logger.error("❌ Aborting: OracleServer failed to start.")
-                if oracle_proc:
+            logger.info(f"Port {ORACLE_SERVER_PORT} is free. Launching Oracle Server...")
+            oracle_proc = launch_process(ORACLE_SERVER_SCRIPT, tuner_id="oracle_main_server", backend=GLOBAL_BACKEND)
+
+            # Wait for the Oracle Server to start up using the robust retry mechanism
+            if not wait_for_server(ORACLE_SERVER_HOST, ORACLE_SERVER_PORT, timeout=60, interval=5): # Increased interval
+                logger.critical("Oracle Server failed to start or respond within the allocated time. Exiting.")
+                if oracle_proc and oracle_proc.poll() is None:
                     terminate_process_and_children(oracle_proc.pid)
                 sys.exit(1)
-        
-        logger.info("👑 Launching Chief Process...")
-        logger.info(f"Using GLOBAL_BACKEND: {GLOBAL_BACKEND}")
-        chief_proc = launch_process(CHIEF_SCRIPT, tuner_id="chief",
-                                    backend=GLOBAL_BACKEND)
 
-        logger.info("🧑‍🔬 Launching Worker Processes...")
-        logger.info(f"Using GLOBAL_BACKEND: {GLOBAL_BACKEND}")
+
+        # 2. Launch Chief process
+        logger.info(f"Launching Chief process: {CHIEF_SCRIPT}")
+        chief_proc = launch_process(CHIEF_SCRIPT, tuner_id="chief", backend=GLOBAL_BACKEND)
+
+        # 3. Launch Worker processes
+        logger.info(f"Launching {NUM_WORKERS} worker processes for backend: {GLOBAL_BACKEND}")
         workers = [launch_process(WORKER_SCRIPT, tuner_id=f"worker{i+1}",
                                   backend=GLOBAL_BACKEND) for i in range(NUM_WORKERS)]
 
@@ -269,6 +245,5 @@ if __name__ == "__main__":
         if oracle_proc and oracle_proc.poll() is None:
             logger.info("Terminating OracleServer process...\n") # Added newline
             terminate_process_and_children(oracle_proc.pid)
-        
-        logger.info("All child processes ensured terminated. Launcher shutting down.")
 
+        logger.info("All child processes ensured terminated. Launcher shutting down.")

@@ -11,12 +11,6 @@ import logging # Ensure logging is imported
 import os # Import os to access environment variables
 import time # Import time for sleep
 
-# --- Logging setup ---
-# This script now *only* gets a logger. The root logger is configured by multiworker_launcher.py.
-# This prevents repeated "Logging initialized" messages and ensures a consistent log file.
-logger = logging.getLogger(__name__)
-# -- end of logging setup ----
-
 
 import os
 import pathlib
@@ -50,15 +44,26 @@ app_params = mql_overrides.env.all_params().get("app", {})
 tune_params = mql_overrides.env.all_params().get("mltune", {})
 
 gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
-backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")
 xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
-app_params = mql_overrides.env.all_params().get("app", {})
-global_logdir = app_params.get('LOGDIR', 'Logdir')
-global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
+# Extract backend for logging path - crucial for correct log file path
+# This will be passed to initialize_logging. It can also be obtained from env if passed by launcher.
+backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch')) # Default to pytorch if not specified
+
+from tsMqlLogService import CMLogServiceSetup
+logger = CMLogServiceSetup.initialize_logging(
+    role_hint=__name__,
+    loglevel='INFO',
+    # Explicitly set the logfile name to ensure consistency
+    logfile='tsneuropredict_app.log',
+    # Pass the determined backend so logging goes into the correct subdirectory
+    backend=backend_for_log # Pass the backend to the logging setup
+)
+
+
 
 
 class PyTorchTuner:
