@@ -157,7 +157,13 @@ class CMdtuner:
         
         # Determine modelname: prioritize from project_name kwarg, then app_params, then a default
         # The 'project_name' kwarg comes from CMdtunerSelector, which gets it from tsNeuroPredictWinMql_chief.py's MODEL_NAME
-        self.modelname = kwargs.get('project_name', app_params.get('mp_glob_sub_ml_model_name', 'ts_mql_model'))
+        self.modelname = kwargs.get(
+        'project_name',
+        os.environ.get('ML_MODEL_NAME', app_params.get('mp_glob_sub_ml_model_name', 'ts_mql_model'))
+        )
+
+        project_id = os.environ.get('ML_PROJECT_ID', base_params.get('mp_glob_sub_ml_baseuniq', '777'))
+        self.modelname = f"{self.modelname}_{project_id}"
         if self.modelname is None: # Double check if it's still None
             self.modelname = 'default_model'
             logger.warning("Model name not found in config. Using default: 'default_model'")

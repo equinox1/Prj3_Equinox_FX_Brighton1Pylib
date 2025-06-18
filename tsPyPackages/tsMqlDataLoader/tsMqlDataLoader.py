@@ -20,28 +20,26 @@ import logging
 # -- Set up global logging (from tsMqlSetup) --
 from tsMqlSetup import CMqlSetup
 
-
-
-
-# Import platform dependencies
-
-from tsMqlOverrides import CMqlOverrides
+# Load configuration
+from tsMqlOverrides import CMqlOverrides  # ✅ Add this line
+from tsMqlPlatform import run_platform, platform_checker, get_config
+from tsMqlEnvMgr import CMqlEnvMgr
 
 mql_overrides = CMqlOverrides()
-env_mgr = mql_overrides.env
-all_params = env_mgr.all_params()
-app_params = mql_overrides.env.all_params().get("app", {})
+all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
-tune_params = all_params.get("mltune", {})
+tune_params = all_params.get('mltune', {})
+base_params = all_params.get("base", {})
+
+backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
 
 from tsMqlLogService import CMLogServiceSetup
 logger = CMLogServiceSetup.initialize_logging(
-    role_hint=__name__, 
+    role_hint=__name__,
     loglevel='INFO',
-    logfile='tsneuropredict_app.log'
+    logfile='tsneuropredict_app.log',
+    backend=backend_for_log
 )
-
-
 
 gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
 backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch

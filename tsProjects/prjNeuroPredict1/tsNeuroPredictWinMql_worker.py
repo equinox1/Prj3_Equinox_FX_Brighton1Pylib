@@ -39,37 +39,35 @@ from keras_tuner.engine.trial import TrialStatus
 # Import mixed_precision
 from tensorflow.keras import mixed_precision
 
-# Load environment variables and app parameters
-mql_overrides = CMqlOverrides() 
+# Load configuration
+mql_overrides = CMqlOverrides()
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
 tune_params = all_params.get('mltune', {})
+base_params = all_params.get("base", {})
 
-# Extract backend for logging path - crucial for correct log file path
-# This will be passed to initialize_logging. It can also be obtained from env if passed by launcher.
-backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch')) # Default to pytorch if not specified
+backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
 
 from tsMqlLogService import CMLogServiceSetup
 logger = CMLogServiceSetup.initialize_logging(
     role_hint=__name__,
     loglevel='INFO',
-    # Explicitly set the logfile name to ensure consistency
     logfile='tsneuropredict_app.log',
-    # Pass the determined backend so logging goes into the correct subdirectory
-    backend=backend_for_log # Pass the backend to the logging setup
+    backend=backend_for_log
 )
-
 
 # Retrieve global log file and directory paths from environment variables.
 # These variables are expected to be set by the multiworker_launcher.
-LOGDIR = Path(str(app_params.get('LOGDIR', 'Logdir'))).expanduser().resolve()
+LOGDIR = base_params.get('mp_glob_base_log_path', Path('Logdir'))
+if isinstance(LOGDIR, str):
+    LOGDIR = Path(LOGDIR)
 LOGFILE = app_params.get('LOGFILE', 'tsneuropredict_app.log')
 
 
 # Global tuner configuration
 TUNER_ID = os.environ.get('TUNER_ID', 'default_worker')
 ORACLE_DIR = LOGDIR / "tsOracle" # Oracle working directory
-MODEL_DIR = Path(app_params.get('mp_glob_base_path')) / Path(app_params.get('mp_glob_sub_ml_src_modeldata')) # Path to save models
+MODEL_DIR = base_params.get('mp_glob_base_path', Path.cwd()) / base_params.get('mp_glob_sub_ml_src_modeldata', 'tsModelData') # Path to save models
 MODEL_NAME = tune_params.get('ml_model_name', 'tsneuromodel')
 
 
@@ -147,7 +145,7 @@ def main():
 
         # Load data based on mp_app_cfg_usedata
         if data_load_config['mp_app_cfg_usedata'] == 'df_file_rates':
-            data_df = data_loader.load_file_rates()
+            data_df = data_loader.load_data(df_name="df_file_rates")
         elif data_load_config['mp_app_cfg_usedata'] == 'df_api_rates':
             data_df = data_loader.load_api_rates()
         elif data_load_config['mp_app_cfg_usedata'] == 'df_file_ticks':

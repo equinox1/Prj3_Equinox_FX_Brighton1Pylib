@@ -1,19 +1,18 @@
 [project]
-name = "tsmqldataLoader"
-version = "2.6.82"
+name = "tsmqlmltuner"
+version = "2.14.13"
 authors = [
-  { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
+  { name="Tony Shepherd", email="shep.antony@gmail.com" },
 ]
 description = "MQL API Data setup for ML"
 readme = "README.md"
 requires-python = ">=3.8"
-
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.10"
 ]
 
 [project.urls]
-homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsmqldataLoader"
+homepage = "https://github.com/equinox1/Prj3_Equinox_FX_Brighton1Pylib/tree/main/tsPyPackages/tsmqlmltuner"

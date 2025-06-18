@@ -47,7 +47,9 @@ from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides()
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
-tune_params = all_params.get("mltune", {})
+tune_params = all_params.get('mltune', {})
+base_params = all_params.get("base", {})
+data_params = all_params.get("data", {})
 
 from tsMqlLogService import CMLogServiceSetup
 logger = CMLogServiceSetup.initialize_logging(
@@ -95,6 +97,8 @@ def terminate_process_and_children(pid):
 def launch_process(script_name, tuner_id=None, backend=None):
     """Launches a Python script as a subprocess."""
     env = os.environ.copy()
+    env['ML_MODEL_NAME'] = app_params.get("ml_model_name", "ts_mql_model")
+    env['ML_PROJECT_ID'] = str(base_params.get("mp_glob_sub_ml_baseuniq", 777))
     if tuner_id:
         env['TUNER_ID'] = tuner_id
         logger.info(f"Setting TUNER_ID={tuner_id} for {script_name}")

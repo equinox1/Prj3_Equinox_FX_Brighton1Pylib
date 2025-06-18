@@ -20,19 +20,22 @@ from tsMqlPlatform import run_platform, platform_checker
 from tsMqlEnvMgr import CMqlEnvMgr
 from tsMqlOverrides import CMqlOverrides
 
-# -- Load global parameters --
-mql_overrides = CMqlOverrides() 
-app_params = mql_overrides.env.all_params().get("app", {})
-tune_params = mql_overrides.env.all_params().get("mltune", {})
+# Load configuration
+mql_overrides = CMqlOverrides()
+all_params = mql_overrides.env.all_params()
+app_params = all_params.get("app", {})
+tune_params = all_params.get('mltune', {})
+base_params = all_params.get("base", {})
+
+backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
 
 from tsMqlLogService import CMLogServiceSetup
 logger = CMLogServiceSetup.initialize_logging(
-    role_hint=__name__, 
+    role_hint=__name__,
     loglevel='INFO',
-    logfile='tsneuropredict_app.log'
+    logfile='tsneuropredict_app.log',
+    backend=backend_for_log
 )
-
-
 
 gtuner_model = tune_params.get('tuner_type', 'hyperband')
 backend = tune_params.get('backend', 'tensorflow')
@@ -41,8 +44,7 @@ xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
-global_logdir = app_params.get('LOGDIR', 'Logdir')
-global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
+
 
 # Initialize platform checker (global to avoid re-initialization if used across functions)
 pchk = run_platform.RunPlatform()

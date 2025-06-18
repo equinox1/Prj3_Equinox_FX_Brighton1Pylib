@@ -70,6 +70,13 @@ class OracleServer:
         self._setup_routes()
 
     def _setup_routes(self):
+        
+        @self.app.post("/register")
+        async def register(request: TrialRequest):
+            logger.info(f"[OracleServer] Register request received for tuner_id: {request.tuner_id}")
+            return JSONResponse({"status": "registered", "tuner_id": request.tuner_id})
+    
+
         @self.app.post("/request_trial")
         async def request_trial(request: TrialRequest):
             with self.lock:

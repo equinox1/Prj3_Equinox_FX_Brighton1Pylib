@@ -10,6 +10,7 @@ import logging # Import logging, but do NOT configure the root logger here.
 import threading
 import pathlib
 from pathlib import Path
+
 import json
 from datetime import datetime, date
 import pytz
@@ -42,7 +43,7 @@ from tsMqlUtilities import CUtilities
 from tsMqlReference import CMqlRefConfig
 from tsMqlConnect import CMqlBrokerConfig
 from tsMqlDataLoader import CDataLoader
-from tsMqlDataProcess import CDataProcess
+from tsMqlDataProcess import CDataProcess # Assuming this file exists and contains CDataProcess
 from tsMqlMLProcess import CDMLProcess
 
 # Distributed tuner system
@@ -60,28 +61,22 @@ os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1" # Suppress TensorFlow warnings, only show errors
 
-# --- Global Configuration & Logger Setup ---
-# Load environment variables and app parameters using CMqlOverrides early
+# Load configuration
 mql_overrides = CMqlOverrides()
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
 tune_params = all_params.get('mltune', {})
 base_params = all_params.get("base", {})
 
-# Extract backend for logging path - crucial for correct log file path
-# This will be passed to initialize_logging. It can also be obtained from env if passed by launcher.
-backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch')) # Default to pytorch if not specified
+backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
 
 from tsMqlLogService import CMLogServiceSetup
 logger = CMLogServiceSetup.initialize_logging(
     role_hint=__name__,
     loglevel='INFO',
-    # Explicitly set the logfile name to ensure consistency
     logfile='tsneuropredict_app.log',
-    # Pass the determined backend so logging goes into the correct subdirectory
-    backend=backend_for_log # Pass the backend to the logging setup
+    backend=backend_for_log
 )
-
 
 # Initialize CMqlSetup to get configuration, including precision
 # Dynamically determine num_cores and num_threads for optimal performance.
@@ -119,8 +114,9 @@ oracle_server_enabled = tune_params.get('tunertype', 'local') == 'remote'
 xerces_server = app_params.get('xerces_server', '127.0.0.1')
 xerces_port = app_params.get('xerces_port', 9000)
 oracle_url = f"http://{xerces_server}:{xerces_port}"
+LOGDIR = app_params.get('LOGDIR', 'Logdir')
+LOGDIR = Path(LOGDIR)  # Convert LOGDIR to a Path object
 oracle_full_path = LOGDIR / "oracle_server"
-
 
 # ----------------------------
 # Main Logic
@@ -131,8 +127,17 @@ def main():
     # 1. Data Loading
     # Extract parameters for CDataLoader from all_params
     primary_symbol = app_params.get('mp_app_primary_symbol', 'EURUSD')
-    timeframe = app_params.get('mp_app_timeframe', 'mt5.TIMEFRAME_H4') # Use actual mt5.TIMEFRAME_H4 or equivalent
-    # Ensure datetime strings are in 'YYYY-MM-DD' format or adjust CDataLoader
+    timeframe_str = app_params.get('mp_app_timeframe', 'mt5.TIMEFRAME_H4')
+    
+    # Dynamically resolve timeframe string to mt5 constant
+    # This ensures that the correct mt5.TIMEFRAME_H4 (or other) is passed.
+    try:
+        timeframe = getattr(mt5, timeframe_str.split('.')[-1])
+        logger.info(f"Resolved timeframe: {timeframe_str} to MT5 constant {timeframe}")
+    except AttributeError:
+        logger.error(f"Invalid timeframe string: {timeframe_str}. Falling back to mt5.TIMEFRAME_H4.")
+        timeframe = mt5.TIMEFRAME_H4 # Fallback
+    
     start_date = app_params.get('mp_app_start_date', '2023-01-01')
     end_date = app_params.get('mp_app_end_date', datetime.now().strftime('%Y-%m-%d'))
     data_path = base_params.get('mp_glob_base_data_path', 'Mql5Data')
@@ -147,13 +152,14 @@ def main():
         'mp_data_loadfilerates': all_params.get('data', {}).get('mp_data_loadfilerates', True)
     }
 
+    # FIX: Pass positional arguments explicitly
     data_loader = CDataLoader(
-        primary_symbol, # Pass as positional argument
-        timeframe,      # Pass as positional argument
-        start_date,     # Pass as positional argument
-        end_date,       # Pass as positional argument
-        data_path,      # Pass as positional argument
-        **data_loader_kwargs # Unpack the dictionary into keyword arguments
+        symbol=primary_symbol,
+        timeframe=timeframe,
+        start_date_str=start_date,
+        end_date_str=end_date,
+        data_path=data_path,
+        **data_loader_kwargs # Unpack the dictionary into keyword arguments for the rest
     )
 
     # CDataLoader.run_dataloader_services now returns a dictionary
@@ -175,12 +181,24 @@ def main():
     # logger.debug(f"DataFrame head:\n{tabulate(main_df.head(), headers='keys', tablefmt='psql')}")
 
     # 2. Data Processing (using CDataProcess)
-    data_processor = CDataProcess(main_df)
+    # The CDataProcess class definition was found in tsMqlDataProcess.py.
+    # Instantiate and use it.
+    # 2. Data Processing (using CDataProcess)
+    # The CDataProcess class definition was found in tsMqlDataProcess.py.
+    # Instantiate and use it.
+    data_processor = CDataProcess(
+        df=main_df,
+        all_params=all_params,  # Pass all_params as a keyword argument
+        project_dir=PROJECT_PATH
+    )
     processed_df = data_processor.process_data()
 
-    # The issue is here: processed_df is a Pandas DataFrame from CDataProcess,
-    # but process_ml_data from CDMLProcess now expects it to be the raw df,
-    # and itself returns a numpy array X, y, input_shape, num_classes.
+    if processed_df is None or processed_df.empty:
+        logger.error("❌ Processed DataFrame is empty after CDataProcess. Exiting.")
+        sys.exit(1)
+
+    logger.info(f"Processed DataFrame shape after CDataProcess: {processed_df.shape}")
+
 
     # 3. Machine Learning Data Preparation (using CDMLProcess)
     # CDMLProcess will now handle feature engineering and return X, y as numpy arrays
@@ -190,7 +208,7 @@ def main():
     X_final, y_final, input_shape, num_classes = ml_processor.process_ml_data()
 
     # Check if the returned numpy arrays are empty
-    if X_final.size == 0 or y_final.size == 0:
+    if X_final is None or X_final.size == 0 or y_final is None or y_final.size == 0:
         logger.error("❌ Processed X or y are empty after ML processing. Exiting.")
         sys.exit(1)
     
@@ -212,7 +230,7 @@ def main():
     train_dataset, val_dataset, test_dataset = ml_processor.create_tf_datasets(
         X_train, y_train, X_val, y_val, X_test, y_test,
         batch_size=tune_params.get('batch_size', 32),
-        buffer_size=tune_params.get('buffer_size', 1000)
+        shuffle_buffer=tune_params.get('buffer_size', 1000) # Changed from buffer_size to shuffle_buffer
     )
 
     if train_dataset is None:
@@ -260,14 +278,6 @@ def main():
     if best_model:
         logger.info("Best model found. Proceeding with evaluation and saving.")
         # Evaluate the best model
-        # For TensorFlow, CDMLProcess expects raw numpy arrays for evaluation
-        # Need to convert TensorFlow datasets back to numpy for evaluation in CDMLProcess
-        # This is a common point of confusion: Keras Tuner uses TF Datasets for tuning,
-        # but evaluation outside the tuner might expect numpy.
-        
-        # Extract X_test, y_test from test_dataset
-        # X_test, y_test are already extracted above from ml_processor.split_dataset
-        # No need to extract from test_dataset again. Just use X_test, y_test directly.
         
         if X_test.size > 0 and y_test.size > 0: # Check if the numpy arrays are not empty
             logger.info(f"Test data extracted. X_test shape: {X_test.shape}, y_test shape: {y_test.shape}")
@@ -287,14 +297,13 @@ def main():
             # Optionally convert to ONNX
             try:
                 # Ensure input_signature matches what the model expects
-                # Assuming the model's first layer is the input layer and has an input_shape
                 # The batch_size dimension needs to be None for ONNX conversion
-                concrete_function = tf.function(lambda inputs: best_model(inputs)).get_concrete_function(
-                    tf.TensorSpec([None, *input_shape], dtype=tf.float32) # Ensure dtype matches model's input
-                )
+                # input_shape from ml_processor is (sequence_length, num_features)
+                # So the full input_signature should be (None, sequence_length, num_features)
+                input_signature_for_onnx = [tf.TensorSpec([None, *input_shape], dtype=tf.float32)]
                 
                 onnx_model_path = PROJECT_PATH / "best_model.onnx"
-                model_proto, _ = tf2onnx.convert.from_keras(best_model, input_signature=[tf.TensorSpec([None, *input_shape], dtype=tf.float32)], opset=13)
+                model_proto, _ = tf2onnx.convert.from_keras(best_model, input_signature=input_signature_for_onnx, opset=13)
                 with open(onnx_model_path, "wb") as f:
                     f.write(model_proto.SerializeToString())
                 logger.info(f"✅ Model successfully converted to ONNX and saved at {onnx_model_path}")
@@ -312,19 +321,19 @@ def main():
                 # Use a small subset of X_test for ONNX inference test
                 # Ensure the test_input has the correct batch dimension (None, timesteps, features)
                 test_input = X_test[:1].astype(np.float32) # Get first sample, ensure float32
-                if test_input.ndim == 2: # If input is (timesteps, features), add batch dim
+                if test_input.ndim == 2: # If input is (timesteps, features) without batch, add batch dim
                     test_input = np.expand_dims(test_input, axis=0)
 
                 ort_outs = ort_session.run([output_name], {input_name: test_input})
                 logger.info(f"✅ ONNX Runtime inference test successful. Output shape: {ort_outs[0].shape}")
 
             except ImportError:
-                logger.warning("tf2onnx or onnx or onnxruntime not installed. Skipping ONNX conversion/verification.")
+                logger.warning("tf2onnx, onnx, or onnxruntime not installed. Skipping ONNX conversion/verification.")
             except Exception as e:
                 logger.error(f"❌ Failed to convert or verify ONNX model: {e}", exc_info=True)
-            finally: # This 'finally' correctly closes the inner ONNX conversion try block
+            finally:
                 pass
-        except Exception as e: # This 'except' handles errors from best_model.save()
+        except Exception as e:
             logger.error(f"❌ Failed to save model or during ONNX process: {e}", exc_info=True)
     else:
         logger.info("Skipping final evaluation and model saving as no best model was found.")
@@ -334,12 +343,6 @@ def main():
 
 if __name__ == "__main__":
     # Ensure MetaTrader5 is initialized and finalized with authentication details
-    #mt5_login = app_params.get('mp_app_login', 123456) # Replace with your actual login
-    #mt5_password = app_params.get('mp_app_password', 'your_password') # Replace with your actual password
-    #mt5_server = app_params.get('mp_app_server', 'your_server_name') # Replace with your actual server
-
-    # Attempt to initialize with provided credentials
-    # ----- Broker Login -----
     logger.info("PARAM HEADER: MP_APP_BROKER: %s", app_params.get('mp_app_broker'))
     broker_config = CMqlBrokerConfig(app_params.get('mp_app_broker'))
     mqqlobj = broker_config.run_mql_login()
@@ -347,11 +350,9 @@ if __name__ == "__main__":
         logger.info("Successfully logged in to MetaTrader 5.")
     else:
         logger.info("Failed to login. Error code: %s", mqqlobj)
-        # If login fails, sys.exit(1) to prevent further errors in main() that depend on MT5
         sys.exit(1)
         
     try:
-        # Run the main function
         main()
     finally:
         mt5.shutdown()
