@@ -1,4 +1,4 @@
-from .tsMqlMLTunerMod import CMdtuner
+from .tsMqlMLTunerMod import CMdtuner, get_callbacks # Import get_callbacks
 from .tsMqlMLTunerModTorch import PyTorchTuner
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient # This is crucial for chief to talk to server
 
@@ -7,360 +7,354 @@ import logging
 import time # Import time for delays in worker loop
 import requests # For catching connection errors
 from urllib.parse import urlparse # Import urlparse for parsing URLs
+import tensorflow as tf # <--- ADDED: Import tensorflow as tf
 
 # Dynamically determine num_cores and num_threads for optimal performance.
 # num_cores: Estimate physical cores. On systems with hyperthreading, this is often
 #            half the logical core count (os.cpu_count()). If os.cpu_count() is not available
-#            or is 1, default to 1.
+#            or is 1, default to 1.\
 # num_threads: Typically 1 per core for numerical workloads to avoid hyperthreading
-#              contention, but can be set higher (e.g., 2) if testing proves beneficial.
+#              contention, but can be set higher (e.g., 2) if testing proves beneficial.\
 _logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
 _estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
 
-# Removed: setup_config = CMqlSetup(...)
-# This instantiation is not strictly necessary in this module's scope and was causing a NameError.
-
-# --- Global Configuration ---
+# --- Global Configuration ---\
 from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides()
 app_params = mql_overrides.env.all_params().get("app", {})
 tune_params = mql_overrides.env.all_params().get('mltune', {})
 
-# Extract backend for logging path - crucial for correct log file path
-# This will be passed to initialize_logging...
+# Extract backend for logging path - crucial
+backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
 
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
+from tsMqlLogService import CMLogServiceSetup
+logger = CMLogServiceSetup.initialize_logging(
+    role_hint=__name__,\
+    loglevel='INFO',\
+    logfile='tsneuropredict_app.log',\
+    backend=backend_for_log\
+)
 
 class CMdtunerSelector:
-    def __init__(self, backend, tuner_id, project_name, log_dir, train_dataset, val_dataset, test_dataset, input_shape, num_classes, max_trials, overwrite, hypermodel_params, is_chief=False, oracle_url=None, oracle_directory=None):
+    def __init__(self, backend, tuner_id, project_name, log_dir,
+                 train_dataset, val_dataset, test_dataset,
+                 input_shape, num_classes, max_trials, overwrite,
+                 hypermodel_params, is_chief, oracle_url=None, oracle_directory=None):
+        
         self.backend = backend
         self.tuner_id = tuner_id
         self.project_name = project_name
         self.log_dir = log_dir
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
-        self.test_dataset = test_dataset # Store test_dataset for final evaluation
+        self.test_dataset = test_dataset
         self.input_shape = input_shape
         self.num_classes = num_classes
         self.max_trials = max_trials
         self.overwrite = overwrite
         self.hypermodel_params = hypermodel_params
         self.is_chief = is_chief
-        self.oracle_url = oracle_url # Store oracle_url
-        self.oracle_directory = oracle_directory # Store oracle_directory
+        self.oracle_url = oracle_url
+        self.oracle_directory = oracle_directory # Used by chief for CustomOracle
+
         self.tuner = None
-        self.oracle = None
         self.best_model = None
-        self.tuning_complete = False
-
-        self.tuner_type = tune_params.get('tunertype', 'local') # Get tuner_type here
-
-        # Determine tuner type and initialize OracleClient if needed
-        if self.is_chief:
-            # Chief always initializes Oracle for both local and remote to manage trials
-            # The OracleServer will be run by the chief process itself or it will connect to a remote one.
-            if self.oracle_url:
-                parsed_url = urlparse(self.oracle_url)
-                oracle_host = parsed_url.hostname
-                oracle_port = parsed_url.port
-                if oracle_port is None:
-                    # Default port if not specified in URL, e.g., "http://localhost"
-                    oracle_port = 9000 
-                self.oracle = OracleClient(host=oracle_host, port=oracle_port) # Corrected call
-                logger.info(f"CMdtunerSelector: Initialized OracleClient for chief (URL: {self.oracle_url})")
-            else:
-                logger.error("CMdtunerSelector: Oracle URL not provided for chief. Cannot initialize OracleClient.")
-                self.oracle = None
-        else: # Worker process
-            # Worker always connects to the Oracle Server, so initialize OracleClient
-            if self.oracle_url:
-                parsed_url = urlparse(self.oracle_url)
-                oracle_host = parsed_url.hostname
-                oracle_port = parsed_url.port
-                if oracle_port is None:
-                    oracle_port = 9000
-                self.oracle = OracleClient(host=oracle_host, port=oracle_port) # Corrected call
-                logger.info(f"CMdtunerSelector: Initialized OracleClient for worker (URL: {self.oracle_url})")
-            else:
-                logger.error("CMdtunerSelector: Oracle URL not provided for worker. Cannot initialize OracleClient.")
-                self.oracle = None
-
-        if self.backend == 'tensorflow':
-            logger.info("Initializing TensorFlow Tuner.")
-            self.tuner = CMdtuner(
-                oracle=self.oracle, # Pass the initialized oracle
-                hypermodel_params=self.hypermodel_params,
-                objective='val_loss',
-                max_trials=self.max_trials,
-                directory=self.log_dir,
-                project_name=self.project_name,
-                tuner_id=self.tuner_id,
-                tuner_type=self.tuner_type, # Pass the determined tuner_type
-                input_shape=self.input_shape,
-                num_classes=self.num_classes,
-                overwrite=self.overwrite # Pass overwrite here
-            )
-        elif self.backend == 'pytorch':
-            logger.info("Initializing PyTorch Tuner.")
-            self.tuner = PyTorchTuner(
-                oracle=self.oracle, # Pass the initialized oracle
-                hypermodel_params=self.hypermodel_params,
-                objective='val_loss', # PyTorch Tuner might use a different objective name
-                max_trials=self.max_trials,
-                directory=self.log_dir,
-                project_name=self.project_name,
-                tuner_id=self.tuner_id,
-                tuner_type=self.tuner_type, # Pass the determined tuner_type
-                input_shape=self.input_shape,
-                num_classes=self.num_classes,
-                overwrite=self.overwrite # Pass overwrite here
-            )
-        else:
-            raise ValueError(f"Unsupported backend: {self.backend}")
+        self.objective_name = tune_params.get('objective', 'val_loss')
+        self.objective_direction = tune_params.get('objective_direction', 'min')
+        self.epochs = tune_params.get('max_epochs', 50) # Max epochs for training one model
 
         logger.info(f"CMdtunerSelector initialized for tuner_id: {self.tuner_id}, backend: {self.backend}")
 
+        if self.is_chief and self.backend == "tensorflow":
+            logger.info("Initializing TensorFlow Tuner (Chief process).")
+            # Chief creates the tuner which manages the Oracle (local or remote)
+            tuner_type = tune_params.get('tuner_type', 'hyperband')
+            self.tuner = CMdtuner(
+                input_shape=self.input_shape,
+                num_classes=self.num_classes,
+                hypermodel_params=self.hypermodel_params,
+                tuner_type=tuner_type,
+                directory=self.log_dir, # Base directory for logs and checkpoints
+                project_name=self.project_name,
+                # Removed redundant 'objective' argument here as it's already handled in CMdtuner's init
+                # Removed redundant 'max_epochs' argument here as it's already handled in CMdtuner's init
+                overwrite=self.overwrite
+            )
+            logger.info(f"Chief Tuner '{tuner_type}' initialized.")
+
+        elif not self.is_chief and self.backend == "tensorflow":
+            logger.info("Initializing TensorFlow Worker. Connecting to Oracle.")
+            # Workers connect to the Oracle via OracleClient
+            self.oracle_client = OracleClient(url=self.oracle_url)
+            logger.info(f"Worker connected to Oracle at {self.oracle_url}")
+            # Worker also needs a tuner instance, but it will pull trials from the Oracle
+            # It needs to know how to build the model based on hyperparameters received
+            self.tuner = CMdtuner( # Worker also needs to instantiate the hypermodel for building
+                input_shape=self.input_shape,
+                num_classes=self.num_classes,
+                hypermodel_params=self.hypermodel_params,
+                tuner_type=tune_params.get('tuner_type', 'hyperband'), # Worker needs this info too
+                directory=self.log_dir,
+                project_name=self.project_name + '_worker', # Workers can have their own project_name subdir
+                # Removed redundant 'objective' argument here
+                # Removed redundant 'max_epochs' argument here
+                overwrite=False # Workers should never overwrite, they are part of an ongoing process
+            )
+        elif self.backend == "pytorch":
+            logger.info("Initializing PyTorch Tuner.")
+            self.tuner = PyTorchTuner(
+                input_shape=self.input_shape,
+                num_classes=self.num_classes,
+                hypermodel_params=self.hypermodel_params,
+                max_trials=self.max_trials,
+                project_name=self.project_name,
+                log_dir=self.log_dir,
+                is_chief=self.is_chief,
+                oracle_url=self.oracle_url,
+                overwrite=self.overwrite
+            )
+        else:
+            logger.error(f"Unsupported backend: {self.backend}")
+            raise ValueError(f"Unsupported backend: {self.backend}")
 
     def run(self):
-        logger.info(f"CMdtunerSelector: Starting run method for tuner_id: {self.tuner_id}")
-        if self.is_chief:
-            self._run_chief_process()
+        if self.backend == "tensorflow":
+            self._run_tensorflow_tuning()
+        elif self.backend == "pytorch":
+            self._run_pytorch_tuning()
         else:
-            self._run_worker_process()
-        logger.info(f"CMdtunerSelector: run method finished for tuner_id: {self.tuner_id}")
-        self.tuning_complete = True
+            logger.error(f"Cannot run tuning for unsupported backend: {self.backend}")
 
-
-    def _run_chief_process(self):
-        logger.info(f"Chief {self.tuner_id} entering tuning loop.")
-        if self.tuner_type == 'local' or not self.oracle:
-            logger.info("Running tuning locally (or Oracle not available for remote).")
-            # For local tuning, the chief *is* the tuner.
-            # It will manage trials itself.
-            # PATCH: Corrected call to tuner's internal KerasTuner search method
-            self.tuner.tuner.search(self.train_dataset, self.val_dataset)
-        else:
-            logger.info("Chief is managing trials via Oracle Server.")
-            # Chief will use the OracleClient to request and manage trials for workers
-            # It will iterate through trials, request new ones, and report results.
-            # The actual training is done by workers.
-            # This loop ensures the chief continues to request trials until max_trials is reached
-            # or the Oracle indicates no more trials are available.
-
-            trial_count = 0
-            while trial_count < self.max_trials:
-                logger.info(f"Chief: Requesting trial {trial_count + 1}/{self.max_trials}")
-                
-                # Use get_trial method that includes retry logic
-                trial_response = self.oracle.get_trial() # get_trial returns a dict like {"trial": trial_data} or None
-                
-                if trial_response is None:
-                    logger.error("Chief: Failed to get trial after multiple retries. Exiting tuning loop.")
-                    break
-                
-                trial = trial_response.get("trial")
-
-                if trial is None:
-                    logger.info("Chief: Oracle server indicated no more trials are available.")
-                    break # No more trials, break the loop
-                
-                # Check if trial is already completed by another worker
-                if trial.get("status") == "COMPLETED":
-                    logger.info(f"Chief: Trial {trial.get('trial_id')} already completed. Skipping.")
-                    trial_count += 1 # Still count it towards max_trials if it's a valid trial
-                    continue
-
-                logger.info(f"Chief: Received trial ID: {trial.get('trial_id')}, Hyperparameters: {trial.get('hyperparameters')}")
-                
-                # Here, the chief would typically assign this trial to a worker
-                # In this setup, workers pull trials directly. So the chief's role
-                # is to ensure the Oracle is ready and perhaps to monitor progress.
-                # For a fully distributed setup, the chief might put trials into a queue
-                # for workers to pick up. For this simplified chief, it just ensures
-                # trials are generated up to max_trials.
-
-                # In KerasTuner's distributed setup, the chief primarily manages the Oracle
-                # and saves the best model. Workers execute the trials.
-                # The search method of the tuner (CMdtuner) is what drives trial generation
-                # and execution. So, the chief still calls self.tuner.search()
-                # but the Oracle handles the communication.
-                
-                # Re-calling search here is actually what drives the chief's role in a distributed setup.
-                # It will use the Oracle to coordinate.
-                # PATCH: Corrected call to tuner's internal KerasTuner search method
-                self.tuner.tuner.search(self.train_dataset, self.val_dataset, trial_id=trial.get('trial_id'))
-                
-                trial_count += 1
+    def _run_tensorflow_tuning(self):
+        logger.info(f"Starting TensorFlow tuning for {self.tuner_id} (Chief: {self.is_chief}).")
         
-        logger.info(f"Chief {self.tuner_id}: Tuning loop completed. Total trials processed/managed: {trial_count}")
-        self.best_model = self.tuner.get_best_model()
-        logger.info(f"Chief {self.tuner_id}: Best model retrieved.")
-
-    def _run_worker_process(self):
-        logger.info(f"Worker {self.tuner_id} entering tuning loop.")
-        if not self.oracle:
-            logger.error("Worker: OracleClient not initialized. Cannot run worker process.")
-            return
-
-        worker_active = True
-        while worker_active:
-            try:
-                # Request a trial from the Oracle Server
-                trial_response = self.oracle.get_trial() # This method already handles retries and logging
-                
-                if trial_response is None:
-                    logger.error("Worker: Failed to get trial after multiple retries. Terminating worker.")
-                    worker_active = False
-                    break # Exit loop if cannot get a trial after retries
-
-                trial = trial_response.get("trial")
-
-                if trial is None:
-                    logger.info("Worker: Oracle server indicated no more trials available or current trial limit reached.")
-                    worker_active = False
-                    break # No more trials to process, gracefully exit
-
-                trial_id = trial.get("trial_id")
-                hyperparameters = trial.get("hyperparameters")
-
-                if not trial_id or not hyperparameters:
-                    logger.error("Worker: Received invalid trial data from Oracle. Skipping.")
-                    continue
-
-                logger.info(f"Worker {self.tuner_id}: Processing trial ID: {trial_id} with HP: {hyperparameters}")
-
-                try:
-                    # Execute the trial using the tuner's _run_single_trial method
-                    # The CMdtuner's _run_single_trial needs to be adapted to be called directly by workers
-                    # and take hps and datasets.
-                    # Assuming CMdtuner (or PyTorchTuner) has a method to run a single trial
-                    # based on provided hyperparameters and report back.
-                    
-                    # Instead of directly calling _run_single_trial, let the tuner's search
-                    # method handle the distributed aspect if it's set up that way.
-                    # Or, if this worker directly trains, it needs to instantiate the model
-                    # and run it.
-                    
-                    # For a KerasTuner-based approach, workers typically call tuner.search
-                    # with a specific trial_id if they are coordinating, or the Oracle
-                    # provides the HPs and they train directly.
-                    
-                    # Let's assume the Oracle provides HPs, and the worker builds & trains.
-                    # This is more aligned with the "worker" concept.
-                    
-                    # Build and compile model with current trial's hyperparameters
-                    model = self.tuner.build_model(hyperparameters)
-                    
-                    # Train the model
-                    history = model.fit(
-                        self.train_dataset,
-                        epochs=tune_params.get('epochs', 10), # Get epochs from config
-                        validation_data=self.val_dataset,
-                        callbacks=self.tuner.get_callbacks(trial_id=trial_id, hp=hyperparameters)
-                    )
-                    
-                    # Get the validation loss as the score
-                    # Assuming 'val_loss' is the objective name
-                    val_loss = history.history.get(self.tuner.objective)[-1]
-                    logger.info(f"Worker {self.tuner_id}: Trial {trial_id} completed with val_loss: {val_loss}")
-                    
-                    # Report result back to Oracle Server
-                    result = {"score": val_loss, "status": "COMPLETED"}
-                    self.oracle.report_trial_result(trial_id, result) #
-                    self.oracle.update_trial_status(trial_id, "COMPLETED") #
-
-                except Exception as e:
-                    logger.error(f"Worker {self.tuner_id}: Error processing trial {trial_id}: {e}", exc_info=True)
-                    # Report failure to Oracle Server
-                    self.oracle.update_trial_status(trial_id, "FAILED") #
-                    # Continue to next trial, don't exit unless it's a critical error
-                    # If it's a persistent error, perhaps worker_active should become False
-                    
-                time.sleep(tune_params.get('worker_delay', 5)) # Add a delay to prevent busy-waiting
-
-            except requests.exceptions.ConnectionError as e:
-                logger.error(f"Worker {self.tuner_id}: Connection to Oracle Server lost: {e}. Retrying connection...")
-                time.sleep(10) # Wait longer before retrying connection
-            except Exception as e:
-                logger.exception(f"Worker {self.tuner_id}: Unexpected error in worker loop: {e}")
-                worker_active = False # Exit on unexpected errors
+        # Determine model_dir for callbacks
+        # Keras Tuner handles trial-specific directories internally for ModelCheckpoint
+        # We need a base dir for CSVLogger/TensorBoard, which is self.tuner.project_dir
         
-        logger.info(f"Worker {self.tuner_id}: Exiting tuning loop.")
+        # Prepare callbacks. The ModelCheckpoint filepath will be relative to tuner's trial dir.
+        # OracleClient is only provided to OracleSyncCallback if it's a worker or if chief wants to self-sync
+        oracle_client_for_callback = self.oracle_client if not self.is_chief else None # Or pass if chief manages its own oracle (less common)
+        
+        # For the chief, callbacks are automatically managed by Keras Tuner's `search` method.
+        # For workers, they will also create callbacks for their specific trials.
+        
+        # Let's adjust `get_callbacks` to take `trial_id` and be called for each trial.
+        # For now, we will pass a placeholder `trial_id` if it's the chief and using default callbacks.
 
+        # If it's a worker, it will fetch trials and then run them.
+        # The `CMdtuner`'s `run_trial` or `_build_and_fit_model` would be where callbacks
+        # for that specific trial are generated and passed to `model.fit`.
 
-    def get_best_model(self):
-        logger.debug("CMdtunerSelector: get_best_model called at end.")
-        if self.is_chief and self.best_model:
-            return self.best_model
-        elif self.oracle: # Workers or chief after tuning may retrieve the best model from the oracle
-            # Attempt to load the best model based on the best trial reported to the Oracle
-            best_trial_info = self.oracle.get_best_trial() #
-            if best_trial_info:
-                logger.info(f"CMdtunerSelector: Retrieved best trial from Oracle: {best_trial_info.get('trial_id')}")
-                # You would then load the model weights corresponding to this best trial
-                # This requires a mechanism to save/load models by trial_id/hyperparameters
+        try:
+            if self.is_chief:
+                logger.info("Chief tuning process initiated (TensorFlow).")
+                # Callbacks for chief are typically passed to tuner.search directly
+                # However, for distributed setup where OracleSyncCallback needs trial_id,
+                # we must manage it within a custom `run_trial` or ensure OracleClient is passed
+                # to a global callback that can then get the trial.
                 
-                # For now, let's assume the best model from the chief's local tuner (if local)
-                # or from the overall tuning process has been saved and can be loaded.
+                # For simplicity, let's assume `CMdtuner` (the Hyperband/RandomSearch subclass)
+                # handles callbacks internally via its `run_trial` method, and we don't
+                # explicitly pass them to `tuner.search` from here unless they are generic
+                # (like TerminateOnNaN).
                 
-                # If using KerasTuner, tuner.get_best_models() will handle this
-                if self.tuner:
-                    best_models = self.tuner.get_best_models(num_models=1)
-                    if best_models:
-                        return best_models[0]
-            logger.warning("CMdtunerSelector: No best model found or retrieved from Oracle/Tuner.")
-            return None
-        else:
-            logger.warning("CMdtunerSelector: Oracle or Tuner not available to get best model.")
-            return None
-
-
-    def evaluate_model(self, model, test_dataset):
-        if self.backend == 'tensorflow':
-            logger.info("Evaluating TensorFlow model on test dataset.")
-            # Ensure test_dataset is in a format compatible with model.evaluate
-            # If test_dataset is already a tf.data.Dataset, pass directly.
-            # Otherwise, convert X_test, y_test to a dataset.
-            if isinstance(test_dataset, tf.data.Dataset):
-                eval_results = model.evaluate(test_dataset)
+                # The main issue is the `y` argument. The following call is correct:
+                self.tuner.search(
+                    self.train_dataset,
+                    validation_data=self.val_dataset,
+                    epochs=self.epochs,
+                    callbacks=[tf.keras.callbacks.TerminateOnNaN()], # Basic common callbacks
+                    verbose=2
+                )
+                logger.info("Chief tuning process completed (TensorFlow).")
             else:
-                # Assuming test_dataset is a tuple (X_test, y_test) numpy arrays
-                X_test, y_test = test_dataset
-                eval_results = model.evaluate(X_test, y_test)
+                logger.info("Worker tuning process initiated (TensorFlow).")
+                # Worker loop to fetch trials from Oracle and run them
+                self._run_tensorflow_worker_loop()
+        except Exception as e:
+            logger.error(f"❌ Error during TensorFlow tuning: {e}", exc_info=True)
 
-            logger.info(f"TensorFlow model evaluation results: {eval_results}")
-            return eval_results
-        elif self.backend == 'pytorch':
-            if self.tuner and hasattr(self.tuner, 'evaluate_model'):
+
+    def _run_tensorflow_worker_loop(self):
+        # This logic is adapted from standard Keras Tuner distributed worker examples
+        # The worker repeatedly asks the oracle for a new trial, runs it, and reports results.
+        retry_interval = 5  # seconds
+        max_retries = 10
+        retries = 0
+
+        while True:
+            try:
+                if not self.oracle_client.is_server_available():
+                    logger.warning(f"Oracle server not available at {self.oracle_url}. Retrying in {retry_interval}s...")
+                    time.sleep(retry_interval)
+                    retries += 1
+                    if retries > max_retries:
+                        logger.error(f"Max retries ({max_retries}) reached. Exiting worker.")
+                        break
+                    continue
+                
+                trial = self.oracle_client.get_trial(self.tuner_id)
+
+                if trial is None:
+                    logger.info("No more trials from Oracle or Oracle is done. Exiting worker.")
+                    break # Exit if no trials left or Oracle signals completion
+
+                trial_id = trial.get('trial_id')
+                hyperparameters = trial.get('hyperparameters')
+                status = trial.get('status')
+                
+                if status == 'STOPPED':
+                    logger.info(f"Trial {trial_id} was stopped by Oracle. Skipping.")
+                    continue
+
+                if not hyperparameters:
+                    logger.warning(f"Received trial {trial_id} with no hyperparameters. Skipping.")
+                    self.oracle_client.update_trial_status(trial_id, status="INVALID")
+                    continue
+
+                logger.info(f"Worker {self.tuner_id} running trial: {trial_id}")
+                self.oracle_client.update_trial_status(trial_id, status="RUNNING")
+
+                hp = HyperParameters.from_config(hyperparameters)
+                model = self.tuner.hypermodel.build(hp) # Build the model using the worker's tuner instance
+
+                # Prepare callbacks for this trial
+                model_dir_for_trial = os.path.join(self.tuner.project_dir, trial_id)
+                os.makedirs(model_dir_for_trial, exist_ok=True) # Ensure trial directory exists
+
+                callbacks = get_callbacks(
+                    hp,
+                    model_dir=model_dir_for_trial,
+                    trial_id=trial_id,
+                    oracle_client=self.oracle_client, # Pass oracle client to custom callback
+                    objective_name=self.objective_name,
+                    direction=self.objective_direction
+                )
+
+                # Fit the model: Pass tf.data.Dataset directly
+                history = model.fit(
+                    self.train_dataset,
+                    validation_data=self.val_dataset,
+                    epochs=self.epochs,
+                    callbacks=callbacks,
+                    verbose=0 # Make verbose=0 for workers to reduce log spam
+                )
+
+                # Get final metrics to report to Oracle
+                final_logs = history.history
+                # Assuming objective is val_loss for this example
+                final_objective_value = final_logs[self.objective_name][-1]
+                
+                results_to_report = {
+                    self.objective_name: float(final_objective_value),
+                    'epoch': len(final_logs[self.objective_name]) # Report number of epochs run
+                }
+                logger.info(f"Trial {trial_id} finished with {self.objective_name}: {final_objective_value:.4f}")
+                self.oracle_client.report_trial_result(trial_id, results_to_report)
+                self.oracle_client.update_trial_status(trial_id, status="COMPLETED")
+
+            except requests.exceptions.ConnectionError as ce:
+                logger.error(f"Connection to Oracle server failed: {ce}. Retrying in {retry_interval}s...")
+                time.sleep(retry_interval)
+                retries += 1
+                if retries > max_retries:
+                    logger.error(f"Max connection retries ({max_retries}) reached. Exiting worker.")
+                    break
+            except Exception as e:
+                logger.error(f"❌ Worker {self.tuner_id} failed during trial run: {e}", exc_info=True)
+                if 'trial_id' in locals() and trial_id:
+                    self.oracle_client.update_trial_status(trial_id, status="FAILED")
+                break # Exit worker on unhandled error
+
+    def _run_pytorch_tuning(self):
+        logger.info(f"Starting PyTorch tuning for {self.tuner_id}.")
+        try:
+            if self.is_chief:
+                logger.info("Chief tuning process initiated (PyTorch).")
+                self.tuner.run_tuning_chief(
+                    train_dataset=self.train_dataset,
+                    val_dataset=self.val_dataset,
+                    max_epochs=self.epochs
+                )
+            else:
+                logger.info("Worker tuning process initiated (PyTorch).")
+                self.tuner.run_tuning_worker(
+                    train_dataset=self.train_dataset,
+                    val_dataset=self.val_dataset,
+                    max_epochs=self.epochs
+                )
+            logger.info("PyTorch tuning process completed.")
+        except Exception as e:
+            logger.error(f"❌ Error during PyTorch tuning: {e}", exc_info=True)
+
+    def evaluate_model(self, model_to_evaluate, test_data_for_eval):
+        # This method is called by the chief process for final evaluation
+        # For TensorFlow, test_data_for_eval is a tf.data.Dataset
+        # For PyTorch, test_data_for_eval is a tuple (data, labels)
+        if self.backend == "tensorflow":
+            if model_to_evaluate and test_data_for_eval: # test_data_for_eval should be the tf.data.Dataset
+                logger.info("Evaluating TensorFlow model on test dataset.")
                 try:
-                    logger.info("Evaluating PyTorch model on test dataset.")
+                    # model.evaluate expects dataset, or (x, y) if numpy arrays
+                    # Since test_data_for_eval is tf.data.Dataset yielding (x, y), pass it directly
+                    loss, *metrics_results = model_to_evaluate.evaluate(test_data_for_eval, verbose=0)
+                    eval_results = {
+                        "loss": float(loss)
+                    }
+                    # Map other metrics if available
+                    for i, metric_name in enumerate(model_to_evaluate.metrics_names[1:]): # Skip loss
+                        eval_results[metric_name] = float(metrics_results[i])
+                    logger.info(f"TensorFlow model evaluation results: {eval_results}")
+                    return eval_results
+                except Exception as e:
+                    logger.error(f"❌ Error during TensorFlow model evaluation: {e}", exc_info=True)
+                    return {}
+            else:
+                logger.warning("No TensorFlow model or test dataset available for evaluation.")
+                return {}
+        elif self.backend == "pytorch":
+            if model_to_evaluate and test_data_for_eval and isinstance(test_data_for_eval, tuple) and len(test_data_for_eval) == 2:
+                logger.info("Evaluating PyTorch model on test dataset (numpy arrays).")
+                try:
                     # PyTorchTuner's evaluate_model expects separate test_data and test_labels
-                    # Assuming test_dataset is a tuple (test_data, test_labels)
-                    test_data, test_labels = test_dataset 
+                    test_data, test_labels = test_data_for_eval
                     eval_results = self.tuner.evaluate_model(
-                        model,
+                        model_to_evaluate, # Pass the actual model instance
                         test_data=test_data,
                         test_labels=test_labels
                     )
                     # eval_results is expected to be a dictionary from PyTorchTuner
-                    val_loss = eval_results.get('val_loss') # Or whatever the primary metric is
                     logger.info(f"PyTorch model evaluation results: {eval_results}")
-                    return val_loss, eval_results
+                    return eval_results # Return the dictionary directly for consistency
                 except Exception as e:
                     logger.error(f"❌ Error during PyTorch model evaluation: {e}", exc_info=True)
-                    return None, {}
+                    return {}
             else:
-                logger.warning("PyTorchTuner or its 'evaluate_model' method not available. Cannot evaluate PyTorch model.")
-                return None, {}
+                logger.warning("No PyTorch model or invalid test data format for evaluation.")
+                return {}
         else:
             logger.warning("Evaluation not supported for this backend.")
-            return None, {}
+            return {}
 
     def get_best_model(self):
         logger.debug("CMdtunerSelector: get_best_model called at end.")
         # This method is called by the chief process after its tuning is done
-        # The logic for getting the best model is primarily in the first get_best_model.
-        return self.best_model
+        if self.backend == "tensorflow":
+            if self.is_chief:
+                # The chief's tuner should have the best model.
+                # Use CMdtuner's finalize_best_trial method
+                self.best_model = self.tuner.finalize_best_trial()
+                if self.best_model:
+                    logger.info("Retrieved best TensorFlow model from chief tuner.")
+                else:
+                    logger.warning("Could not retrieve best TensorFlow model from chief tuner.")
+                return self.best_model
+            else:
+                logger.warning("get_best_model should primarily be called by the chief in TensorFlow distributed setup.")
+                return None # Workers don't typically return the best model
+        elif self.backend == "pytorch":
+            # PyTorch tuner handles getting its best model
+            return self.tuner.get_best_model()
+        else:
+            return None

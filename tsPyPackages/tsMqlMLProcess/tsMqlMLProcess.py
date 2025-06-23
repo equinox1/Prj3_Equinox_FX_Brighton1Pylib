@@ -73,9 +73,21 @@ class CDMLProcess:
         Handles scaling of both features and labels.
         """
         logger.info("Creating datasets...")
-        
-        # Ensure you handle NaN values appropriately before scaling/splitting
-        # For simplicity, dropping NaNs here. Adjust if you have other strategies.
+
+        # Ensure required columns exist
+        if self.input_key_feature not in self.df.columns:
+            logger.error(f"Input feature '{self.input_key_feature}' not found in DataFrame columns.")
+            raise KeyError([self.input_key_feature])
+
+        if self.label_key_feature not in self.df.columns:
+            logger.warning(f"Label feature '{self.label_key_feature}' not found. Auto-generating using diff_pct fallback.")
+            if 'Close' in self.df.columns:
+                self.df[self.label_key_feature] = self.df['Close'].pct_change().shift(-1)
+            else:
+                logger.error("Cannot auto-generate label: 'Close' column missing.")
+                raise KeyError([self.label_key_feature])
+
+        # Drop rows with missing values for these key columns
         processed_df = self.df.dropna(subset=[self.input_key_feature, self.label_key_feature])
 
         # Extract features and labels
@@ -92,18 +104,18 @@ class CDMLProcess:
         # Create sequences
         for i in range(len(scaled_features) - self.history_size):
             X_sequences.append(scaled_features[i:i + self.history_size])
-            y_targets.append(scaled_labels[i + self.history_size]) # Predict the next value
+            y_targets.append(scaled_labels[i + self.history_size])
 
         X = np.array(X_sequences)
         y = np.array(y_targets)
-        
-        # Reshape X for LSTM if it's currently (samples, timesteps) and needs (samples, timesteps, features)
-        # This assumes input_key_feature is a single column, thus features_dim will be 1
+
+        # Reshape X for LSTM if needed
         if X.ndim == 2:
             X = X.reshape(X.shape[0], X.shape[1], 1)
-        
+
         logger.info(f"Created X shape: {X.shape}, y shape: {y.shape}")
         return X, y
+
 
     def process_ml_data(self):
         """

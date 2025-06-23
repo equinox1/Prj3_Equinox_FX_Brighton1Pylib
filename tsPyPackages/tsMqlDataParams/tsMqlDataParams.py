@@ -89,7 +89,7 @@ class CMqlEnvDataParams(CEnvCore):
             'df4_mp_data_merge' : False,
             'df4_mp_data_convert' : False,
             'df4_mp_data_drop' : False,
-            'mp_data_genlabel': True
-            'mp_data_label_method' : 'diff_pct'  # or another supported method like 'sign' or 'binary' if implemented
+            'mp_data_genlabel': True,
+            'mp_data_label_method' : 'diff_pct',  # or another supported method like 'sign' or 'binary' if implemented
          }
    
