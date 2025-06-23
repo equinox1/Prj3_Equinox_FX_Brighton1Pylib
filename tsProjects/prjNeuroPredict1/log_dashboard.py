@@ -8,23 +8,68 @@ import html
 import glob
 import json
 from datetime import datetime
+from pathlib import Path # Import Path for robust path handling
 
+# Import configuration modules to dynamically determine log path
+from tsMqlOverrides import CMqlOverrides
+from tsMqlLogService import CMLogServiceSetup # To understand log path structure
 
+# Load configuration (similar to other main scripts)
+mql_overrides = CMqlOverrides()
+all_params = mql_overrides.env.all_params()
+app_params = all_params.get("app", {})
+tune_params = all_params.get('mltune', {})
+base_params = all_params.get("base", {})
+
+# Determine the backend from environment, default to 'pytorch'
+backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
+
+# Initialize logging for the dashboard itself, using the same setup principles
+# This ensures the dashboard's own logs go to the correct place if needed,
+# but primarily we need it to understand the structure for tsneuropredict_app.log
+dashboard_logger = CMLogServiceSetup.initialize_logging(
+    role_hint=__name__,
+    loglevel='INFO',
+    logfile='log_dashboard.log', # A separate log file for the dashboard itself
+    backend=backend_for_log
+)
 
 # Dynamically resolve log file
 def resolve_logfile():
-    # Base path for the log directory, adjust if your setup is different
-    base_path = r"C:/WinRunMnt1/8.0 Projects/8.3 ProjectModelsEquinox/EQUINRUN/Logdir"
-    # Search for tsneuropredict_app.log recursively within the base_path
-    matches = glob.glob(os.path.join(base_path, "**", "tsneuropredict_app.log"), recursive=True)
-    if matches:
-        # Return the most recently modified log file
-        return max(matches, key=os.path.getmtime)
+    # Retrieve the base log directory configured in app_params
+    # This should match the LOGDIR set in multiworker_launcher and chief/oracle
+    base_log_dir = Path(app_params.get('LOGDIR', 'Logdir'))
+    
+    # Construct the expected path based on backend and logfile name
+    # The CMLogServiceSetup uses a structure like: base_log_dir / backend / tsneuropredict_app.log
+    expected_log_file_path = base_log_dir / backend_for_log / 'tsneuropredict_app.log'
+    
+    dashboard_logger.info(f"Attempting to resolve log file at: {expected_log_file_path.resolve()}")
+
+    if expected_log_file_path.exists():
+        dashboard_logger.info(f"Resolved log file to: {expected_log_file_path.resolve()}")
+        return str(expected_log_file_path.resolve()) # Return as string
+    else:
+        # Fallback: search recursively if direct path doesn't exist (less efficient but robust)
+        dashboard_logger.warning(f"Expected log file '{expected_log_file_path}' not found. Attempting recursive search.")
+        # Recursively search within the base_log_dir for the target log file
+        matches = glob.glob(os.path.join(str(base_log_dir), "**", "tsneuropredict_app.log"), recursive=True)
+        if matches:
+            # Return the most recently modified log file if multiple found
+            most_recent_log = max(matches, key=os.path.getmtime)
+            dashboard_logger.info(f"Found log file via recursive search: {most_recent_log}")
+            return most_recent_log
+        dashboard_logger.error("Could not find 'tsneuropredict_app.log' via direct path or recursive search.")
     return None
 
 LOG_FILE = resolve_logfile()
 # Oracle API address and port, fetched from environment variable or default
-ORACLE_API = os.getenv("ORACLE_API", "http://192.168.1.103:9000")
+# Use ORACLE_SERVER_HOST and ORACLE_SERVER_PORT from app_params, falling back to env/defaults
+ORACLE_API_HOST = app_params.get('xerces_server', os.getenv("ORACLE_SERVER_HOST", "192.168.1.103"))
+ORACLE_API_PORT = app_params.get('xerces_port', int(os.getenv("ORACLE_SERVER_PORT", 9000)))
+ORACLE_API = f"http://{ORACLE_API_HOST}:{ORACLE_API_PORT}"
+dashboard_logger.info(f"Oracle API endpoint set to: {ORACLE_API}")
+
 
 app = FastAPI(title="Tuner Dashboard")
 
@@ -132,7 +177,7 @@ def show_logs():
     """
     Displays the live logs from the tsneuropredict_app.log file.
     """
-    if not LOG_FILE or not os.path.exists(LOG_FILE):
+    if not LOG_FILE or not Path(LOG_FILE).exists(): # Use Path.exists() for robustness
         return HTMLResponse(html_template("Log Viewer", "<div class='error-message'><h3>Error: Log file not found.</h3><p>Please ensure 'tsneuropredict_app.log' exists in the configured log directory.</p></div>"), status_code=404)
 
     try:
@@ -162,13 +207,13 @@ def show_trials():
         oracle_status = status_response.json()
     except requests.exceptions.ConnectionError:
         oracle_api_reachable = False
-        logger.error(f"Failed to connect to Oracle API at {ORACLE_API}. Is the server running?")
+        dashboard_logger.error(f"Failed to connect to Oracle API at {ORACLE_API}. Is the server running?")
     except requests.exceptions.Timeout:
         oracle_api_reachable = False
-        logger.error(f"Timeout connecting to Oracle API at {ORACLE_API}.")
+        dashboard_logger.error(f"Timeout connecting to Oracle API at {ORACLE_API}.")
     except Exception as e:
         oracle_api_reachable = False
-        logger.error(f"Error fetching Oracle status from {ORACLE_API}/status: {e}", exc_info=True)
+        dashboard_logger.error(f"Error fetching Oracle status from {ORACLE_API}/status: {e}", exc_info=True)
 
     trials = []
     # Try to fetch trials list
@@ -179,12 +224,12 @@ def show_trials():
             trials = response.json().get("trials", [])
         except requests.exceptions.ConnectionError:
             oracle_api_reachable = False # Mark as unreachable if trials fetch fails too
-            logger.error(f"Failed to connect to Oracle API at {ORACLE_API} when fetching trials.")
+            dashboard_logger.error(f"Failed to connect to Oracle API at {ORACLE_API} when fetching trials.")
         except requests.exceptions.Timeout:
             oracle_api_reachable = False
-            logger.error(f"Timeout connecting to Oracle API at {ORACLE_API} when fetching trials.")
+            dashboard_logger.error(f"Timeout connecting to Oracle API at {ORACLE_API} when fetching trials.")
         except Exception as e:
-            logger.error(f"Error fetching trials from {ORACLE_API}/list_trials: {e}", exc_info=True)
+            dashboard_logger.error(f"Error fetching trials from {ORACLE_API}/list_trials: {e}", exc_info=True)
             return HTMLResponse(html_template("Trials Error", f"<div class='error-message'><h3>Error fetching trials:</h3><p>Could not retrieve trial data from Oracle server. Details: {html.escape(str(e))}</p><a href='/'>← Back to Logs</a></div>"), status_code=502)
 
     # Display an error message if Oracle API is not reachable
@@ -307,7 +352,7 @@ def show_trials():
 @app.get("/api/logs", response_class=JSONResponse)
 def get_logs_json():
     """API endpoint to get raw log data."""
-    if not LOG_FILE or not os.path.exists(LOG_FILE):
+    if not LOG_FILE or not Path(LOG_FILE).exists(): # Use Path.exists() for robustness
         return JSONResponse(content={"error": "Log file not found"}, status_code=404)
     with open(LOG_FILE, "r", encoding="utf-8", errors='ignore') as f:
         lines = f.readlines()[-300:]
@@ -324,7 +369,7 @@ def get_trials_json(status: str = None, skip: int = 0, limit: int = 50):
             trials = [t for t in trials if t["status"] == status]
         return {"trials": trials[skip:skip+limit]}
     except Exception as e:
-        logger.error(f"Error in /api/trials: {e}", exc_info=True)
+        dashboard_logger.error(f"Error in /api/trials: {e}", exc_info=True) # Use dashboard_logger
         return JSONResponse(content={"error": str(e)}, status_code=502)
 
 @app.get("/health", response_class=JSONResponse)
@@ -336,7 +381,7 @@ def oracle_health_check():
         r.raise_for_status()
         return {"status": "dashboard_alive", "oracle_status": r.json()}
     except Exception as e:
-        logger.error(f"Health check failed to reach Oracle: {e}", exc_info=True)
+        dashboard_logger.error(f"Health check failed to reach Oracle: {e}", exc_info=True) # Use dashboard_logger
         return {"status": "dashboard_alive", "oracle_status": "error", "oracle_detail": str(e)}
 
 if __name__ == "__main__":

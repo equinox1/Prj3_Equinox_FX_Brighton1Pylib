@@ -286,47 +286,54 @@ class CMLogServiceSetup(CMqlLogService): # Inherit from CMqlLogService for loggi
 
 
     def _apply_global_settings(self):
-        """Applies global settings for warnings and TensorFlow."""
+        """Applies global settings for warnings, PyTorch/TensorFlow, and system optimization."""
+        import warnings
+        import gc
+        import torch
+        import tensorflow as tf
+        from tensorflow.keras import mixed_precision
+
         warnings.filterwarnings(self.warn)
-        # Configure TensorFlow
-        if tf: # Check if TensorFlow was imported successfully
-            if tf.config.list_physical_devices('GPU'):
-                for gpu in tf.config.list_physical_devices('GPU'):
-                    tf.config.experimental.set_memory_growth(gpu, True)
-                loguru_logger.info("GPU found and memory growth set to True.")
-            else:
-                loguru_logger.info("No GPU devices found.")
 
-            # Set mixed precision policy
-            try:
-                policy = mixed_precision.Policy(self.precision)
-                mixed_precision.set_global_policy(policy)
-                loguru_logger.info(f"TensorFlow global mixed precision policy set to: {policy.name}")
-            except Exception as e:
-                loguru_logger.warning(f"Failed to set mixed precision policy '{self.precision}': {e}")
-
-            # Configure CPU parallelism
-            # Check if set_inter_op_parallelism_threads and set_intra_op_parallelism_threads exist
-            # as they might vary with TF versions
-            if self.num_cores and hasattr(tf.config.threading, 'set_inter_op_parallelism_threads'):
-                tf.config.threading.set_inter_op_parallelism_threads(self.num_cores)
-                loguru_logger.info(f"TensorFlow inter-op parallelism threads set to: {self.num_cores}")
-            if self.num_threads and hasattr(tf.config.threading, 'set_intra_op_parallelism_threads'):
-                tf.config.threading.set_intra_op_parallelism_threads(self.num_threads)
-                loguru_logger.info(f"TensorFlow intra-op parallelism threads set to: {self.num_threads}")
-
-            if self.tfdebug:
-                if hasattr(tf.data.experimental, 'enable_debug_mode'):
-                    tf.data.experimental.enable_debug_mode()
-                    loguru_logger.info("TensorFlow debug mode enabled.")
-                else:
-                    loguru_logger.warning("TensorFlow data experimental debug mode not available in this TF version.")
+        # Log PyTorch device availability
+        using_gpu = False
+        if torch.cuda.is_available():
+            gpu_name = torch.cuda.get_device_name(0)
+            print(f"GPU detected (PyTorch): {gpu_name}")
+            using_gpu = True
         else:
-            loguru_logger.info("TensorFlow not available, skipping TF global settings.")
+            print("No GPU detected. Using CPU.")
+        
+        # Proceed with TensorFlow settings regardless of PyTorch state
+        try:
+            # Set TensorFlow mixed precision policy
+            policy = mixed_precision.Policy(self.precision)
+            mixed_precision.set_global_policy(policy)
+            loguru_logger.info(f"TensorFlow global mixed precision policy set to: {policy.name}")
+        except Exception as e:
+            loguru_logger.warning(f"Failed to set mixed precision policy '{self.precision}': {e}")
 
-        # Other global settings
-        gc.enable() # Enable garbage collector
+        # Set TensorFlow CPU threading if configured
+        if self.num_cores and hasattr(tf.config.threading, 'set_inter_op_parallelism_threads'):
+            tf.config.threading.set_inter_op_parallelism_threads(self.num_cores)
+            loguru_logger.info(f"TensorFlow inter-op parallelism threads set to: {self.num_cores}")
+        if self.num_threads and hasattr(tf.config.threading, 'set_intra_op_parallelism_threads'):
+            tf.config.threading.set_intra_op_parallelism_threads(self.num_threads)
+            loguru_logger.info(f"TensorFlow intra-op parallelism threads set to: {self.num_threads}")
+
+        # Enable TensorFlow data debug mode if requested
+        if self.tfdebug:
+            if hasattr(tf.data.experimental, 'enable_debug_mode'):
+                tf.data.experimental.enable_debug_mode()
+                loguru_logger.info("TensorFlow debug mode enabled.")
+            else:
+                loguru_logger.warning("TensorFlow debug mode not available in this TensorFlow version.")
+
+        # Enable garbage collection
+        gc.enable()
         loguru_logger.info("Garbage collector enabled.")
+
+        return using_gpu
 
 
     @staticmethod

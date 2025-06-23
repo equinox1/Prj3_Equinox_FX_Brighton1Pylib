@@ -339,8 +339,26 @@ class CMdtuner(Hyperband): # Inherit from Hyperband or RandomSearch based on tun
             best_trials = self.oracle.get_best_trials(num_trials=1) # Get the single best trial
             if best_trials:
                 best_trial = best_trials[0]
-                best_hp = best_trial.hyperparameters.values
-                self.best_model = self.build_model(HyperParameters().copy_from_dict(best_hp))
+                best_hp_values = best_trial.hyperparameters.values # This is already a dict
+                
+                # Create a new HyperParameters object and set its values
+                hp_for_build = HyperParameters()
+                for key, value in best_hp_values.items():
+                    # This approach assumes best_hp_values contains only actual hyperparameter values
+                    # and not the full HP definition. Keras Tuner's `hp.Int`, `hp.Float`, etc.,
+                    # would define the hyperparameter and its range.
+                    # For simply using the values, we pass a dictionary to the hypermodel.
+                    # However, self.build_model expects an 'hp' object that functions like HyperParameters.
+                    # The most robust way is to rebuild the model by getting a *structured* HP object
+                    # from the trial's full HP config.
+                    pass # We will create a fresh HP object below based on the actual build_model signature.
+
+                # Re-build the model with the best hyperparameters from the trial
+                # The build_model method expects a HyperParameters object.
+                # We need to reconstruct one that acts like the 'hp' object passed during tuning.
+                # The direct way to do this is to ensure best_trial.hyperparameters
+                # itself is passed, as it IS the HyperParameters object.
+                self.best_model = self.build_model(best_trial.hyperparameters) # Pass the actual HyperParameters object
                 self.best_model.load_weights(self.get_best_weights_path()) # Assume get_best_weights_path exists
                 logger.info("TensorFlow best model finalized and weights loaded.")
             else:
