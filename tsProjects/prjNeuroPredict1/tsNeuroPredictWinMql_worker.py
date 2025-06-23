@@ -126,34 +126,59 @@ def main():
         sys.exit(1)
 
     # 2. Data Loading (using CDataLoader and CDataProcess)
+    # 2. Data Loading (using CDataLoader and CDataProcess)
     try:
-        # Configuration for data loading from app_params
-        data_load_config = {
-            'lp_app_primary_symbol': app_params.get('mp_app_primary_symbol', 'EURUSD'),
-            'lp_data_rows': app_params.get('mp_data_rows', 1000),
-            'lp_data_rowcount': app_params.get('mp_data_rowcount', 10000),
-            'lp_timeframe': app_params.get('mp_data_timeframe', 'mt5.TIMEFRAME_H4'),
-            'mp_data_filename1': app_params.get('mp_data_filename1', 'default1'),
-            'mp_data_filename2': app_params.get('mp_data_filename2', 'default2'),
-            'mp_glob_base_data_path': app_params.get('mp_glob_base_data_path', 'Mql5Data'),
-            'mp_app_cfg_usedata': app_params.get('mp_app_cfg_usedata', 'df_file_rates') # Ensure this is set
+        # Extract explicit positional arguments for CDataLoader from app_params
+        primary_symbol = app_params.get('mp_app_primary_symbol', 'EURUSD')
+        timeframe_str = app_params.get('mp_data_timeframe', 'mt5.TIMEFRAME_H4') # Sourced from app_params
+        start_date = app_params.get('mp_app_start_date', '2023-01-01')
+        end_date = app_params.get('mp_app_end_date', datetime.now().strftime('%Y-%m-%d'))
+        data_path = base_params.get('mp_glob_base_data_path', 'Mql5Data') # Sourced from base_params for consistency with chief
+
+        # Dynamically resolve timeframe string to mt5 constant
+        try:
+            timeframe = getattr(mt5, timeframe_str.split('.')[-1])
+            logger.info(f"Resolved timeframe: {timeframe_str} to MT5 constant {timeframe}")
+        except AttributeError:
+            logger.error(f"Invalid timeframe string: {timeframe_str}. Falling back to mt5.TIMEFRAME_H4.")
+            timeframe = mt5.TIMEFRAME_H4 # Fallback
+        
+        # Collect remaining keyword arguments for CDataLoader
+        # These are parameters expected by CDataLoader's __init__ method via **kwargs
+        data_loader_kwargs = {
+            'mp_data_rows': app_params.get('mp_data_rows', 1000),
+            'mp_data_rowcount': app_params.get('mp_data_rowcount', 10000),
+            'mp_data_loadapiticks': all_params.get('data', {}).get('mp_data_loadapiticks', True),
+            'mp_data_loadapirates': all_params.get('data', {}).get('mp_data_loadapirates', True),
+            'mp_data_loadfileticks': all_params.get('data', {}).get('mp_data_loadfileticks', True),
+            'mp_data_loadfilerates': all_params.get('data', {}).get('mp_data_loadfilerates', True)
         }
 
-        # Initialize CDataLoader
-        data_loader = CDataLoader(**data_load_config)
+        # Initialize CDataLoader with positional arguments and then keyword arguments
+        data_loader = CDataLoader(
+            symbol=primary_symbol,
+            timeframe=timeframe,
+            start_date_str=start_date,
+            end_date_str=end_date,
+            data_path=data_path,
+            **data_loader_kwargs
+        )
         logger.info("CDataLoader initialized.")
 
-        # Load data based on mp_app_cfg_usedata
-        if data_load_config['mp_app_cfg_usedata'] == 'df_file_rates':
-            data_df = data_loader.load_data(df_name="df_file_rates")
-        elif data_load_config['mp_app_cfg_usedata'] == 'df_api_rates':
+        # The subsequent data loading logic needs to use data_loader methods.
+        # Ensure 'mp_app_cfg_usedata' is used to select the correct loading method.
+        used_data_key = app_params.get('mp_app_cfg_usedata', 'df_file_rates') 
+
+        if used_data_key == 'df_file_rates':
+            data_df = data_loader.load_data(df_name="df_file_rates") # Assuming load_data can take df_name or similar
+        elif used_data_key == 'df_api_rates':
             data_df = data_loader.load_api_rates()
-        elif data_load_config['mp_app_cfg_usedata'] == 'df_file_ticks':
+        elif used_data_key == 'df_file_ticks':
             data_df = data_loader.load_file_ticks()
-        elif data_load_config['mp_app_cfg_usedata'] == 'df_api_ticks':
+        elif used_data_key == 'df_api_ticks':
             data_df = data_loader.load_api_ticks()
         else:
-            logger.error(f"Unsupported mp_app_cfg_usedata: {data_load_config['mp_app_cfg_usedata']}")
+            logger.error(f"Unsupported mp_app_cfg_usedata: {used_data_key}")
             sys.exit(1)
 
         if data_df.empty:
@@ -162,7 +187,12 @@ def main():
         logger.info(f"Data loaded successfully. Initial shape: {data_df.shape}")
         
         # Process data using CDataProcess
-        data_processor = CDataProcess(data_df, **data_load_config)
+        # Ensure CDataProcess also has access to all_params if it needs it internally
+        data_processor = CDataProcess(
+            df=data_df,
+            all_params=all_params, # Pass all_params to CDataProcess
+            project_dir=None # Or pass an appropriate project_dir if needed by CDataProcess
+        )
         processed_df = data_processor.process_data()
 
         if processed_df.empty:
@@ -175,8 +205,6 @@ def main():
     except Exception as e:
         logger.error(f"Error during data loading or processing: {e}", exc_info=True)
         sys.exit(1)
-
-
     # 3. Prepare data for ML processing (CDMLProcess)
     # Ensure 'mp_ml_input_keyfeat' and 'mp_ml_input_label' are correctly mapped
     # The CDataProcess class should have set these up based on config.

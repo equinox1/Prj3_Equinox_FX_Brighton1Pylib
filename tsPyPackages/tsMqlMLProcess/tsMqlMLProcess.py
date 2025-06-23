@@ -44,473 +44,181 @@ from tsMqlLogService import CMLogServiceSetup
 logger = CMLogServiceSetup.initialize_logging(
     role_hint=__name__,
     loglevel='INFO',
-    logfile='tsneuropredict_app.log',
+    logfile='tsneuropredict_ml_process.log', # Changed log file name to avoid conflict if any
     backend=backend_for_log
 )
 
-# Global tuner configuration
-TUNER_ID = os.environ.get('TUNER_ID', 'default_worker')
-LOGDIR = Path(app_params.get('LOGDIR', 'Logdir')) # Correctly get LOGDIR as Path
-ORACLE_DIR = LOGDIR / "tsOracle" # Oracle working directory
-MODEL_DIR = Path(base_params.get('mp_glob_sub_ml_src_modeldata', 'PythonLib/tsModelData')) # Path to save models
-MODEL_NAME = tune_params.get('ml_model_name', 'tsneuromodel')
 
 class CDMLProcess:
-    def __init__(self, df: pd.DataFrame, input_key_feature: str = 'Close', label_key_feature: str = 'Label', history_size: int = 5, **kwargs):
-        """
-        Initializes the CDMLProcess with a DataFrame and key feature names.
-
-        Args:
-            df (pd.DataFrame): The input DataFrame.
-            input_key_feature (str): The name of the primary feature column to be used as input.
-            label_key_feature (str): The name of the column to be used as the label (target).
-            history_size (int): The number of past observations to use for each sample (sequence length).
-            **kwargs: Arbitrary keyword arguments.
-        """
-        if not isinstance(df, pd.DataFrame) or df.empty:
-            logger.error("Input 'df' must be a non-empty Pandas DataFrame.")
-            raise ValueError("Input 'df' must be a non-empty Pandas DataFrame.")
-
-        self.df = df.copy()  # Work on a copy to avoid modifying the original DataFrame
-        self.input_key_feature = input_key_feature
-        self.label_key_feature = label_key_feature
-        self.history_size = history_size # N past observations
-        self.output_size = 1 # Predict 1 future step (e.g., next candle's value or return)
-        self.num_features = None  # Will be set after feature selection
-        self.train_split_ratio = kwargs.get('train_split_ratio', 0.8)
-        self.val_split_ratio = kwargs.get('val_split_ratio', 0.1) # New parameter for validation split
-        self.test_split_ratio = kwargs.get('test_split_ratio', 0.1) # Remaining for test
-        self.scaler = StandardScaler()
-
-        # Load environment parameters using CMqlOverrides
-        self.env = CMqlEnvMgr() # Assuming CMqlEnvMgr is accessible
-        self.params = self.env.all_params()
+    def __init__(self, df, all_params=None, project_dir=None): # Modified signature
+        self.df = df
+        self.all_params = all_params if all_params is not None else {} # Store all_params
+        self.project_dir = project_dir # Store project_dir
         
-        # Access specific parameter sections
-        self.app_params = self.params.get("app", {})
-        self.data_params = self.params.get("data", {})
-        self.ml_params = self.params.get("ml", {}) # This might be empty if no 'ml' section in config
-        self.mltune_params = self.params.get("mltune", {}) # This is where ML params are expected
-        self.base_params = self.params.get("base", {})
+        # Extract input_key_feature, label_key_feature, history_size from all_params
+        # Providing default values in case they are not found in all_params
+        app_params_local = self.all_params.get("app", {})
+        data_params_local = self.all_params.get("data", {}) # Assuming data parameters are under 'data' key
 
-
-        # Set ML features and other parameters from config
-        self._set_ml_features()
-
-        # Ensure MetaTrader5 is initialized
-        self._initialize_mql()
+        self.input_key_feature = app_params_local.get('mp_ml_input_keyfeat', 'Close') # Default value
+        self.label_key_feature = app_params_local.get('mp_ml_input_label', 'Label') # Default value
+        self.history_size = data_params_local.get('mp_data_history_size', 5) # Default value
         
-        logger.info("CDMLProcess initialized.")
-        logger.info(f"Input Key Feature: {self.input_key_feature}")
-        logger.info(f"Label Key Feature: {self.label_key_feature}")
-        logger.info(f"History Size: {self.history_size}")
-
-
-    def _initialize_mql(self):
-        """Initialize MetaTrader5 if available.
-           This method assumes MetaTrader5 is already initialized by the calling script
-           and only focuses on importing the module if loadmql is True.
-        """
-        # pchk, os_platform, loadmql are assumed to be initialized globally
-        # or passed as args if not globally available.
-        # Given they are defined outside the class, they should be accessible.
-        pchk = run_platform.RunPlatform()
-        self.os_platform = platform_checker.get_platform()
-        self.loadmql = pchk.check_mql_state()
-        logger.info(f"Running on: {self.os_platform}, loadmql state: {self.loadmql}")
-        if self.loadmql: # Use the globally determined loadmql state
-            try:
-                global mt5
-                import MetaTrader5 as mt5 # Import mt5
-                # Removed the mt5.initialize() call from here.
-                # It is assumed that mt5.initialize() is called once at the
-                # entry point of the application (e.g., in chief/worker scripts)
-                logger.info("MetaTrader5 module expected to be initialized by caller and imported.")
-            except ImportError as e:
-                logger.error(f"Failed to import MetaTrader5: {e}")
-        else:
-            logger.info("MetaTrader5 module not to be loaded based on loadmql state.")
-
-    def _set_envmgr_params(self):
-        """No need to re-set env params here, already done in __init__."""
-        pass
-
-    def _set_ml_features(self):
-        """Sets ML related features and parameters from loaded configuration."""
-        # Use self.mltune_params for ML feature configuration as per config.yaml structure
-        self.ml_features_config = self.mltune_params.get('mp_features', {}) # If 'mp_features' is ever nested under mltune
-        logger.info(f"ML Features Config (from mltune_params): {self.ml_features_config}")
-
-        # Override input_key_feature and label_key_feature if provided in mltune_params
-        # If not, they will retain the defaults from __init__
-        self.input_key_feature = self.mltune_params.get('mp_ml_input_keyfeat', self.input_key_feature)
-        self.label_key_feature = self.mltune_params.get('mp_ml_input_label', self.label_key_feature)
-        logger.info(f"Input Key Feature: {self.input_key_feature}")
-        # Note: mp_ml_input_keyfeat_scaled is likely just a name in config, not meant to change input_key_feature directly.
-        logger.info(f"Input Key Feature Scaled (from config): {self.mltune_params.get('mp_ml_input_keyfeat_scaled', 'Close_Scaled')}")
-        logger.info(f"Input Label: {self.label_key_feature}")
-
-        # Features for processing - now correctly pulling from mltune_params
-        self.run_hl_avg = self.mltune_params.get('mp_ml_run_avg', False)
-        self.run_ma = self.mltune_params.get('mp_ml_run_ma', False)
-        self.run_returns = self.mltune_params.get('mp_ml_run_returns', False)
-        self.run_returns_scaled = self.mltune_params.get('mp_ml_run_returns_scaled', False)
-        self.run_returns_shifted = self.mltune_params.get('mp_ml_run_returns_shifted', False)
-        self.run_returns_shifted_scaled = self.mltune_params.get('mp_ml_run_returns_shifted_scaled', False)
-        self.run_label = self.mltune_params.get('mp_ml_run_label', False)
-        self.run_label_scaled = self.mltune_params.get('mp_ml_run_label_scaled', False)
-        self.run_label_shifted = self.mltune_params.get('mp_ml_run_label_shifted', False)
-        # This one defaults to True in the chief/worker scripts if not found, but it should come from config.
-        # Ensure your config.yaml has 'mp_ml_run_label_shifted_scaled: True' under ML_TUNING_PARAMS.
-        self.run_label_shifted_scaled = self.mltune_params.get('mp_ml_run_label_shifted_scaled', True) 
-        self.mp_ml_log_stationary = self.mltune_params.get('mp_ml_log_stationary', False)
-        self.mp_ml_remove_zeros = self.mltune_params.get('mp_ml_remove_zeros', False)
-        self.mp_ml_last_col = self.mltune_params.get('mp_ml_last_col', False)
-        self.mp_ml_last_col_scaled = self.mltune_params.get('mp_ml_last_col_scaled', False)
-        self.mp_ml_first_col = self.mltune_params.get('mp_ml_first_col', False)
-        self.mp_ml_dropna = self.mltune_params.get('mp_ml_dropna', True)
-        self.mp_ml_dropna_scaled = self.mltune_params.get('mp_ml_dropna_scaled', True)
-
-        # Column names from config - now correctly pulling from mltune_params
-        self.hl_avg_col = self.mltune_params.get('mp_ml_hl_avg_col', 'HL_Avg')
-        self.ma_col = self.mltune_params.get('mp_ml_ma_col', 'SMA')
-        self.returns_col = self.mltune_params.get('mp_ml_returns_col', 'LogReturns')
-        self.returns_col_scaled = self.mltune_params.get('mp_ml_returns_col_scaled', 'LogReturns_Scaled')
-        self.label_col = self.mltune_params.get('mp_ml_label_col', 'Label')
-        self.label_col_scaled = self.mltune_params.get('mp_ml_label_col_scaled', 'Label_Scaled')
-        self.label_shifted_col = self.mltune_params.get('mp_ml_label_shifted_col', 'Label_Shifted')
-        self.label_shifted_scaled_col = self.mltune_params.get('mp_ml_label_shifted_scaled_col', 'Label_Shifted_Scaled')
-        
-        # Window sizes for ML features - now correctly pulling from mltune_params
-        self.past_window = self.mltune_params.get('mp_ml_tf_past_window', 24)
-        self.future_window = self.mltune_params.get('mp_ml_tf_future_window', 24)
-        self.ma_window = self.mltune_params.get('mp_ml_tf_ma_windowin', 24)
-        self.shift_in = self.mltune_params.get('mp_ml_tf_shiftin', 1)
-        self.prediction_window = self.mltune_params.get('mp_ml_tf_prediction_window', 1) # For target label
-
-
-        # Ensure original columns exist or log a warning
-        if 'Open' not in self.df.columns:
-            logger.warning("Original 'Open' column not found in DataFrame. Some features might not be computable.")
-        if 'High' not in self.df.columns:
-            logger.warning("Original 'High' column not found in DataFrame. Some features might not be computable.")
-        if 'Low' not in self.df.columns:
-            logger.warning("Original 'Low' column not found in DataFrame. Some features might not be computable.")
-        if 'Close' not in self.df.columns:
-            logger.warning("Original 'Close' column not found in DataFrame. Some features might not be computable.")
-
-        logger.info("Machine learning features configured.")
-
-    def create_sequences(self, data, history_size):
-        """
-        Create sequences from the data for time series forecasting.
-
-        Args:
-            data (np.array): The input data (features).
-            history_size (int): The number of past observations to use for each sample.
-
-        Returns:
-            np.array: A 3D numpy array of sequences (samples, history_size, num_features).
-        """
-        xs = []
-        for i in range(len(data) - history_size + 1): # Adjusted range to ensure enough data for sequences
-            x = data[i:(i + history_size)]
-            xs.append(x)
-        return np.array(xs)
-
-    def create_labels(self, data, history_size, prediction_window):
-        """
-        Create labels (targets) from the data, shifted by prediction_window.
-
-        Args:
-            data (np.array): The target data.
-            history_size (int): The length of the input sequences.
-            prediction_window (int): How many steps into the future to predict.
-
-        Returns:
-            np.array: A 1D numpy array of labels.
-        """
-        ys = []
-        # Ensure there are enough future data points for the label
-        for i in range(len(data) - history_size - prediction_window + 1):
-            y = data[i + history_size + prediction_window -1] # Adjusted to correctly get the future label
-            ys.append(y)
-        return np.array(ys)
-    
-
-    def create_shifted_scaled_label(self, df: pd.DataFrame, source_col: str, new_label_col: str, shift: int, scaler: StandardScaler) -> pd.DataFrame:
-        """
-        Creates a shifted and scaled label column based on the future percentage change
-        of a source column.
-        
-        Args:
-            df (pd.DataFrame): The input DataFrame.
-            source_col (str): The column to base the label on (e.g., 'Close').
-            new_label_col (str): The name for the new shifted and scaled label column.
-            shift (int): The number of periods to shift for the future percentage change.
-            scaler (StandardScaler): The scaler to use for scaling the label.
-            
-        Returns:
-            pd.DataFrame: DataFrame with the new label column.
-        """
-        if source_col not in df.columns:
-            logger.warning(f"Source column '{source_col}' not found for label creation. Skipping.")
-            return df
-
-        # Calculate future percentage change
-        # Ensure numeric type and handle potential NaNs before calculating
-        temp_series = pd.to_numeric(df[source_col], errors='coerce')
-        temp_series = temp_series.ffill().bfill() # Fill any NaNs to prevent issues in pct_change
-
-        # Calculate percentage change and then shift it *backwards* by `shift`
-        # so that the value aligns with the current row's features.
-        # If shift = 1, the label for row `i` will be the % change from `i` to `i+1`.
-        # Ensure it's numeric before scaling.
-        # Add a small epsilon to avoid division by zero if values can be zero.
-        epsilon = 1e-9
-        future_pct_change = (temp_series.shift(-shift) / (temp_series + epsilon) - 1) * 100
-        
-        # Scale the future percentage change
-        # Reshape for scaler (needs 2D array)
-        scaled_label = scaler.fit_transform(future_pct_change.values.reshape(-1, 1)).flatten()
-        
-        df[new_label_col] = scaled_label
-        
-        logger.info(f"Created shifted and scaled label: '{new_label_col}' based on '{source_col}'.")
-        return df
-
-
-    def process_ml_data(self):
-        """
-        Applies various ML-related transformations to the DataFrame based on configuration.
-        Returns:
-            X (np.array): Scaled input features for ML.
-            y (np.array): Labels for supervised training.
-            input_shape (tuple): Shape of input data (time steps, features).
-            num_classes (int): Number of output classes (1 for regression).
-        """
-        df = self.df.copy()
-
-        label_column = self.label_shifted_scaled_col
-        if label_column not in df.columns:
-            logger.warning(f"Label column '{label_column}' not found. Creating it...")
-            df = self.create_shifted_scaled_label(
-                df,
-                source_col=self.input_key_feature,
-                new_label_col=label_column,
-                shift=self.prediction_window,
-                scaler=self.scaler
-            )
-
-        if self.mp_ml_dropna_scaled:
-            df = df.dropna(subset=[label_column]).reset_index(drop=True)
-
-        features = [self.input_key_feature]
-        df[features] = self.scaler.fit_transform(df[features])
-
-        X = df[features].values
-        y = df[label_column].values
-
-        X_seq = self.create_sequences(X, self.history_size)
-        y_seq = self.create_labels(y, self.history_size, self.prediction_window)
-
-        # Ensure matching shapes
-        min_len = min(len(X_seq), len(y_seq))
-        X_seq = X_seq[:min_len]
-        y_seq = y_seq[:min_len]
-
-        input_shape = X_seq.shape[1:]
-        num_classes = 1
-
-        logger.info(f"Final features selected for model input: {features}")
-        return X_seq, y_seq, input_shape, num_classes
-
-    def split_dataset(self, X, y, train_size=0.7, val_size=0.15, test_size=0.15, random_state=42):
-        """
-        Splits X and y into training, validation, and test sets.
-        Returns:
-            X_train, X_val, X_test, y_train, y_val, y_test
-        """
-        assert abs(train_size + val_size + test_size - 1.0) < 1e-6, "Split sizes must sum to 1.0"
-
-        X_train, X_temp, y_train, y_temp = train_test_split(X, y, train_size=train_size, random_state=random_state, shuffle=True)
-        relative_val_size = val_size / (val_size + test_size)
-        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, train_size=relative_val_size, random_state=random_state, shuffle=True)
-
-        return X_train, X_val, X_test, y_train, y_val, y_test
+        self.scaler_X = StandardScaler() # For scaling input features
+        self.scaler_y = StandardScaler() # For scaling labels
 
     def create_datasets(self):
         """
-        Creates X (features) and y (labels) datasets from the processed DataFrame.
-        This method must be called AFTER process_ml_data to ensure features and labels are ready.
+        Processes the input DataFrame to create sequences for X and corresponding y targets.
+        Handles scaling of both features and labels.
         """
-        # Ensure the label column exists before proceeding
-        if self.label_key_feature not in self.df.columns:
-            logger.error(f"Required label column '{self.label_key_feature}' not found in the processed DataFrame. Cannot create X, y sequences.")
-            return None, None
+        logger.info("Creating datasets...")
         
-        # Ensure selected features are in the DataFrame and are numeric
-        for feature in self.features_for_model:
-            if feature not in self.df.columns:
-                logger.error(f"Selected feature '{feature}' not found in the processed DataFrame.")
-                return None, None
-            if not pd.api.types.is_numeric_dtype(self.df[feature]):
-                logger.error(f"Feature '{feature}' is not numeric. Cannot create sequences.")
-                return None, None
-        
+        # Ensure you handle NaN values appropriately before scaling/splitting
+        # For simplicity, dropping NaNs here. Adjust if you have other strategies.
+        processed_df = self.df.dropna(subset=[self.input_key_feature, self.label_key_feature])
+
         # Extract features and labels
-        X_data = self.df[self.features_for_model].values
-        y_data = self.df[self.label_key_feature].values
+        features = processed_df[[self.input_key_feature]].values
+        labels = processed_df[[self.label_key_feature]].values
 
-        # Remove any NaN values that might have been introduced by shifting/label creation
-        # This is a critical step to ensure that create_sequences and create_labels work correctly
-        # and that the shapes match.
-        combined_data = pd.DataFrame(X_data, columns=self.features_for_model)
-        combined_data[self.label_key_feature] = y_data
-        combined_data.dropna(inplace=True)
+        # Scale features and labels
+        scaled_features = self.scaler_X.fit_transform(features)
+        scaled_labels = self.scaler_y.fit_transform(labels)
 
-        if combined_data.empty:
-            logger.error("Combined data (features and labels) is empty after dropping NaNs. Cannot create sequences.")
-            return None, None
+        X_sequences = []
+        y_targets = []
 
-        X_data_clean = combined_data[self.features_for_model].values
-        y_data_clean = combined_data[self.label_key_feature].values
+        # Create sequences
+        for i in range(len(scaled_features) - self.history_size):
+            X_sequences.append(scaled_features[i:i + self.history_size])
+            y_targets.append(scaled_labels[i + self.history_size]) # Predict the next value
 
-
-        # Create sequences for X and corresponding labels for y
-        # Adjusting the range to align X and y correctly
-        X_sequences = self.create_sequences(X_data_clean, self.history_size)
-        y_labels = self.create_labels(y_data_clean, self.history_size, self.prediction_window)
-
-        # After creating sequences and labels, their lengths must match
-        # The number of samples for X_sequences is `len(data) - history_size + 1`
-        # The number of samples for y_labels is `len(data) - history_size - prediction_window + 1`
-        # To align them, we need to take the minimum length.
-        min_samples = min(len(X_sequences), len(y_labels))
+        X = np.array(X_sequences)
+        y = np.array(y_targets)
         
-        if min_samples == 0:
-            logger.error("No samples available after aligning X and y sequences. Check history_size and prediction_window relative to data length.")
-            return None, None
-
-        X_final = X_sequences[:min_samples]
-        y_final = y_labels[:min_samples]
-
-
-        self.num_features = X_final.shape[2] if X_final.ndim == 3 else X_final.shape[1]
-        logger.info(f"X (features) shape: {X_final.shape}, y (labels) shape: {y_final.shape}")
+        # Reshape X for LSTM if it's currently (samples, timesteps) and needs (samples, timesteps, features)
+        # This assumes input_key_feature is a single column, thus features_dim will be 1
+        if X.ndim == 2:
+            X = X.reshape(X.shape[0], X.shape[1], 1)
         
-        return X_final, y_final
+        logger.info(f"Created X shape: {X.shape}, y shape: {y.shape}")
+        return X, y
 
-    def prepare_tensorflow_datasets(self, X, y, shuffle_buffer_size=1000):
+    def process_ml_data(self):
         """
-        Splits data into train, validation, and test sets and prepares TensorFlow datasets.
-
-        Args:
-            X (np.array): Features data.
-            y (np.array): Labels data.
-            shuffle_buffer_size (int): Buffer size for shuffling training data.
-
-        Returns:
-            tuple: (train_dataset, val_dataset, test_dataset) as tf.data.Dataset objects.
+        Main method to process data for ML. It replaces the direct call to create_datasets
+        and also returns input_shape and num_classes for model building.
         """
+        logger.info("Starting ML data processing...")
+        X, y = self.create_datasets() # Use the existing create_datasets logic
+
         if X is None or y is None or X.size == 0 or y.size == 0:
-            logger.error("Input X or y is empty for TensorFlow dataset preparation.")
-            return None, None, None
+            logger.error("Generated X or y dataset is empty during ML data processing.")
+            return None, None, None, None
 
-        # Calculate split sizes
-        total_samples = len(X)
-        train_samples = int(total_samples * self.train_split_ratio)
-        val_samples = int(total_samples * self.val_split_ratio)
-        # Test samples take the remainder
-        test_samples = total_samples - train_samples - val_samples
+        input_shape = (X.shape[1], X.shape[2]) if X.ndim == 3 else (X.shape[1], 1)
+        # For regression, num_classes is typically 1 (the output dimension)
+        # For classification, it would be the number of unique labels.
+        # Assuming regression for now based on 'Dense(1)' in build_and_compile_model.
+        num_classes = y.shape[1] if y.ndim > 1 else 1
 
-        # Ensure no negative counts
-        if train_samples < 0: train_samples = 0
-        if val_samples < 0: val_samples = 0
-        if test_samples < 0: test_samples = 0
+        logger.info(f"ML data processing complete. Input shape: {input_shape}, Num classes: {num_classes}")
+        return X, y, input_shape, num_classes
+
+    def split_dataset(self, X, y, train_size=0.7, val_size=0.15, test_size=0.15, random_state=42):
+        """
+        Splits data into training, validation, and test sets.
+        """
+        logger.info("Splitting datasets...")
+        # Ensure splits sum up to 1 (or handle slight deviations for floating point)
+        if not np.isclose(train_size + val_size + test_size, 1.0):
+            logger.warning(f"Train/Val/Test sizes ({train_size}, {val_size}, {test_size}) do not sum to 1.0. Adjusting.")
+            total_sum = train_size + val_size + test_size
+            train_size /= total_sum
+            val_size /= total_sum
+            test_size /= total_sum
+
+        X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=(val_size + test_size), random_state=random_state)
+        # Recalculate test_size for the second split relative to X_temp
+        new_test_size = test_size / (val_size + test_size)
+        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=new_test_size, random_state=random_state)
         
-        if train_samples + val_samples + test_samples == 0:
-            logger.error("Insufficient data to create train, validation, and test sets with the given ratios.")
-            return None, None, None
+        logger.info(f"Datasets split. Train: {X_train.shape}, Val: {X_val.shape}, Test: {X_test.shape}")
+        return X_train, X_val, X_test, y_train, y_val, y_test
 
-
-        logger.info(f"Total samples: {total_samples}")
-        logger.info(f"Train samples: {train_samples}")
-        logger.info(f"Validation samples: {val_samples}")
-        logger.info(f"Test samples: {test_samples}")
-
-        # Split data
-        X_train_val, X_test, y_train_val, y_test = train_test_split(
-            X, y, test_size=test_samples, random_state=self.mltune_params.get('seed', 42)
-        )
-        # Re-calculate val_size relative to the remaining train_val set
-        val_size_relative = val_samples / (train_samples + val_samples) if (train_samples + val_samples) > 0 else 0
-
-        X_train, X_val, y_train, y_val = train_test_split(
-            X_train_val, y_train_val, test_size=val_size_relative, random_state=self.mltune_params.get('seed', 42)
-        )
+    def prepare_tensorflow_datasets(self, X, y, batch_size=32, shuffle_buffer=1000):
+        """
+        Converts raw data (X, y numpy arrays) into tf.data.Dataset objects for training,
+        validation, and testing, ensuring targets are included within the dataset elements.
+        Returns:
+            train_dataset, val_dataset, test_dataset
+        """
+        logger.info("Preparing TensorFlow datasets...")
         
-        # Convert to tf.data.Dataset
-        batch_size = self.mltune_params.get('batch_size', 32)
-        buffer_size = tf.data.AUTOTUNE # Use tf.data.AUTOTUNE for optimal performance
+        # Split data into training, validation, and test sets
+        X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.3, random_state=42)
+        X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
 
-        train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train)).shuffle(buffer_size).batch(batch_size).prefetch(buffer_size)
-        val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val)).batch(batch_size).prefetch(buffer_size)
-        test_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(batch_size).prefetch(buffer_size)
+        # Create tf.data.Dataset objects where each element is an (X, y) tuple
+        train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+        val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val))
+        test_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test))
 
-        logger.info("TensorFlow datasets successfully prepared and batched.")
+        # Apply shuffling, batching, and prefetching for optimal performance
+        train_dataset = train_dataset.shuffle(shuffle_buffer).batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        val_dataset = val_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        test_dataset = test_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+
+        logger.info("TensorFlow datasets prepared successfully.")
         return train_dataset, val_dataset, test_dataset
 
-
-    def evaluate_model(self, model, X_test, y_test):
+    def evaluate_model(self, model, X_test, y_test, model_type="regression"): # Added X_test, y_test params
         """
-        Evaluates the trained model and computes various metrics.
-        
-        Args:
-            model (tf.keras.Model): The trained TensorFlow Keras model.
-            X_test (np.array): Test features.
-            y_test (np.array): True test labels.
-        
-        Returns:
-            dict: A dictionary of evaluation metrics.
+        Evaluates the trained model on the test dataset.
         """
+        logger.info(f"Evaluating model ({model_type})...")
         try:
-            # Predict on the test set
-            predictions = model.predict(X_test)
-            
-            # For regression, predictions will likely be 2D (samples, 1). Flatten for metric calculation.
-            # For classification, you might need argmax if output is probabilities/logits.
-            if predictions.ndim > 1 and predictions.shape[1] == 1:
-                predictions = predictions.flatten()
-            elif predictions.ndim > 1: # For multi-class classification, get class with highest probability
-                predictions = predictions.argmax(axis=1)
+            # Predict on the test data
+            y_pred = model.predict(X_test)
 
-            # Ensure y_test is also flattened if it's 2D
-            if y_test.ndim > 1 and y_test.shape[1] == 1:
-                y_test_flat = y_test.flatten()
-            else:
-                y_test_flat = y_test
+            # Inverse transform predictions and true labels if scalers were used
+            y_test_rescaled = self.scaler_y.inverse_transform(y_test)
+            y_pred_rescaled = self.scaler_y.inverse_transform(y_pred)
 
-            # Determine average type for precision/recall/f1-score for classification tasks.
-            # For regression, these metrics are not typically used, or require thresholding.
-            # Assuming if the label is continuous, it's regression; if discrete, it's classification.
-            # This logic might need refinement based on your specific problem (regression vs classification).
-            if pd.api.types.is_numeric_dtype(y_test_flat) and len(np.unique(y_test_flat)) > 2:
-                # This suggests regression or multi-class classification where direct metrics are needed.
-                # Mean Squared Error (MSE), Mean Absolute Error (MAE), R2 Score are common for regression.
+            metrics = {}
+            if model_type == "regression":
+                mse = mean_squared_error(y_test_rescaled, y_pred_rescaled)
+                mae = mean_absolute_error(y_test_rescaled, y_pred_rescaled)
+                r2 = r2_score(y_test_rescaled, y_pred_rescaled)
+                
                 metrics = {
-                    "mse": mean_squared_error(y_test_flat, predictions),
-                    "mae": mean_absolute_error(y_test_flat, predictions),
-                    "r2_score": r2_score(y_test_flat, predictions)
+                    "mse": mse,
+                    "mae": mae,
+                    "r2_score": r2
                 }
-                logger.info(f"Regression Metrics: MSE={metrics['mse']:.4f}, MAE={metrics['mae']:.4f}, R2={metrics['r2_score']:.4f}")
-            else: # Likely classification if few unique values
-                average_type = 'binary' if len(set(y_test_flat)) == 2 else 'weighted'
+                logger.info(f"Regression Metrics: MSE={mse:.4f}, MAE={mae:.4f}, R2={r2:.4f}")
+            
+            elif model_type == "classification":
+                # For classification, assuming y_pred are probabilities or logits
+                # Convert predictions to class labels (e.g., for binary classification with threshold 0.5)
+                predictions = (y_pred_rescaled > 0.5).astype(int) # Adjust threshold as needed
+                
+                # Ensure y_test_rescaled is also in integer format if it's class labels
+                y_true_labels = y_test_rescaled.astype(int)
+
+                # Flatten arrays if they are multi-dimensional
+                y_true_flat = y_true_labels.flatten()
+                predictions_flat = predictions.flatten()
+
+                # Choose average type: 'binary', 'micro', 'macro', 'weighted'
+                average_type = 'binary' if len(np.unique(y_true_flat)) == 2 else 'weighted'
+                
                 metrics = {
-                    "accuracy": accuracy_score(y_test_flat, predictions),
-                    "precision": precision_score(y_test_flat, predictions, average=average_type, zero_division=0),
-                    "recall": recall_score(y_test_flat, predictions, average=average_type, zero_division=0),
-                    "f1_score": f1_score(y_test_flat, predictions, average=average_type, zero_division=0)
+                    "accuracy": accuracy_score(y_true_flat, predictions_flat),
+                    "precision": precision_score(y_true_flat, predictions_flat, average=average_type, zero_division=0),
+                    "recall": recall_score(y_true_flat, predictions_flat, average=average_type, zero_division=0),
+                    "f1_score": f1_score(y_true_flat, predictions_flat, average=average_type, zero_division=0)
                 }
                 logger.info(f"Classification Metrics: Accuracy={metrics['accuracy']:.4f}, Precision={metrics['precision']:.4f}, Recall={metrics['recall']:.4f}, F1={metrics['f1_score']:.4f}")
 
@@ -525,6 +233,9 @@ class CDMLProcess:
         Returns:
             train_dataset, val_dataset, test_dataset
         """
+        # This method is redundant if prepare_tensorflow_datasets is used.
+        # It's kept for backward compatibility if other parts of your code call it.
+        logger.info("Creating TensorFlow datasets for training, validation, and testing...")
         train_dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
         val_dataset = tf.data.Dataset.from_tensor_slices((X_val, y_val))
         test_dataset = tf.data.Dataset.from_tensor_slices((X_test, y_test))
@@ -533,4 +244,5 @@ class CDMLProcess:
         val_dataset = val_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
         test_dataset = test_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
 
+        logger.info("TensorFlow datasets created successfully.")
         return train_dataset, val_dataset, test_dataset
