@@ -2,7 +2,7 @@ runtune="pt" # tf or pt
 # Determine the global backend based on runtune
 GLOBAL_BACKEND = "tensorflow" if runtune == "tf" else "pytorch"
 FORCE_KILL = True
-NUM_WORKERS = 1  # Number of worker processes to launch
+NUM_WORKERS = 2  # Increased to 2 for better demonstration of multi-worker tuning
 import subprocess
 import time
 import os
@@ -26,7 +26,7 @@ from tsMqlSetup import CMqlSetup
 #            half the logical core count (os.cpu_count()). If os.cpu_count() is not available
 #            or is 1, default to 1.
 # num_threads: Typically 1 per core for numerical workloads to avoid hyperthreading
-#              contention, but can be set higher (e.g., 2) if testing proves beneficial.
+#              contention, but can be set higher (e.g., 2) if testing proves beneficial.)
 _logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
 _estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
 
@@ -36,191 +36,113 @@ setup_config = CMqlSetup(
     precision='mixed_bfloat16',
     tfdebug=False,
     num_cores=_estimated_physical_cores,
-    num_threads=_estimated_physical_cores
+    num_threads=1
 )
 
-
-# Import environment manager and overrides after logging setup
-from tsMqlEnvMgr import CMqlEnvMgr
-from tsMqlOverrides import CMqlOverrides
-
-mql_overrides = CMqlOverrides()
-all_params = mql_overrides.env.all_params()
-app_params = all_params.get("app", {})
-tune_params = all_params.get('mltune', {})
-base_params = all_params.get("base", {})
-data_params = all_params.get("data", {})
-
+# Initialize logging for the launcher script
 from tsMqlLogService import CMLogServiceSetup
 logger = CMLogServiceSetup.initialize_logging(
     role_hint=__name__,
     loglevel='INFO',
-    # Explicitly set the logfile name to ensure consistency
     logfile='tsneuropredict_app.log',
-    # Pass the determined backend so logging goes into the correct subdirectory
-    backend=GLOBAL_BACKEND # Pass the backend to the logging setup
+    backend=GLOBAL_BACKEND # Use the global backend for launcher's log path
 )
 
+# Define scripts paths relative to the launcher script's directory
+LAUNCHER_DIR = Path(__file__).parent
+ORACLE_SCRIPT = LAUNCHER_DIR / "oracle_server_main.py"
+CHIEF_SCRIPT = LAUNCHER_DIR / "tsNeuroPredictWinMql_chief.py"
+WORKER_SCRIPT = LAUNCHER_DIR / "tsNeuroPredictWinMql_worker.py"
 
+# Ensure the scripts exist
+for script in [ORACLE_SCRIPT, CHIEF_SCRIPT, WORKER_SCRIPT]:
+    if not script.exists():
+        logger.error(f"Required script not found: {script}")
+        sys.exit(1)
 
-# Use the configured values for server and port
-ORACLE_SERVER_HOST = app_params.get('xerces_server', '192.168.1.103')
-ORACLE_SERVER_PORT = app_params.get('xerces_port', 9000)
-
-CHIEF_SCRIPT = "tsNeuroPredictWinMql_chief.py"
-WORKER_SCRIPT = "tsNeuroPredictWinMql_worker.py"
-ORACLE_SERVER_SCRIPT = "oracle_server_main.py"
-
-# Function to check if a port is in use
-def is_port_in_use(host, port):
+def is_port_in_use(port):
+    """Check if a port is already in use."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            s.bind((host, port))
-            return False
-        except socket.error:
-            return True
+        return s.connect_ex(('127.0.0.1', port)) == 0
 
-# Function to terminate a process and its children
 def terminate_process_and_children(pid):
+    """Terminates a process and its entire child process tree."""
     try:
-        process = psutil.Process(pid)
-        for child in process.children(recursive=True):
-            child.terminate()
-        process.terminate()
+        parent = psutil.Process(pid)
+        children = parent.children(recursive=True)
+        for child in children:
+            if child.is_running():
+                logger.info(f"Terminating child process {child.pid}...")
+                child.terminate()
+        if parent.is_running():
+            logger.info(f"Terminating parent process {parent.pid}...")
+            parent.terminate()
+        gone, alive = psutil.wait_procs(children + [parent], timeout=5)
+        for p in alive:
+            if p.is_running():
+                logger.info(f"Killing stubborn process {p.pid}...")
+                p.kill()
         logger.info(f"Terminated process {pid} and its children.")
     except psutil.NoSuchProcess:
-        logger.info(f"Process {pid} already terminated or does not exist.")
+        logger.info(f"Process {pid} not found (already terminated).")
     except Exception as e:
         logger.error(f"Error terminating process {pid}: {e}", exc_info=True)
 
-
-def launch_process(script_name, tuner_id=None, backend=None):
-    """Launches a Python script as a subprocess."""
+def launch_process(script_path, tuner_id=None, backend=None, is_oracle=False, is_chief=False):
+    """Launches a Python script in a new process."""
+    cmd = [sys.executable, str(script_path)]
     env = os.environ.copy()
-    env['ML_MODEL_NAME'] = app_params.get("ml_model_name", "ts_mql_model")
-    env['ML_PROJECT_ID'] = str(base_params.get("mp_glob_sub_ml_baseuniq", 777))
+
+    # Set environment variables for the subprocess
+    env['BACKEND'] = backend if backend else GLOBAL_BACKEND
+    env['TF_CPP_MIN_LOG_LEVEL'] = '1' # Suppress TensorFlow info/warning logs in subprocesses
+
+    # Pass tuning parameters via environment variables for consistency
+    # These values will override any defaults in the config files
+    env['MLTUNE_NUM_TRIALS'] = '100' # Increased number of trials
+    env['MLTUNE_MAX_EPOCHS'] = '20' # Increased max epochs per trial
+
     if tuner_id:
         env['TUNER_ID'] = tuner_id
-        logger.info(f"Setting TUNER_ID={tuner_id} for {script_name}")
-    if backend:
-        env['BACKEND'] = backend
-        logger.info(f"Setting BACKEND={backend} for {script_name}")
+    if is_chief:
+        env['IS_CHIEF'] = 'True' # Indicate if it's the chief process
 
-    # Pass the Oracle server details as environment variables
-    env['ORACLE_SERVER_HOST'] = ORACLE_SERVER_HOST
-    env['ORACLE_SERVER_PORT'] = str(ORACLE_SERVER_PORT)
+    # Ensure the correct Python environment is used if running in a venv
+    if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+        env['PATH'] = os.path.dirname(sys.executable) + os.pathsep + env['PATH']
+        env['VIRTUAL_ENV'] = sys.prefix
 
-    # REMOVED: No longer explicitly pass LOGDIR and LOGFILE.
-    # Child processes will call CMLogServiceSetup.initialize_logging and
-    # derive these paths based on backend and their own logfile argument.
-    # env['LOGDIR'] = str(setup_config.global_logdir)
-    # env['LOGFILE'] = setup_config.global_logfile
-
-    # IMPORTANT: Ensure all environment variables are strings
-    # Iterate over a copy of items to allow modification during iteration
-    for key, value in list(env.items()):
-        env[key] = str(value)
-
-    python_executable = sys.executable # Use the current Python interpreter
-
-    # Use Path objects for script paths for better OS compatibility
-    script_path = Path(__file__).parent / script_name
-
-    command = [python_executable, str(script_path)]
-    logger.info(f"Launching process: {command} with env TUNER_ID={env.get('TUNER_ID')}, BACKEND={env.get('BACKEND')}")
-
-    # Redirect stdout and stderr to a pipe for unified logging
-    process = subprocess.Popen(
-        command,
-        env=env, # Pass the sanitized environment
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True, # Decode stdout/stderr as text
-        bufsize=1, # Line-buffered
-        universal_newlines=True # Handle different line endings
-    )
-
-    # Start a thread to read and log the output
-    def log_stream(stream, process_name):
-        for line in iter(stream.readline, ''):
-            # Add prefix to distinguish logs from different processes
-            # Remove extra newlines that might be added by print() in subprocesses
-            logged_line = f"[{process_name}] {line.strip()}"
-            if "INFO:" in logged_line:
-                logger.info(logged_line)
-            elif "WARNING:" in logged_line:
-                logger.warning(logged_line)
-            elif "ERROR:" in logged_line:
-                logger.error(logged_line)
-            elif "CRITICAL:" in logged_line:
-                logger.critical(logged_line)
-            elif "DEBUG:" in logged_line:
-                logger.debug(logged_line)
-            else:
-                logger.info(logged_line) # Default to info for unclassified lines
-        stream.close()
-
-    # Start separate threads for stdout and stderr to prevent blocking
-    threading.Thread(target=log_stream, args=(process.stdout, script_name.split('.')[0]), daemon=True).start()
-    # If stderr is also piped to STDOUT, no need for a separate stderr thread
-    # threading.Thread(target=log_stream, args=(process.stderr, f"{script_name.split('.')[0]}_ERR"), daemon=True).start()
-
+    logger.info(f"Launching command: {cmd} with env BACKEND={env['BACKEND']}, TUNER_ID={env.get('TUNER_ID')}, IS_CHIEF={env.get('IS_CHIEF')}, MLTUNE_NUM_TRIALS={env.get('MLTUNE_NUM_TRIALS')}, MLTUNE_MAX_EPOCHS={env.get('MLTUNE_MAX_EPOCHS')}")
+    
+    # Use Popen for non-blocking launch
+    process = subprocess.Popen(cmd, env=env, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
     return process
 
-def wait_for_server(host, port, timeout=60, interval=2):
-    """
-    Waits for the server to become available at the given host and port.
-    Performs a health check with retries.
-    """
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        try:
-            response = requests.get(f"http://{host}:{port}/status", timeout=5)
-            response.raise_for_status()
-            logger.info(f"Oracle Server health check successful: {response.json()}")
-            return True
-        except requests.exceptions.ConnectionError:
-            logger.warning(f"Connection refused to Oracle Server at {host}:{port}. Retrying in {interval} seconds...")
-            time.sleep(interval)
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error during Oracle Server health check: {e}", exc_info=True)
-            time.sleep(interval)
-        except Exception as e:
-            logger.error(f"Unexpected error during server health check: {e}", exc_info=True)
-            time.sleep(interval)
-    logger.error(f"Oracle Server did not become available at {host}:{port} within {timeout} seconds.")
-    return False
-
-
 if __name__ == "__main__":
+    oracle_proc = None
     chief_proc = None
     workers = []
-    oracle_proc = None
 
     try:
-        # 1. Launch Oracle Server (if not already running)
-        logger.info(f"Checking if Oracle Server is running on {ORACLE_SERVER_HOST}:{ORACLE_SERVER_PORT}...")
-        if is_port_in_use(ORACLE_SERVER_HOST, ORACLE_SERVER_PORT):
-            logger.info(f"Port {ORACLE_SERVER_PORT} is already in use. Assuming Oracle Server is running.")
-            # If the server is already running, we don't need to launch it.
-            # We also don't have its PID, so we won't try to terminate it later.
+        # Check if OracleServer port is in use
+        oracle_port = 9000 # Default port, should match app_params in config
+        if is_port_in_use(oracle_port):
+            logger.warning(f"Port {oracle_port} is already in use. Assuming OracleServer is already running.")
+            # If port is in use, we don't launch a new OracleServer
+            oracle_proc = None
         else:
-            logger.info(f"Port {ORACLE_SERVER_PORT} is free. Launching Oracle Server...")
-            oracle_proc = launch_process(ORACLE_SERVER_SCRIPT, tuner_id="oracle_main_server", backend=GLOBAL_BACKEND)
+            # Launch OracleServer
+            oracle_proc = launch_process(ORACLE_SCRIPT, is_oracle=True)
+            logger.info(f"🚀 Launched OracleServer with PID: {oracle_proc.pid}")
+            time.sleep(5) # Give OracleServer time to start
 
-            # Wait for the Oracle Server to start up using the robust retry mechanism
-            if not wait_for_server(ORACLE_SERVER_HOST, ORACLE_SERVER_PORT, timeout=60, interval=5): # Increased interval
-                logger.critical("Oracle Server failed to start or respond within the allocated time. Exiting.")
-                if oracle_proc and oracle_proc.poll() is None:
-                    terminate_process_and_children(oracle_proc.pid)
-                sys.exit(1)
+        # Launch Chief process
+        chief_proc = launch_process(CHIEF_SCRIPT, tuner_id="chief",
+                                    backend=GLOBAL_BACKEND, is_chief=True)
+        logger.info(f"🚀 Launched Chief process with PID: {chief_proc.pid}")
+        time.sleep(5) # Give Chief time to start and register with Oracle
 
-
-        # 2. Launch Chief process
-        logger.info(f"Launching Chief process: {CHIEF_SCRIPT}")
-        chief_proc = launch_process(CHIEF_SCRIPT, tuner_id="chief", backend=GLOBAL_BACKEND)
-
-        # 3. Launch Worker processes
+        # Launch Worker processes
         logger.info(f"Launching {NUM_WORKERS} worker processes for backend: {GLOBAL_BACKEND}")
         workers = [launch_process(WORKER_SCRIPT, tuner_id=f"worker{i+1}",
                                   backend=GLOBAL_BACKEND) for i in range(NUM_WORKERS)]

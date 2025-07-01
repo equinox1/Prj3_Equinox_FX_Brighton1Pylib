@@ -12,9 +12,8 @@ from typing import Dict, Optional # <--- ADDED: Import Dict and Optional from ty
 
 from tsMqlOverrides import CMqlOverrides
 
-
-# Import the logging setup service directly
-from tsMqlLogService import CMqlLogService # Use CMqlLogService, not CMqlSetup for raw logging init
+# Removed: from tsMqlLogService import CMqlLogService # This import is not needed here
+# Removed: from tsMqlLogService import CMLogServiceSetup # This import is not needed here
 
 # Load environment variables and app parameters using CMqlOverrides early
 # This needs to be done *before* initializing the logger if logger depends on these params
@@ -28,17 +27,8 @@ base_params = all_params.get("base", {})
 # This will be passed to initialize_logging. It can also be obtained from env if passed by launcher.
 backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch')) # Default to pytorch if not specified
 
-from tsMqlLogService import CMLogServiceSetup
-logger = CMLogServiceSetup.initialize_logging(
-    role_hint=__name__,
-    loglevel='INFO',
-    # Explicitly set the logfile name to ensure consistency
-    logfile='tsneuropredict_app.log',
-    # Pass the determined backend so logging goes into the correct subdirectory
-    backend=backend_for_log # Pass the backend to the logging setup
-)
-
-
+# Corrected: Get the logger instance, assuming it's configured by the main application
+logger = logging.getLogger(__name__)
 
 
 # Pydantic models for request bodies

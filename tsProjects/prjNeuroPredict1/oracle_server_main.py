@@ -15,9 +15,10 @@ from typing import Dict, Optional
 from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
 from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
 from tsMqlOverrides import CMqlOverrides
-from tsMqlLogService import CMqlLogService
+# Removed: from tsMqlLogService import CMqlLogService # This import is not needed here
+# Removed: import logging; logging.getLogger(__name__) # This line is redundant and incorrect for initialization
 
-# Load configuration
+# Load configuration (needed before logging setup if logging depends on params)
 mql_overrides = CMqlOverrides()
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
@@ -26,13 +27,9 @@ base_params = all_params.get("base", {})
 
 backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
 
-from tsMqlLogService import CMLogServiceSetup
-logger = CMLogServiceSetup.initialize_logging(
-    role_hint=__name__,
-    loglevel='INFO',
-    logfile='tsneuropredict_app.log',
-    backend=backend_for_log
-)
+# Corrected: Assign the logger instance to the 'logger' variable
+logger = logging.getLogger(__name__)
+
 
 # Server network configuration
 xerces_servername = app_params.get('xerces_servername', "WINSVRXERCES01")

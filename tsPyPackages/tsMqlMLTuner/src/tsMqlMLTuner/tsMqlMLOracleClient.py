@@ -3,6 +3,8 @@ import time
 import requests
 import logging
 import os # Import os to access environment variables
+# Setup logging for this module
+logger = logging.getLogger(__name__)
 
 
 from tsMqlOverrides import CMqlOverrides
@@ -20,96 +22,57 @@ xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 # This will be passed to initialize_logging. It can also be obtained from env if passed by launcher.
 backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch')) # Default to pytorch if not specified
 
-from tsMqlLogService import CMLogServiceSetup
-logger = CMLogServiceSetup.initialize_logging(
-    role_hint=__name__,
-    loglevel='INFO',
-    # Explicitly set the logfile name to ensure consistency
-    logfile='tsneuropredict_app.log',
-    # Pass the determined backend so logging goes into the correct subdirectory
-    backend=backend_for_log # Pass the backend to the logging setup
-)
-
-
-
 
 
 class OracleClient:
-    def __init__(self, host=None, port=None):
-        # Use provided host/port or fall back to configured values
-        self.host = host if host is not None else xerces_server
-        self.port = port if port is not None else xerces_port
-        self.url = f"http://{self.host}:{self.port}"
-        logger.info(f"[OracleClient] Initialized with Oracle Server URL: {self.url}")
+    def __init__(self, host=None, port=None, url=None, tuner_id="default_tuner"):
+        self.host = host if host else xerces_server
+        self.port = port if port else xerces_port
+        self.url = url if url else f"http://{self.host}:{self.port}"
+        self.tuner_id = tuner_id
+        # Use the module-level logger that was already initialized
+        self.logger = logger
+        self.logger.info(f"[OracleClient] Initialized for tuner_id: {self.tuner_id}, connecting to Oracle at {self.url}")
 
-    def register_client(self, tuner_id):
-        try:
-            payload = {"tuner_id": tuner_id}
-            # Increased timeout to 60 seconds
-            response = requests.post(f"{self.url}/register", json=payload, timeout=60)
-            response.raise_for_status()
-            logger.info(f"[OracleClient] Registered as tuner_id: {tuner_id}. Response: {response.json()}")
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"[OracleClient] Failed to register: {e}")
-            return None
-
-    def get_trial(self, max_retries=3, retry_delay=5):
-        """
-        Requests a new trial from the Oracle Server with retry logic.
-        Args:
-            max_retries (int): Maximum number of times to retry the request.
-            retry_delay (int): Delay in seconds between retries.
-        Returns:
-            dict: Trial information if successful, None otherwise.
-        """
-        tuner_id = os.environ.get('TUNER_ID', 'unknown_tuner')
-        payload = {"tuner_id": tuner_id}
-
+    def get_trial(self, tuner_id):
+        # CORRECTED: Ensure max_retries and retry_delay are integers
+        max_retries = int(tune_params.get('oracle_client_max_retries', 5))
+        retry_delay = int(tune_params.get('oracle_client_retry_delay', 5))
+        
         for attempt in range(max_retries):
             try:
-                logger.info(f"[OracleClient] Attempt {attempt + 1}/{max_retries}: Requesting trial from {self.url}/request_trial for tuner_id: {tuner_id}")
-                response = requests.post(f"{self.url}/request_trial", json=payload, timeout=60)
-                response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
-                return response.json()
-            except requests.exceptions.Timeout as e:
-                logger.warning(f"[OracleClient] Attempt {attempt + 1}: Timed out while requesting trial from Oracle Server: {e}")
-            except requests.exceptions.ConnectionError as e:
-                logger.warning(f"[OracleClient] Attempt {attempt + 1}: Connection error while requesting trial from Oracle Server: {e}")
-            except requests.exceptions.HTTPError as e:
-                # For 4xx or 5xx errors, log and potentially break if it's not a transient error
-                logger.error(f"[OracleClient] Attempt {attempt + 1}: HTTP error requesting trial ({e.response.status_code}): {e.response.text}")
-                # If the server explicitly says no more trials (e.g., 204 or specific message), don't retry
-                if e.response.status_code == 204: # No Content, might mean no trials
-                    logger.info("[OracleClient] Server indicated no more trials via 204 No Content. Not retrying.")
-                    return {"trial": None} # Return a structured response indicating no trials
-                if e.response.status_code == 404 and "No more trials available" in e.response.text:
-                     logger.info("[OracleClient] Server indicated no more trials. Not retrying.")
-                     return {"trial": None}
-            except Exception as e:
-                logger.exception(f"[OracleClient] Attempt {attempt + 1}: Unexpected error in OracleClient.get_trial")
-
-            if attempt < max_retries - 1:
-                logger.info(f"[OracleClient] Retrying in {retry_delay} seconds...")
+                self.logger.info(f"[OracleClient] {tuner_id} requesting trial (Attempt {attempt + 1}/{max_retries})...")
+                payload = {"tuner_id": tuner_id}
+                response = requests.post(f"{self.url}/get_trial", json=payload, timeout=10)
+                response.raise_for_status()
+                trial_data = response.json()
+                self.logger.info(f"[OracleClient] {tuner_id} received trial: {trial_data.get('trial_id')}, status: {trial_data.get('status')}")
+                return trial_data
+            except requests.exceptions.ConnectionError as ce:
+                self.logger.warning(f"[OracleClient] Connection error to OracleServer: {ce}. Retrying in {retry_delay}s...")
                 time.sleep(retry_delay)
-        
-        logger.error(f"[OracleClient] Failed to get trial after {max_retries} attempts.")
+            except requests.exceptions.Timeout:
+                self.logger.warning(f"[OracleClient] Timeout requesting trial. Retrying in {retry_delay}s...")
+                time.sleep(retry_delay)
+            except requests.exceptions.HTTPError as he:
+                self.logger.error(f"[OracleClient] HTTP error requesting trial: {he.response.status_code} - {he.response.text}")
+                return None # Don't retry on HTTP errors that indicate server-side issues
+            except Exception as e:
+                self.logger.error(f"[OracleClient] Unexpected error requesting trial: {e}", exc_info=True)
+                return None # Don't retry on unexpected errors
+        self.logger.error(f"[OracleClient] Max retries reached for {tuner_id}. Could not get trial.")
         return None
-
 
     def get_best_trial(self):
         try:
-            # Increased timeout to 60 seconds
-            response = requests.get(f"{self.url}/list_trials", timeout=60)
+            self.logger.info("[OracleClient] Requesting best trial from OracleServer...")
+            response = requests.get(f"{self.url}/best_trial", timeout=30)
             response.raise_for_status()
-            trials = response.json().get("trials", [])
-            trials = [t for t in trials if t.get("score") is not None]
-            if not trials:
-                return None
-            trials.sort(key=lambda t: t["score"])  # Assuming lower score is better
-            return trials[0]
+            best_trial_info = response.json()
+            self.logger.info(f"[OracleClient] Received best trial: {best_trial_info.get('trial_id')}, score: {best_trial_info.get('score')}")
+            return best_trial_info
         except Exception as e:
-            logging.error(f"[OracleClient] Failed to get best trial: {e}")
+            self.logger.error(f"[OracleClient] Failed to get best trial: {e}")
             return None
 
     def report_trial_result(self, trial_id, result):
@@ -119,9 +82,9 @@ class OracleClient:
             response = requests.post(f"{self.url}/report_result", json=payload, timeout=30) 
             response.raise_for_status()
         except requests.Timeout:
-            logging.error("Timed out while reporting result to OracleServer")
+            self.logger.error("Timed out while reporting result to OracleServer")
         except Exception as e:
-            logging.exception("Unexpected error in OracleClient.report_trial_result")
+            self.logger.exception("Unexpected error in OracleClient.report_trial_result")
 
     def update_trial_status(self, trial_id, status="COMPLETED"):
         try:
@@ -130,6 +93,20 @@ class OracleClient:
             response = requests.post(f"{self.url}/update_status", json=payload, timeout=60)
             response.raise_for_status()
         except requests.Timeout:
-            logging.error("Timed out while updating trial status to OracleServer")
+            self.logger.error("Timed out while updating trial status to OracleServer")
         except Exception as e:
-            logging.exception("Unexpected error in OracleClient.update_trial_status")
+            self.logger.exception("Unexpected error in OracleClient.update_trial_status")
+
+    def is_server_available(self):
+        """Checks if the Oracle server is reachable."""
+        try:
+            response = requests.get(f"{self.url}/status", timeout=5)
+            response.raise_for_status()
+            return True
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.HTTPError) as e:
+            self.logger.debug(f"Oracle server at {self.url} is not available: {e}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Unexpected error during Oracle server availability check: {e}", exc_info=True)
+            return False
+

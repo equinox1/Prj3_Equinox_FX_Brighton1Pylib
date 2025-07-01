@@ -1,39 +1,53 @@
+# tsMqlSetup.py
 import os
 import warnings
 import gc
 import logging
 import socket
+import sys
 import codecs
 import io
-import sys
+from pathlib import Path
 from loguru import logger as loguru_logger
 import colorlog
 
-# Set environment variables for TensorFlow optimizations
-os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
-os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+# Set fixed TF environment variables
+os.environ.update({
+    "TF_FORCE_UNIFIED_MEMORY": "1",
+    "TF_DISABLE_POOL_ALLOCATOR": "1",
+    "TF_ENABLE_ONEDNN_OPTS": "0",
+    "KMP_DUPLICATE_LIB_OK": "True"
+})
 
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 
-import tensorflow as tf
+import tensorflow as tf  # Import here before Keras or mixed_precision
+
+# ⛔ Must set threading before using Keras or anything that initializes TF runtime
+def preconfigure_tf_threads(cores=48, threads=8):
+    total_threads = cores * threads
+    try:
+        tf.config.threading.set_intra_op_parallelism_threads(total_threads)
+        tf.config.threading.set_inter_op_parallelism_threads(threads)
+    except RuntimeError as e:
+        print(f"[WARNING] Threading setup skipped: {e}", file=sys.stderr)
+
+# Call early
+preconfigure_tf_threads()
+
+# Now it's safe to import mixed_precision, Keras, etc.
 from tensorflow.keras.mixed_precision import Policy
 from tsMqlPlatform import run_platform, platform_checker
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.traceback import install
-from pathlib import Path
-
-# Initialize platform checkers
-pchk = run_platform.RunPlatform()
-os_platform = platform_checker.get_platform()
-loadmql = pchk.check_mql_state()
 
 class CMqlSetup:
     _log_setup_done = False
 
-    def __init__(self, loglevel='DEBUG', tflog=2, warn='ignore', precision='mixed_float16', tfdebug=False, num_cores=48, num_threads=8, **kwargs):
+    def __init__(self, loglevel='DEBUG', tflog=2, warn='ignore', precision='mixed_float16',
+                 tfdebug=False, num_cores=48, num_threads=8, **kwargs):
         self.tflog = tflog
         self.loglevel = loglevel.upper()
         self.warn = warn
@@ -42,14 +56,11 @@ class CMqlSetup:
         self.num_cores = num_cores
         self.num_threads = num_threads
         self.sumthreads = self.num_cores * self.num_threads
-        self.gtuner_model = kwargs.get('gtuner_model', 'tensorflow')
         self.kwargs = kwargs
 
-   
         self._setup_warnings()
         self._setup_tf_logging()
         self._set_precision_policy()
-        self._configure_tf()
         self._configure_debug()
 
     def _setup_warnings(self):
@@ -61,64 +72,22 @@ class CMqlSetup:
     def _set_precision_policy(self):
         tf.keras.mixed_precision.set_global_policy(Policy(self.precision))
 
-    def _configure_tf(self):
-        os.environ.update({
-            "OMP_NUM_THREADS": str(self.sumthreads),
-            "TF_NUM_INTRAOP_THREADS": str(self.sumthreads),
-            "TF_NUM_INTEROP_THREADS": str(self.num_threads),
-            "MKL_NUM_THREADS": str(self.sumthreads),
-            "KMP_BLOCKTIME": "1",
-            "KMP_SETTINGS": "1",
-            "KMP_AFFINITY": "granularity=fine,compact,1,0",
-            "KMP_DUPLICATE_LIB_OK": "True",
-            "KMP_INIT_WAIT_TIMEOUT": "2000",
-            "KMP_WARNINGS": "0",
-            "KMP_FORCE_USE_OPENMP": "1",
-            "KMP_USE_ITT_NOTIFY": "0"
-        })
-
-        tf.config.threading.set_intra_op_parallelism_threads(self.sumthreads)
-        tf.config.threading.set_inter_op_parallelism_threads(self.num_threads)
-
-        tf.config.optimizer.set_experimental_options({
-            "auto_mixed_precision": True,
-            "layout_optimizer": True,
-            "mkl": False,
-            "onednn": False
-        })
-
-        self._enable_gpu_memory_growth()
-
-    def _enable_gpu_memory_growth(self):
-        try:
-            for gpu in tf.config.list_physical_devices('GPU'):
-                tf.config.experimental.set_memory_growth(gpu, True)
-                logging.info(f"Enabled memory growth for GPU: {gpu}")
-        except RuntimeError as e:
-            print(f"WARNING: Failed to set memory growth for GPU: {e}", file=sys.stderr)
-            logging.warning(f"Failed to set memory growth for GPU: {e}")
-
     def _configure_debug(self):
         if not self.tfdebug:
             return
-
         tf.debugging.set_log_device_placement(True)
         tf.config.run_functions_eagerly(True)
         tf.config.optimizer.set_jit(False)
-
-        gpus = tf.config.list_physical_devices('GPU')
-        logging.info(f"GPUs available: {gpus}")
-
-        if gpus:
-            try:
+        try:
+            gpus = tf.config.list_physical_devices('GPU')
+            logging.info(f"GPUs available: {gpus}")
+            if gpus:
                 mem_info = tf.config.experimental.get_memory_info('GPU:0')
                 logging.info(f"GPU Memory Info: {mem_info}")
-            except Exception as e:
-                logging.warning(f"GPU memory info not available: {e}")
-
+        except Exception as e:
+            logging.warning(f"Could not retrieve GPU memory info: {e}")
         import psutil
         logging.info(f"RAM Used: {psutil.virtual_memory().used / 1e9:.2f} GB")
-
         tf.keras.backend.clear_session()
         gc.collect()
 
@@ -131,7 +100,6 @@ class CMqlSetup:
             return tf.distribute.TPUStrategy(tpu)
         except Exception:
             pass
-
         for strategy_cls, label in [
             (tf.distribute.MultiWorkerMirroredStrategy, "MultiWorker GPU/CPU"),
             (tf.distribute.MirroredStrategy, "Mirrored GPU/CPU"),
@@ -145,7 +113,4 @@ class CMqlSetup:
                 return strategy
             except Exception as e:
                 logging.warning(f"{label} failed: {e}")
-
         raise RuntimeError("No valid strategy available.")
-
-    

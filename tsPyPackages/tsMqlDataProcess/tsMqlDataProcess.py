@@ -29,13 +29,9 @@ base_params = all_params.get("base", {})
 
 backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
 
-from tsMqlLogService import CMLogServiceSetup
-logger = CMLogServiceSetup.initialize_logging(
-    role_hint=__name__,
-    loglevel='INFO',
-    logfile='tsneuropredict_app.log',
-    backend=backend_for_log
-)
+# Removed: from tsMqlLogService import CMLogServiceSetup
+# Corrected: Get the logger instance, assuming it's configured by the main application
+logger = logging.getLogger(__name__)
 
 gtuner_model = tune_params.get('tuner_type', 'hyperband')
 backend = tune_params.get('backend', 'tensorflow')
@@ -114,7 +110,7 @@ class CDataProcess:
             # For API data, 'time' is usually a Unix timestamp (seconds).
             'ticks1': ('time', None, 's', 'f'), 
             'rates1': ('time', None, 's', 'f'), # 'time' column, in seconds, needs 'f' conversion
-            # For file data, 'Date' is a string like '20230101'
+            # For file data, 'Date' is a string like 'YYYYMMDD'
             'ticks2': ('Date', '%Y%m%d', None, 'e'), 
             'rates2': ('Date', '%Y%m%d', None, 'e'),
         }

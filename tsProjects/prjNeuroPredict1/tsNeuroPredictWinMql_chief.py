@@ -32,7 +32,7 @@ import MetaTrader5 as mt5
 # Import mixed_precision for TensorFlow policy
 from tensorflow.keras import mixed_precision
 
-
+logger = logging.getLogger(__name__)
 # Custom modules
 from tsMqlSetup import CMqlSetup # Import CMqlSetup for non-logging config, but not for root logger setup.
 from tsMqlOverrides import CMqlOverrides
@@ -52,6 +52,7 @@ from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
 from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer # For running server locally if needed
 from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
 
+
 # Keras Tuner components for manual trial management
 from keras_tuner.engine.trial import TrialStatus
 
@@ -70,13 +71,7 @@ base_params = all_params.get("base", {})
 
 backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
 
-from tsMqlLogService import CMLogServiceSetup
-logger = CMLogServiceSetup.initialize_logging(
-    role_hint=__name__,
-    loglevel='INFO',
-    logfile='tsneuropredict_app.log',
-    backend=backend_for_log
-)
+
 
 # Initialize CMqlSetup to get configuration, including precision
 # Dynamically determine num_cores and num_threads for optimal performance.
@@ -124,6 +119,9 @@ oracle_full_path = LOGDIR / "oracle_server"
 def main():
     logger.info(f"Chief {TUNER_ID_CHIEF} started. Kicking off data loading and processing.")
 
+    # The 'all_params' dictionary is already loaded at the global scope.
+    # We can directly use 'all_params' instead of re-initializing CMqlEnvMgr.
+    
     # 1. Data Loading
     # Extract parameters for CDataLoader from all_params
     primary_symbol = app_params.get('mp_app_primary_symbol', 'EURUSD')
@@ -255,7 +253,7 @@ def main():
     tuner_config = CMdtunerSelector(
         backend=tune_params.get('backend', 'tensorflow'),
         tuner_id=TUNER_ID_CHIEF,
-        project_name=MODEL_NAME,
+        project_name=PROJECT_PATH.name, # Re-added 'project_name' argument
         log_dir=str(LOGDIR), # Pass as string
         train_dataset=train_dataset,
         val_dataset=val_dataset,
@@ -302,53 +300,54 @@ def main():
             logger.warning(f"Evaluation not supported for backend: {tuner_config.backend}. Skipping final evaluation.")
             eval_results = {}
 
-    # Save the best model
-    model_save_path = PROJECT_PATH / "best_model.h5"
-    try:
-        best_model.save(model_save_path)
-        logger.info(f"✅ Best model saved to: {model_save_path}")
 
-        # Optionally convert to ONNX
+        # Save the best model
+        model_save_path = PROJECT_PATH / "best_model.h5"
         try:
-            # Ensure input_signature matches what the model expects
-            # The batch_size dimension needs to be None for ONNX conversion
-            # input_shape from ml_processor is (sequence_length, num_features)
-            # So the full input_signature should be (None, sequence_length, num_features)
-            input_signature_for_onnx = [tf.TensorSpec([None, *input_shape], dtype=tf.float32)]
-            
-            onnx_model_path = PROJECT_PATH / "best_model.onnx"
-            model_proto, _ = tf2onnx.convert.from_keras(best_model, input_signature=input_signature_for_onnx, opset=13)
-            with open(onnx_model_path, "wb") as f:
-                f.write(model_proto.SerializeToString())
-            logger.info(f"✅ Model successfully converted to ONNX and saved at {onnx_model_path}")
+            best_model.save(model_save_path)
+            logger.info(f"✅ Best model saved to: {model_save_path}")
 
-            # Verify ONNX model with onnx checker
-            onnx_model = onnx.load(onnx_model_path)
-            checker.check_model(onnx_model)
-            logger.info("✅ ONNX model check passed.")
+            # Optionally convert to ONNX
+            try:
+                # Ensure input_signature matches what the model expects
+                # The batch_size dimension needs to be None for ONNX conversion
+                # input_shape from ml_processor is (sequence_length, num_features)
+                # So the full input_signature should be (None, sequence_length, num_features)
+                input_signature_for_onnx = [tf.TensorSpec([None, *input_shape], dtype=tf.float32)]
+                
+                onnx_model_path = PROJECT_PATH / "best_model.onnx"
+                model_proto, _ = tf2onnx.convert.from_keras(best_model, input_signature=input_signature_for_onnx, opset=13)
+                with open(onnx_model_path, "wb") as f:
+                    f.write(model_proto.SerializeToString())
+                logger.info(f"✅ Model successfully converted to ONNX and saved at {onnx_model_path}")
 
-            # Test ONNX inference with onnxruntime
-            ort_session = ort.InferenceSession(str(onnx_model_path)) # Convert Path to string
-            input_name = ort_session.get_inputs()[0].name
-            output_name = ort_session.get_outputs()[0].name
+                # Verify ONNX model with onnx checker
+                onnx_model = onnx.load(onnx_model_path)
+                checker.check_model(onnx_model)
+                logger.info("✅ ONNX model check passed.")
 
-            # Use a small subset of X_test for ONNX inference test
-            # Ensure the test_input has the correct batch dimension (None, timesteps, features)
-            test_input = X_test[:1].astype(np.float32) # Get first sample, ensure float32
-            if test_input.ndim == 2: # If input is (timesteps, features) without batch, add batch dim
-                test_input = np.expand_dims(test_input, axis=0)
+                # Test ONNX inference with onnxruntime
+                ort_session = ort.InferenceSession(str(onnx_model_path)) # Convert Path to string
+                input_name = ort_session.get_inputs()[0].name
+                output_name = ort_session.get_outputs()[0].name
 
-            ort_outs = ort_session.run([output_name], {input_name: test_input})
-            logger.info(f"✅ ONNX Runtime inference test successful. Output shape: {ort_outs[0].shape}")
+                # Use a small subset of X_test for ONNX inference test
+                # Ensure the test_input has the correct batch dimension (None, timesteps, features)
+                test_input = X_test[:1].astype(np.float32) # Get first sample, ensure float32
+                if test_input.ndim == 2: # If input is (timesteps, features) without batch, add batch dim
+                    test_input = np.expand_dims(test_input, axis=0)
 
-        except ImportError:
-            logger.warning("tf2onnx, onnx, or onnxruntime not installed. Skipping ONNX conversion/verification.")
+                ort_outs = ort_session.run([output_name], {input_name: test_input})
+                logger.info(f"✅ ONNX Runtime inference test successful. Output shape: {ort_outs[0].shape}")
+
+            except ImportError:
+                logger.warning("tf2onnx, onnx, or onnxruntime not installed. Skipping ONNX conversion/verification.")
+            except Exception as e:
+                logger.error(f"❌ Failed to convert or verify ONNX model: {e}", exc_info=True)
+            finally:
+                pass
         except Exception as e:
-            logger.error(f"❌ Failed to convert or verify ONNX model: {e}", exc_info=True)
-        finally:
-            pass
-    except Exception as e:
-        logger.error(f"❌ Failed to save model or during ONNX process: {e}", exc_info=True)
+            logger.error(f"❌ Failed to save model or during ONNX process: {e}", exc_info=True)
     else:
         logger.info("Skipping final evaluation and model saving as no best model was found.")
 

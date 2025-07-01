@@ -16,14 +16,15 @@ import os
 from datetime import datetime
 from tsMqlPlatform import run_platform, platform_checker, get_config
 from tsMqlEnvMgr import CMqlEnvMgr
-import logging
+# Removed duplicate import logging
+
 # -- Set up global logging (from tsMqlSetup) --
-from tsMqlSetup import CMqlSetup
+# Removed: from tsMqlSetup import CMqlSetup # This import is not needed here
 
 # Load configuration
 from tsMqlOverrides import CMqlOverrides  # ✅ Add this line
-from tsMqlPlatform import run_platform, platform_checker, get_config
-from tsMqlEnvMgr import CMqlEnvMgr
+# Removed: from tsMqlPlatform import run_platform, platform_checker, get_config # Already imported above
+# Removed: from tsMqlEnvMgr import CMqlEnvMgr # Already imported above
 
 mql_overrides = CMqlOverrides()
 all_params = mql_overrides.env.all_params()
@@ -33,13 +34,8 @@ base_params = all_params.get("base", {})
 
 backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
 
-from tsMqlLogService import CMLogServiceSetup
-logger = CMLogServiceSetup.initialize_logging(
-    role_hint=__name__,
-    loglevel='INFO',
-    logfile='tsneuropredict_app.log',
-    backend=backend_for_log
-)
+# Corrected: Assign the logger instance to the 'logger' variable
+logger = logging.getLogger(__name__)
 
 gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
 backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch
@@ -264,4 +260,3 @@ class CDataLoader:
             logger.info(f"df_file_rates loaded. Shape: {dfs['df_file_rates'].shape}")
 
         return dfs
-

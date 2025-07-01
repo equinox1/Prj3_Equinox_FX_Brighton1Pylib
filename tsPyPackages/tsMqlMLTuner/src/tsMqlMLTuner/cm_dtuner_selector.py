@@ -8,6 +8,9 @@ import time # Import time for delays in worker loop
 import requests # For catching connection errors
 from urllib.parse import urlparse # Import urlparse for parsing URLs
 import tensorflow as tf # <--- ADDED: Import tensorflow as tf
+import torch # <--- ADDED: Import torch
+import numpy as np # <--- ADDED: Import numpy
+
 
 # Dynamically determine num_cores and num_threads for optimal performance.
 # num_cores: Estimate physical cores. On systems with hyperthreading, this is often
@@ -18,22 +21,19 @@ import tensorflow as tf # <--- ADDED: Import tensorflow as tf
 _logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
 _estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
 
-# --- Global Configuration ---\
+# --- Global Configuration ---
+# Note: These global parameters are still loaded for other parts of the module
+# but CMdtunerSelector will now primarily use parameters from hypermodel_params
+# for its internal configuration to improve modularity.
 from tsMqlOverrides import CMqlOverrides
 mql_overrides = CMqlOverrides()
 app_params = mql_overrides.env.all_params().get("app", {})
-tune_params = mql_overrides.env.all_params().get('mltune', {})
+tune_params = mql_overrides.env.all_params().get('mltune', {}) # Kept for other module-level uses
 
+logger = logging.getLogger(__name__)
 # Extract backend for logging path - crucial
 backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
 
-from tsMqlLogService import CMLogServiceSetup
-logger = CMLogServiceSetup.initialize_logging(
-    role_hint=__name__,\
-    loglevel='INFO',\
-    logfile='tsneuropredict_app.log',\
-    backend=backend_for_log\
-)
 
 class CMdtunerSelector:
     def __init__(self, backend, tuner_id, project_name, log_dir,
@@ -52,23 +52,33 @@ class CMdtunerSelector:
         self.num_classes = num_classes
         self.max_trials = max_trials
         self.overwrite = overwrite
-        self.hypermodel_params = hypermodel_params
+        self.hypermodel_params = hypermodel_params # This contains all_params, including 'mltune' and 'app'
         self.is_chief = is_chief
         self.oracle_url = oracle_url
         self.oracle_directory = oracle_directory # Used by chief for CustomOracle
 
         self.tuner = None
         self.best_model = None
-        self.objective_name = tune_params.get('objective', 'val_loss')
-        self.objective_direction = tune_params.get('objective_direction', 'min')
-        self.epochs = tune_params.get('max_epochs', 50) # Max epochs for training one model
+
+        # Extract tuning parameters from hypermodel_params for internal use
+        _mltune_params = self.hypermodel_params.get('mltune', {})
+        self.objective_name = _mltune_params.get('objective', 'val_loss')
+        self.objective_direction = _mltune_params.get('objective_direction', 'min')
+        self.epochs = _mltune_params.get('max_epochs', 50) # Max epochs for training one model
+
+        # Initialize oracle_client for workers. For chief, it will be None or handled differently.
+        self.oracle_client = None
+        if not self.is_chief:
+            self.oracle_client = OracleClient(url=self.oracle_url, tuner_id=self.tuner_id)
+            logger.info(f"Worker {self.tuner_id} initialized OracleClient connected to Oracle at {self.oracle_url}")
+
 
         logger.info(f"CMdtunerSelector initialized for tuner_id: {self.tuner_id}, backend: {self.backend}")
 
         if self.is_chief and self.backend == "tensorflow":
             logger.info("Initializing TensorFlow Tuner (Chief process).")
             # Chief creates the tuner which manages the Oracle (local or remote)
-            tuner_type = tune_params.get('tuner_type', 'hyperband')
+            tuner_type = _mltune_params.get('tuner_type', 'hyperband') # Use _mltune_params here
             self.tuner = CMdtuner(
                 input_shape=self.input_shape,
                 num_classes=self.num_classes,
@@ -76,8 +86,6 @@ class CMdtunerSelector:
                 tuner_type=tuner_type,
                 directory=self.log_dir, # Base directory for logs and checkpoints
                 project_name=self.project_name,
-                # Removed redundant 'objective' argument here as it's already handled in CMdtuner's init
-                # Removed redundant 'max_epochs' argument here as it's already handled in CMdtuner's init
                 overwrite=self.overwrite
             )
             logger.info(f"Chief Tuner '{tuner_type}' initialized.")
@@ -85,7 +93,7 @@ class CMdtunerSelector:
         elif not self.is_chief and self.backend == "tensorflow":
             logger.info("Initializing TensorFlow Worker. Connecting to Oracle.")
             # Workers connect to the Oracle via OracleClient
-            self.oracle_client = OracleClient(url=self.oracle_url)
+            # self.oracle_client is already initialized above
             logger.info(f"Worker connected to Oracle at {self.oracle_url}")
             # Worker also needs a tuner instance, but it will pull trials from the Oracle
             # It needs to know how to build the model based on hyperparameters received
@@ -93,16 +101,17 @@ class CMdtunerSelector:
                 input_shape=self.input_shape,
                 num_classes=self.num_classes,
                 hypermodel_params=self.hypermodel_params,
-                tuner_type=tune_params.get('tuner_type', 'hyperband'), # Worker needs this info too
+                tuner_type=_mltune_params.get('tuner_type', 'hyperband'), # Use _mltune_params here
                 directory=self.log_dir,
                 project_name=self.project_name + '_worker', # Workers can have their own project_name subdir
-                # Removed redundant 'objective' argument here
-                # Removed redundant 'max_epochs' argument here
                 overwrite=False # Workers should never overwrite, they are part of an ongoing process
             )
         elif self.backend == "pytorch":
             logger.info("Initializing PyTorch Tuner.")
             self.tuner = PyTorchTuner(
+                oracle_client=self.oracle_client, # Pass the OracleClient instance
+                train_dataset=self.train_dataset, # Pass the train_dataset
+                val_dataset=self.val_dataset,     # Pass the val_dataset
                 input_shape=self.input_shape,
                 num_classes=self.num_classes,
                 hypermodel_params=self.hypermodel_params,
@@ -111,7 +120,8 @@ class CMdtunerSelector:
                 log_dir=self.log_dir,
                 is_chief=self.is_chief,
                 oracle_url=self.oracle_url,
-                overwrite=self.overwrite
+                overwrite=self.overwrite,
+                tuner_id=self.tuner_id # Pass tuner_id here
             )
         else:
             logger.error(f"Unsupported backend: {self.backend}")
@@ -190,20 +200,20 @@ class CMdtunerSelector:
                     time.sleep(retry_interval)
                     retries += 1
                     if retries > max_retries:
-                        logger.error(f"Max retries ({max_retries}) reached. Exiting worker.")
+                        logger.error(f"Max connection retries ({max_retries}) reached. Exiting worker.")
                         break
                     continue
                 
-                trial = self.oracle_client.get_trial(self.tuner_id)
+                trial_response = self.oracle_client.get_trial(self.tuner_id)
 
-                if trial is None:
+                if trial_response is None or trial_response.get("trial_id") is None:
                     logger.info("No more trials from Oracle or Oracle is done. Exiting worker.")
                     break # Exit if no trials left or Oracle signals completion
 
-                trial_id = trial.get('trial_id')
-                hyperparameters = trial.get('hyperparameters')
-                status = trial.get('status')
-                
+                trial_id = trial_response.get('trial_id')
+                hyperparameters = trial_response.get('hyperparameters')
+                status = trial_response.get('status') # This status is from Oracle's perspective
+
                 if status == 'STOPPED':
                     logger.info(f"Trial {trial_id} was stopped by Oracle. Skipping.")
                     continue
@@ -216,7 +226,7 @@ class CMdtunerSelector:
                 logger.info(f"Worker {self.tuner_id} running trial: {trial_id}")
                 self.oracle_client.update_trial_status(trial_id, status="RUNNING")
 
-                hp = HyperParameters.from_config(hyperparameters)
+                hp = tf.keras.src.engine.hyperparameters.HyperParameters.from_config(hyperparameters) # Corrected import path
                 model = self.tuner.hypermodel.build(hp) # Build the model using the worker's tuner instance
 
                 # Prepare callbacks for this trial
@@ -270,19 +280,43 @@ class CMdtunerSelector:
     def _run_pytorch_tuning(self):
         logger.info(f"Starting PyTorch tuning for {self.tuner_id}.")
         try:
+            # Convert TensorFlow datasets to NumPy arrays for PyTorchTuner
+            # Iterate over the dataset to extract all elements
+            X_train_list = []
+            Y_train_list = []
+            for x_batch, y_batch in self.train_dataset:
+                X_train_list.append(x_batch.numpy())
+                Y_train_list.append(y_batch.numpy())
+            X_train_np = np.concatenate(X_train_list, axis=0)
+            Y_train_np = np.concatenate(Y_train_list, axis=0)
+
+            X_val_list = []
+            Y_val_list = []
+            for x_batch, y_batch in self.val_dataset:
+                X_val_list.append(x_batch.numpy())
+                Y_val_list.append(y_batch.numpy())
+            X_val_np = np.concatenate(X_val_list, axis=0)
+            Y_val_np = np.concatenate(Y_val_list, axis=0)
+
             if self.is_chief:
                 logger.info("Chief tuning process initiated (PyTorch).")
-                self.tuner.run_tuning_chief(
-                    train_dataset=self.train_dataset,
-                    val_dataset=self.val_dataset,
-                    max_epochs=self.epochs
+                self.tuner.fit(
+                    X_train=X_train_np, # Corrected to use the concatenated NumPy array
+                    Y_train=Y_train_np, # Corrected to use the concatenated NumPy array
+                    X_val=X_val_np,     # Corrected to use the concatenated NumPy array
+                    Y_val=Y_val_np,     # Corrected to use the concatenated NumPy array
+                    epochs=self.epochs,
+                    batch_size=self.tuner.batch_size # Use batch_size from PyTorchTuner's init
                 )
             else:
                 logger.info("Worker tuning process initiated (PyTorch).")
-                self.tuner.run_tuning_worker(
-                    train_dataset=self.train_dataset,
-                    val_dataset=self.val_dataset,
-                    max_epochs=self.epochs
+                self.tuner.fit(
+                    X_train=X_train_np, # Corrected to use the concatenated NumPy array
+                    Y_train=Y_train_np, # Corrected to use the concatenated NumPy array
+                    X_val=X_val_np,     # Corrected to use the concatenated NumPy array
+                    Y_val=Y_val_np,     # Corrected to use the concatenated NumPy array
+                    epochs=self.epochs,
+                    batch_size=self.tuner.batch_size # Use batch_size from PyTorchTuner's init
                 )
             logger.info("PyTorch tuning process completed.")
         except Exception as e:

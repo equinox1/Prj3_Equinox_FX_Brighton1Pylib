@@ -40,13 +40,8 @@ base_params = all_params.get("base", {})
 
 backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
 
-from tsMqlLogService import CMLogServiceSetup
-logger = CMLogServiceSetup.initialize_logging(
-    role_hint=__name__,
-    loglevel='INFO',
-    logfile='tsneuropredict_ml_process.log', # Changed log file name to avoid conflict if any
-    backend=backend_for_log
-)
+# Corrected: Assign the logger instance to the 'logger' variable
+logger = logging.getLogger(__name__)
 
 
 class CDMLProcess:

@@ -14,12 +14,7 @@ mql_overrides = CMqlOverrides()
 app_params = mql_overrides.env.all_params().get("app", {})
 tune_params = mql_overrides.env.all_params().get("mltune", {})
 
-from tsMqlLogService import CMLogServiceSetup
-logger = CMLogServiceSetup.initialize_logging(
-    role_hint=__name__, 
-    loglevel='INFO',
-    logfile='tsneuropredict_app.log'
-)
+logger = logging.getLogger(__name__)
 
 
 

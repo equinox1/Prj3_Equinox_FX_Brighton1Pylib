@@ -38,6 +38,7 @@ class CMqlEnvAppParams(CEnvCore):
         "xerces_port" : 9000,
         "xerces_logfile" : 'tsneuropredict_app.log',
         "LOGDIR" : 'Logdir',
+        "onnx_enabled": False,
     }
 
     def __init__(self, **kwargs):
