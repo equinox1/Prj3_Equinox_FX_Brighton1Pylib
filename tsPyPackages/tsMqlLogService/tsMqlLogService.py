@@ -29,6 +29,8 @@ def configure_global_logger(backend: str):
     Set up logging to a specific log file based on backend.
     This disables default propagation and prevents 'Logdir' in tuner package dir.
     """
+    # This function will be deprecated or modified heavily to align with the new centralized logging.
+    # For now, it's kept but its usage should be replaced by CMLogServiceSetup.initialize_logging.
     log_paths = {
         'pytorch': Path(r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir\pytorch\tsneuropredict_app.log"),
         'tensorflow': Path(r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir\tensorflow\tsneuropredict_app.log")
@@ -106,12 +108,14 @@ class CMqlLogService:
 
             # Use kwargs values if provided, otherwise fall back to app_params/base_params
             _logdir = kwargs.get('logdir', self.base_params.get('mp_glob_base_log_path'))
-            _logfile = kwargs.get('logfile', self.app_params.get('xerces_logfile', 'tslog.log'))
+            # Use the fixed central log file name
+            _logfile = kwargs.get('logfile', 'tsneuro_predict.log') 
             _servername = kwargs.get('servername', self.app_params.get('xerces_servername', 'localhost'))
             _backend = kwargs.get('backend', self.tune_params.get('backend', 'unknown_backend'))
 
             self._set_log_paths(_logdir, _logfile, _servername, _backend)
             self._configure_debug() # Configure rich traceback etc.
+            self.setup_logging() # Call setup_logging here to configure handlers
         else:
             # If logging is disabled, ensure no file handlers are set up
             logging.disable(logging.CRITICAL) # Disable all logging from standard logger
@@ -123,7 +127,7 @@ class CMqlLogService:
     def _set_log_paths(self, logdir_arg, logfile_arg, servername_arg, backend_arg):
         """
         Determines and sets the global log directory and file path.
-        Ensures logs are stored in Logdir/<backend>/tsneuropredict_app.log
+        Ensures logs are stored in Logdir/tsneuro_predict.log
         """
         # Determine the base log directory
         if logdir_arg:
@@ -133,13 +137,8 @@ class CMqlLogService:
         else:
             raise RuntimeError("LOGDIR must be provided via environment variable or argument. No fallback to package path.")
 
-        # Determine backend name for subfolder
-        backend_str = os.environ.get('BACKEND', self.tune_params.get('backend', 'pytorch')) # Default to pytorch if not specified
-
-
-        # Final log directory: Logdir/<backend>
-        print(f"LOGSERVICE:Setting up logging in directory: {base_log_dir} backend_str {backend_str}", file=sys.stderr)
-        final_logdir = base_log_dir / backend_str
+        # The log file will now be directly in the base_log_dir, not in a backend subfolder
+        final_logdir = base_log_dir
         try:
             final_logdir.mkdir(parents=True, exist_ok=True)
         except OSError as e:
@@ -148,13 +147,8 @@ class CMqlLogService:
 
         self.global_logdir = str(final_logdir)
 
-        # Determine log filename (default to tsneuropredict_app.log)
-        if logfile_arg:
-            logfilename = Path(logfile_arg).name
-            if not logfilename.endswith(".log"):
-                logfilename += ".log"
-        else:
-            logfilename = "tsneuropredict_app.log"
+        # Use the fixed log filename 'tsneuro_predict.log'
+        logfilename = 'tsneuro_predict.log'
 
         self.global_logfile = str(final_logdir / logfilename)
         print(f"LOGSERVICE:Setting up logging in file: {self.global_logfile}", file=sys.stderr)
@@ -294,7 +288,8 @@ class CMLogServiceSetup(CMqlLogService): # Inherit from CMqlLogService for loggi
         # Merge kwargs with config parameters, giving kwargs precedence
         _loglevel = kwargs.get('loglevel', loglevel).upper()
         _logdir = kwargs.get('logdir', base_params.get('mp_glob_base_log_path'))
-        _logfile = kwargs.get('logfile', app_params.get('xerces_logfile', 'tslog.log'))
+        # Ensure the logfile is always 'tsneuro_predict.log' for central logging
+        _logfile = 'tsneuro_predict.log' 
         _servername = kwargs.get('servername', app_params.get('xerces_servername', 'localhost'))
         _backend = kwargs.get('backend', tune_params.get('backend', 'unknown_backend'))
         _enable_logging = kwargs.get('enable_logging', enable_logging)
@@ -303,7 +298,7 @@ class CMLogServiceSetup(CMqlLogService): # Inherit from CMqlLogService for loggi
         super().__init__(
             loglevel=_loglevel,
             logdir=_logdir,
-            logfile=_logfile,
+            logfile=_logfile, # Pass the fixed logfile name
             servername=_servername,
             backend=_backend,
             enable_logging=_enable_logging
@@ -440,36 +435,16 @@ class CMLogServiceSetup(CMqlLogService): # Inherit from CMqlLogService for loggi
                 # Do not raise here, allow CMqlLogService to handle subsequent failures gracefully
                 pass
 
-        # Determine dynamic parts of the log file path
-        script_name = Path(sys.argv[0]).stem if len(sys.argv) > 0 else 'unknown_script'
-        hostname = os.environ.get("COMPUTERNAME") or socket.gethostname()
-
-        # Use role_hint for the backend part of the path and for logfile naming,
-        # otherwise fall back to mltune_params['backend'] or a default.
-        backend_for_path = kwargs.get('backend', role_hint or mltune_params.get('backend', 'unknown_backend_role'))
-
-        # Determine the logfile name. Prioritize kwargs, then app_params, then dynamic.
-        configured_logfile_name = kwargs.get('logfile', app_params.get('xerces_logfile'))
-        final_logfile_base_name = configured_logfile_name # Start with configured name
-
-        if not final_logfile_base_name:
-            # Fallback to a fully dynamic name if no explicit logfile is configured
-            final_logfile_base_name = f"{script_name}_{backend_for_path}_{hostname.lower()}.log"
-        elif not str(final_logfile_base_name).endswith('.log'):
-            final_logfile_base_name = f"{final_logfile_base_name}.log"
-
-        # If a specific logfile is configured, we still might want to append role/hostname for distinction
-        # especially in multi-instance deployments using the same base logfile name.
-        # This specific logic (appending _backend_hostname) is already handled in _set_log_paths
-        # if final_logfile_base_name is passed as `logfile_arg`.
+        # The logfile name is now fixed to 'tsneuro_predict.log'
+        final_logfile_base_name = 'tsneuro_predict.log'
 
         # Instantiate CMLogServiceSetup (which calls CMqlLogService's __init__)
         log_setup_instance = CMLogServiceSetup(
             loglevel=loglevel_final,
             logdir=str(central_logdir), # Ensure string for path
-            logfile=final_logfile_base_name,
-            servername=kwargs.get('servername', app_params.get('xerces_servername', hostname)),
-            backend=backend_for_path,
+            logfile=final_logfile_base_name, # Pass the fixed logfile name
+            servername=kwargs.get('servername', app_params.get('xerces_servername', socket.gethostname())),
+            backend=kwargs.get('backend', role_hint or mltune_params.get('backend', 'unknown_backend_role')),
             enable_logging=enable_logging_final,
             warn=kwargs.get('warn', 'ignore'),
             precision=kwargs.get('precision', 'float32'),
@@ -482,7 +457,6 @@ class CMLogServiceSetup(CMqlLogService): # Inherit from CMqlLogService for loggi
             # setup_logging is called implicitly via CMqlLogService.__init__ within CMLogServiceSetup.__init__
             # if enable_logging is True. No need to call it again explicitly here unless a re-initialization
             # with new parameters is desired, which isn't the primary goal of this static method.
-            # However, for clarity, if the instance didn't call it, we could.
             # Given the current structure, super().__init__ will trigger it.
             pass
 
@@ -504,7 +478,7 @@ if __name__ == "__main__":
         def all_params(self):
             return {
                 "app": {
-                    "xerces_logfile": "tsneuropredict_app.log", # This is crucial for the desired logfile name
+                    "xerces_logfile": "tsneuropredict_app.log", # This will now be ignored for the central log
                     "xerces_servername": "WINSVRXERCES01",
                     "loglevel": "INFO"
                 },
@@ -538,7 +512,7 @@ if __name__ == "__main__":
 
     # Example 1: Default logging (INFO level, enabled) for TensorFlow
     print("\n--- Example 1: Default logging (INFO, enabled) for TensorFlow backend ---")
-    # This should generate: .../Logdir/WINSVRXERCES01/tensorflow/tsneuropredict_app.log
+    # This should now generate: .../Logdir/tsneuro_predict.log
     default_logger_tf = CMLogServiceSetup.initialize_logging(role_hint='tensorflow')
     default_logger_tf.debug("This DEBUG message should NOT be seen in default_client logs (INFO level).")
     default_logger_tf.info(f"This is an INFO message from default_client (TF) ({default_logger_tf.name}).")
@@ -552,7 +526,7 @@ if __name__ == "__main__":
 
     # Example 2: Debug logging enabled for PyTorch
     print("\n--- Example 2: Debug logging (DEBUG, enabled) for PyTorch backend ---")
-    # This should generate: .../Logdir/WINSVRXERCES01/pytorch/tsneuropredict_app.log
+    # This should now generate: .../Logdir/tsneuro_predict.log (same file as above)
     debug_logger_pt = CMLogServiceSetup.initialize_logging(role_hint='pytorch', loglevel='DEBUG')
     debug_logger_pt.debug(f"This DEBUG message SHOULD be seen in debug_client logs (PT) ({debug_logger_pt.name}).")
     debug_logger_pt.info("This is an INFO message from debug_client (PT).")
@@ -571,13 +545,11 @@ if __name__ == "__main__":
 
     # Example 4: Custom log file name (overriding default 'tsneuropredict_app.log')
     print("\n--- Example 4: Custom log file name (backend still 'tensorflow') ---")
-    # This should generate: .../Logdir/WINSVRXERCES01/tensorflow/my_custom_client_log.log
-    custom_file_logger = CMLogServiceSetup.initialize_logging(role_hint='tensorflow', logfile='my_custom_client_log.log')
+    # This should now generate: .../Logdir/tsneuro_predict.log (same file as above)
+    custom_file_logger = CMLogServiceSetup.initialize_logging(role_hint='tensorflow', logfile='my_custom_client_log.log') # logfile argument will be ignored for the central log
     custom_file_logger.info(f"This is an INFO message for the custom log file client ({custom_file_logger.name}).")
     loguru_logger.info("Loguru says: Custom file client finished.")
 
     print("\n--- All examples finished. Check the 'Logdir' folder for generated log files. ---")
     print(f"Expected log directory structure under: {logdir_path}")
-    print(f"  - {logdir_path}/WINSVRXERCES01/tensorflow/tsneuropredict_app.log")
-    print(f"  - {logdir_path}/WINSVRXERCES01/pytorch/tsneuropredict_app.log")
-    print(f"  - {logdir_path}/WINSVRXERCES01/tensorflow/my_custom_client_log.log")
+    print(f"  - {logdir_path}/tsneuro_predict.log (All logs should go here)")

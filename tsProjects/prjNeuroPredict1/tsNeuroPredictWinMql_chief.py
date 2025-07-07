@@ -3,7 +3,7 @@
 # |                                    tsNeuroPredictWinMql_chief.py |
 # |                                                    Tony Shepherd |
 # |                                    https://www.xercescloud.co.uk |
-# +------------------------------------------------------------------+
+# +------------------------------------------------------------------+\
 import os
 import sys
 import logging # Import logging, but do NOT configure the root logger here.
@@ -27,6 +27,8 @@ import tf2onnx
 import onnx
 from onnx import checker
 import onnxruntime as ort
+
+# Import MetaTrader5 at the very top to ensure it's available globally
 import MetaTrader5 as mt5
 
 # Import mixed_precision for TensorFlow policy
@@ -81,6 +83,11 @@ params_dict = {
 from tsMqlLogService import CMLogServiceSetup
 # Get the backend from environment, tune_params, or default to pytorch
 backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
+# --- NEW DEBUG LOGS FOR BACKEND ---
+logger.info(f"[tsNeuroPredictWinMql_chief] BACKEND env var (raw): '{os.environ.get('BACKEND')}'")
+logger.info(f"[tsNeuroPredictWinMql_chief] backend_for_log (derived for logging setup): '{backend_for_log}'")
+# --- END NEW DEBUG LOGS ---
+
 # Use the correct log directory from base_params
 logdir_arg = base_params.get('mp_glob_base_log_path')
 servername_arg = app_params.get('mp_app_servername', socket.gethostname())
@@ -218,38 +225,35 @@ def main():
     X_train, X_test, y_train, y_test = train_test_split(data_X, data_y, test_size=0.2, shuffle=False, random_state=42)
     logger.info(f"Data split: X_train {X_train.shape}, y_train {y_train.shape}, X_test {X_test.shape}, y_test {y_test.shape}")
 
-    # Initialize CMdtunerSelector
-    logger.info("Initializing CMdtunerSelector...")
-    # Pass necessary parameters from app_params and tune_params
+    # Determine the backend for CMdtunerSelector from the already determined backend_for_log
+    # This ensures consistency with the logging backend.
+    current_backend = backend_for_log 
 
-    # ✅ Create PyTorch dataset
-    # Simulated or real preprocessed data loading
-    input_seq_len, output_seq_len = 60, 1
-    n_features = 4
-    n_samples = 10000
+    # Torch conversion with correct shapes, only if backend is pytorch
+    train_dataset = None
+    val_dataset = None
+    if current_backend == "pytorch":
+        X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+        y_train_tensor = torch.tensor(y_train.squeeze(), dtype=torch.float32)
+        X_val_tensor = torch.tensor(X_test, dtype=torch.float32)
+        y_val_tensor = torch.tensor(y_test.squeeze(), dtype=torch.float32)
 
-    X = np.random.rand(n_samples, input_seq_len, n_features)
-    y = np.random.rand(n_samples, output_seq_len)
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-    # Torch conversion with correct shapes
-    X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
-    y_train_tensor = torch.tensor(y_train.squeeze(), dtype=torch.float32)
-    X_val_tensor = torch.tensor(X_test, dtype=torch.float32)
-    y_val_tensor = torch.tensor(y_test.squeeze(), dtype=torch.float32)
-
-    train_dataset = DataLoader(TensorDataset(X_train_tensor, y_train_tensor), batch_size=32, shuffle=True)
-    val_dataset = DataLoader(TensorDataset(X_val_tensor, y_val_tensor), batch_size=32, shuffle=False)
+        train_dataset = DataLoader(TensorDataset(X_train_tensor, y_train_tensor), batch_size=32, shuffle=True)
+        val_dataset = DataLoader(TensorDataset(X_val_tensor, y_val_tensor), batch_size=32, shuffle=False)
 
     # Use the correct oracle URL from app_params or base_params
     oracle_host = app_params.get('xerces_server', '192.168.1.103')
     oracle_port = app_params.get('xerces_port', 9000)
     oracle_url = f"http://{oracle_host}:{oracle_port}"
 
+    # Log the input shape and number of classes before passing to CMdtunerSelector
+    current_input_shape = (input_sequence_length, data_X.shape[2])
+    current_num_classes = output_sequence_length
+    logger.info(f"Passing input_shape: {current_input_shape} and num_classes: {current_num_classes} to CMdtunerSelector.")
+
     # Instantiate and run tuner
     dtuner_selector = CMdtunerSelector(
-        backend="pytorch",
+        backend=current_backend, # Use the dynamically determined backend
         tuner_id="tsneuropredict1",  # or None if dynamic
         oracle_url=oracle_url,  # Pass the correctly formed oracle URL
         is_chief=True, # Explicitly mark as chief
@@ -260,8 +264,10 @@ def main():
         model_id=params_dict.get("model_id", "tsneuromodel_1"),
         # Pass the desired model save directory to the tuner selector
         model_save_dir=Path(base_params.get('mp_glob_base_log_path')) / "tsneuromodel_1" / "saved_models",
-        train_data=train_dataset, # Pass train_dataset
-        val_data=val_dataset # Pass val_dataset
+        train_data=train_dataset, # Pass train_dataset (will be None if TF)
+        val_data=val_dataset, # Pass val_dataset (will be None if TF)
+        input_shape=current_input_shape, # Pass the actual input shape
+        num_classes=current_num_classes # Pass the actual output sequence length
     )
     logger.info(f"✅ CMdtunerSelector initialized with backend: {dtuner_selector.backend}, tuner_id: {dtuner_selector.tuner_id}")
  
@@ -405,7 +411,7 @@ def main():
         # --- END FORECAST AND PLOT SECTION ---
 
         # ONNX conversion for TensorFlow models
-        # This try-except block has been moved and corrected to be self-contained
+        # This try-except block has to be inside the if best_model block
         if dtuner_selector.backend == "tensorflow" and app_params.get('mp_app_enable_onnx_conversion', False):
             logger.info("Attempting ONNX conversion for TensorFlow model...")
             try:

@@ -200,18 +200,21 @@ if __name__ == "__main__":
     mltune_params = mql_overrides.env.all_params().get("mltune", {})
     app_params = mql_overrides.env.all_params().get("app", {})
     
-    print("Data Parameters:")
+    # Log the parameters to verify overrides.
+    """
+    logger.info("Data Parameters:")
     for key, value in data_params.items():
-        print(f"  {key}: {value}")
+        logger.info(f"  {key}: {value}")
     
-    print("\nML Parameters:")
+    logger.info("\nML Parameters:")
     for key, value in ml_params.items():
-        print(f"  {key}: {value}")
+        logger.info(f"  {key}: {value}")
     
-    print("\nML Tuning & Tuner Parameters:")
+    logger.info("\nML Tuning & Tuner Parameters:")
     for key, value in mltune_params.items():
-        print(f"  {key}: {value}")
+        logger.info(f"  {key}: {value}")
     
-    print("\nApp Parameters:")
+    logger.info("\nApp Parameters:")
     for key, value in app_params.items():
-        print(f"  {key}: {value}")
+        logger.info(f"  {key}: {value}")
+    """

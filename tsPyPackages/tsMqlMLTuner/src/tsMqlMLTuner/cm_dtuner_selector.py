@@ -3,7 +3,7 @@ import logging
 import os
 import torch
 from urllib.parse import urlparse
-from pathlib import Path
+
 
 from .tsMqlMLTunerMod import CMdtuner, get_callbacks # Import get_callbacks
 from .tsMqlMLTunerModTorch import CMdtunerTorch
@@ -25,46 +25,63 @@ class CMdtunerSelector:
             if not oracle_url:
                 raise RuntimeError("Oracle URL is missing. Cannot initialize OracleClient.")
             try:
-                oracle_url = oracle_url.replace("http://http://", "http://").replace("https://http://", "http://").replace("http://https://", "https://")
                 parsed = urlparse(oracle_url)
                 if not parsed.scheme:
                     oracle_url = f"http://{oracle_url}"
                     parsed = urlparse(oracle_url)
                 fixed_url = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
-                from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
-                self.oracle_client = OracleClient(fixed_url)
-                logger.info(f"Oracle client initialized from URL: {fixed_url}")
+                self.oracle_client = OracleClient(url=fixed_url, tuner_id=tuner_id or "default_tuner")
+                logger.info(f"Oracle client initialized from URL: {self.oracle_client.url}")
             except Exception as e:
-                logger.error(f"Failed to auto-initialize OracleClient: {e}")
+                logger.error(f"Failed to initialize OracleClient: {e}")
                 raise
 
-        self.kwargs.pop('tuner_id', None)
-        self.kwargs.pop('is_chief', None)
+        # IMPORTANT: Remove various arguments from kwargs that are expected as explicit parameters
+        # by CMdtunerTorch/CMdtuner, or are handled elsewhere.
+        self.kwargs.pop('oracle_url', None)
+        self.kwargs.pop('project_name', None)
+        self.kwargs.pop('log_dir', None)
+        self.kwargs.pop('max_trials', None)
+        self.kwargs.pop('overwrite', None)
+        self.kwargs.pop('oracle_directory', None)
 
-        self.tuner = None
+        # Extract dataset and model-related arguments explicitly
+        train_data = self.kwargs.pop('train_data', None)
+        val_data = self.kwargs.pop('val_data', None)
+        test_data = self.kwargs.pop('test_data', None)
+        train_dataset = self.kwargs.pop('train_dataset', None)
+        val_dataset = self.kwargs.pop('val_dataset', None)
+        test_dataset = self.kwargs.pop('test_dataset', None)
 
-        log_dir_root = self.kwargs.get('hypermodel_params', {}).get('base', {}).get(
-            'mp_glob_base_log_path',
-            r"C:\\WinRunMnt1\\8.0 Projects\\8.3 ProjectModelsEquinox\\EQUINRUN\\Logdir"
-        )
-        log_dir_root = Path(log_dir_root)
-        self.kwargs['log_dir'] = str(log_dir_root)
+        # Extract the missing positional arguments
+        dataset_params = self.kwargs.pop('dataset_params', {})
+        base_path = self.kwargs.pop('base_path', "") # Changed default from None to ""
+        model_id = self.kwargs.pop('model_id', None)
+
 
         if backend == 'pytorch':
             from .tsMqlMLTunerModTorch import CMdtunerTorch
             self.tuner = CMdtunerTorch(
                 tuner_id=tuner_id,
                 oracle_client=self.oracle_client,
-                is_chief=True,
-                **self.kwargs
+                train_data=train_data or train_dataset,
+                val_data=val_data or val_dataset,
+                dataset_params=dataset_params, # Pass explicitly
+                base_path=base_path,         # Pass explicitly
+                model_id=model_id,           # Pass explicitly
+                **self.kwargs # Pass remaining kwargs
             )
         elif backend == 'keras':
             from .tsMqlMLTunerMod import CMdtuner
             self.tuner = CMdtuner(
                 tuner_id=tuner_id,
                 oracle_client=self.oracle_client,
-                is_chief=True,
-                **self.kwargs
+                train_data=train_data or train_dataset,
+                val_data=val_data or val_dataset,
+                dataset_params=dataset_params, # Pass explicitly
+                base_path=base_path,         # Pass explicitly
+                model_id=model_id,           # Pass explicitly
+                **self.kwargs # Pass remaining kwargs
             )
         else:
             raise ValueError(f"Unsupported backend: {backend}")
@@ -97,4 +114,4 @@ class CMdtunerSelector:
 
     @property
     def app_params(self):
-        return self.kwargs.get("hypermodel_params", {}).get("app", {})
+        return self.kwargs

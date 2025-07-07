@@ -17,6 +17,7 @@ mql_overrides = CMqlOverrides()
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
 tune_params = all_params.get('mltune', {})
+base_params = all_params.get('base', {}) # Get base_params
 
 # Extract backend for logging path - crucial for correct log file path
 # This will be passed to initialize_logging. It can also be obtained from env if passed by launcher.
@@ -36,14 +37,17 @@ class CustomOracle(Oracle):
         reset_trials=True,
         **kwargs # Accept additional kwargs
     ):
-        # Extract 'overwrite' and other specific kwargs before passing to super()
+        # Directly use the 'overwrite' value passed from kwargs.
+        # oracle_server_main.py is responsible for correctly determining this from env/config.
         self_overwrite = kwargs.pop('overwrite', False)
+        
+        # Log the received overwrite and max_trials values for debugging
+        logger.info(f"[CustomOracle.__init__] Received overwrite: {self_overwrite} (type: {type(self_overwrite)}), max_trials: {max_trials}")
+
         tune_new_entries = kwargs.pop('tune_new_entries', True)
         allow_new_entries = kwargs.pop('allow_new_entries', True)
 
         # Call the base Oracle's __init__ with arguments it expects.
-        # DO NOT pass 'directory' or 'project_name' to super().__init__()
-        # if the TypeError occurred previously.
         super().__init__(
             objective=objective,
             max_trials=max_trials,
@@ -80,6 +84,7 @@ class CustomOracle(Oracle):
         self.logger.info(f"[CustomOracle] Initialized with directory: {self._directory}, project: {self._project_name}")
         self.logger.debug(f"[CustomOracle] Objective: {self.objective}, Max trials: {self.max_trials}")
 
+        # Use self_overwrite for the logic
         if not self_overwrite and self._save_file.exists():
             try:
                 # Reload calls super().reload() which uses KerasTuner's internal saving/loading.
@@ -108,6 +113,8 @@ class CustomOracle(Oracle):
 
     def populate_space(self, trial_id):
         self.logger.info(f"[CustomOracle] Populating space for trial_id: {trial_id}")
+        # Log current number of trials vs max_trials
+        self.logger.info(f"[CustomOracle] Current trials: {len(self.trials)}, Max trials: {self.max_trials}")
         if len(self.trials) >= self.max_trials:
             self.logger.info(f"[CustomOracle] Reached max_trials ({self.max_trials}). No more trials to generate.")
             return {"status": trial_lib.TrialStatus.STOPPED, "hyperparameters": {}}
@@ -180,6 +187,8 @@ class CustomOracle(Oracle):
     def create_trial(self, tuner_id):
         with self.lock:
             self.logger.info(f"[CustomOracle] Request to create trial from tuner_id: {tuner_id}")
+            # Log current number of trials vs max_trials
+            self.logger.info(f"[CustomOracle] Current trials: {len(self.trials)}, Max trials: {self.max_trials}")
             if len(self.trials) >= self.max_trials:
                 self.logger.info(f"[CustomOracle] Max trials ({self.max_trials}) reached. Not creating new trial.")
                 return None

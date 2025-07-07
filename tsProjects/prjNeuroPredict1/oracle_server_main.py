@@ -15,8 +15,9 @@ from typing import Dict, Optional
 from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
 from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
 from tsMqlOverrides import CMqlOverrides
-# Removed: from tsMqlLogService import CMqlLogService # This import is not needed here
-# Removed: import logging; logging.getLogger(__name__) # This line is redundant and incorrect for initialization
+
+# Corrected: Assign the logger instance to the 'logger' variable
+logger = logging.getLogger(__name__)
 
 # Load configuration (needed before logging setup if logging depends on params)
 mql_overrides = CMqlOverrides()
@@ -27,8 +28,8 @@ base_params = all_params.get("base", {})
 
 backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
 
-# Corrected: Assign the logger instance to the 'logger' variable
-logger = logging.getLogger(__name__)
+# Log the loaded tune_params for debugging
+logger.info(f"[oracle_server_main] Loaded tune_params: {tune_params}")
 
 
 # Server network configuration
@@ -44,7 +45,10 @@ warnings.filterwarnings(
 
 # Oracle setup
 import random
-oracle_base_dir = Path(base_params.get('mp_glob_sub_ml_src_modeldata', Path(__file__).parent / 'oracle_data'))
+# Use the user-specified base log path for oracle data
+oracle_base_dir = Path(base_params.get('mp_glob_base_log_path')) / "oracle_server_data" # Create a subdirectory for oracle server data
+oracle_base_dir.mkdir(parents=True, exist_ok=True) # Ensure it exists
+
 model_name = os.environ.get('ML_MODEL_NAME', tune_params.get('ml_model_name', 'default_model'))
 project_id = os.environ.get('ML_PROJECT_ID', base_params.get('mp_glob_sub_ml_baseuniq', random.randrange(1, 1024)))
 project_name = f"{model_name}_{project_id}"
@@ -55,13 +59,31 @@ logger.info(f"Oracle data directory: {oracle_full_path}")
 
 logger.debug(f"CustomOracle class loaded from: {inspect.getfile(CustomOracle)}")
 
+# Determine the 'overwrite' value. Prioritize environment variable.
+env_overwrite_str = os.environ.get('MLTUNE_OVERWRITE')
+
+# Log the raw environment variable value for debugging
+logger.info(f"[oracle_server_main] Raw MLTUNE_OVERWRITE from environment: '{env_overwrite_str}'")
+
+# Force overwrite to True if the environment variable is explicitly 'True' (case-insensitive)
+# Otherwise, use the value from tune_params or default to False.
+overwrite_value = False
+if env_overwrite_str and env_overwrite_str.lower() == 'true':
+    overwrite_value = True
+else:
+    overwrite_value = tune_params.get('overwrite', False)
+
+logger.info(f"[oracle_server_main] tune_params.get('overwrite'): {tune_params.get('overwrite')}")
+logger.info(f"[oracle_server_main] Final overwrite value passed to CustomOracle: {overwrite_value} (type: {type(overwrite_value)})")
+
+
 oracle_instance = CustomOracle(
     objective=tune_params.get('objective', "val_loss"),
     max_trials=tune_params.get('num_trials', 50),
-    directory=str(oracle_full_path.parent),
-    project_name=oracle_full_path.name,
+    directory=str(oracle_base_dir), # Pass the base directory for Oracle
+    project_name=project_name, # Pass the project name
     seed=tune_params.get('seed', 42),
-    overwrite=tune_params.get('overwrite', False)
+    overwrite=overwrite_value # Pass the determined overwrite value
 )
 logger.info("CustomOracle instance created.")
 

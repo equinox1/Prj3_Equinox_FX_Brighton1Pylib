@@ -210,4 +210,4 @@ class CMqlEnvBaseParams(CEnvCore):
 # Example usage
 if __name__ == "__main__":
     env = CMqlEnvBaseParams(config_file='config.yaml', mp_glob_sub_dir1='My Projects')
-    print(env.params)
+    logger.info(env.params)

@@ -17,6 +17,7 @@ from keras_tuner import Hyperband, RandomSearch, BayesianOptimization, Objective
 from tensorflow.keras import mixed_precision
 from tsMqlSetup import CMqlSetup
 from tsMqlOverrides import CMqlOverrides
+from pathlib import Path # Import Path
 
 # Import Keras Callbacks
 from tensorflow.keras.callbacks import ModelCheckpoint, CSVLogger, TerminateOnNaN, EarlyStopping, ReduceLROnPlateau
@@ -37,6 +38,7 @@ mql_overrides = CMqlOverrides()
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
 tune_params = all_params.get("mltune", {})
+base_params = all_params.get("base", {}) # Get base_params
 
 _logical_cores = os.cpu_count() or 1
 _estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
@@ -126,13 +128,13 @@ def get_callbacks(hp, model_dir, trial_id, oracle_client, objective_name, direct
     callbacks = [
         TerminateOnNaN(),
         ModelCheckpoint(
-            filepath=os.path.join(model_dir, 'checkpoint_epoch_{epoch:02d}.h5'),
+            filepath=os.path.join(model_dir, f'trial_{trial_id}_checkpoint_epoch_{{epoch:02d}}.h5'), # Include trial_id in filename
             monitor=objective_name,
             save_best_only=False, # Save all checkpoints for debugging
             mode=direction,
             verbose=0 # Make verbose=0 for workers to reduce log spam
         ),
-        CSVLogger(os.path.join(model_dir, 'training.log')),
+        CSVLogger(os.path.join(model_dir, f'trial_{trial_id}_training.log')), # Include trial_id in filename
         # TensorBoard(log_dir=os.path.join(model_dir, 'tensorboard_logs'), update_freq='epoch') # Optional
     ]
 
@@ -169,13 +171,20 @@ def get_callbacks(hp, model_dir, trial_id, oracle_client, objective_name, direct
 
 
 class CMdtuner(Hyperband):
-    def __init__(self, input_shape, num_classes, hypermodel_params, tuner_type='hyperband', log_dir=None, **kwargs):
+    def __init__(self, input_shape, num_classes, hypermodel_params, tuner_type='hyperband', **kwargs):
         self.input_shape = input_shape
         self.num_classes = num_classes
         self.hypermodel_params = hypermodel_params
         self.tune_params = hypermodel_params.get('mltune', {})
         self.app_params = hypermodel_params.get('app', {})
-        self.log_dir = log_dir
+        
+        # Get model_save_dir from kwargs, default to a path within base_path if not provided
+        base_path = base_params.get('mp_glob_base_log_path') # Get from base_params
+        model_id = kwargs.get("model_id", "tsneuromodel_1")
+        self.model_dir = kwargs.get("model_save_dir", Path(base_path) / model_id / "keras_models")
+        
+        # Ensure the directory exists
+        Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
         # Select tuner
         tuner_map = {
@@ -208,13 +217,19 @@ class CMdtuner(Hyperband):
         else:
             objective = raw_obj
 
+        # Use the correct directory for KerasTuner's internal files
+        # This directory is where KerasTuner will store its project-specific data (trials, checkpoints)
+        # It should be within the overall LOGDIR structure.
+        kt_directory = Path(base_path) / "keras_tuner_projects"
+        kt_directory.mkdir(parents=True, exist_ok=True) # Ensure it exists
+
         super().__init__(
             objective=objective,
             hypermodel=self.build_model,
             max_epochs=self.tune_params.get('max_epochs', 50),
             factor=self.tune_params.get('factor', 3),
             hyperband_iterations=self.tune_params.get('hyperband_iterations', 1),
-            directory=kwargs.pop('directory', 'kt_tuner_dir'),
+            directory=str(kt_directory), # Use the unified base path
             project_name=kwargs.pop('project_name', 'default_keras_tuner_project'),
             seed=self.tune_params.get('seed', 42),
             overwrite=kwargs.pop('overwrite', True),
@@ -273,8 +288,8 @@ class CMdtuner(Hyperband):
         trials = self.oracle.get_best_trials(1)
         if trials:
             trial_id = trials[0].trial_id
-            weights_dir = os.path.join(self.directory, self.project_name, trial_id)
+            # Use the correct base directory for weights
+            weights_dir = Path(self.directory) / self.project_name / trial_id
             checkpoints = glob.glob(os.path.join(weights_dir, "checkpoint_epoch_*.h5"))
             return max(checkpoints, key=os.path.getctime) if checkpoints else None
         return None
-

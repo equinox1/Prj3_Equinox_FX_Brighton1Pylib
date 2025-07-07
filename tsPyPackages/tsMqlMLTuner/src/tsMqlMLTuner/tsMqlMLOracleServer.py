@@ -9,6 +9,7 @@ import traceback
 import logging
 import os # Import os to access environment variables
 from typing import Dict, Optional # <--- ADDED: Import Dict and Optional from typing
+import errno # Import errno for specific error codes
 
 from tsMqlOverrides import CMqlOverrides
 
@@ -35,135 +36,55 @@ logger = logging.getLogger(__name__)
 class TrialRequest(BaseModel):
     tuner_id: str
 
-class TrialScore(BaseModel):
-    trial_id: str
-    score: float
-
 class TrialResult(BaseModel):
     trial_id: str
-    result: Dict[str, float]
+    score: float
+    status: Optional[str] = "COMPLETED"
 
 class TrialStatusUpdate(BaseModel):
     trial_id: str
     status: str
 
-
 class OracleServer:
-    def __init__(self, oracle_instance, tuner_id=None):
+    def __init__(self, oracle_instance, tuner_id="oracle_server"):
         self.app = FastAPI()
         self.oracle = oracle_instance
-        self.lock = threading.Lock()
         self.tuner_id = tuner_id
-        self._server_thread = None # For managing the Uvicorn thread
-        logger.info(f"[OracleServer] Initialized with tuner_id: {self.tuner_id}")
-
+        self._server_thread = None
         self._setup_routes()
+        logger.info(f"[OracleServer] Initialized for tuner_id: {self.tuner_id}")
 
     def _setup_routes(self):
-        
-        @self.app.post("/register")
-        async def register(request: TrialRequest):
-            logger.info(f"[OracleServer] Register request received for tuner_id: {request.tuner_id}")
-            return JSONResponse({"status": "registered", "tuner_id": request.tuner_id})
-    
-
         @self.app.post("/request_trial")
         async def request_trial(request: TrialRequest):
-            with self.lock:
-                logger.info(f"[OracleServer] Request for new trial from tuner_id: {request.tuner_id}")
-                try:
-                    trial = self.oracle.create_trial(request.tuner_id)
-                    if trial is None:
-                        logger.info("[OracleServer] No trial available (e.g., max_trials reached).")
-                        return JSONResponse({"trial_id": None, "hyperparameters": {}}, status_code=200)
-                    
-                    # Ensure hyperparameters.values is a dictionary
-                    hps_values = trial.hyperparameters.values if trial.hyperparameters else {}
-                    logger.info(f"[OracleServer] Returning trial {trial.trial_id} with HPs: {hps_values}")
-                    return JSONResponse({
-                        "trial_id": trial.trial_id,
-                        "hyperparameters": hps_values
-                    })
-                except Exception as e:
-                    logger.error(f"[OracleServer] Error requesting trial: {e}", exc_info=True)
-                    return JSONResponse({"detail": str(e)}, status_code=500)
+            logger.info(f"[OracleServer] Request for new trial from tuner_id: {request.tuner_id}")
+            trial = self.oracle.get_trial(request.tuner_id)
+            if trial:
+                logger.info(f"[OracleServer] Returning trial {trial['trial_id']} to tuner {request.tuner_id}")
+                return JSONResponse(trial)
+            else:
+                logger.info(f"[OracleServer] No trial available (e.g., max_trials reached).")
+                raise HTTPException(status_code=200, detail="No more trials available or active.")
 
         @self.app.post("/report_result")
-        async def report_result(result_data: TrialResult):
-            with self.lock:
-                logger.info(f"[OracleServer] Reporting result for trial {result_data.trial_id} with result: {result_data.result}")
-                try:
-                    # KerasTuner's Oracle.update_trial takes 'metrics' as a dictionary
-                    self.oracle.update_trial(
-                        trial_id=result_data.trial_id,
-                        metrics=result_data.result,
-                        status='COMPLETED' # Mark as completed when results are reported
-                    )
-                    self.oracle.save() # Persist state after updating a trial
-                    return JSONResponse({"status": "ok", "message": f"Trial {result_data.trial_id} results reported and updated."})
-                except Exception as e:
-                    logger.error(f"[OracleServer] Error reporting result for trial {result_data.trial_id}: {e}", exc_info=True)
-                    return JSONResponse({"detail": str(e)}, status_code=500)
+        async def report_result(result: TrialResult):
+            logger.info(f"[OracleServer] Received result for trial {result.trial_id}: score={result.score}, status={result.status}")
+            try:
+                self.oracle.report_trial_result(result.trial_id, result.score, result.status)
+                return JSONResponse({"message": "Result reported successfully."})
+            except Exception as e:
+                logger.error(f"[OracleServer] Error reporting result for trial {result.trial_id}: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.post("/update_status")
-        async def update_status(status_data: TrialStatusUpdate):
-            with self.lock:
-                logger.info(f"[OracleServer] Updating status for trial {status_data.trial_id} to: {status_data.status}")
-                try:
-                    self.oracle.update_trial(
-                        trial_id=status_data.trial_id,
-                        status=status_data.status
-                    )
-                    self.oracle.save() # Persist state after status update
-                    return JSONResponse({"status": "ok", "message": f"Trial {status_data.trial_id} status updated to {status_data.status}."})
-                except Exception as e:
-                    logger.error(f"[OracleServer] Error updating status for trial {status_data.trial_id}: {e}", exc_info=True)
-                    return JSONResponse({"detail": str(e)}, status_code=500)
-
-        @self.app.get("/list_trials")
-        async def list_trials():
-            with self.lock:
-                trials_list = []
-                # Ensure self.oracle.trials is accessed safely and is populated
-                if hasattr(self.oracle, 'trials') and self.oracle.trials:
-                    for trial_id, trial_obj in self.oracle.trials.items():
-                        trial_info = {
-                            "trial_id": trial_id,
-                            "hyperparameters": trial_obj.hyperparameters.values if trial_obj.hyperparameters else {},
-                            "score": trial_obj.score if hasattr(trial_obj, 'score') else None,
-                            "status": trial_obj.status
-                        }
-                        trials_list.append(trial_info)
-                logger.info(f"[OracleServer] Returning {len(trials_list)} trials.")
-                return JSONResponse({"trials": trials_list})
-
-
-        @self.app.get("/get_best_trial")
-        async def get_best_trial():
-            with self.lock:
-                logger.info("[OracleServer] Request to get best trial.")
-                try:
-                    # You might need to refine this based on how KerasTuner's Oracle stores best trials
-                    # For a simple approach, sort by objective score
-                    trials_with_scores = [t for t in self.oracle.trials.values() if t.status == 'COMPLETED' and hasattr(t, 'score') and t.score is not None]
-                    if not trials_with_scores:
-                        logger.info("[OracleServer] No completed trials with scores found for best trial determination.")
-                        return JSONResponse({"best_trial": None})
-
-                    # Assuming 'val_loss' is objective and lower is better
-                    best_trial_obj = min(trials_with_scores, key=lambda t: t.score)
-                    
-                    best_trial_info = {
-                        "trial_id": best_trial_obj.trial_id,
-                        "hyperparameters": best_trial_obj.hyperparameters.values,
-                        "score": best_trial_obj.score,
-                        "status": best_trial_obj.status
-                    }
-                    logger.info(f"[OracleServer] Best trial found: {best_trial_info['trial_id']} with score: {best_trial_info['score']}")
-                    return JSONResponse({"best_trial": best_trial_info})
-                except Exception as e:
-                    logger.error(f"[OracleServer] Error getting best trial: {e}", exc_info=True)
-                    return JSONResponse({"detail": str(e)}, status_code=500)
+        async def update_status(update: TrialStatusUpdate):
+            logger.info(f"[OracleServer] Received status update for trial {update.trial_id}: status={update.status}")
+            try:
+                self.oracle.update_trial_status(update.trial_id, update.status)
+                return JSONResponse({"message": "Status updated successfully."})
+            except Exception as e:
+                logger.error(f"[OracleServer] Error updating status for trial {update.trial_id}: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/status")
         async def health_check():
@@ -180,8 +101,20 @@ class OracleServer:
             return
 
         def run_server():
-            # Use '127.0.0.1' for local testing if '0.0.0.0' causes issues
-            uvicorn.run(self.app, host=host, port=port, log_level="info")
+            try:
+                # Use '127.0.0.1' for local testing if '0.0.0.0' causes issues
+                uvicorn.run(self.app, host=host, port=port, log_level="info")
+            except OSError as e:
+                if e.errno == errno.EADDRINUSE: # Error code for "address already in use"
+                    logger.critical(f"❌ Failed to start Oracle Server: Address {host}:{port} already in use. Please ensure no other instance is running.")
+                else:
+                    logger.critical(f"❌ Failed to start Oracle Server due to OS error: {e}", exc_info=True)
+                # Exit the thread if binding fails
+                os._exit(1) # Use os._exit to terminate the thread immediately
+            except Exception as e:
+                logger.critical(f"❌ Oracle Server crashed unexpectedly in run_server thread: {e}", exc_info=True)
+                os._exit(1) # Ensure thread terminates on unexpected errors
+
 
         self._server_thread = threading.Thread(target=run_server, daemon=True)
         self._server_thread.start()
@@ -191,6 +124,6 @@ class OracleServer:
         logger.info("[OracleServer] Attempting to stop server (daemon thread will terminate with main process).")
         if self._server_thread and self._server_thread.is_alive():
             # In a real-world scenario, you'd need a more robust shutdown mechanism
-            # for the uvicorn server, possibly involving uvicorn.Server and its stop() method.
-            # For a simple daemon thread, exiting the main process is often sufficient.
+            # for uvicorn, but for a daemon thread, it will exit with the main process.
+            # If explicit shutdown is needed, uvicorn.Server.shutdown() would be used.
             pass
