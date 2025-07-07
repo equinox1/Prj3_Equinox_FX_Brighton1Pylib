@@ -2,8 +2,8 @@ TUNER_ID_CHIEF = "chief" # This constant remains for reference, but worker uses 
 #!/usr/bin/env python3
 # +------------------------------------------------------------------+\
 # |                                    tsNeuroPredictWinMql_worker.py|\
-# |                                                    Tony Shepherd |\
-# |                                    https://www.xercescloud.co.uk |\
+# |                                                    Tony Shepherd |\\\
+# |                                    https://www.xercescloud.co.uk |\\\
 # +------------------------------------------------------------------+\
 import os
 import sys
@@ -75,7 +75,7 @@ mql_overrides = CMqlOverrides()
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
 tune_params = all_params.get('mltune', {})
-base_params = all_params.get("base", {})
+base_params = all_params.get("base", {}) # Get base_params
 
 # Determine global backend (should be passed from launcher)
 global_backend = os.environ.get("BACKEND", tune_params.get("backend", "tensorflow"))
@@ -105,8 +105,10 @@ logger.info(f"✨ Global mixed precision policy set to: {mixed_precision.global_
 xerces_server = app_params.get('xerces_server', '127.0.0.1')
 xerces_port = app_params.get('xerces_port', 9000)
 oracle_url = f"http://{xerces_server}:{xerces_port}"
-LOGDIR = app_params.get('LOGDIR', 'Logdir')
-LOGDIR = Path(LOGDIR)
+
+# Use the correct LOGDIR from base_params
+LOGDIR = Path(base_params.get('mp_glob_base_log_path'))
+LOGDIR.mkdir(parents=True, exist_ok=True) # Ensure it exists
 
 # --- Main Logic for Worker ---
 def main():
@@ -116,7 +118,8 @@ def main():
 
     # Model and Tuner Configuration (worker also needs these for building models)
     MODEL_NAME = tune_params.get('ml_model_name', 'tsneuromodel')
-    MODEL_DIR = Path(base_params.get('mp_glob_sub_ml_src_modeldata', 'tsModelData'))
+    # Use the base log path for model data as well, as per user's request for "Logdir everywhere"
+    MODEL_DIR = Path(base_params.get('mp_glob_base_log_path')) / "tsneuromodel_1" # Subdirectory for models
     PROJECT_PATH = MODEL_DIR / MODEL_NAME
     PROJECT_PATH.mkdir(parents=True, exist_ok=True) # Ensure project directory exists
 
@@ -225,7 +228,7 @@ def main():
         backend=global_backend,
         tuner_id=tuner_id, # Use the dynamic tuner_id for the worker
         project_name=project_name, # Workers also need project_name for local files/dirs
-        log_dir=str(LOGDIR),
+        log_dir=str(LOGDIR), # Pass the correct LOGDIR
         train_dataset=train_dataset,
         val_dataset=val_dataset,
         test_dataset=test_dataset,
@@ -236,7 +239,9 @@ def main():
         hypermodel_params=all_params,
         is_chief=False, # THIS IS THE CRUCIAL CHANGE FOR A WORKER
         oracle_url=oracle_url, # Worker MUST connect to a remote Oracle
-        oracle_directory=str(LOGDIR / "oracle_server") # Worker needs this path for its local KerasTuner files
+        # Oracle directory for worker's local KerasTuner files should be within the main LOGDIR
+        oracle_directory=str(LOGDIR / "oracle_server_worker_data"), # Use correct base log path for worker's oracle data
+        model_save_dir=Path(base_params.get('mp_glob_base_log_path')) / "tsneuromodel_1" / "saved_models" # Pass model_save_dir
     )
 
     logger.info(f"Worker {tuner_id} starting its trial execution loop...")

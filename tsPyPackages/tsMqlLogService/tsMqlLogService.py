@@ -20,6 +20,47 @@ pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
 
+import logging
+import os
+from pathlib import Path
+
+def configure_global_logger(backend: str):
+    """
+    Set up logging to a specific log file based on backend.
+    This disables default propagation and prevents 'Logdir' in tuner package dir.
+    """
+    log_paths = {
+        'pytorch': Path(r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir\pytorch\tsneuropredict_app.log"),
+        'tensorflow': Path(r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir\tensorflow\tsneuropredict_app.log")
+    }
+
+    # Default to pytorch path if backend is unknown
+    log_file = log_paths.get(backend.lower(), log_paths['pytorch'])
+
+    # Ensure parent directory exists
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Setup logging
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    # Remove all existing handlers
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+
+    # Add FileHandler
+    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+    file_handler.setFormatter(formatter)
+
+    logger.addHandler(file_handler)
+
+    # Avoid duplication with stdout or other libraries
+    logger.propagate = False
+
+    # Optional: Log confirmation
+    logger.info(f"Logging initialized to {log_file}")
+
 class CMqlLogService:
     """
     Manages centralized logging configuration for the application using both
@@ -90,9 +131,7 @@ class CMqlLogService:
         elif os.environ.get("LOGDIR"):
             base_log_dir = Path(os.environ["LOGDIR"])
         else:
-            # Fallback: derive Logdir from script's location
-            script_dir = Path(__file__).resolve().parent
-            base_log_dir = script_dir.parent / "Logdir"
+            raise RuntimeError("LOGDIR must be provided via environment variable or argument. No fallback to package path.")
 
         # Determine backend name for subfolder
         backend_str = os.environ.get('BACKEND', self.tune_params.get('backend', 'pytorch')) # Default to pytorch if not specified

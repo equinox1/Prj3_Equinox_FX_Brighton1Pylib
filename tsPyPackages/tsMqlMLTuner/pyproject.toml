@@ -1,6 +1,6 @@
 [project]
 name = "tsmqlmltuner"
-version = "2.15.46"
+version = "2.16.6"
 authors = [
   { name="Tony Shepherd", email="shep.antony@gmail.com" },
 ]

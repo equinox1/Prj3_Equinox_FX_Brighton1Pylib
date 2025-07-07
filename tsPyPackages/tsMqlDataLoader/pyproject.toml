@@ -1,6 +1,6 @@
 [project]
 name = "tsmqldataLoader"
-version = "2.6.85"
+version = "2.6.86"
 authors = [
   { name = "Tony Shepherd", email = "shep.antony@gmail.com" },
 ]

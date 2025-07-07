@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# +------------------------------------------------------------------+\
-# |                                    tsNeuroPredictWinMql_chief.py |\
-# |                                                    Tony Shepherd |\
-# |                                    https://www.xercescloud.co.uk |\
-# +------------------------------------------------------------------+\
+# +------------------------------------------------------------------+
+# |                                    tsNeuroPredictWinMql_chief.py |
+# |                                                    Tony Shepherd |
+# |                                    https://www.xercescloud.co.uk |
+# +------------------------------------------------------------------+
 import os
 import sys
 import logging # Import logging, but do NOT configure the root logger here.
@@ -32,6 +32,11 @@ import MetaTrader5 as mt5
 # Import mixed_precision for TensorFlow policy
 from tensorflow.keras import mixed_precision
 
+# Import torch and related modules for PyTorch backend
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
+
 logger = logging.getLogger(__name__)
 # Custom modules
 from tsMqlSetup import CMqlSetup # Import CMqlSetup for non-logging config, but not for root logger setup.
@@ -49,292 +54,383 @@ from tsMqlMLProcess import CDMLProcess
 # Distributed tuner system
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
 from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
-from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer # For running server locally if needed
+from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
 from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
 
 
 # Keras Tuner components for manual trial management
 from keras_tuner.engine.trial import TrialStatus
 
-# --- Environment Setup ---
-os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
-os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1" # Suppress TensorFlow warnings, only show errors
 
-# Load configuration
+
+# Load environment variables and app parameters early
 mql_overrides = CMqlOverrides()
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
 tune_params = all_params.get('mltune', {})
-base_params = all_params.get("base", {})
+base_params = all_params.get('base', {}) # Get base_params
 
+params_dict = {
+    "hypermodel_params": all_params, # Pass all_params so app_params and tune_params are available
+    "dataset_params": app_params.get('mp_app_dataset_params', {}),
+    "base_path": base_params.get('mp_glob_base_log_path'), # Use base_params for base_path
+    "model_id": app_params.get('mp_app_model_id', 'tsneuromodel_1')
+}
+
+# Ensure logging is configured using tsMqlLogService.CMLogServiceSetup
+from tsMqlLogService import CMLogServiceSetup
+# Get the backend from environment, tune_params, or default to pytorch
 backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'))
+# Use the correct log directory from base_params
+logdir_arg = base_params.get('mp_glob_base_log_path')
+servername_arg = app_params.get('mp_app_servername', socket.gethostname())
 
-
-
-# Initialize CMqlSetup to get configuration, including precision
-# Dynamically determine num_cores and num_threads for optimal performance.
-_logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
-_estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
-
-setup_config = CMqlSetup(
-    loglevel=app_params.get('LOGLEVEL', 'INFO'), # Get loglevel from app_params
-    warn='ignore', # Default or get from params if available
-    precision=app_params.get('TF_PRECISION', 'mixed_float16'), # Default or get from params
-    tfdebug=app_params.get('TFDEBUG', False),
-    num_cores=_estimated_physical_cores,
-    num_threads=_logical_cores # Can be set higher if testing proves beneficial
+CMLogServiceSetup.initialize_logging(
+    loglevel=app_params.get('mp_app_log_level', 'INFO'),
+    logdir=logdir_arg, # Use the correct log directory
+    logfile=app_params.get('mp_app_log_filename', 'tsneuropredict_app.log'),
+    servername=servername_arg,
+    backend=backend_for_log, # Pass backend for log path
+    enable_logging=app_params.get('mp_app_enable_logging', True)
 )
 
+# Apply mixed precision policy for TensorFlow if enabled
+if app_params.get('mp_app_enable_mixed_precision_tf', False) and backend_for_log == 'tensorflow':
+    policy = mixed_precision.Policy('mixed_float16')
+    mixed_precision.set_global_policy(policy)
+    logger.info("TensorFlow mixed precision policy set to 'mixed_float16'.")
 
-# Set mixed precision policy if not already set globally by CMqlSetup
-policy = mixed_precision.Policy(setup_config.precision)
-mixed_precision.set_global_policy(policy)
-logger.info(f"✨ Global mixed precision policy set to: {mixed_precision.global_policy().compute_dtype}")
+# Initialize utilities and reference (if needed globally)
+utilities = CUtilities()
+mql_ref = CMqlRefConfig()
 
-# Model and Tuner Configuration
-MODEL_NAME = tune_params.get('ml_model_name', 'tsneuromodel')
-MODEL_DIR = Path(base_params.get('mp_glob_sub_ml_src_modeldata', 'tsModelData')) # Use base_params for model data path
-PROJECT_PATH = MODEL_DIR / MODEL_NAME
-PROJECT_PATH.mkdir(parents=True, exist_ok=True) # Ensure project directory exists
+def fetch_data(symbol, timeframe, start_date, end_date):
+    if not mt5.initialize():
+        logger.error("initialize() failed, error code = %s", mt5.last_error())
+        mt5.shutdown()
+        return None
 
-TUNER_ID_CHIEF = app_params.get('tuner_id_chief', 'chief')
-NUM_TRIALS_CHIEF = tune_params.get('num_trials', 64)
-# Chief determines overwrite behavior for the *entire* tuning process
-OVERWRITE = tune_params.get('overwrite', True)
+    logger.info(f"Fetching API rates from MT5 for {symbol} from {start_date} to {end_date}...")
+    rates = mt5.copy_rates_range(symbol, timeframe, start_date, end_date)
+    mt5.shutdown()
 
-# Oracle Server configuration
-oracle_server_enabled = tune_params.get('tunertype', 'local') == 'remote'
-xerces_server = app_params.get('xerces_server', '127.0.0.1')
-xerces_port = app_params.get('xerces_port', 9000)
-oracle_url = f"http://{xerces_server}:{xerces_port}"
-LOGDIR = app_params.get('LOGDIR', 'Logdir')
-LOGDIR = Path(LOGDIR)  # Convert LOGDIR to a Path object
-oracle_full_path = LOGDIR / "oracle_server"
+    if rates is None or len(rates) == 0:
+        logger.warning(f"No API rates found for {symbol} from {start_date} to {end_date}. Attempting to load local file rates...")
+        try:
+            from tsMqlDataLoader import CDataLoader
+            from tsMqlDataProcess import CDataProcess
 
-# ----------------------------
-# Main Logic
-# ----------------------------
+            mql_env = CMqlEnvMgr()
+            all_params = mql_env.all_params()
+            base_params = all_params.get("base", {})
+
+            file_data_loader = CDataLoader(
+                symbol=symbol,
+                timeframe=timeframe,
+                start_date_str=start_date.strftime('%Y-%m-%d'),
+                end_date_str=end_date.strftime('%Y-%m-%d'),
+                data_path=base_params.get("mp_glob_base_data_path", "Mql5Data"),
+                mp_data_loadapiticks=False,
+                mp_data_loadapirates=False,
+                mp_data_loadfileticks=False,
+                mp_data_loadfilerates=True
+            )
+            dfs = file_data_loader.run_dataloader_services()
+            df_fallback = dfs.get('df_file_rates')
+
+            if df_fallback is not None and not df_fallback.empty:
+                logger.info(f"✅ Loaded fallback local file data for {symbol}. Shape: {df_fallback.shape}")
+                return df_fallback
+            else:
+                logger.error("❌ Fallback local file data is also empty.")
+                return None
+        except Exception as e:
+            logger.error(f"❌ Error loading fallback local file data: {e}", exc_info=True)
+            return None
+
+    df = pd.DataFrame(rates)
+    df['time'] = pd.to_datetime(df['time'], unit='s', utc=True)
+    df.set_index('time', inplace=True)
+    return df
+
+def preprocess_data(df, input_sequence_length, output_sequence_length, target_column=None):
+    logger.info(f"Preprocessing DataFrame columns: {df.columns.tolist()}")
+    df_cols_lower = [col.lower() for col in df.columns]
+
+    if set(['open', 'high', 'low', 'close']).issubset(df_cols_lower):
+        colmap = {col.lower(): col for col in df.columns}
+        features = [colmap['open'], colmap['high'], colmap['low'], colmap['close']]
+        target_column = target_column or colmap['close']
+    elif set(['r2_open', 'r2_high', 'r2_low', 'r2_close']).issubset(df_cols_lower):
+        features = ['R2_Open', 'R2_High', 'R2_Low', 'R2_Close']
+        target_column = target_column or 'R2_Close'
+    elif set(['r1_open', 'r1_high', 'r1_low', 'r1_close']).issubset(df_cols_lower):
+        features = ['R1_Open', 'R1_High', 'R1_Low', 'R1_Close']
+        target_column = target_column or 'R1_Close'
+    else:
+        raise KeyError("Could not determine valid price columns from DataFrame: " + str(df.columns.tolist()))
+
+    scaler_X = StandardScaler()
+    scaler_y = StandardScaler()
+
+    scaled_features = scaler_X.fit_transform(df[features])
+    target_data = df[target_column].values.reshape(-1, 1)
+    scaled_target = scaler_y.fit_transform(target_data)
+
+    X, y = [], []
+    for i in range(len(scaled_features) - input_sequence_length - output_sequence_length + 1):
+        X.append(scaled_features[i:(i + input_sequence_length)])
+        y.append(scaled_target[(i + input_sequence_length):(i + input_sequence_length + output_sequence_length)].flatten())
+
+    return np.array(X), np.array(y), scaler_X, scaler_y
+
+
 def main():
-    logger.info(f"Chief {TUNER_ID_CHIEF} started. Kicking off data loading and processing.")
+    logger.info("🚀 Starting tsNeuroPredictWinMql_chief.py...")
 
-    # The 'all_params' dictionary is already loaded at the global scope.
-    # We can directly use 'all_params' instead of re-initializing CMqlEnvMgr.
+    # Load parameters
+    symbol = app_params.get('mp_app_symbol', 'EURUSD')
+    timeframe = mql_ref.mt5_timeframe_from_string(app_params.get('mp_app_timeframe', 'M1'))
+    start_date_str = app_params.get('mp_app_start_date', '2023-01-01 00:00:00')
+    end_date_str = app_params.get('mp_app_end_date', datetime.now(pytz.utc).strftime('%Y-%m-%d %H:%M:%S'))
     
-    # 1. Data Loading
-    # Extract parameters for CDataLoader from all_params
-    primary_symbol = app_params.get('mp_app_primary_symbol', 'EURUSD')
-    timeframe_str = app_params.get('mp_app_timeframe', 'mt5.TIMEFRAME_H4')
-    
-    # Dynamically resolve timeframe string to mt5 constant
-    # This ensures that the correct mt5.TIMEFRAME_H4 (or other) is passed.
+    # Convert date strings to datetime objects
+    start_date = datetime.strptime(start_date_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=pytz.utc)
+    end_date = datetime.strptime(end_date_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=pytz.utc)
+
+    input_sequence_length = app_params.get('mp_app_input_sequence_length', 60)
+    output_sequence_length = app_params.get('mp_app_output_sequence_length', 1) # Predicting next 1 minute/candle
+
+    logger.info(f"Fetching data for {symbol} ({timeframe}) from {start_date} to {end_date}...")
+    df = fetch_data(symbol, timeframe, start_date, end_date)
+
+    if df is None or df.empty:
+        logger.error("Failed to fetch data or data is empty. Exiting.")
+        sys.exit(1)
+    logger.info(f"✅ Data fetched. Shape: {df.shape}")
+
+    logger.info("Preprocessing data...")
+    data_X, data_y, scaler_X, scaler_y = preprocess_data(df.copy(), input_sequence_length, output_sequence_length)
+    logger.info(f"✅ Data preprocessed. X shape: {data_X.shape}, y shape: {data_y.shape}")
+
+    # Split data into training and testing sets
+    # Using 80/20 split, shuffle=False for time series
+    X_train, X_test, y_train, y_test = train_test_split(data_X, data_y, test_size=0.2, shuffle=False, random_state=42)
+    logger.info(f"Data split: X_train {X_train.shape}, y_train {y_train.shape}, X_test {X_test.shape}, y_test {y_test.shape}")
+
+    # Initialize CMdtunerSelector
+    logger.info("Initializing CMdtunerSelector...")
+    # Pass necessary parameters from app_params and tune_params
+
+    # ✅ Create PyTorch dataset
+    # Simulated or real preprocessed data loading
+    input_seq_len, output_seq_len = 60, 1
+    n_features = 4
+    n_samples = 10000
+
+    X = np.random.rand(n_samples, input_seq_len, n_features)
+    y = np.random.rand(n_samples, output_seq_len)
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Torch conversion with correct shapes
+    X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+    y_train_tensor = torch.tensor(y_train.squeeze(), dtype=torch.float32)
+    X_val_tensor = torch.tensor(X_test, dtype=torch.float32)
+    y_val_tensor = torch.tensor(y_test.squeeze(), dtype=torch.float32)
+
+    train_dataset = DataLoader(TensorDataset(X_train_tensor, y_train_tensor), batch_size=32, shuffle=True)
+    val_dataset = DataLoader(TensorDataset(X_val_tensor, y_val_tensor), batch_size=32, shuffle=False)
+
+    # Use the correct oracle URL from app_params or base_params
+    oracle_host = app_params.get('xerces_server', '192.168.1.103')
+    oracle_port = app_params.get('xerces_port', 9000)
+    oracle_url = f"http://{oracle_host}:{oracle_port}"
+
+    # Instantiate and run tuner
+    dtuner_selector = CMdtunerSelector(
+        backend="pytorch",
+        tuner_id="tsneuropredict1",  # or None if dynamic
+        oracle_url=oracle_url,  # Pass the correctly formed oracle URL
+        is_chief=True, # Explicitly mark as chief
+        # Any additional kwargs needed for tuning
+        hypermodel_params=all_params, # Pass all_params
+        dataset_params=params_dict.get("dataset_params", {}),
+        base_path=params_dict.get("base_path"), # Use the correct base_path (mp_glob_base_log_path)
+        model_id=params_dict.get("model_id", "tsneuromodel_1"),
+        # Pass the desired model save directory to the tuner selector
+        model_save_dir=Path(base_params.get('mp_glob_base_log_path')) / "tsneuromodel_1" / "saved_models",
+        train_data=train_dataset, # Pass train_dataset
+        val_data=val_dataset # Pass val_dataset
+    )
+    logger.info(f"✅ CMdtunerSelector initialized with backend: {dtuner_selector.backend}, tuner_id: {dtuner_selector.tuner_id}")
+ 
+
+    # Start the training and tuning process
+    logger.info("Starting model training and tuning...")
     try:
-        timeframe = getattr(mt5, timeframe_str.split('.')[-1])
-        logger.info(f"Resolved timeframe: {timeframe_str} to MT5 constant {timeframe}")
-    except AttributeError:
-        logger.error(f"Invalid timeframe string: {timeframe_str}. Falling back to mt5.TIMEFRAME_H4.")
-        timeframe = mt5.TIMEFRAME_H4 # Fallback
-    
-    start_date = app_params.get('mp_app_start_date', '2023-01-01')
-    end_date = app_params.get('mp_app_end_date', datetime.now().strftime('%Y-%m-%d'))
-    data_path = base_params.get('mp_glob_base_data_path', 'Mql5Data')
-
-    # Collect all kwargs for CDataLoader
-    data_loader_kwargs = {
-        'mp_data_rows': all_params.get('data', {}).get('mp_data_rows', 1000),
-        'mp_data_rowcount': all_params.get('data', {}).get('mp_data_rowcount', 10000),
-        'mp_data_loadapiticks': all_params.get('data', {}).get('mp_data_loadapiticks', True),
-        'mp_data_loadapirates': all_params.get('data', {}).get('mp_data_loadapirates', True),
-        'mp_data_loadfileticks': all_params.get('data', {}).get('mp_data_loadfileticks', True),
-        'mp_data_loadfilerates': all_params.get('data', {}).get('mp_data_loadfilerates', True)
-    }
-
-    # FIX: Pass positional arguments explicitly
-    data_loader = CDataLoader(
-        symbol=primary_symbol,
-        timeframe=timeframe,
-        start_date_str=start_date,
-        end_date_str=end_date,
-        data_path=data_path,
-        **data_loader_kwargs # Unpack the dictionary into keyword arguments for the rest
-    )
-
-    # CDataLoader.run_dataloader_services now returns a dictionary
-    all_dfs = data_loader.run_dataloader_services() 
-    logger.info(f"Data Loader services finished. Loaded DataFrames: {all_dfs.keys()}")
-
-    # Determine which DataFrame to use based on configuration
-    used_data_key = app_params.get('mp_app_cfg_usedata', 'df_file_rates') # Default to file_rates
-    logger.info(f"DEBUG: In tsNeuroPredictWinMql_chief.py - used_data_key for main_df: '{used_data_key}'")
-    logger.info(f"DEBUG: In tsNeuroPredictWinMql_chief.py - Keys in all_dfs received from CDataLoader: {list(all_dfs.keys())}")
-
-    main_df = all_dfs.get(used_data_key)
-
-    if main_df is None or main_df.empty:
-        logger.error(f"❌ Main DataFrame '{used_data_key}' is not available or is empty after data loading. Exiting.")
-        sys.exit(1)
-    
-    logger.info(f"Loaded DataFrame '{used_data_key}' with shape: {main_df.shape}")
-    # logger.debug(f"DataFrame head:\n{tabulate(main_df.head(), headers='keys', tablefmt='psql')}")
-
-    # 2. Data Processing (using CDataProcess)
-    # The CDataProcess class definition was found in tsMqlDataProcess.py.
-    # Instantiate and use it.
-    # 2. Data Processing (using CDataProcess)
-    # The CDataProcess class definition was found in tsMqlDataProcess.py.
-    # Instantiate and use it.
-    data_processor = CDataProcess(
-        df=main_df,
-        all_params=all_params,  # Pass all_params as a keyword argument
-        project_dir=PROJECT_PATH
-    )
-    processed_df = data_processor.process_data()
-
-    if processed_df is None or processed_df.empty:
-        logger.error("❌ Processed DataFrame is empty after CDataProcess. Exiting.")
+        dtuner_selector.run()
+        logger.info("✅ Model training and tuning completed.")
+    except Exception as e:
+        logger.error(f"❌ Error during model training and tuning: {e}", exc_info=True)
         sys.exit(1)
 
-    logger.info(f"Processed DataFrame shape after CDataProcess: {processed_df.shape}")
-
-
-    # 3. Machine Learning Data Preparation (using CDMLProcess)
-    # CDMLProcess will now handle feature engineering and return X, y as numpy arrays
-    ml_processor = CDMLProcess(df=processed_df, all_params=all_params, project_dir=PROJECT_PATH)
-    
-    # Corrected: CDMLProcess.process_ml_data returns X (numpy array), input_shape, num_classes
-    X_final, y_final, input_shape, num_classes = ml_processor.process_ml_data()
-
-    # Check if the returned numpy arrays are empty
-    if X_final is None or X_final.size == 0 or y_final is None or y_final.size == 0:
-        logger.error("❌ Processed X or y are empty after ML processing. Exiting.")
-        sys.exit(1)
-    
-    logger.info(f"ML Processed X shape: {X_final.shape}, Y shape: {y_final.shape}")
-
-    # Split data into training, validation, and test sets
-    random_state = tune_params.get('seed', 42)
-    X_train, X_val, X_test, y_train, y_val, y_test = ml_processor.split_dataset(
-        X_final, y_final, # Pass the numpy arrays
-        train_size=tune_params.get('train_split', 0.7),
-        val_size=tune_params.get('val_split', 0.15),
-        test_size=tune_params.get('test_split', 0.15),
-        random_state=random_state
-    )
-    logger.info(f"Data split into: Train X: {X_train.shape}, Y: {y_train.shape} | Val X: {X_val.shape}, Y: {y_val.shape} | Test X: {X_test.shape}, Y: {y_test.shape}")
-
-
-    # Convert to TensorFlow Datasets using the appropriate method from CDMLProcess
-    train_dataset, val_dataset, test_dataset = ml_processor.create_tf_datasets(
-        X_train, y_train, X_val, y_val, X_test, y_test,
-        batch_size=tune_params.get('batch_size', 32),
-        shuffle_buffer=tune_params.get('buffer_size', 1000) # Changed from buffer_size to shuffle_buffer
-    )
-
-    if train_dataset is None:
-        logger.error("❌ Failed to create TensorFlow datasets. Exiting.")
-        sys.exit(1)
-
-    # Determine input shape and number of classes for the model
-    # These should now be directly from the ml_processor.process_ml_data call
-    # input_shape is already set above
-    # num_classes is already set above
-
-    if input_shape is None: # Redundant check but good for safety
-        logger.error("❌ Could not determine input_shape from training dataset. Exiting.")
-        sys.exit(1)
-    
-    logger.info(f"Inferred input_shape for model: {input_shape}")
-    logger.info(f"Inferred number of output classes/dimensions: {num_classes}")
-
-
-    # 4. Initialize and Run the Tuner Selector (Chief)
-    # The Chief's CMdtunerSelector will create and manage the Oracle
-    tuner_config = CMdtunerSelector(
-        backend=tune_params.get('backend', 'tensorflow'),
-        tuner_id=TUNER_ID_CHIEF,
-        project_name=PROJECT_PATH.name, # Re-added 'project_name' argument
-        log_dir=str(LOGDIR), # Pass as string
-        train_dataset=train_dataset,
-        val_dataset=val_dataset,
-        test_dataset=test_dataset, # Pass test_dataset for final evaluation
-        input_shape=input_shape,
-        num_classes=num_classes, # Use the dynamically determined num_classes
-        max_trials=NUM_TRIALS_CHIEF, # Chief runs all trials
-        overwrite=OVERWRITE, # Pass the 'overwrite' argument
-        hypermodel_params=all_params, # Pass all_params to the tuner for configuration
-        is_chief=True, # Mark as chief
-        oracle_url=oracle_url, # Pass Oracle URL
-        oracle_directory=str(oracle_full_path) # Pass Oracle directory
-    )
-
-    logger.info(f"Chief {TUNER_ID_CHIEF} starting its tuning process...")
-    tuner_config.run() # Call the 'run' method for chief
-
-    best_model = tuner_config.get_best_model()
+    # Final Evaluation and Model Saving
+    logger.info("Retrieving best model for final evaluation and saving...")
+    best_model = dtuner_selector.get_best_model()
 
     if best_model:
-        logger.info("Best model found. Proceeding with evaluation and saving.")
-        # Evaluate the best model
-        
-        # Check the backend to pass the correct test data format
-        if tuner_config.backend == "tensorflow":
-            if test_dataset is not None:
-                logger.info(f"TensorFlow: Evaluating with test_dataset.")
-                # Pass the TensorFlow Dataset directly
-                eval_results = tuner_config.evaluate_model(best_model, test_dataset)
-                logger.info(f"Final evaluation results: {eval_results}")
-            else:
-                logger.warning("No TensorFlow test dataset available for final evaluation.")
-                eval_results = {}
-        elif tuner_config.backend == "pytorch":
-            if X_test.size > 0 and y_test.size > 0: # Check if the numpy arrays are not empty
-                logger.info(f"PyTorch: Test data extracted. X_test shape: {X_test.shape}, y_test shape: {y_test.shape}")
-                # Pass X_test, y_test as a tuple (or separate args) for PyTorch as it expects numpy/tensors
-                eval_results = tuner_config.evaluate_model(best_model, (X_test, y_test)) # Assuming evaluate_model takes tuple
-                logger.info(f"Final evaluation results: {eval_results}")
-            else:
-                logger.warning("No PyTorch test data available for final evaluation.")
-                eval_results = {}
-        else:
-            logger.warning(f"Evaluation not supported for backend: {tuner_config.backend}. Skipping final evaluation.")
-            eval_results = {}
+        logger.info("Best model retrieved successfully. Proceeding with evaluation and saving.")
 
+        # Prepare evaluation data (assuming data_X_test and data_y_test are already scaled and prepped)
+        # If your 'evaluate_model' expects raw data, adjust this.
+        # For forecasting, we often predict on a portion of the *original* data or a new unseen window.
+        # Let's assume we want to predict on the entire `data_X` for visualization purposes.
+        # You might want to adjust this to `data_X_test` if you only want to plot test set predictions.
 
-        # Save the best model
-        model_save_path = PROJECT_PATH / "best_model.h5"
-        try:
-            best_model.save(model_save_path)
-            logger.info(f"✅ Best model saved to: {model_save_path}")
+        if dtuner_selector.backend == "tensorflow":
+            logger.info("Running final TensorFlow model evaluation...")
+            # For TensorFlow, predict directly using the best_model
+            predictions = best_model.predict(data_X)
+            # Flatten predictions if they are (N, 1) to (N,) for plotting
+            if predictions.ndim > 1 and predictions.shape[1] == 1:
+                predictions = predictions.flatten()
 
-            # Optionally convert to ONNX
+            # The evaluate_model method is part of the tuner, not the selector directly.
+            # Assuming the tuner has access to the evaluation data.
+            # For this example, we'll call it directly on the best_model with the test data.
+            # If CMdtuner has an evaluate_model method that takes X_test, y_test:
+            # eval_results = dtuner_selector.tuner.evaluate_model(best_model, X_test, y_test)
+            # For now, let's just calculate metrics here for simplicity:
+            test_predictions_tf = best_model.predict(X_test)
+            mse_tf = mean_squared_error(y_test, test_predictions_tf)
+            mae_tf = mean_absolute_error(y_test, test_predictions_tf)
+            r2_tf = r2_score(y_test, test_predictions_tf)
+            eval_results = {'mse': mse_tf, 'mae': mae_tf, 'r2': r2_tf}
+            logger.info(f"Final TensorFlow Evaluation Results: {eval_results}")
+
+            # Save the TensorFlow model
+            model_save_path = dtuner_selector.kwargs.get("model_save_dir") / "tensorflow_best_model.keras"
+            logger.info(f"Saving best TensorFlow model to: {model_save_path}")
             try:
-                # Ensure input_signature matches what the model expects
-                # The batch_size dimension needs to be None for ONNX conversion
-                # input_shape from ml_processor is (sequence_length, num_features)
-                # So the full input_signature should be (None, sequence_length, num_features)
-                input_signature_for_onnx = [tf.TensorSpec([None, *input_shape], dtype=tf.float32)]
+                best_model.save(model_save_path)
+                logger.info(f"✅ TensorFlow model saved to {model_save_path}")
+            except Exception as e:
+                logger.error(f"❌ Failed to save TensorFlow model: {e}", exc_info=True)
+
+        elif dtuner_selector.backend == "pytorch":
+            logger.info("Running final PyTorch model evaluation...")
+            # For PyTorch, `evaluate_model` runs inference and computes loss.
+            # We need to explicitly get predictions for plotting.
+            best_model.eval() # Set to evaluation mode
+            
+            # Use original data_X and data_y for full forecast plot if desired
+            # Or use X_test, y_test for test set only
+            full_dataset = TensorDataset(torch.from_numpy(data_X).float(), torch.from_numpy(data_y).float())
+            full_loader = DataLoader(full_dataset, batch_size=app_params.get('mp_app_batch_size', 32), shuffle=False)
+
+            predictions_list = []
+            with torch.no_grad():
+                for inputs, _ in full_loader:
+                    inputs = inputs.to(best_model.device) # Assuming model.device is set
+                    outputs = best_model(inputs)
+                    predictions_list.append(outputs.cpu().numpy())
+
+            predictions = np.concatenate(predictions_list).flatten()
+            
+            # Assuming CMdtunerTorch has an evaluate_model method
+            # For now, let's calculate metrics here for simplicity:
+            X_test_tensor = torch.tensor(X_test, dtype=torch.float32).to(best_model.device)
+            y_test_tensor = torch.tensor(y_test.squeeze(), dtype=torch.float32).to(best_model.device)
+            
+            with torch.no_grad():
+                test_predictions_pt = best_model(X_test_tensor).cpu().numpy()
+            
+            mse_pt = mean_squared_error(y_test, test_predictions_pt)
+            mae_pt = mean_absolute_error(y_test, test_predictions_pt)
+            r2_pt = r2_score(y_test, test_predictions_pt)
+            eval_results = {'mse': mse_pt, 'mae': mae_pt, 'r2': r2_pt}
+            logger.info(f"Final PyTorch Evaluation Results: {eval_results}")
+
+            # Save the PyTorch model
+            model_save_path = dtuner_selector.kwargs.get("model_save_dir") / "pytorch_best_model.pth"
+            logger.info(f"Saving best PyTorch model to: {model_save_path}")
+            try:
+                torch.save(best_model.state_dict(), model_save_path)
+                logger.info(f"✅ PyTorch model state dict saved to {model_save_path}")
+            except Exception as e:
+                logger.error(f"❌ Failed to save PyTorch model: {e}", exc_info=True)
+
+        # --- FORECAST AND PLOT SECTION ---
+        logger.info("📈 Generating forecast plot...")
+        try:
+            plt.style.use('seaborn-v0_8-darkgrid') # Use a nice style
+            plt.figure(figsize=(15, 7))
+
+            # --- IMPORTANT: Ensure data_y and predictions are inverse-transformed if they were scaled for training ---
+            # You need access to the `scaler_y` object used during preprocessing.
+            # For this example, let's assume `data_y` is your original target prices and `predictions` are the raw model outputs.
+            # If `data_y` was scaled (which it is by preprocess_data), you NEED to inverse transform it.
+            
+            # Inverse transform data_y and predictions
+            # Reshape to 2D array if they are 1D (e.g., (N,) to (N,1)) for inverse_transform
+            original_actual_prices = scaler_y.inverse_transform(data_y.reshape(-1, 1)).flatten()
+            predicted_prices = scaler_y.inverse_transform(predictions.reshape(-1, 1)).flatten()
+            
+            # If you have original timestamps or indices, use them. Otherwise, use simple range.
+            time_indices = np.arange(len(original_actual_prices))
+
+            plt.plot(time_indices, original_actual_prices, label='Actual Price', color='blue', alpha=0.7)
+            plt.plot(time_indices, predicted_prices, label='Predicted Price', color='red', linestyle='--', alpha=0.7)
+
+            plt.title(f'Forecast Price vs. Actual Price Over Time Window ({symbol})')
+            plt.xlabel('Time Step / Index')
+            plt.ylabel('Price')
+            plt.legend()
+            plt.grid(True)
+            plt.tight_layout()
+
+            # Save the plot
+            plot_dir = dtuner_selector.kwargs.get("model_save_dir") / "plots"
+            plot_dir.mkdir(parents=True, exist_ok=True)
+            plot_path = plot_dir / f"{dtuner_selector.backend}_forecast_plot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            plt.savefig(plot_path)
+            logger.info(f"✅ Forecast plot saved to {plot_path}")
+
+            # Optionally display the plot (might block execution in some environments)
+            # plt.show() # Uncomment if you want to see the plot immediately
+
+        except Exception as e:
+            logger.error(f"❌ Error generating or saving forecast plot: {e}", exc_info=True)
+        # --- END FORECAST AND PLOT SECTION ---
+
+        # ONNX conversion for TensorFlow models
+        # This try-except block has been moved and corrected to be self-contained
+        if dtuner_selector.backend == "tensorflow" and app_params.get('mp_app_enable_onnx_conversion', False):
+            logger.info("Attempting ONNX conversion for TensorFlow model...")
+            try:
+                # Assuming best_model is a tf.keras.Model
+                input_signature = [tf.TensorSpec((None, input_sequence_length, data_X.shape[2]), tf.float32, name="input")]
+                onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature, opset=13)
                 
-                onnx_model_path = PROJECT_PATH / "best_model.onnx"
-                model_proto, _ = tf2onnx.convert.from_keras(best_model, input_signature=input_signature_for_onnx, opset=13)
-                with open(onnx_model_path, "wb") as f:
-                    f.write(model_proto.SerializeToString())
-                logger.info(f"✅ Model successfully converted to ONNX and saved at {onnx_model_path}")
+                onnx_save_path = dtuner_selector.kwargs.get("model_save_dir") / "tensorflow_best_model.onnx"
+                with open(onnx_save_path, "wb") as f:
+                    f.write(onnx_model.SerializeToString())
+                logger.info(f"✅ ONNX model saved to {onnx_save_path}")
 
-                # Verify ONNX model with onnx checker
-                onnx_model = onnx.load(onnx_model_path)
-                checker.check_model(onnx_model)
-                logger.info("✅ ONNX model check passed.")
+                # Verify ONNX model
+                onnx_model_loaded = onnx.load(onnx_save_path)
+                checker.check_model(onnx_model_loaded)
+                logger.info("✅ ONNX model check successful.")
 
-                # Test ONNX inference with onnxruntime
-                ort_session = ort.InferenceSession(str(onnx_model_path)) # Convert Path to string
+                # Test ONNX Runtime inference
+                ort_session = ort.InferenceSession(str(onnx_save_path))
                 input_name = ort_session.get_inputs()[0].name
                 output_name = ort_session.get_outputs()[0].name
 
-                # Use a small subset of X_test for ONNX inference test
-                # Ensure the test_input has the correct batch dimension (None, timesteps, features)
-                test_input = X_test[:1].astype(np.float32) # Get first sample, ensure float32
-                if test_input.ndim == 2: # If input is (timesteps, features) without batch, add batch dim
+                # Use a sample from test data for ONNX inference test
+                test_input = X_test[0:1].astype(np.float32) # Get first sample, ensure float32
+                if test_input.ndim == 2: # If it's a single sequence without batch, add batch dim
                     test_input = np.expand_dims(test_input, axis=0)
 
                 ort_outs = ort_session.run([output_name], {input_name: test_input})
@@ -346,10 +442,8 @@ def main():
                 logger.error(f"❌ Failed to convert or verify ONNX model: {e}", exc_info=True)
             finally:
                 pass
-        except Exception as e:
-            logger.error(f"❌ Failed to save model or during ONNX process: {e}", exc_info=True)
     else:
-        logger.info("Skipping final evaluation and model saving as no best model was found.")
+        logger.info("Skipping final evaluation, model saving, and plotting as no best model was found.")
 
     logger.info("🏁 tsNeuroPredictWinMql_chief.py finished.")
 
@@ -363,10 +457,17 @@ if __name__ == "__main__":
         logger.info("Successfully logged in to MetaTrader 5.")
     else:
         logger.info("Failed to login. Error code: %s", mqqlobj)
-        sys.exit(1)
-        
+        sys.exit(1) # Exit if login fails
+
     try:
         main()
+    except Exception as e:
+        logger.critical(f"Unhandled exception in main execution: {e}", exc_info=True)
     finally:
-        mt5.shutdown()
-        logger.info("✅ MetaTrader5 shutdown.")
+        # It's good practice to ensure MT5 is shut down properly
+        try:
+            mt5.shutdown()
+            logger.info("MetaTrader 5 connection shut down.")
+        except Exception as e:
+            logger.warning(f"MetaTrader 5 shutdown failed: {e}")
+        logger.info("Application process completed.")

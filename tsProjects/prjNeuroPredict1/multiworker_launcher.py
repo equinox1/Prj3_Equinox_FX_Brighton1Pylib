@@ -14,6 +14,7 @@ import logging
 from pathlib import Path
 import threading
 
+
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
@@ -39,14 +40,17 @@ setup_config = CMqlSetup(
     num_threads=1
 )
 
-# Initialize logging for the launcher script
-from tsMqlLogService import CMLogServiceSetup
-logger = CMLogServiceSetup.initialize_logging(
-    role_hint=__name__,
-    loglevel='INFO',
-    logfile='tsneuropredict_app.log',
-    backend=GLOBAL_BACKEND # Use the global backend for launcher's log path
-)
+from tsMqlLogService import configure_global_logger
+
+# Determine backend from env or fallback
+backend = os.environ.get("BACKEND", "pytorch")
+configure_global_logger(backend)
+
+# ✅ Define logger after configuring
+import logging
+logger = logging.getLogger(__name__)
+
+
 
 # Define scripts paths relative to the launcher script's directory
 LAUNCHER_DIR = Path(__file__).parent

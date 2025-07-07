@@ -1,22 +1,16 @@
 import logging
 import os
-from tsMqlSetup import CMqlSetup # Correctly import the class
-
-
 from datetime import datetime
 import tzlocal
 import zoneinfo  # Import zoneinfo
 
-
 # -- start of logging setup --
 from tsMqlOverrides import CMqlOverrides
-mql_overrides = CMqlOverrides() 
+mql_overrides = CMqlOverrides()
 app_params = mql_overrides.env.all_params().get("app", {})
 tune_params = mql_overrides.env.all_params().get("mltune", {})
 
 logger = logging.getLogger(__name__)
-
-
 
 gtuner_model = tune_params.get('tuner_type', 'hyperband')  # Default ,randomsearch, bayesian, hyperband
 backend = tune_params.get('backend', 'tensorflow')  #tensorflow, pytorch
@@ -27,7 +21,6 @@ xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
 global_logdir = app_params.get('LOGDIR', 'Logdir')
 global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
-
 
 try:
     import MetaTrader5 as mt5
@@ -60,17 +53,6 @@ class CMqlRefConfig:
             'DAY': 86400,
             'WEEK': 604800,
             'YEAR': 31557600  # Approximate average year length
-        },
-        "TIMEFRAME": {
-            'M1': "mt5.TIMEFRAME_M1" if mt5 else "TIMEFRAME_M1",
-            'M5': "mt5.TIMEFRAME_M5" if mt5 else "TIMEFRAME_M5",
-            'M15': "mt5.TIMEFRAME_M15" if mt5 else "TIMEFRAME_M15",
-            'M30': "mt5.TIMEFRAME_M30" if mt5 else "TIMEFRAME_M30",
-            'H1': "mt5.TIMEFRAME_H1" if mt5 else "TIMEFRAME_H1",
-            'H4': "mt5.TIMEFRAME_H4" if mt5 else "TIMEFRAME_H4",
-            'D1': "mt5.TIMEFRAME_D1" if mt5 else "TIMEFRAME_D1",
-            'W1': "mt5.TIMEFRAME_W1" if mt5 else "TIMEFRAME_W1",
-            'MN1': "mt5.TIMEFRAME_MN1" if mt5 else "TIMEFRAME_MN1"
         },
         "UNIT": {
             'SECOND': 's',
@@ -107,19 +89,60 @@ class CMqlRefConfig:
             logger.error(f"Invalid time unit requested: {unit}")
             raise ValueError(f"Invalid time unit requested: {unit}")
 
-        return constants[unit] / (loaded_value / base_value)
+        return (constants[unit] * base_value) / loaded_value
+
+    def mt5_timeframe_from_string(self, timeframe_str):
+        """
+        Converts a string representation of a timeframe to its MetaTrader5 equivalent.
+        :param timeframe_str: The string representation of the timeframe (e.g., 'M1', 'H4').
+        :return: The MetaTrader5 timeframe constant (e.g., mt5.TIMEFRAME_M1) as an integer.
+                 Raises ValueError if MetaTrader5 is not available or if the timeframe string is not recognized.
+        """
+        if not mt5:
+            logger.critical("MetaTrader5 is not initialized. Cannot convert timeframe string to MT5 constant.")
+            raise ValueError("MetaTrader5 is not initialized. Please ensure mt5 is installed and initialized.")
+
+        # Directly map string to MetaTrader5 integer constants
+        timeframe_mapping = {
+            'M1': mt5.TIMEFRAME_M1,
+            'M5': mt5.TIMEFRAME_M5,
+            'M15': mt5.TIMEFRAME_M15,
+            'M30': mt5.TIMEFRAME_M30,
+            'H1': mt5.TIMEFRAME_H1,
+            'H4': mt5.TIMEFRAME_H4,
+            'D1': mt5.TIMEFRAME_D1,
+            'W1': mt5.TIMEFRAME_W1,
+            'MN1': mt5.TIMEFRAME_MN1
+        }
+
+        mt5_timeframe = timeframe_mapping.get(timeframe_str)
+
+        if mt5_timeframe is None:
+            logger.error(f"Unsupported timeframe string '{timeframe_str}'. Valid options are: {list(timeframe_mapping.keys())}")
+            raise ValueError(f"Unsupported timeframe string '{timeframe_str}' for MetaTrader5.")
+
+        return mt5_timeframe
+
 
     def get_current_time(self):
         """
         Retrieve the current time-related constants.
+        Note: The 'TIMEFRAME' key here is for informational purposes (e.g., logging)
+        and returns the string representation, not the MT5 integer constant.
+        For MT5 constant, use mt5_timeframe_from_string.
         """
         try:
+            # We retain the string representation for 'TIMEFRAME' in this dictionary
+            # as it might be used for display/info, not directly for MT5 API calls.
+            # If the actual MT5 constant is needed, mt5_timeframe_from_string should be called.
+            timeframe_display_str = self.required_data_type # Simply use the input required_data_type string
+
             return {
                 "MINUTE": int(self.get_timevalue('MINUTE')),
                 "HOUR": int(self.get_timevalue('HOUR')),
                 "DAY": int(self.get_timevalue('DAY')),
                 "TIMEZONE": self.local_timezone,
-                "TIMEFRAME": self.TIME_CONSTANTS['TIMEFRAME'].get(self.required_data_type, "TIMEFRAME_H4"),
+                "TIMEFRAME": timeframe_display_str, # This remains a string for display/info
                 "CURRENTYEAR": datetime.now().year,
                 "CURRENTDAY": datetime.now().day,
                 "CURRENTMONTH": datetime.now().month
