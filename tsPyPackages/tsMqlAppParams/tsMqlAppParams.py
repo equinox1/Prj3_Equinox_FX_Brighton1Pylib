@@ -39,6 +39,7 @@ class CMqlEnvAppParams(CEnvCore):
         "xerces_logfile" : 'tsneuropredict_app.log',
         "LOGDIR" : 'Logdir',
         "onnx_enabled": False,
+        "mp_app_model_id": "tsneuromodel",  # Default model ID
     }
 
     def __init__(self, **kwargs):

@@ -108,7 +108,7 @@ oracle_url = f"http://{xerces_server}:{xerces_port}"
 
 # Use the correct LOGDIR from base_params
 LOGDIR = Path(base_params.get('mp_glob_base_log_path'))
-LOGDIR.mkdir(parents=True, exist_ok=True) # Ensure it exists
+#LOGDIR.mkdir(parents=True, exist_ok=True) # Ensure it exists
 
 # --- Main Logic for Worker ---
 def main():
@@ -119,7 +119,7 @@ def main():
     # Model and Tuner Configuration (worker also needs these for building models)
     MODEL_NAME = tune_params.get('ml_model_name', 'tsneuromodel')
     # Use the base log path for model data as well, as per user's request for "Logdir everywhere"
-    MODEL_DIR = Path(base_params.get('mp_glob_base_log_path')) / "tsneuromodel_1" # Subdirectory for models
+    MODEL_DIR = Path(base_params.get('mp_glob_sub_ml_src_modeldata'))  # Subdirectory for models
     PROJECT_PATH = MODEL_DIR / MODEL_NAME
     PROJECT_PATH.mkdir(parents=True, exist_ok=True) # Ensure project directory exists
 

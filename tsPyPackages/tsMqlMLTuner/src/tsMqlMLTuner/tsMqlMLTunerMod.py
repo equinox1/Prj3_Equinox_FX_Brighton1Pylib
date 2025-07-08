@@ -76,15 +76,13 @@ class OracleSyncCallback(tf.keras.callbacks.Callback):
         logs = logs or {}
         current_score = logs.get(self.objective_name)
         if current_score is not None:
-            # Report intermediate results to Oracle
-            metrics = {k: float(v) for k, v in logs.items()} # Ensure metrics are serializable
-            self.oracle_client.update_trial(
+            # Report intermediate status to Oracle.
+            # OracleClient's update_trial_status does not take metrics.
+            self.oracle_client.update_trial_status(
                 trial_id=self.trial_id,
-                metrics=metrics,
-                step=epoch,
                 status="RUNNING"
             )
-            self.logger.debug(f"Trial {self.trial_id} epoch {epoch+1}: Reported metrics to Oracle.")
+            self.logger.debug(f"Trial {self.trial_id} epoch {epoch+1}: Reported status to Oracle.")
             
             # Update best score internally for the callback's tracking
             if self.direction == 'min':
@@ -108,6 +106,7 @@ class OracleSyncCallback(tf.keras.callbacks.Callback):
                 return
 
         # Report final result and mark as COMPLETED
+        # Use report_trial_result which takes score and status
         self.oracle_client.report_trial_result(self.trial_id, float(final_score), status="COMPLETED")
         self.logger.info(f"Trial {self.trial_id} finished. Final score: {final_score:.4f}. Status: COMPLETED.")
 
@@ -171,13 +170,21 @@ def get_callbacks(hp, model_dir, trial_id, oracle_client, objective_name, direct
 
 
 class CMdtuner(Hyperband):
-    def __init__(self, input_shape, num_classes, hypermodel_params, tuner_type='hyperband', **kwargs):
+    def __init__(self, input_shape, num_classes, hypermodel_params, tuner_type='hyperband', tuner_id=None, oracle_client=None, is_chief=True, **kwargs):
         self.input_shape = input_shape
         self.num_classes = num_classes
         self.hypermodel_params = hypermodel_params
         self.tune_params = hypermodel_params.get('mltune', {})
         self.app_params = hypermodel_params.get('app', {})
         
+        self.tuner_id = tuner_id
+        self.oracle_client = oracle_client
+        self.is_chief = is_chief
+
+        # Store data loaders for use in run()
+        self.train_data = kwargs.pop('train_dataset', None)
+        self.val_data = kwargs.pop('val_dataset', None)
+
         # Get model_save_dir from kwargs, default to a path within base_path if not provided
         base_path = base_params.get('mp_glob_base_log_path') # Get from base_params
         model_id = kwargs.get("model_id", "tsneuromodel_1")
@@ -200,16 +207,17 @@ class CMdtuner(Hyperband):
             'executions_per_trial', 'distribution_strategy', 'tune_new_entries',
             'allow_new_entries'
         }
-        kwargs = {k: v for k, v in kwargs.items() if k in allowed_keys}
+        # Filter kwargs to only include those relevant for the base KerasTuner.__init__
+        kt_kwargs = {k: v for k, v in kwargs.items() if k in allowed_keys}
 
-        dist_strat = kwargs.get('distribution_strategy', None)
+        dist_strat = kt_kwargs.get('distribution_strategy', None)
         if isinstance(dist_strat, str):
             if dist_strat.lower() == 'mirrored':
-                kwargs['distribution_strategy'] = tf.distribute.MirroredStrategy()
+                kt_kwargs['distribution_strategy'] = tf.distribute.MirroredStrategy()
                 logger.info("✅ Using MirroredStrategy for distribution.")
             else:
                 logger.warning(f"⚠️ Invalid distribution_strategy '{dist_strat}' removed.")
-                kwargs.pop('distribution_strategy', None)
+                kt_kwargs.pop('distribution_strategy', None)
 
         raw_obj = self.tune_params.get('objective', 'val_loss')
         if isinstance(raw_obj, str):
@@ -218,8 +226,6 @@ class CMdtuner(Hyperband):
             objective = raw_obj
 
         # Use the correct directory for KerasTuner's internal files
-        # This directory is where KerasTuner will store its project-specific data (trials, checkpoints)
-        # It should be within the overall LOGDIR structure.
         kt_directory = Path(base_path) / "keras_tuner_projects"
         kt_directory.mkdir(parents=True, exist_ok=True) # Ensure it exists
 
@@ -230,10 +236,10 @@ class CMdtuner(Hyperband):
             factor=self.tune_params.get('factor', 3),
             hyperband_iterations=self.tune_params.get('hyperband_iterations', 1),
             directory=str(kt_directory), # Use the unified base path
-            project_name=kwargs.pop('project_name', 'default_keras_tuner_project'),
+            project_name=kt_kwargs.pop('project_name', 'default_keras_tuner_project'),
             seed=self.tune_params.get('seed', 42),
-            overwrite=kwargs.pop('overwrite', True),
-            **kwargs
+            overwrite=kt_kwargs.pop('overwrite', True),
+            **kt_kwargs # Pass filtered kwargs to super()
         )
 
         logger.info(f"🛠 Initialized {tuner_type} tuner with objective: {objective.name if hasattr(objective, 'name') else objective}")
@@ -293,3 +299,88 @@ class CMdtuner(Hyperband):
             checkpoints = glob.glob(os.path.join(weights_dir, "checkpoint_epoch_*.h5"))
             return max(checkpoints, key=os.path.getctime) if checkpoints else None
         return None
+
+    def run(self):
+        """
+        Main method for CMdtuner (TensorFlow/Keras) to run the tuning process.
+        Handles both chief and worker logic.
+        """
+        if self.is_chief:
+            self._run_chief()
+        else:
+            self._run_worker()
+
+    def _run_chief(self):
+        logger.info("🚀 Chief starting distributed tuning for TensorFlow...")
+        # Chief's responsibility: orchestrate trials, manage Oracle
+        for i in range(self.num_trials): # self.num_trials comes from tune_params via super()
+            logger.info(f"[CMdtuner] Chief requesting trial {i+1}...")
+            trial_data = self.oracle.get_trial(self.tuner_id) # Use self.oracle.get_trial for KerasTuner's internal Oracle
+
+            if trial_data and trial_data.get('trial_id'):
+                trial_id = trial_data['trial_id']
+                hyperparameters = trial_data['hyperparameters']
+                logger.info(f"[CMdtuner] Chief received trial {trial_id} with hyperparameters: {hyperparameters}")
+                # Chief does not train, it just manages the Oracle.
+                # The actual training is done by workers.
+                pass
+            else:
+                logger.info("[CMdtuner] Chief received no new trial. All trials might be completed or no idle trials.")
+                break
+        logger.info("✅ Chief finished tuning for TensorFlow.")
+
+
+    def _run_worker(self):
+        logger.info("👷 Worker starting trial execution loop for TensorFlow...")
+        while True:
+            # Worker requests a trial from the Oracle
+            # Use the oracle_client to get a trial from the remote Oracle Server
+            trial_data = self.oracle_client.get_trial(self.tuner_id)
+
+            if trial_data and trial_data.get('trial_id'):
+                trial_id = trial_data['trial_id']
+                hyperparameters = trial_data['hyperparameters']
+                logger.info(f"[CMdtuner] Worker {self.tuner_id} received trial {trial_id} with hyperparameters: {hyperparameters}")
+
+                try:
+                    # Prepare callbacks for the current trial
+                    model_dir_for_callbacks = Path(self.directory) / self.project_name / trial_id
+                    model_dir_for_callbacks.mkdir(parents=True, exist_ok=True)
+                    
+                    objective_name = self.objective.name if hasattr(self.objective, 'name') else str(self.objective)
+                    objective_direction = self.objective.direction if hasattr(self.objective, 'direction') else 'min'
+
+                    callbacks = get_callbacks(
+                        hp=None, # hp is not directly used by get_callbacks for trial-specific HPs
+                        model_dir=str(model_dir_for_callbacks),
+                        trial_id=trial_id,
+                        oracle_client=self.oracle_client,
+                        objective_name=objective_name,
+                        direction=objective_direction
+                    )
+
+                    # Train the model using tuner.search()
+                    # The `search` method of KerasTuner's Hyperband class implicitly manages the trial
+                    # and reports results to its internal Oracle. The OracleSyncCallback then
+                    # synchronizes this with the external OracleServer.
+                    self.search(
+                        x=self.train_data,
+                        epochs=self.max_epochs,
+                        validation_data=self.val_data,
+                        callbacks=callbacks,
+                        # The KerasTuner `search` method will use the current trial context.
+                        # No need to explicitly pass `trial_id` here, as the callbacks handle it.
+                    )
+                    
+                    # The OracleSyncCallback.on_train_end should handle reporting the final result
+                    # and status to the external OracleServer.
+                    logger.info(f"[CMdtuner] Worker {self.tuner_id} completed trial {trial_id}.")
+
+                except Exception as e:
+                    logger.error(f"[CMdtuner] Worker {self.tuner_id} encountered error during trial {trial_id}: {e}", exc_info=True)
+                    self.oracle_client.update_trial_status(trial_id, status="FAILED")
+            else:
+                logger.info(f"[CMdtuner] Worker {self.tuner_id} received no new trial from Oracle. Assuming all trials are processed or no more available.")
+                break # Exit loop if no new trials are available
+
+        logger.info("✅ Worker finished trial execution for TensorFlow.")

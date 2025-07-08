@@ -63,8 +63,9 @@ class OracleServer:
                 logger.info(f"[OracleServer] Returning trial {trial['trial_id']} to tuner {request.tuner_id}")
                 return JSONResponse(trial)
             else:
-                logger.info(f"[OracleServer] No trial available (e.g., max_trials reached).")
-                raise HTTPException(status_code=200, detail="No more trials available or active.")
+                # Instead of raising HTTPException, return a JSON response indicating no trial
+                logger.info(f"[OracleServer] No trial available (e.g., max_trials reached or no idle trials). Returning empty trial.")
+                return JSONResponse({"trial_id": None, "hyperparameters": {}, "status": "NO_TRIALS_AVAILABLE", "score": None})
 
         @self.app.post("/report_result")
         async def report_result(result: TrialResult):

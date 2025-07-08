@@ -1,4 +1,4 @@
-runtune="pt" # tf or pt
+runtune="tf" # tf or pt
 # Determine the global backend based on runtune
 GLOBAL_BACKEND = "tensorflow" if runtune == "tf" else "pytorch"
 FORCE_KILL = True
@@ -18,6 +18,13 @@ import threading
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
+# Ensure the environment is set up correctly
+from tsMqlOverrides import CMqlOverrides
+mql_overrides = CMqlOverrides()
+all_params = mql_overrides.env.all_params()
+app_params = all_params.get("app", {})
+tune_params = all_params.get('mltune', {})
+base_params = all_params.get("base", {})
 
 from tsMqlSetup import CMqlSetup
 # Initialize CMqlSetup for the launcher itself, to ensure logging is configured
@@ -164,8 +171,12 @@ if __name__ == "__main__":
 
     try:
         # Check if OracleServer port is in use
-        oracle_port = 9000 # Default port, should match app_params in config
-        oracle_host = '127.0.0.1' # Use localhost for binding check
+        
+        xerces_server = app_params.get('xerces_server', "192.168.1.103")
+        xerces_port = app_params.get('xerces_port', 9000)
+        oracle_port = xerces_port # Default port, should match app_params in config
+        oracle_host = xerces_server # Use localhost for binding check
+
 
         if is_port_in_use(oracle_port, host=oracle_host):
             logger.warning(f"Port {oracle_host}:{oracle_port} is already in use. Assuming OracleServer is already running and skipping launch.")

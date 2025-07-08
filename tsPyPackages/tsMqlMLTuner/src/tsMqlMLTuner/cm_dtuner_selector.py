@@ -26,79 +26,52 @@ class CMdtunerSelector:
                 raise RuntimeError("Oracle URL is missing. Cannot initialize OracleClient.")
             try:
                 parsed = urlparse(oracle_url)
+                # Ensure the scheme is present. If not, prepend 'http://'.
+                # This prevents 'http://http://' if the URL already has a scheme.
                 if not parsed.scheme:
-                    oracle_url = f"http://{oracle_url}"
-                    parsed = urlparse(oracle_url)
-                fixed_url = f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
-                self.oracle_client = OracleClient(url=fixed_url, tuner_id=tuner_id or "default_tuner")
-                logger.info(f"Oracle client initialized from URL: {self.oracle_client.url}")
+                    fixed_url = f"http://{oracle_url}"
+                else:
+                    fixed_url = oracle_url # Use the URL as is if it already has a scheme
+
+                # Pass the corrected URL to the OracleClient's 'url' parameter
+                from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
+                # Pass the timeout argument to OracleClient.__init__
+                self.oracle_client = OracleClient(url=fixed_url, timeout=30.0)
+                logger.info(f"Oracle client initialized from URL: {fixed_url} with timeout 30s")
             except Exception as e:
-                logger.error(f"Failed to initialize OracleClient: {e}")
+                logger.error(f"Failed to auto-initialize OracleClient: {e}")
                 raise
 
-        # IMPORTANT: Remove various arguments from kwargs that are expected as explicit parameters
-        # by CMdtunerTorch/CMdtuner, or are handled elsewhere.
-        self.kwargs.pop('oracle_url', None)
-        self.kwargs.pop('project_name', None)
-        self.kwargs.pop('log_dir', None)
-        self.kwargs.pop('max_trials', None)
-        self.kwargs.pop('overwrite', None)
-        self.kwargs.pop('oracle_directory', None)
+        self.kwargs.pop('tuner_id', None)
+        self.is_chief = self.kwargs.pop('is_chief', True) # Get is_chief from kwargs, default to True
 
-        # Extract dataset and model-related arguments explicitly
-        train_data = self.kwargs.pop('train_data', None)
-        val_data = self.kwargs.pop('val_data', None)
-        test_data = self.kwargs.pop('test_data', None)
-        train_dataset = self.kwargs.pop('train_dataset', None)
-        val_dataset = self.kwargs.pop('val_dataset', None)
-        test_dataset = self.kwargs.pop('test_dataset', None)
-
-        # Extract the missing positional arguments
-        dataset_params = self.kwargs.pop('dataset_params', {})
-        base_path = self.kwargs.pop('base_path', "") # Changed default from None to ""
-        model_id = self.kwargs.pop('model_id', None)
-
+        self.tuner = None
 
         if backend == 'pytorch':
             from .tsMqlMLTunerModTorch import CMdtunerTorch
             self.tuner = CMdtunerTorch(
                 tuner_id=tuner_id,
                 oracle_client=self.oracle_client,
-                train_data=train_data or train_dataset,
-                val_data=val_data or val_dataset,
-                dataset_params=dataset_params, # Pass explicitly
-                base_path=base_path,         # Pass explicitly
-                model_id=model_id,           # Pass explicitly
-                **self.kwargs # Pass remaining kwargs
+                is_chief=self.is_chief, # Pass the correct is_chief flag
+                **self.kwargs
             )
-        elif backend == 'keras':
+        # Corrected: Handle 'tensorflow' backend by mapping it to CMdtuner
+        elif backend == 'keras' or backend == 'tensorflow':
             from .tsMqlMLTunerMod import CMdtuner
             self.tuner = CMdtuner(
                 tuner_id=tuner_id,
                 oracle_client=self.oracle_client,
-                train_data=train_data or train_dataset,
-                val_data=val_data or val_dataset,
-                dataset_params=dataset_params, # Pass explicitly
-                base_path=base_path,         # Pass explicitly
-                model_id=model_id,           # Pass explicitly
-                **self.kwargs # Pass remaining kwargs
+                is_chief=self.is_chief, # Pass the correct is_chief flag
+                **self.kwargs
             )
         else:
             raise ValueError(f"Unsupported backend: {backend}")
 
     def run(self):
         logger.info(f"Running tuner for backend: {self.backend}")
-        self._run_chief(self.tuner)
-
-    def _run_chief(self, tuner):
-        logger.info("🚀 Chief starting distributed tuning...")
-        try:
-            if not self.oracle_client:
-                raise RuntimeError("Oracle client is not initialized. Cannot proceed with tuning.")
-            tuner.run()
-        except Exception as e:
-            logger.exception(f"❌ Error during model training and tuning: {e}")
-        logger.info("✅ Chief finished tuning")
+        # The run method should delegate to the tuner's run method,
+        # which will handle chief/worker logic internally.
+        self.tuner.run() # Call the tuner's run method directly
 
     def get_best_model(self):
         if hasattr(self.tuner, "get_best_model"):
@@ -114,4 +87,6 @@ class CMdtunerSelector:
 
     @property
     def app_params(self):
-        return self.kwargs
+        # This property should return the app_params that were passed in kwargs
+        # This is used by tsNeuroPredictWinMql_chief.py for model saving paths
+        return self.kwargs.get("hypermodel_params", {}).get("app", {})

@@ -9,7 +9,7 @@ Version: 2.4 (Added robust final cleanup for non-numeric columns in wrangling)
 
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date, time # Import date and time
 from tabulate import tabulate
 import os
 import logging
@@ -343,12 +343,12 @@ class CDataProcess:
             return df
 
         try:
-            if conv_type == 'a': # Direct parsing of date/time string, often with format
-                # For timestamps that are HH:MM:SS, to convert them to datetime.time objects:
-                # These are Python time objects, not directly numerical, should be dropped later if not merged
-                df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce').dt.time
-            elif conv_type == 'e': # Direct parsing of date string like 'YYYYMMDD'
-                df[column] = pd.to_datetime(df[column], format=fmt, errors='coerce').dt.date
+            if conv_type == 'a': # Direct parsing of time string, convert to datetime.time
+                # Ensure it's a string before attempting to parse with format
+                df[column] = df[column].astype(str).apply(lambda x: pd.to_datetime(x, format=fmt, errors='coerce').time() if pd.notna(x) else None)
+            elif conv_type == 'e': # Direct parsing of date string, convert to datetime.date
+                # Ensure it's a string before attempting to parse with format
+                df[column] = df[column].astype(str).apply(lambda x: pd.to_datetime(x, format=fmt, errors='coerce').date() if pd.notna(x) else None)
             elif conv_type == 'b': # Used for popping/replacing a column to be the primary datetime index
                 # Ensure the column exists before pop and is convertible
                 temp_col = df.pop(column) # Pop the column to avoid SettingWithCopyWarning
@@ -373,13 +373,35 @@ class CDataProcess:
             return df
         
         try:
-            # Ensure both columns are not NaN before combining
-            combined_datetime_series = df.apply(
-                lambda row: datetime.combine(row[col_date], row[col_time]) if pd.notna(row[col_date]) and pd.notna(row[col_time]) else pd.NaT,
-                axis=1
-            )
-            df[merged_col] = pd.to_datetime(combined_datetime_series, errors='coerce', utc=True)
-            
+            # Ensure both columns are of the correct type (datetime.date and datetime.time)
+            # and handle potential NaNs before combining
+            def combine_func(row):
+                if pd.notna(row[col_date]) and pd.notna(row[col_time]):
+                    # Explicitly convert to date and time objects if they are not already
+                    # This is a safeguard against upstream issues where type might not be exact
+                    date_obj = row[col_date]
+                    time_obj = row[col_time]
+
+                    if not isinstance(date_obj, date):
+                        try:
+                            date_obj = pd.to_datetime(str(date_obj), errors='coerce').date()
+                        except Exception:
+                            date_obj = None
+                    
+                    if not isinstance(time_obj, time):
+                        try:
+                            # Assuming time_obj is a string like 'HH:MM:SS'
+                            time_obj = pd.to_datetime(str(time_obj), format='%H:%M:%S', errors='coerce').time()
+                        except Exception:
+                            time_obj = None
+
+                    if date_obj and time_obj:
+                        return datetime.combine(date_obj, time_obj)
+                return pd.NaT # Return Not a Time for invalid combinations
+
+            df[merged_col] = df.apply(combine_func, axis=1)
+            df[merged_col] = pd.to_datetime(df[merged_col], errors='coerce', utc=True) # Final conversion to datetime with UTC
+
             # Drop original columns after successful merge
             df.drop(columns=[col_date, col_time], inplace=True, errors='ignore')
             df = self._reorder_columns(df, merged_col)
@@ -437,28 +459,34 @@ class CDataProcess:
             return ldf
 
         # --- Step 1: Rename columns early ---
+        renamed_cols_map = {}
         if source_key in self.from_to_column_maps:
-            ldf.rename(columns=self.from_to_column_maps[source_key], inplace=True)
+            renamed_cols_map = self.from_to_column_maps[source_key]
+            ldf.rename(columns=renamed_cols_map, inplace=True)
             logger.info(f"DW: 1.1 Renamed columns based on mapping for {df_name}.")
         
         # --- Step 2: Convert relevant date/time columns to appropriate types ---
         # This is for columns that will be used in merging or are primary datetimes.
         # Ensure column exists *after* renaming.
         if source_key in self.date_columns:
-            col, fmt, unit, conv_type = self.date_columns[source_key]
-            if col and col in ldf.columns: # Check if column exists after rename
-                ldf = self._convert_datetime(ldf, col, fmt, unit, conv_type)
-                logger.info(f"DW: 1.2 Converted Date column '{col}' for {df_name}.")
+            original_col, fmt, unit, conv_type = self.date_columns[source_key]
+            # Use the renamed column name if it exists in the map, otherwise use original
+            current_col = renamed_cols_map.get(original_col, original_col) 
+            if current_col and current_col in ldf.columns: # Check if column exists after rename
+                ldf = self._convert_datetime(ldf, current_col, fmt, unit, conv_type)
+                logger.info(f"DW: 1.2 Converted Date column '{current_col}' (originally '{original_col}') for {df_name}.")
             else:
-                logger.warning(f"Date column '{col}' not found after rename for {df_name}. Skipping date conversion.")
+                logger.warning(f"Date column '{current_col}' (originally '{original_col}') not found after rename for {df_name}. Skipping date conversion.")
 
         if source_key in self.time_columns:
-            col, fmt, unit, conv_type = self.time_columns[source_key]
-            if col and col in ldf.columns: # Check if column exists after rename
-                ldf = self._convert_datetime(ldf, col, fmt, unit, conv_type)
-                logger.info(f"DW: 1.3 Converted Time column '{col}' for {df_name}.")
+            original_col, fmt, unit, conv_type = self.time_columns[source_key]
+            # Use the renamed column name if it exists in the map, otherwise use original
+            current_col = renamed_cols_map.get(original_col, original_col)
+            if current_col and current_col in ldf.columns: # Check if column exists after rename
+                ldf = self._convert_datetime(ldf, current_col, fmt, unit, conv_type)
+                logger.info(f"DW: 1.3 Converted Time column '{current_col}' (originally '{original_col}') for {df_name}.")
             else:
-                logger.warning(f"Time column '{col}' not found after rename for {df_name}. Skipping time conversion.")
+                logger.warning(f"Time column '{current_col}' (originally '{original_col}') not found after rename for {df_name}. Skipping time conversion.")
 
         # --- Step 3: Merge date and time columns (only if merge is specified and columns exist) ---
         merge_config = self.merge_columns.get(source_key)

@@ -10,7 +10,7 @@ logdir = os.path.join(global_logdir, "hparams_tuning")
 logdir=global_logdir
 
 # Ensure the log directory exists
-os.makedirs(logdir, exist_ok=True)
+#os.makedirs(logdir, exist_ok=True)
 
 # Start TensorBoard in a non-blocking way
 try:
