@@ -1,3 +1,4 @@
+# filename: tsMqlLogService.py
 import os
 import warnings
 import gc
@@ -8,6 +9,7 @@ import io
 import sys
 from loguru import logger as loguru_logger
 import inspect
+from typing import Optional, Dict, Any # Added for type hinting
 
 from tsMqlPlatform import run_platform, platform_checker
 from rich.console import Console # Keep Console for potential direct use, but simplify add()
@@ -15,541 +17,168 @@ from rich.logging import RichHandler
 from rich.traceback import install
 from pathlib import Path
 
+# Import CMqlOverrides here, as it's used within CMLogServiceSetup
+from tsMqlOverrides import CMqlOverrides
+
 # Initialize platform checkers - these are global to the module
 pchk = run_platform.RunPlatform()
 os_platform = platform_checker.get_platform()
 loadmql = pchk.check_mql_state()
 
-import logging
-import os
-from pathlib import Path
+# Rich traceback installation for better error logs
+install(show_locals=True, extra_lines=10)
 
-def configure_global_logger(backend: str):
+class CMLogServiceSetup:
     """
-    Set up logging to a specific log file based on backend.
-    This disables default propagation and prevents 'Logdir' in tuner package dir.
+    Centralized logging service setup using Loguru for flexible logging.
+    Manages log file paths, levels, and console output based on application parameters
+    and backend selection.
     """
-    # This function will be deprecated or modified heavily to align with the new centralized logging.
-    # For now, it's kept but its usage should be replaced by CMLogServiceSetup.initialize_logging.
-    log_paths = {
-        'pytorch': Path(r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir\pytorch\tsneuropredict_app.log"),
-        'tensorflow': Path(r"C:\WinRunMnt1\8.0 Projects\8.3 ProjectModelsEquinox\EQUINRUN\Logdir\tensorflow\tsneuropredict_app.log")
-    }
+    # Class-level variables to store configuration and ensure single initialization
+    _initialized = False
+    _default_log_file_name = 'tsneuropredict_app.log'
+    _default_base_log_dir = Path("./Logdir") # Fallback default
 
-    # Default to pytorch path if backend is unknown
-    log_file = log_paths.get(backend.lower(), log_paths['pytorch'])
-
-    # Ensure parent directory exists
-    log_file.parent.mkdir(parents=True, exist_ok=True)
-
-    # Setup logging
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-
-    # Remove all existing handlers
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
-
-    # Add FileHandler
-    file_handler = logging.FileHandler(log_file, encoding='utf-8')
-    formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
-    file_handler.setFormatter(formatter)
-
-    logger.addHandler(file_handler)
-
-    # Avoid duplication with stdout or other libraries
-    logger.propagate = False
-
-    # Optional: Log confirmation
-    logger.info(f"Logging initialized to {log_file}")
-
-class CMqlLogService:
-    """
-    Manages centralized logging configuration for the application using both
-    standard Python logging and Loguru for rich output and advanced features.
-    """
-
-    def __init__(self, **kwargs):
+    @classmethod
+    def initialize_logging(cls, app_params: Dict = None, tune_params: Dict = None,
+                           base_params: Dict = None, role_hint: str = "main",
+                           loglevel: str = 'INFO', enable_logging: bool = True,
+                           logfile: Optional[str] = None):
         """
-        Initializes the logging service.
+        Initializes the Loguru logger with dynamic configuration.
+        This method is designed to be called once per process.
 
-        Args:
-            loglevel (str): The desired logging level (e.g., 'INFO', 'DEBUG').
-                            Can be passed via kwargs.
-            logdir (str | Path, optional): The base directory for log files. If None, it
-                                          will try to derive it from environment variables
-                                          or project structure. Can be passed via kwargs.
-            logfile (str, optional): The name of the log file. Defaults to 'tslog.log'.
-                                     Can be passed via kwargs.
-            servername (str, optional): The name of the server, used in log directory path.
-                                        Can be passed via kwargs.
-            backend (str, optional): The ML backend (e.g., 'tensorflow', 'pytorch'), used
-                                     in log directory path. Can be passed via kwargs.
-            enable_logging (bool): If False, logging will be effectively disabled.
-                                   Defaults to True. Can be passed via kwargs.
+        :param app_params: Dictionary of application-specific parameters.
+        :param tune_params: Dictionary of ML tuning parameters.
+        :param base_params: Dictionary of base parameters, including global log path.
+        :param role_hint: A string indicating the role of the current process (e.g., 'chief', 'worker_1', 'oracle_server').
+                          Used to create distinct log file names and directories.
+        :param loglevel: The minimum logging level to capture (e.g., 'INFO', 'DEBUG', 'WARNING').
+        :param enable_logging: If False, logging to files will be disabled. Console logging might still occur.
+        :param logfile: Optional. A specific filename for the log. If not provided,
+                        it defaults to '{role_hint}_tsneuropredict_app.log'.
+        :return: The configured logger instance.
         """
-        self.kwargs = kwargs
-        self.global_logdir = None
-        self.global_logfile = None
-        self.enable_logging = kwargs.get('enable_logging', True)
-        self.loglevel = kwargs.get('loglevel', "INFO").upper()
+        if cls._initialized:
+            # logger.warning("CMLogServiceSetup already initialized. Skipping re-initialization.")
+            return logging.getLogger(role_hint) # Return a logger for the specific role
 
-        if self.enable_logging:
-            # We need app_params and base_params early to determine log paths
-            # Defer import to prevent circular dependency if CMqlOverrides itself needs logging
-            # during its import/init, although in practice it's less common for core config
-            # to depend on the logging service being fully initialized.
-            from tsMqlOverrides import CMqlOverrides
-            mql_overrides = CMqlOverrides()
-            all_params = mql_overrides.env.all_params()
-            self.app_params = all_params.get("app", {})
-            self.tune_params = all_params.get("mltune", {})
-            self.base_params = all_params.get('base', {})
+        # Ensure parameters are dictionaries
+        app_params = app_params if app_params is not None else {}
+        tune_params = tune_params if tune_params is not None else {}
+        base_params = base_params if base_params is not None else {}
 
-            # Use kwargs values if provided, otherwise fall back to app_params/base_params
-            _logdir = kwargs.get('logdir', self.base_params.get('mp_glob_base_log_path'))
-            # Use the fixed central log file name
-            _logfile = kwargs.get('logfile', 'tsneuro_predict.log') 
-            _servername = kwargs.get('servername', self.app_params.get('xerces_servername', 'localhost'))
-            _backend = kwargs.get('backend', self.tune_params.get('backend', 'unknown_backend'))
-
-            self._set_log_paths(_logdir, _logfile, _servername, _backend)
-            self._configure_debug() # Configure rich traceback etc.
-            self.setup_logging() # Call setup_logging here to configure handlers
-        else:
-            # If logging is disabled, ensure no file handlers are set up
-            logging.disable(logging.CRITICAL) # Disable all logging from standard logger
-            loguru_logger.remove() # Remove all existing handlers from Loguru
-            # Keep only critical messages to stderr if logging is disabled, with minimal format
-            loguru_logger.add(sys.stderr, level="CRITICAL", format="{message}", colorize=True)
-            print("Logging is disabled by configuration.", file=sys.stderr)
-
-    def _set_log_paths(self, logdir_arg, logfile_arg, servername_arg, backend_arg):
-        """
-        Determines and sets the global log directory and file path.
-        Ensures logs are stored in Logdir/tsneuro_predict.log
-        """
         # Determine the base log directory
-        if logdir_arg:
-            base_log_dir = Path(logdir_arg)
-        elif os.environ.get("LOGDIR"):
-            base_log_dir = Path(os.environ["LOGDIR"])
-        else:
-            raise RuntimeError("LOGDIR must be provided via environment variable or argument. No fallback to package path.")
-
-        # The log file will now be directly in the base_log_dir, not in a backend subfolder
-        final_logdir = base_log_dir
-        try:
-            final_logdir.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            print(f"CRITICAL ERROR: Could not create log directory: {final_logdir}: {e}", file=sys.stderr)
-            raise RuntimeError(f"Failed to create log directory: {final_logdir}") from e
-
-        self.global_logdir = str(final_logdir)
-
-        # Use the fixed log filename 'tsneuro_predict.log'
-        logfilename = 'tsneuro_predict.log'
-
-        self.global_logfile = str(final_logdir / logfilename)
-        print(f"LOGSERVICE:Setting up logging in file: {self.global_logfile}", file=sys.stderr)
-
-        # Test write permissions
-        try:
-            with open(self.global_logfile, 'a', encoding='utf-8') as f:
-                f.write('')
-        except Exception as e:
-            print(f"CRITICAL ERROR: Could not access logfile: {self.global_logfile}: {e}", file=sys.stderr)
-            raise RuntimeError(f"Failed to initialize logfile: {self.global_logfile}") from e
-
-
-    def _configure_debug(self):
-        """Configures Rich for traceback and console output."""
-        # Correctly pass the parent directory as a string for suppression
-        # Suppress frames from tsMqlLogService itself for cleaner tracebacks
-        install(show_locals=True, suppress=[str(Path(__file__).parent)])
-
-    def setup_logging(self, **kwargs):
-        """
-        Sets up the logging configuration for both the standard logging module and Loguru.
-        This method will do nothing if self.enable_logging is False.
-        """
-        if not self.enable_logging:
-            print("Logging is disabled, skipping setup_logging.", file=sys.stderr)
-            return
-
-        final_logfile_path = kwargs.get('logfile', self.global_logfile)
-        if not final_logfile_path:
-            # This should ideally not happen if _set_log_paths was successful
-            raise RuntimeError("Logging path not set. Call `_set_log_paths()` or provide `logfile`.")
-
-        # Configure console encoding for Windows if not already set
-        if sys.platform.startswith('win'):
-            # Only set if not already UTF-8, to avoid potential issues with re-opening streams
-            if sys.stdout.encoding.lower() != 'utf-8':
-                os.environ['PYTHONIOENCODING'] = 'utf-8'
-                # For immediate effect, you might need to re-configure streams,
-                # but it's often better to rely on env var for subprocesses
-                # and ensure the terminal itself is UTF-8 capable.
-                print("INFO: Set PYTHONIOENCODING to UTF-8 for Windows console.", file=sys.stderr)
-
-        # Configure standard logging to use Loguru via an intercept handler
-        class InterceptHandler(logging.Handler):
-            def emit(self, record):
-                try:
-                    # Map standard logging levels to Loguru levels
-                    level = loguru_logger.level(record.levelname).name
-                except ValueError:
-                    level = record.levelno
-                # Route standard logging records to Loguru
-                # depth=6 ensures correct source file/line info when logging via standard logger
-                loguru_logger.opt(depth=6, exception=record.exc_info, raw=False).log(level, record.getMessage())
-
-        root_logger = logging.getLogger()
-        root_logger.setLevel(self.loglevel)
-
-        # Remove all existing handlers from the root logger to prevent duplicate output
-        # This is critical for re-initialization scenarios or preventing default handlers
-        for handler in root_logger.handlers[:]:
-            root_logger.removeHandler(handler)
-
-        # Add the InterceptHandler to the root logger
-        root_logger.addHandler(InterceptHandler())
-
-        # Configure Loguru
-        loguru_logger.remove() # Remove default Loguru handler (stdout) to start fresh
-
-        # Add file sink for Loguru
-        loguru_logger.add(
-            final_logfile_path,
-            level=self.loglevel,
-            format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}",
-            encoding="utf-8",
-            enqueue=True, # Use multiprocessing-safe queue
-            rotation="10 MB",
-            compression="zip",
-            retention="7 days",
-            diagnose=True # Include debugging information in logs for file
-        )
-
-        # Add console sink for Loguru with rich styling
-        try:
-            loguru_logger.add(
-                sys.stderr, # Using stderr for console output is common practice for logs
-                level=self.loglevel,
-                colorize=True,
-                diagnose=True, # Enables rich tracebacks for Loguru's console output
-                format="{time:HH:mm:ss} | {level: <8} | {message}" # Simpler console format
-            )
-        except Exception as e:
-            print(f"WARNING: Could not set up Loguru console logging (might be missing Rich dependencies or unusual terminal config): {e}", file=sys.stderr)
-
-        codecs.register_error('strict', codecs.ignore_errors)
-
-        loguru_logger.info(f"Logging initialized successfully. Logfile: {final_logfile_path}")
-
-
-# Import tensorflow here to avoid circular dependency with CMLogServiceSetup if TF is needed for CMLogServiceSetup init.
-# Assuming TensorFlow is installed and available in the environment.
-try:
-    import tensorflow as tf
-    from tensorflow.keras import mixed_precision
-except ImportError:
-    tf = None
-    mixed_precision = None
-    # Use print for this warning as logging might not be fully setup yet
-    print("WARNING: TensorFlow not found. Some features may be unavailable.", file=sys.stderr)
-
-
-class CMLogServiceSetup(CMqlLogService): # Inherit from CMqlLogService for logging capabilities
-    def __init__(self, loglevel='INFO', warn='ignore', precision='float32', tfdebug=False, num_cores=None, num_threads=None, enable_logging=True, **kwargs):
-        """
-        Initializes the CMLogServiceSetup class, configuring environment and logging.
-
-        Args:
-            loglevel (str): Logging level.
-            warn (str): Warning filter action.
-            precision (str): TensorFlow mixed precision policy.
-            tfdebug (bool): TensorFlow debug flag.
-            num_cores (int, optional): Number of CPU cores to use.
-            num_threads (int, optional): Number of CPU threads to use.
-            enable_logging (bool): If False, logging will be effectively disabled. Defaults to True.
-            **kwargs: Additional keyword arguments to pass to CMqlLogService.__init__,
-                      e.g., `logdir`, `logfile`, `servername`, `backend`.
-        """
-        # Load parameters from tsMqlOverrides early to pass to parent constructor
-        # This prevents redundant calls to all_params() and ensures consistency.
-        from tsMqlOverrides import CMqlOverrides
-        mql_overrides = CMqlOverrides()
-        all_params = mql_overrides.env.all_params()
-        app_params = all_params.get("app", {})
-        base_params = all_params.get('base', {})
-        tune_params = all_params.get('mltune', {})
-
-        # Merge kwargs with config parameters, giving kwargs precedence
-        _loglevel = kwargs.get('loglevel', loglevel).upper()
-        _logdir = kwargs.get('logdir', base_params.get('mp_glob_base_log_path'))
-        # Ensure the logfile is always 'tsneuro_predict.log' for central logging
-        _logfile = 'tsneuro_predict.log' 
-        _servername = kwargs.get('servername', app_params.get('xerces_servername', 'localhost'))
-        _backend = kwargs.get('backend', tune_params.get('backend', 'unknown_backend'))
-        _enable_logging = kwargs.get('enable_logging', enable_logging)
-
-        # Call the parent CMqlLogService's constructor to set up logging paths and debug
-        super().__init__(
-            loglevel=_loglevel,
-            logdir=_logdir,
-            logfile=_logfile, # Pass the fixed logfile name
-            servername=_servername,
-            backend=_backend,
-            enable_logging=_enable_logging
-        )
-
-        self.loglevel = _loglevel # Store final loglevel
-        self.warn = warn
-        self.precision = precision
-        self.tfdebug = tfdebug
-        self.num_cores = num_cores
-        self.num_threads = num_threads
-
-        if self.enable_logging: # Only apply global settings if logging is enabled
-            self._apply_global_settings()
-            # Use loguru_logger here as it's now configured globally via CMqlLogService.__init__
-            loguru_logger.info("CMLogServiceSetup initialized and global settings applied.")
-        else:
-            print("CMLogServiceSetup initialized with logging disabled.", file=sys.stderr)
-
-
-    def _apply_global_settings(self):
-        """Applies global settings for warnings, PyTorch/TensorFlow, and system optimization."""
-        import warnings
-        import gc
-        import torch
-        import tensorflow as tf
-        from tensorflow.keras import mixed_precision
-
-        warnings.filterwarnings(self.warn)
-
-        # Log PyTorch device availability
-        using_gpu = False
-        if torch.cuda.is_available():
-            gpu_name = torch.cuda.get_device_name(0)
-            print(f"GPU detected (PyTorch): {gpu_name}")
-            using_gpu = True
-        else:
-            print("No GPU detected. Using CPU.")
+        # Prioritize 'mp_glob_base_log_path' from base_params
+        base_log_dir = Path(base_params.get('mp_glob_base_log_path', cls._default_base_log_dir))
         
-        # Proceed with TensorFlow settings regardless of PyTorch state
-        try:
-            # Set TensorFlow mixed precision policy
-            policy = mixed_precision.Policy(self.precision)
-            mixed_precision.set_global_policy(policy)
-            loguru_logger.info(f"TensorFlow global mixed precision policy set to: {policy.name}")
-        except Exception as e:
-            loguru_logger.warning(f"Failed to set mixed precision policy '{self.precision}': {e}")
+        # Determine the backend for sub-directory creation
+        backend = tune_params.get('backend', 'pytorch') # Default to 'pytorch' if not specified
 
-        # Set TensorFlow CPU threading if configured
-        if self.num_cores and hasattr(tf.config.threading, 'set_inter_op_parallelism_threads'):
-            tf.config.threading.set_inter_op_parallelism_threads(self.num_cores)
-            loguru_logger.info(f"TensorFlow inter-op parallelism threads set to: {self.num_cores}")
-        if self.num_threads and hasattr(tf.config.threading, 'set_intra_op_parallelism_threads'):
-            tf.config.threading.set_intra_op_parallelism_threads(self.num_threads)
-            loguru_logger.info(f"TensorFlow intra-op parallelism threads set to: {self.num_threads}")
+        # Construct the final log directory path
+        final_log_dir = base_log_dir / backend
+        final_log_dir.mkdir(parents=True, exist_ok=True)
 
-        # Enable TensorFlow data debug mode if requested
-        if self.tfdebug:
-            if hasattr(tf.data.experimental, 'enable_debug_mode'):
-                tf.data.experimental.enable_debug_mode()
-                loguru_logger.info("TensorFlow debug mode enabled.")
-            else:
-                loguru_logger.warning("TensorFlow debug mode not available in this TensorFlow version.")
+        # Determine the log file name
+        # If a specific logfile is provided, use it. Otherwise, use role_hint.
+        effective_logfile_name = logfile if logfile else f"{role_hint}_{app_params.get('xerces_logfile', cls._default_log_file_name)}"
+        log_file_path = final_log_dir / effective_logfile_name
 
-        # Enable garbage collection
-        gc.enable()
-        loguru_logger.info("Garbage collector enabled.")
+        # Remove all existing handlers from Loguru to start fresh
+        loguru_logger.remove()
 
-        return using_gpu
-
-
-    @staticmethod
-    def initialize_logging(role_hint=None, **kwargs) -> logging.Logger:
-        """
-        Static method to initialize the logging system for the application.
-        This should be called early in the application's lifecycle.
-
-        Args:
-            role_hint (str, optional): A string indicating the role of the calling script
-                                       (e.g., 'chief', 'worker', 'oracle_server'). Used for
-                                       naming log files and subdirectories, typically maps to backend.
-            **kwargs: Additional keyword arguments to pass to CMqlLogService.__init__
-                      and CMLogServiceSetup.__init__, e.g., `loglevel`, `enable_logging`,
-                      `logdir`, `logfile`, `servername`, `backend`.
-
-        Returns:
-            logging.Logger: A standard Python logger instance for the calling module.
-        """
-        # Load parameters needed for logging setup from tsMqlOverrides
-        from tsMqlOverrides import CMqlOverrides
-        mql_overrides = CMqlOverrides()
-        all_params = mql_overrides.env.all_params()
-        app_params = all_params.get("app", {})
-        base_params = all_params.get('base', {})
-        mltune_params = all_params.get('mltune', {})
-
-        # Determine loglevel, prioritizing kwargs > app_params > default
-        loglevel_final = kwargs.get('loglevel', app_params.get('loglevel', 'INFO'))
-        # Determine if logging should be enabled, prioritizing kwargs > default
-        enable_logging_final = kwargs.get('enable_logging', True)
-
-        # Determine the base log directory, prioritizing kwargs > base_params > env var > derived
-        central_logdir = kwargs.get('logdir', base_params.get('mp_glob_base_log_path'))
-        if not central_logdir:
-            central_logdir = os.environ.get('LOGDIR')
-
-        if not central_logdir:
-            # Fallback if no config or env var, attempt to find 'EQUINRUN'
-            _script_dir = Path(inspect.currentframe().f_back.f_globals['__file__']).resolve().parent
-            _project_root = _script_dir
-            _found_equinrun = False
-            for _ in range(5):
-                if _project_root.name == 'EQUINRUN':
-                    _found_equinrun = True
-                    break
-                if _project_root == _project_root.parent:
-                    break
-                _project_root = _project_root.parent
-
-            if _found_equinrun:
-                central_logdir = str(_project_root / 'Logdir')
-            else:
-                # If EQUINRUN not found, use a 'Logdir' relative to the script's parent
-                central_logdir = str(_script_dir.parent / 'Logdir')
-                print(f"WARNING: Could not find 'EQUINRUN' in path. Using '{central_logdir}' for base logs.", file=sys.stderr)
-
-        # Ensure the central log directory exists if logging is enabled
-        if enable_logging_final and central_logdir and not Path(central_logdir).is_dir():
-            print(f"INFO: Central log directory '{central_logdir}' does not exist. Attempting to create.", file=sys.stderr)
-            try:
-                Path(central_logdir).mkdir(parents=True, exist_ok=True)
-            except OSError as e:
-                print(f"CRITICAL ERROR: Failed to create central log directory {central_logdir}: {e}. Logging may fail.", file=sys.stderr)
-                # Do not raise here, allow CMqlLogService to handle subsequent failures gracefully
-                pass
-
-        # The logfile name is now fixed to 'tsneuro_predict.log'
-        final_logfile_base_name = 'tsneuro_predict.log'
-
-        # Instantiate CMLogServiceSetup (which calls CMqlLogService's __init__)
-        log_setup_instance = CMLogServiceSetup(
-            loglevel=loglevel_final,
-            logdir=str(central_logdir), # Ensure string for path
-            logfile=final_logfile_base_name, # Pass the fixed logfile name
-            servername=kwargs.get('servername', app_params.get('xerces_servername', socket.gethostname())),
-            backend=kwargs.get('backend', role_hint or mltune_params.get('backend', 'unknown_backend_role')),
-            enable_logging=enable_logging_final,
-            warn=kwargs.get('warn', 'ignore'),
-            precision=kwargs.get('precision', 'float32'),
-            tfdebug=kwargs.get('tfdebug', False),
-            num_cores=kwargs.get('num_cores'),
-            num_threads=kwargs.get('num_threads')
+        # Add a handler for console output (stderr)
+        loguru_logger.add(
+            sys.stderr,
+            level=loglevel.upper(),
+            colorize=True,
+            format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
         )
 
-        if enable_logging_final:
-            # setup_logging is called implicitly via CMqlLogService.__init__ within CMLogServiceSetup.__init__
-            # if enable_logging is True. No need to call it again explicitly here unless a re-initialization
-            # with new parameters is desired, which isn't the primary goal of this static method.
-            # Given the current structure, super().__init__ will trigger it.
-            pass
+        # Add a handler for the log file if logging is enabled
+        if enable_logging:
+            loguru_logger.add(
+                str(log_file_path),
+                level=loglevel.upper(),
+                rotation="10 MB", # Rotate file every 10 MB
+                compression="zip", # Compress rotated files
+                retention="7 days", # Keep logs for 7 days
+                enqueue=True, # Use a queue for non-blocking logging
+                format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
+            )
+            loguru_logger.info(f"Logging enabled to file: {log_file_path}")
+        else:
+            loguru_logger.info("Logging disabled by configuration (no file handler added).")
 
-        # Return a standard Python logger for the module that called initialize_logging
-        # This ensures correct source information (module name, line number) in logs.
-        calling_frame = inspect.currentframe().f_back
-        calling_module_name = calling_frame.f_globals.get('__name__', 'unknown_module')
-        return logging.getLogger(calling_module_name)
+        # Redirect standard logging to Loguru
+        logging.basicConfig(handlers=[RichHandler(console=Console(file=sys.stderr), show_time=True, show_level=True, show_path=True, enable_link_path=True)], level=loglevel.upper())
+        # This line ensures that calls to the standard `logging` module
+        # are routed through Loguru's configured handlers.
+        logging.getLogger().handlers = [LoguruHandler()] # Ensure root logger uses LoguruHandler
+        
+        # Suppress loguru's default handler if it's already added
+        # This is a common issue where Loguru adds a default handler to stderr
+        # even if you explicitly remove and re-add.
+        # It's better to manage all handlers explicitly.
+        # loguru_logger.configure(handlers=[{"sink": sys.stderr, "level": loglevel.upper()}])
 
+        # Set the flag to indicate initialization
+        cls._initialized = True
+        
+        # Return a standard Python logger instance for the specific role,
+        # which will now be managed by Loguru.
+        return logging.getLogger(role_hint)
 
-# Example client usage (for demonstration/testing)
+# Custom handler to bridge standard logging to Loguru
+class LoguruHandler(logging.Handler):
+    def emit(self, record):
+        try:
+            level = loguru_logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelname
+
+        frame = logging.currentframe()
+        depth = 2
+        while frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+
+        loguru_logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+# Example usage (for testing purposes, will not run when imported as a module)
 if __name__ == "__main__":
-    print("--- Running tsMqlLogService.py as main module ---")
+    print("--- Running CMLogServiceSetup test cases ---")
 
-    # Simulate tsMqlOverrides for testing purposes
-    # In a real setup, you would have a tsMqlOverrides.py file
-    # For this test, we create a mock version
-    class MockEnv:
-        def all_params(self):
-            return {
-                "app": {
-                    "xerces_logfile": "tsneuropredict_app.log", # This will now be ignored for the central log
-                    "xerces_servername": "WINSVRXERCES01",
-                    "loglevel": "INFO"
-                },
-                "mltune": {
-                    "backend": "default_backend_from_mltune" # This will be overridden by role_hint/backend kwargs
-                },
-                "base": {
-                    "mp_glob_base_log_path": None # Let the code derive this from EQUINRUN or default
-                }
-            }
+    # Example 1: Default logging
+    print("\n--- Example 1: Default logging (role: main) ---")
+    logger_main = CMLogServiceSetup.initialize_logging(
+        app_params={'LOGLEVEL': 'INFO', 'xerces_logfile': 'my_app.log'},
+        base_params={'mp_glob_base_log_path': './TestLogdir'},
+        role_hint='main'
+    )
+    logger_main.info("This is an INFO message from the main role.")
+    logger_main.debug("This DEBUG message should NOT be seen at INFO level.")
+    logger_main.error("This is an ERROR message from the main role.")
+    logging.getLogger("some_other_module").warning("This standard WARNING message should also be captured.")
 
-    class MockMqlOverrides:
-        def __init__(self):
-            self.env = MockEnv()
+    # Example 2: Worker logging
+    print("\n--- Example 2: Worker logging (role: worker_1) ---")
+    logger_worker = CMLogServiceSetup.initialize_logging(
+        app_params={'LOGLEVEL': 'DEBUG', 'xerces_logfile': 'my_app.log'},
+        tune_params={'backend': 'tensorflow'},
+        base_params={'mp_glob_base_log_path': './TestLogdir'},
+        role_hint='worker_1'
+    )
+    logger_worker.info("This is an INFO message from worker_1.")
+    logger_worker.debug("This DEBUG message SHOULD be seen from worker_1.")
 
-    # Temporarily replace the actual import with the mock for testing
-    import tsMqlOverrides
-    tsMqlOverrides.CMqlOverrides = MockMqlOverrides
-
-    # Ensure a dummy EQUINRUN directory structure exists for testing path resolution
-    # This simulates the environment where the script expects to find logs.
-    current_script_path = Path(__file__).resolve()
-    equinrun_base = current_script_path.parent.parent / 'EQUINRUN'
-    logdir_path = equinrun_base / 'Logdir'
-    try:
-        logdir_path.mkdir(parents=True, exist_ok=True)
-        print(f"Created dummy Logdir for testing: {logdir_path}", file=sys.stderr)
-    except Exception as e:
-        print(f"Could not create dummy Logdir for testing: {e}", file=sys.stderr)
-
-
-    # Example 1: Default logging (INFO level, enabled) for TensorFlow
-    print("\n--- Example 1: Default logging (INFO, enabled) for TensorFlow backend ---")
-    # This should now generate: .../Logdir/tsneuro_predict.log
-    default_logger_tf = CMLogServiceSetup.initialize_logging(role_hint='tensorflow')
-    default_logger_tf.debug("This DEBUG message should NOT be seen in default_client logs (INFO level).")
-    default_logger_tf.info(f"This is an INFO message from default_client (TF) ({default_logger_tf.name}).")
-    default_logger_tf.warning("This is a WARNING message from default_client (TF).")
-    try:
-        1 / 0
-    except ZeroDivisionError:
-        default_logger_tf.exception("An exception occurred in default_client (TF)!")
-    loguru_logger.success("Loguru says: Default client (TF) operation successful!") # Loguru's global logger
-
-
-    # Example 2: Debug logging enabled for PyTorch
-    print("\n--- Example 2: Debug logging (DEBUG, enabled) for PyTorch backend ---")
-    # This should now generate: .../Logdir/tsneuro_predict.log (same file as above)
-    debug_logger_pt = CMLogServiceSetup.initialize_logging(role_hint='pytorch', loglevel='DEBUG')
-    debug_logger_pt.debug(f"This DEBUG message SHOULD be seen in debug_client logs (PT) ({debug_logger_pt.name}).")
-    debug_logger_pt.info("This is an INFO message from debug_client (PT).")
-    debug_logger_pt.error("This is an ERROR message from debug_client (PT).")
-    loguru_logger.info("Loguru says: Debug client (PT) operation continuing.")
-
-
-    # Example 3: Logging disabled
-    print("\n--- Example 3: Logging disabled ---")
+    # Example 3: Disabled logging
+    print("\n--- Example 3: Disabled logging (role: disabled_client) ---")
     disabled_logger = CMLogServiceSetup.initialize_logging(role_hint='disabled_client', enable_logging=False)
     disabled_logger.info(f"This INFO message should NOT be seen in disabled_client logs ({disabled_logger.name}).")
     disabled_logger.debug("This DEBUG message should definitely NOT be seen in disabled_client logs.")
-    # Critical messages might still go to stderr based on Loguru's disabled config
     disabled_logger.critical("This CRITICAL message might be seen if Loguru's stderr fallback is active for critical.")
     print("Check console output above for 'Logging is disabled by configuration.' message.", file=sys.stderr)
 
-    # Example 4: Custom log file name (overriding default 'tsneuropredict_app.log')
-    print("\n--- Example 4: Custom log file name (backend still 'tensorflow') ---")
-    # This should now generate: .../Logdir/tsneuro_predict.log (same file as above)
-    custom_file_logger = CMLogServiceSetup.initialize_logging(role_hint='tensorflow', logfile='my_custom_client_log.log') # logfile argument will be ignored for the central log
-    custom_file_logger.info(f"This is an INFO message for the custom log file client ({custom_file_logger.name}).")
-    loguru_logger.info("Loguru says: Custom file client finished.")
-
-    print("\n--- All examples finished. Check the 'Logdir' folder for generated log files. ---")
-    print(f"Expected log directory structure under: {logdir_path}")
-    print(f"  - {logdir_path}/tsneuro_predict.log (All logs should go here)")
+    print("\n--- All examples finished. Check the 'TestLogdir' folder for generated log files. ---")
+    print(f"Expected log directory structure under: {Path('./TestLogdir')}")

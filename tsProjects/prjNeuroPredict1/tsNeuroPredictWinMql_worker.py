@@ -1,7 +1,8 @@
+# filename: tsNeuroPredictWinMql_worker.py
 TUNER_ID_CHIEF = "chief" # This constant remains for reference, but worker uses its own ID
 #!/usr/bin/env python3
 # +------------------------------------------------------------------+\
-# |                                    tsNeuroPredictWinMql_worker.py|\
+# |                                    tsNeuroPredictWinMql_worker.py|\\\
 # |                                                    Tony Shepherd |\\\
 # |                                    https://www.xercescloud.co.uk |\\\
 # +------------------------------------------------------------------+\
@@ -25,7 +26,6 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-logger = logging.getLogger(__name__)
 # Onnx and tf2onnx imports (kept for imports, but conversion logic removed from worker main)
 try:
     import tf2onnx
@@ -35,7 +35,8 @@ try:
     TF2ONNX_AVAILABLE = True
 except ImportError:
     TF2ONNX_AVAILABLE = False
-    print("tf2onnx, onnx, or onnxruntime not installed. ONNX conversion/verification will be skipped.")
+    # print("tf2onnx, onnx, or onnxruntime not installed. ONNX conversion/verification will be skipped.") # Use logger instead
+    pass # Let the logger handle this in the main function
 
 import MetaTrader5 as mt5
 
@@ -46,227 +47,169 @@ from tensorflow.keras import mixed_precision
 from tsMqlSetup import CMqlSetup
 from tsMqlOverrides import CMqlOverrides
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
-from tsMqlEnvMgr import CMqlEnvMgr
-
-from tsMqlUtilities import CUtilities
-from tsMqlReference import CMqlRefConfig
+from tsMqlEnvMgr import CMqlEnvMgr # Corrected import: Changed CEnvMgr to CMqlEnvMgr
 from tsMqlConnect import CMqlBrokerConfig
-from tsMqlDataLoader import CDataLoader
-from tsMqlDataProcess import CDataProcess
-from tsMqlMLProcess import CDMLProcess
 
-# Distributed tuner system
-from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
-from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
-from tsMqlMLTuner.tsMqlMLOracleServer import OracleServer
+# Import the CMdtunerSelector
 from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
+from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
+from tsMqlLogService import CMLogServiceSetup
 
-# Keras Tuner components for manual trial management
-from keras_tuner.engine.trial import TrialStatus
-
-# --- Environment Setup ---
-os.environ["TF_FORCE_UNIFIED_MEMORY"] = "1"
-os.environ["TF_DISABLE_POOL_ALLOCATOR"] = "1"
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1" # Suppress TensorFlow warnings, only show errors
-
-# Load configuration
+# --- Global Configuration Loading (for module-level access if needed) ---
 mql_overrides = CMqlOverrides()
-all_params = mql_overrides.env.all_params()
-app_params = all_params.get("app", {})
-tune_params = all_params.get('mltune', {})
-base_params = all_params.get("base", {}) # Get base_params
+all_params_global = mql_overrides.env.all_params()
+app_params_global = all_params_global.get("app", {})
+tune_params_global = all_params_global.get('mltune', {})
+base_params_global = all_params_global.get("base", {})
 
-# Determine global backend (should be passed from launcher)
-global_backend = os.environ.get("BACKEND", tune_params.get("backend", "tensorflow"))
-os.environ["KERAS_BACKEND"] = global_backend
+# Use CMqlSetup for centralized logging (initial setup for this script's own logger)
+backend_for_log_global = os.environ.get('BACKEND', tune_params_global.get('backend', 'pytorch'))
 
-
-
-# Initialize CMqlSetup to get configuration, including precision
-_logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
-_estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
-
-setup_config = CMqlSetup(
-    loglevel=app_params.get('LOGLEVEL', 'INFO'),
-    warn='ignore',
-    precision=app_params.get('TF_PRECISION', 'mixed_float16'),
-    tfdebug=app_params.get('TFDEBUG', False),
-    num_cores=_estimated_physical_cores,
-    num_threads=_logical_cores
+# Initialize logging for this script's module-level operations
+CMLogServiceSetup.initialize_logging(
+    app_params=app_params_global,
+    tune_params=tune_params_global,
+    base_params=base_params_global,
+    role_hint='worker_module_init', # A distinct role hint for the module's own logger
+    loglevel=app_params_global.get('LOGLEVEL', 'INFO').upper()
 )
+logger = logging.getLogger(__name__)
+logger.info(f"Worker module-level logging initialized. Log level: {app_params_global.get('LOGLEVEL', 'INFO').upper()}")
 
-# Set mixed precision policy if not already set globally by CMqlSetup
-policy = mixed_precision.Policy(setup_config.precision)
-mixed_precision.set_global_policy(policy)
-logger.info(f"✨ Global mixed precision policy set to: {mixed_precision.global_policy().compute_dtype}")
 
-# Oracle Server configuration (worker needs this to connect)
-xerces_server = app_params.get('xerces_server', '127.0.0.1')
-xerces_port = app_params.get('xerces_port', 9000)
-oracle_url = f"http://{xerces_server}:{xerces_port}"
-
-# Use the correct LOGDIR from base_params
-LOGDIR = Path(base_params.get('mp_glob_base_log_path'))
-#LOGDIR.mkdir(parents=True, exist_ok=True) # Ensure it exists
-
-# --- Main Logic for Worker ---
-def main():
-    # Get TUNER_ID from environment variable set by the launcher
-    tuner_id = os.environ.get('TUNER_ID', 'worker_default')
-    logger.info(f"Worker {tuner_id} started. Kicking off data loading and processing.")
-
-    # Model and Tuner Configuration (worker also needs these for building models)
-    MODEL_NAME = tune_params.get('ml_model_name', 'tsneuromodel')
-    # Use the base log path for model data as well, as per user's request for "Logdir everywhere"
-    MODEL_DIR = Path(base_params.get('mp_glob_sub_ml_src_modeldata'))  # Subdirectory for models
-    PROJECT_PATH = MODEL_DIR / MODEL_NAME
-    PROJECT_PATH.mkdir(parents=True, exist_ok=True) # Ensure project directory exists
-
-    ml_project_id = os.environ.get('mp_glob_sub_ml_baseuniq', str(base_params.get("mp_glob_sub_ml_baseuniq", 777)))
-    project_name = f"{MODEL_NAME}_{ml_project_id}"
-
-    # 1. Data Loading
-    primary_symbol = app_params.get('mp_app_primary_symbol', 'EURUSD')
-    timeframe_str = app_params.get('mp_app_timeframe', 'mt5.TIMEFRAME_H4')
+def generate_dummy_data(num_samples=1000, num_features=10):
+    """Generates dummy data for training and validation."""
+    logger.info("Generating dummy data...")
+    X = np.random.rand(num_samples, num_features).astype(np.float32)
+    y = np.random.rand(num_samples, 1).astype(np.float32) * 100 # Dummy regression target
     
-    try:
-        timeframe = getattr(mt5, timeframe_str.split('.')[-1])
-        logger.info(f"Resolved timeframe: {timeframe_str} to MT5 constant {timeframe}")
-    except AttributeError:
-        logger.error(f"Invalid timeframe string: {timeframe_str}. Falling back to mt5.TIMEFRAME_H4.")
-        timeframe = mt5.TIMEFRAME_H4
-
-    start_date = app_params.get('mp_app_start_date', '2023-01-01')
-    end_date = app_params.get('mp_app_end_date', datetime.now().strftime('%Y-%m-%d'))
-    data_path = base_params.get('mp_glob_base_data_path', 'Mql5Data')
-
-    data_loader_kwargs = {
-        'mp_data_rows': all_params.get('data', {}).get('mp_data_rows', 1000),
-        'mp_data_rowcount': all_params.get('data', {}).get('mp_data_rowcount', 10000),
-        'mp_data_loadapiticks': all_params.get('data', {}).get('mp_data_loadapiticks', True),
-        'mp_data_loadapirates': all_params.get('data', {}).get('mp_data_loadapirates', True),
-        'mp_data_loadfileticks': all_params.get('data', {}).get('mp_data_loadfileticks', True),
-        'mp_data_loadfilerates': all_params.get('data', {}).get('mp_data_loadfilerates', True)
-    }
-
-    data_loader = CDataLoader(
-        symbol=primary_symbol,
-        timeframe=timeframe,
-        start_date_str=start_date,
-        end_date_str=end_date,
-        data_path=data_path,
-        **data_loader_kwargs
-    )
-
-    all_dfs = data_loader.run_dataloader_services() 
-    logger.info(f"Data Loader services finished. Loaded DataFrames: {all_dfs.keys()}")
-
-    used_data_key = app_params.get('mp_app_cfg_usedata', 'df_file_rates')
-    main_df = all_dfs.get(used_data_key)
-
-    if main_df is None or main_df.empty:
-        logger.error(f"❌ Main DataFrame '{used_data_key}' is not available or is empty after data loading. Exiting.")
-        sys.exit(1)
+    # Split into train and validation sets
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
     
-    logger.info(f"Loaded DataFrame '{used_data_key}' with shape: {main_df.shape}")
-
-    # 2. Data Processing
-    data_processor = CDataProcess(
-        df=main_df,
-        all_params=all_params,
-        project_dir=PROJECT_PATH
-    )
-    processed_df = data_processor.process_data()
-
-    if processed_df is None or processed_df.empty:
-        logger.error("❌ Processed DataFrame is empty after CDataProcess. Exiting.")
-        sys.exit(1)
-
-    logger.info(f"Processed DataFrame shape after CDataProcess: {processed_df.shape}")
-
-    # 3. Machine Learning Data Preparation
-    ml_processor = CDMLProcess(df=processed_df, all_params=all_params, project_dir=PROJECT_PATH)
-    X_final, y_final, input_shape, num_classes = ml_processor.process_ml_data()
-
-    if X_final is None or X_final.size == 0 or y_final is None or y_final.size == 0:
-        logger.error("❌ Processed X or y are empty after ML processing. Exiting.")
-        sys.exit(1)
+    # Scale features
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_val_scaled = scaler.transform(X_val)
     
-    logger.info(f"ML Processed X shape: {X_final.shape}, Y shape: {y_final.shape}")
+    logger.info(f"Dummy data generated: X_train_scaled.shape={X_train_scaled.shape}, y_train.shape={y_train.shape}")
+    return (X_train_scaled, y_train), (X_val_scaled, y_val), num_features
 
-    random_state = tune_params.get('seed', 42)
-    X_train, X_val, X_test, y_train, y_val, y_test = ml_processor.split_dataset(
-        X_final, y_final,
-        train_size=tune_params.get('train_split', 0.7),
-        val_size=tune_params.get('val_split', 0.15),
-        test_size=tune_params.get('test_split', 0.15),
-        random_state=random_state
+
+def run_worker_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
+                            app_params: dict, tune_params: dict, base_params: dict):
+    """
+    Main task function for a worker process.
+    This function will be called by multiprocessing.Process.
+    """
+    # Re-initialize logging specifically for this process's execution context
+    log_level = app_params.get('LOGLEVEL', 'INFO').upper()
+    CMLogServiceSetup.initialize_logging(
+        app_params=app_params,
+        tune_params=tune_params,
+        base_params=base_params,
+        role_hint=tuner_id, # Use tuner_id (e.g., 'worker_1') as role hint for unique log file
+        loglevel=log_level,
+        logfile=f"{tuner_id}_{app_params.get('xerces_logfile', 'tsneuropredict_app.log')}"
     )
-    logger.info(f"Data split into: Train X: {X_train.shape}, Y: {y_train.shape} | Val X: {X_val.shape}, Y: {y_val.shape} | Test X: {X_test.shape}, Y: {y_test.shape}")
+    process_logger = logging.getLogger(__name__)
+    process_logger.info(f"Worker process task started. Tuner ID: {tuner_id}, Is Chief: {is_chief}, Oracle URL: {oracle_url}")
+    process_logger.info(f"Worker process LOGDIR: {base_params.get('mp_glob_base_log_path')}")
 
-    train_dataset, val_dataset, test_dataset = ml_processor.create_tf_datasets(
-        X_train, y_train, X_val, y_val, X_test, y_test,
-        batch_size=tune_params.get('batch_size', 32),
-        shuffle_buffer=tune_params.get('buffer_size', 1000)
-    )
-
-    if train_dataset is None:
-        logger.error("❌ Failed to create TensorFlow datasets. Exiting.")
-        sys.exit(1)
-
-    if input_shape is None:
-        logger.error("❌ Could not determine input_shape from training dataset. Exiting.")
-        sys.exit(1)
-    
-    logger.info(f"Inferred input_shape for model: {input_shape}")
-    logger.info(f"Inferred number of output classes/dimensions: {num_classes}")
-
-    # 4. Initialize and Run the Tuner Selector (Worker)
-    # The worker connects to the existing OracleServer
-    tuner_selector = CMdtunerSelector(
-        backend=global_backend,
-        tuner_id=tuner_id, # Use the dynamic tuner_id for the worker
-        project_name=project_name, # Workers also need project_name for local files/dirs
-        log_dir=str(LOGDIR), # Pass the correct LOGDIR
-        train_dataset=train_dataset,
-        val_dataset=val_dataset,
-        test_dataset=test_dataset,
-        input_shape=input_shape,
-        num_classes=num_classes,
-        max_trials=tune_params.get('num_trials', 50), # Max trials is less relevant for worker, but keep for consistency
-        overwrite=False, # Workers should not overwrite the Oracle state
-        hypermodel_params=all_params,
-        is_chief=False, # THIS IS THE CRUCIAL CHANGE FOR A WORKER
-        oracle_url=oracle_url, # Worker MUST connect to a remote Oracle
-        # Oracle directory for worker's local KerasTuner files should be within the main LOGDIR
-        oracle_directory=str(LOGDIR / "oracle_server_worker_data"), # Use correct base log path for worker's oracle data
-        model_save_dir=Path(base_params.get('mp_glob_base_log_path')) / "tsneuromodel_1" / "saved_models" # Pass model_save_dir
-    )
-
-    logger.info(f"Worker {tuner_id} starting its trial execution loop...")
-    tuner_selector.run() # This method now contains the worker's trial fetching loop
-    logger.info(f"Worker {tuner_id} trial execution completed.")
-
-    # Workers do not save the best model or perform ONNX conversion.
-    # That is the responsibility of the chief process.
-
-    logger.info("🏁 tsNeuroPredictWinMql_worker.py finished.")
-
-
-if __name__ == "__main__":
-    # Ensure MetaTrader5 is initialized and finalized with authentication details
-    logger.info("PARAM HEADER: MP_APP_BROKER: %s", app_params.get('mp_app_broker'))
+    # Ensure MetaTrader5 is initialized for this process
+    process_logger.info("PARAM HEADER: MP_APP_BROKER: %s", app_params.get('mp_app_broker'))
     broker_config = CMqlBrokerConfig(app_params.get('mp_app_broker'))
     mqqlobj = broker_config.run_mql_login()
     if mqqlobj is True:
-        logger.info("Successfully logged in to MetaTrader 5.")
+        process_logger.info("Successfully logged in to MetaTrader 5.")
     else:
-        logger.info("Failed to login. Error code: %s", mqqlobj)
-        sys.exit(1)
-        
+        process_logger.error("Failed to login to MetaTrader 5. Error code: %s", mqqlobj)
+        sys.exit(1) # Exit if login fails
+
     try:
-        main()
+        # Determine backend
+        backend_for_log = tune_params.get('backend', 'pytorch')
+
+        # Setup mixed precision for TensorFlow if backend is TensorFlow/Keras
+        if backend_for_log == 'tensorflow' or backend_for_log == 'keras':
+            mixed_precision_policy = tune_params.get('mixed_precision_policy', 'mixed_float16')
+            mixed_precision.set_global_policy(mixed_precision_policy)
+            process_logger.info(f"TensorFlow Mixed Precision Policy set to: {mixed_precision_policy}")
+
+        # 1. Generate/Load Data
+        (train_data_x, train_data_y), (val_data_x, val_data_y), input_dim = generate_dummy_data()
+        input_shape = (input_dim,)
+
+        # 2. Initialize Oracle Client
+        oracle_client = OracleClient(oracle_url)
+
+        # 3. Initialize CMdtunerSelector
+        tuner_selector = CMdtunerSelector(
+            backend=backend_for_log,
+            tuner_id=tuner_id,
+            oracle_client=oracle_client,
+            is_chief=is_chief, # THIS IS THE CRUCIAL CHANGE FOR A WORKER (should be False)
+            oracle_url=oracle_url, # Worker MUST connect to a remote Oracle
+            train_data=(train_data_x, train_data_y),
+            val_data=(val_data_x, val_data_y),
+            input_shape=input_shape,
+            # Oracle directory for worker's local KerasTuner files should be within the main LOGDIR
+            oracle_directory=str(Path(base_params.get('mp_glob_base_log_path')) / f"keras_tuner_worker_data_{tuner_id}"), # Use correct base log path for worker's oracle data
+            model_save_dir=Path(base_params.get('mp_glob_base_log_path')) / "tsneuromodel_1" / "saved_models", # Pass model_save_dir
+            app_params=app_params, # Pass app_params for ModelCheckpoint in TunerMod
+            tune_params=tune_params # Pass tune_params for tuner configuration
+        )
+
+        process_logger.info(f"Worker {tuner_id} starting its trial execution loop...")
+        tuner_selector.run() # This method now contains the worker's trial fetching loop
+        process_logger.info(f"Worker {tuner_id} trial execution completed.")
+
+        # Workers do not save the best model or perform ONNX conversion.
+        # That is the responsibility of the chief process.
+
+    except Exception as e:
+        process_logger.critical(f"Unhandled exception in worker process task: {e}", exc_info=True)
+        sys.exit(1) # Exit with error code
+
     finally:
-        mt5.shutdown()
-        logger.info("✅ MetaTrader5 shutdown.")
+        # Ensure MetaTrader5 is shut down properly for this process
+        try:
+            mt5.shutdown()
+            process_logger.info("MetaTrader 5 connection shut down.")
+        except Exception as e:
+            process_logger.warning(f"Error during MT5 shutdown in worker process: {e}")
+
+    process_logger.info("🏁 Worker process task finished.")
+
+
+if __name__ == "__main__":
+    # When this script is run as a subprocess by multiprocessing.Process,
+    # the code inside this block will be executed in the new process.
+    # The parameters will be passed via the 'args' of multiprocessing.Process.
+    # We need to parse them from sys.argv or ensure they are set as environment variables
+    # if multiprocessing's 'spawn' method is used and arguments are not directly passed.
+    # For simplicity and robustness with multiprocessing, it's often better to pass
+    # arguments directly to the target function.
+
+    # For now, we'll assume environment variables are still being used for simplicity
+    # with the multiprocessing.Process setup, as they were with subprocess.Popen.
+    # A more robust solution would involve explicit argument passing and parsing.
+
+    # Retrieve parameters from environment variables set by the launcher
+    tuner_id = os.environ.get("TUNER_ID", "worker_standalone")
+    oracle_url = os.environ.get("ORACLE_URL")
+    is_chief = os.environ.get("IS_CHIEF", "false").lower() == "true"
+
+    # Re-load parameters from environment for this specific process
+    mql_overrides_child = CMqlOverrides()
+    all_params_child = mql_overrides_child.env.all_params()
+    app_params_child = all_params_child.get("app", {})
+    tune_params_child = all_params_child.get('mltune', {})
+    base_params_child = all_params_child.get("base", {})
+
+    if not oracle_url:
+        logging.getLogger(__name__).critical("ORACLE_URL environment variable not set in child process. Exiting.")
+        sys.exit(1)
+
+    run_worker_process_task(tuner_id, oracle_url, is_chief,
+                            app_params_child, tune_params_child, base_params_child)
+

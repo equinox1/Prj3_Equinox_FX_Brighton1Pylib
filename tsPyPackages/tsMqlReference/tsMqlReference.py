@@ -19,7 +19,7 @@ xerces_server = app_params.get('xerces_server', '192.168.1.103')
 xerces_port = app_params.get('xerces_port', 9000)
 xerces_logfile = app_params.get('xerces_logfile', 'tsneuropredict_app.log')
 
-global_logdir = app_params.get('LOGDIR', 'Logdir')
+global_logdir = app_params.get('mp_glob_base_log_path', './Logdir')
 global_logfile = app_params.get('LOGFILE', 'xerces_logfile')
 
 try:

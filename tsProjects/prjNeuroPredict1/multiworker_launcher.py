@@ -1,228 +1,260 @@
-runtune="tf" # tf or pt
-# Determine the global backend based on runtune
-GLOBAL_BACKEND = "tensorflow" if runtune == "tf" else "pytorch"
-FORCE_KILL = True
-NUM_WORKERS = 2  # Increased to 2 for better demonstration of multi-worker tuning
-import subprocess
-import time
+# filename: multiworker_launcher.py
+# Rewritten: patched_oracle_server_main.py
 import os
-import socket
-import requests
 import sys
-import psutil
-import logging
+import time
 from pathlib import Path
-import threading
+import logging
+import warnings
+import inspect
+import socket
+from fastapi import FastAPI
 
-
-import sys
-sys.stdout.reconfigure(encoding='utf-8')
-sys.stderr.reconfigure(encoding='utf-8')
-# Ensure the environment is set up correctly
+import uvicorn
 from tsMqlOverrides import CMqlOverrides
+
+import multiprocessing
+import subprocess
+import requests
+
+# --- PATH CONFIGURATION FOR MODULE IMPORTS ---
+# Assuming multiworker_launcher.py is in C:\...\EQUINRUN\PythonLib\tsProjects
+# And common modules like tsMqlBrokerConfig are in C:\...\EQUINRUN\PythonLib
+# So, we need to add the parent directory of this script (PythonLib) to sys.path.
+# Path(__file__).parent gives C:\...\EQUINRUN\PythonLib\tsProjects
+# Path(__file__).parent.parent gives C:\...\EQUINRUN\PythonLib
+sys.path.append(str(Path(__file__).parent.parent))
+# Also add the current directory (tsProjects) if it contains modules that are imported directly
+sys.path.append(str(Path(__file__).parent))
+
+# Import the chief and worker task functions
+# These imports will now succeed because PythonLib is on sys.path
+from tsNeuroPredictWinMql_chief import run_chief_process_task
+from tsNeuroPredictWinMql_worker import run_worker_process_task
+
+# Setup logger for the launcher itself
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# Load configuration for the launcher (and for passing to child processes)
 mql_overrides = CMqlOverrides()
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
 tune_params = all_params.get('mltune', {})
 base_params = all_params.get("base", {})
 
-from tsMqlSetup import CMqlSetup
-# Initialize CMqlSetup for the launcher itself, to ensure logging is configured
-# and setup_config is defined for any utility functions that might implicitly use it.
-# Dynamically determine num_cores and num_threads for optimal performance.
-# num_cores: Estimate physical cores. On systems with hyperthreading, this is often
-#            half the logical core count (os.cpu_count()). If os.cpu_count() is not available
-#            or is 1, default to 1.
-# num_threads: Typically 1 per core for numerical workloads to avoid hyperthreading
-#              contention, but can be set higher (e.g., 2) if testing proves beneficial.)
-_logical_cores = os.cpu_count() if os.cpu_count() is not None else 1
-_estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
+# Network config
+xerces_server = app_params.get('xerces_server', "127.0.0.1")
+xerces_port = app_params.get('xerces_port', 9000)
+print(f"Using Xerces server: {xerces_server}, port: {xerces_port}")
 
-setup_config = CMqlSetup(
-    loglevel='INFO',
-    warn='ignore',
-    precision='mixed_bfloat16',
-    tfdebug=False,
-    num_cores=_estimated_physical_cores,
-    num_threads=1
-)
+# Suppress deprecated warnings (if any)
+warnings.filterwarnings("ignore", message="The `tune_new_entries` and `allow_new_entries` arguments are deprecated.")
 
-from tsMqlLogService import CMLogServiceSetup # Import the CMLogServiceSetup class
+# Directory setup
+import random
+oracle_base_dir = Path(base_params.get('mp_glob_base_log_path')) / "oracle_server_data"
+oracle_base_dir.mkdir(parents=True, exist_ok=True)
 
-# Determine backend for the launcher's own logging
-# This should directly use GLOBAL_BACKEND, not rely on os.environ.get which might be unset
-launcher_backend_for_log = GLOBAL_BACKEND
+model_name = os.environ.get('ML_MODEL_NAME', tune_params.get('ml_model_name', 'default_model'))
+project_id = os.environ.get('ML_PROJECT_ID', str(base_params.get('mp_glob_sub_ml_baseuniq', random.randrange(1, 1024))))
+project_name = f"{model_name}_{project_id}"
 
-# Initialize master logging for the launcher process
-# All logs from all processes should eventually go to this central file
-logger = CMLogServiceSetup.initialize_logging(
-    role_hint='launcher',
-    loglevel='INFO', # Set desired log level for the launcher
-    backend=launcher_backend_for_log, # Pass the determined GLOBAL_BACKEND
-    # logfile='tsneuro_predict.log', # This is now handled internally by CMLogServiceSetup
-    # logdir will be picked up from base_params or derived
-)
+oracle_full_path = oracle_base_dir / project_name
+oracle_full_path.mkdir(parents=True, exist_ok=True)
+logger.info(f"Oracle data directory: {oracle_full_path}")
 
-# Define scripts paths relative to the launcher script's directory
-LAUNCHER_DIR = Path(__file__).parent
-ORACLE_SCRIPT = LAUNCHER_DIR / "oracle_server_main.py"
-CHIEF_SCRIPT = LAUNCHER_DIR / "tsNeuroPredictWinMql_chief.py"
-WORKER_SCRIPT = LAUNCHER_DIR / "tsNeuroPredictWinMql_worker.py"
 
-# Ensure the scripts exist
-for script in [ORACLE_SCRIPT, CHIEF_SCRIPT, WORKER_SCRIPT]:
-    if not script.exists():
-        logger.error(f"Required script not found: {script}")
-        sys.exit(1)
-
-def is_port_in_use(port, host='127.0.0.1', retries=5, delay=1):
+def run_oracle_server(host: str, port: int, oracle_base_dir: Path, project_name: str, tune_params: dict):
     """
-    Check if a port is already in use with retries.
-    Args:
-        port (int): The port number to check.
-        host (str): The host address to check.
-        retries (int): Number of times to retry checking the port.
-        delay (int): Delay in seconds between retries.
-    Returns:
-        bool: True if the port is in use, False otherwise.
+    Function to run the Oracle Server, to be executed in a separate process.
+    It imports and initializes the Oracle and FastAPI app within its own process space.
     """
-    for i in range(retries):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind((host, port))
-                # If bind is successful, port is free, so close and return False
-                s.close()
-                return False
-            except socket.error as e:
-                # If error is EADDRINUSE, port is in use
-                if e.errno == errno.EADDRINUSE:
-                    logger.warning(f"Port {host}:{port} is in use (Attempt {i+1}/{retries}). Retrying in {delay}s...")
-                    time.sleep(delay)
-                else:
-                    # Other socket errors
-                    logger.error(f"Socket error checking port {host}:{port}: {e}", exc_info=True)
-                    return True # Treat other errors as port being problematic
-    logger.error(f"Port {host}:{port} remained in use after {retries} attempts.")
-    return True # Port is still in use after all retries
+    import logging
+    from pathlib import Path
+    import uvicorn
+    import socket
+    from tsMqlMLTuner.tsMqlMLCustomOracle import CustomOracle
+    from tsMqlMLTuner.tsMqlMLOracleServer import app as oracle_app_instance, set_oracle_instance
+
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    oracle_logger = logging.getLogger("OracleServerProcess")
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind((host, port))
+            s.listen(1)
+            oracle_logger.info(f"Port {port} is available for Oracle Server.")
+        except socket.error as e:
+            oracle_logger.critical(f"Port {port} is already in use or cannot be bound by Oracle Server: {e}. Exiting server process.")
+            sys.exit(1)
 
 
-def terminate_process_and_children(pid):
-    """Terminates a process and its entire child process tree."""
-    try:
-        parent = psutil.Process(pid)
-        children = parent.children(recursive=True)
-        for child in children:
-            if child.is_running():
-                logger.info(f"Terminating child process {child.pid}...")
-                child.terminate()
-        if parent.is_running():
-            logger.info(f"Terminating parent process {parent.pid}...")
-            parent.terminate()
-        gone, alive = psutil.wait_procs(children + [parent], timeout=5)
-        for p in alive:
-            if p.is_running():
-                logger.info(f"Killing stubborn process {p.pid}...")
-                p.kill()
-        logger.info(f"Terminated process {pid} and its children.")
-    except psutil.NoSuchProcess:
-        logger.info(f"Process {pid} not found (already terminated).")
-    except Exception as e:
-        logger.error(f"Error terminating process {pid}: {e}", exc_info=True)
+    oracle_instance = CustomOracle(
+        objective=tune_params.get('objective', "val_loss"),
+        max_trials=tune_params.get('num_trials', 50),
+        directory=str(oracle_base_dir),
+        project_name=project_name,
+        seed=tune_params.get('seed', 42),
+        overwrite=tune_params.get('overwrite', False)
+    )
+    oracle_logger.info("CustomOracle instance created.")
 
-def launch_process(script_path, tuner_id=None, backend=None, is_oracle=False, is_chief=False):
-    """Launches a Python script in a new process."""
-    cmd = [sys.executable, str(script_path)]
-    env = os.environ.copy()
-
-    # Set environment variables for the subprocess
-    env['BACKEND'] = backend if backend else GLOBAL_BACKEND
-    env['TF_CPP_MIN_LOG_LEVEL'] = '1' # Suppress TensorFlow info/warning logs in subprocesses
-
-    # Pass tuning parameters via environment variables for consistency
-    # These values will override any defaults in the config files
-    env['MLTUNE_NUM_TRIALS'] = '100' # Increased number of trials
-    env['MLTUNE_MAX_EPOCHS'] = '20' # Increased max epochs per trial
-
-    if tuner_id:
-        env['TUNER_ID'] = tuner_id
-    if is_chief:
-        env['IS_CHIEF'] = 'True' # Indicate if it's the chief process
-    if is_oracle:
-        # Crucial: Force overwrite for the Oracle Server to ensure a fresh start
-        env['MLTUNE_OVERWRITE'] = 'True'
-        logger.info("Setting MLTUNE_OVERWRITE=True for Oracle Server process.")
-
-
-    # Ensure the correct Python environment is used if running in a venv
-    if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
-        env['PATH'] = os.path.dirname(sys.executable) + os.pathsep + env['PATH']
-        env['VIRTUAL_ENV'] = sys.prefix
-
-    logger.info(f"Launching command: {cmd} with env BACKEND={env['BACKEND']}, TUNER_ID={env.get('TUNER_ID')}, IS_CHIEF={env.get('IS_CHIEF')}, MLTUNE_NUM_TRIALS={env.get('MLTUNE_NUM_TRIALS')}, MLTUNE_MAX_EPOCHS={env.get('MLTUNE_MAX_EPOCHS')}, MLTUNE_OVERWRITE={env.get('MLTUNE_OVERWRITE')}")
+    set_oracle_instance(oracle_instance)
     
-    # Use Popen for non-blocking launch
-    process = subprocess.Popen(cmd, env=env, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
-    return process
+    oracle_logger.info(f"✅ Attempting to start Oracle Server at http://{host}:{port}")
+
+    try:
+        uvicorn.run(oracle_app_instance, host=host, port=port, log_level="info")
+    except KeyboardInterrupt:
+        oracle_logger.info("👋 Oracle Server received KeyboardInterrupt. Shutting down.")
+    except Exception as e:
+        oracle_logger.critical(f"❌ Oracle Server Uvicorn process failed: {e}", exc_info=True)
+        (oracle_base_dir / "server_startup_failed.flag").touch()
+    finally:
+        oracle_logger.info("Oracle Server process terminated.")
+
+def check_server_status(url: str, timeout: int = 5) -> bool:
+    """Checks if the FastAPI server is up and running."""
+    try:
+        response = requests.get(f"{url}/status", timeout=timeout)
+        response.raise_for_status()
+        logger.info(f"Oracle Server is available at {url}. Status: {response.json()}")
+        return True
+    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout, requests.exceptions.HTTPError) as e:
+        logger.warning(f"Oracle Server not yet available at {url}: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error when checking Oracle Server status: {e}", exc_info=True)
+        return False
 
 if __name__ == "__main__":
-    oracle_proc = None
-    chief_proc = None
-    workers = []
+    import asyncio
+    import platform
+
+    # Removed incorrect asyncio.set_event_loop_policy call
+    # On Windows, multiprocessing defaults to 'spawn' which is usually fine.
+    # If explicit setting is ever needed, it's multiprocessing.set_start_method('spawn', force=True)
+    # but it's generally not required unless specific issues arise.
+
+    server_url = f"http://{xerces_server}:{xerces_port}"
+
+    # Start Oracle Server in a separate process
+    logger.info("🚀 Starting Oracle Server process...")
+    server_process = multiprocessing.Process(
+        target=run_oracle_server,
+        args=(xerces_server, xerces_port, oracle_full_path, project_name, tune_params)
+    )
+    server_process.start()
+
+    logger.info("Waiting for Oracle Server to start...")
+    max_wait_time = 60
+    start_time = time.time()
+    server_ready = False
+    while time.time() - start_time < max_wait_time:
+        if check_server_status(server_url):
+            server_ready = True
+            break
+        if (oracle_full_path / "server_startup_failed.flag").exists():
+            logger.critical("Oracle Server startup failed as indicated by flag file. Aborting launcher.")
+            server_process.terminate()
+            server_process.join()
+            sys.exit(1)
+        time.sleep(2)
+
+    if not server_ready:
+        logger.critical("Oracle Server did not start in time. Aborting multi-worker training.")
+        server_process.terminate()
+        server_process.join()
+        sys.exit(1)
+
+    logger.info("Oracle Server is up and running. Proceeding with Chief and Worker processes.")
+
+    num_additional_workers = tune_params.get('num_workers', 0)
+    
+    # List of target functions for multiprocessing
+    worker_tasks = [run_chief_process_task] + [run_worker_process_task] * num_additional_workers
+
+    child_processes = []
 
     try:
-        # Check if OracleServer port is in use
-        
-        xerces_server = app_params.get('xerces_server', "192.168.1.103")
-        xerces_port = app_params.get('xerces_port', 9000)
-        oracle_port = xerces_port # Default port, should match app_params in config
-        oracle_host = xerces_server # Use localhost for binding check
+        # Create a base directory for all logs if it doesn't exist
+        # Note: With multiprocessing.Process, logs are handled by tsMqlLogService
+        # directly writing to files, so stdout/stderr redirection is not needed here.
+        # However, the multiworker_logs directory might still be useful for other purposes
+        # or if you want a fallback capture.
+        multiworker_log_dir = Path(base_params.get('mp_glob_base_log_path')) / "multiworker_logs"
+        multiworker_log_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Multi-worker logs (managed by tsMqlLogService) will be in: {multiworker_log_dir.parent}")
 
 
-        if is_port_in_use(oracle_port, host=oracle_host):
-            logger.warning(f"Port {oracle_host}:{oracle_port} is already in use. Assuming OracleServer is already running and skipping launch.")
-            # If port is in use, we don't launch a new OracleServer
-            oracle_proc = None
-        else:
-            # Launch OracleServer
-            oracle_proc = launch_process(ORACLE_SCRIPT, is_oracle=True)
-            logger.info(f"🚀 Launched OracleServer with PID: {oracle_proc.pid}")
-            time.sleep(5) # Give OracleServer time to start
+        for i, task_function in enumerate(worker_tasks):
+            process_type = "chief" if i == 0 else f"worker_{i}"
+            is_current_chief = (i == 0)
 
-        # Launch Chief process
-        chief_proc = launch_process(CHIEF_SCRIPT, tuner_id="chief",
-                                    backend=GLOBAL_BACKEND, is_chief=True)
-        logger.info(f"🚀 Launched Chief process with PID: {chief_proc.pid}")
-        time.sleep(5) # Give Chief time to start and register with Oracle
+            # Pass all necessary parameters as arguments to the target function
+            # Environment variables are still set for backward compatibility/redundancy,
+            # but direct argument passing is preferred for multiprocessing.
+            args = (
+                process_type,
+                server_url,
+                is_current_chief,
+                app_params,
+                tune_params,
+                base_params
+            )
 
-        # Launch Worker processes
-        logger.info(f"Launching {NUM_WORKERS} worker processes for backend: {GLOBAL_BACKEND}")
-        workers = [launch_process(WORKER_SCRIPT, tuner_id=f"worker{i+1}",
-                                  backend=GLOBAL_BACKEND) for i in range(NUM_WORKERS)]
+            logger.info(f"Starting {process_type} process via multiprocessing.Process...")
+            p = multiprocessing.Process(
+                target=task_function,
+                args=args,
+                # No stdout/stderr redirection here; tsMqlLogService handles file logging.
+                # No cwd needed here; the target function's module will be imported.
+            )
+            child_processes.append(p)
+            p.start() # Start the process
+            time.sleep(1) # Give a moment for the process to start
 
-        # Wait for the chief process to complete
-        # This will block until chief_proc exits
-        if chief_proc:
-            chief_proc.wait()
-            logger.info("Chief process completed. Shutting down worker processes.")
-        else:
-            logger.info("Chief process was not launched by this script or already completed.")
+        # Monitor child processes
+        while True:
+            all_finished = True
+            for i, p in enumerate(child_processes):
+                if p.is_alive(): # Check if process is still running
+                    all_finished = False
+                elif p.exitcode != 0: # Process terminated with an error
+                    process_type = "Chief" if i == 0 else f"Worker {i}"
+                    logger.warning(f"⚠️ {process_type} process [PID: {p.pid}] terminated with exit code {p.exitcode}. Check its dedicated log file for details.")
+            
+            if all_finished:
+                logger.info("All chief and worker processes have finished.")
+                break
+            
+            time.sleep(5)
 
     except KeyboardInterrupt:
-        logger.info("🚫 KeyboardInterrupt received. Shutting down processes...")
+        logger.info("👋 Launcher received KeyboardInterrupt. Initiating graceful shutdown...")
     except Exception as e:
-        logger.error(f"An unexpected error occurred: {e}", exc_info=True)
+        logger.critical(f"❌ Unhandled exception in launcher: {e}", exc_info=True)
     finally:
-        # Terminate all launched processes
-        if chief_proc and chief_proc.poll() is None:
-            logger.info("Terminating Chief process...")
-            terminate_process_and_children(chief_proc.pid)
-        for worker in workers:
-            if worker and worker.poll() is None:
-                logger.info(f"Terminating Worker process {worker.pid}...\n") # Added newline
-                terminate_process_and_children(worker.pid)
-        # Only attempt to terminate oracle_proc if it was actually launched by this script
-        if oracle_proc and oracle_proc.poll() is None:
-            logger.info("Terminating OracleServer process...\n") # Added newline
-            terminate_process_and_children(oracle_proc.pid)
+        logger.info("Terminating all child processes (Chief/Workers)...")
+        for p in child_processes:
+            if p.is_alive():
+                logger.info(f"Terminating process [PID: {p.pid}]...")
+                p.terminate()
+                try:
+                    p.join(timeout=10)
+                except multiprocessing.TimeoutError:
+                    logger.warning(f"Process [PID: {p.pid}] did not terminate gracefully, killing it.")
+                    p.kill()
 
-        logger.info("All child processes ensured terminated. Launcher shutting down.")
+        logger.info("Terminating Oracle Server process...")
+        if server_process.is_alive():
+            server_process.terminate()
+            try:
+                server_process.join(timeout=10)
+            except multiprocessing.TimeoutError:
+                logger.warning(f"Server process [PID: {server_process.pid}] did not terminate gracefully, killing it.")
+                server_process.kill()
+        
+        logger.info("All processes terminated. Exiting launcher.")
+        sys.exit(0)
