@@ -214,13 +214,19 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
     if best_model:
         logger.info("✅ Best model retrieved successfully.")
 
-        # Save the final best model
+        # Save the final best model conditionally based on backend
         final_model_name = f"final_best_model_{backend}"
-        # Ensure a proper file extension is added
-        final_model_path = model_save_dir / f"{final_model_name}.keras" # Changed to .keras extension
         try:
-            best_model.save(str(final_model_path))
-            logger.info(f"✅ Final best model saved to: {final_model_path}")
+            if backend == 'tensorflow':
+                final_model_path = model_save_dir / f"{final_model_name}.keras"
+                best_model.save(str(final_model_path))
+                logger.info(f"✅ Final best TensorFlow model saved to: {final_model_path}")
+            elif backend == 'pytorch':
+                final_model_path = model_save_dir / f"{final_model_name}.pth"
+                torch.save(best_model.state_dict(), final_model_path) # Save state_dict for flexibility
+                logger.info(f"✅ Final best PyTorch model state_dict saved to: {final_model_path}")
+            else:
+                logger.warning(f"Model saving not implemented for backend: {backend}")
         except Exception as e:
             logger.error(f"❌ Failed to save the final best model: {e}", exc_info=True)
 

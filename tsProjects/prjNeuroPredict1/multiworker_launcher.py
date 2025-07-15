@@ -50,7 +50,7 @@ print(f"Using Xerces server: {xerces_server}, port: {xerces_port}")
 
 # --- Backend Selection Variable ---
 # Define the default backend here. Change this variable to switch between backends.
-DEFAULT_BACKEND = 'tensorflow' # Options: 'tensorflow', 'pytorch'
+DEFAULT_BACKEND = 'pytorch' # Options: 'tensorflow', 'pytorch'
 
 # Override backend in tune_params with the defined variable
 tune_params['backend'] = DEFAULT_BACKEND
