@@ -48,6 +48,15 @@ xerces_server = app_params.get('xerces_server', "127.0.0.1")
 xerces_port = app_params.get('xerces_port', 9000)
 print(f"Using Xerces server: {xerces_server}, port: {xerces_port}")
 
+# --- Backend Selection Variable ---
+# Define the default backend here. Change this variable to switch between backends.
+DEFAULT_BACKEND = 'tensorflow' # Options: 'tensorflow', 'pytorch'
+
+# Override backend in tune_params with the defined variable
+tune_params['backend'] = DEFAULT_BACKEND
+logger.info(f"Selected backend: {DEFAULT_BACKEND}")
+
+
 # Suppress deprecated warnings (if any)
 warnings.filterwarnings("ignore", message="The `tune_new_entries` and `allow_new_entries` arguments are deprecated.")
 
