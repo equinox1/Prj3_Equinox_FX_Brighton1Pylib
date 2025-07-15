@@ -18,7 +18,7 @@ import pytz
 import socket
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
+import numpy as np # Import numpy here, before tf2onnx is potentially imported
 import pandas as pd
 import tensorflow as tf
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
@@ -49,6 +49,29 @@ from tsMqlLogService import CMLogServiceSetup # Import the centralized logging s
 # Import the distributed tuner selector
 from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
+
+# --- START OF NUMPY 2.0 COMPATIBILITY PATCH FOR TF2ONNX ---
+# This section attempts to patch numpy.cast for tf2onnx compatibility with NumPy 2.0+.
+# This is a temporary workaround for an issue in older tf2onnx versions that
+# try to use `np.cast`, which was removed in NumPy 2.0.
+# The proper solution is to update tf2onnx to a version compatible with NumPy 2.0.
+TF2ONNX_NUMPY_PATCHED = False
+try:
+    if tuple(map(int, np.__version__.split('.'))) >= (2, 0, 0):
+        if not hasattr(np, 'cast'):
+            # Define a simple np.cast that mimics the old behavior using np.asarray
+            # This is a minimal patch to allow tf2onnx to import without error.
+            def _np_cast_patch(arr, dtype):
+                return np.asarray(arr, dtype=dtype)
+            np.cast = _np_cast_patch
+            TF2ONNX_NUMPY_PATCHED = True
+            logging.getLogger(__name__).warning(
+                "NumPy 2.0+ detected. Temporarily patched `np.cast` for tf2onnx compatibility. "
+                "Consider upgrading tf2onnx for a permanent fix."
+            )
+except Exception as e:
+    logging.getLogger(__name__).error(f"Error applying NumPy 2.0 compatibility patch for tf2onnx: {e}")
+# --- END OF NUMPY 2.0 COMPATIBILITY PATCH ---
 
 # Onnx and tf2onnx imports (kept for imports, but conversion logic removed from worker main)
 try:
