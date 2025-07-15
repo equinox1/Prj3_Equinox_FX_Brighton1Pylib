@@ -102,6 +102,9 @@ class CMdtuner:
         self.model_save_dir = model_save_dir
         self.hypermodel_params = hypermodel_params if hypermodel_params is not None else {}
 
+        # Ensure the model_save_dir exists
+        self.model_save_dir.mkdir(parents=True, exist_ok=True)
+
         self.max_epochs = tune_params.get('max_epochs', 50)
         self.objective_metric = tune_params.get('objective', 'val_loss')
         self.max_trials = tune_params.get('num_trials', 50) # This is the total number of trials the Oracle will generate
@@ -298,3 +301,4 @@ class OracleSyncCallback(tf.keras.callbacks.Callback):
 
         self.oracle_client.report_trial_result(self.trial_id, final_score, status=status)
         logger.info(f"[OracleSyncCallback] Reported final result for trial {self.trial_id}: Score={final_score}, Status={status}")
+

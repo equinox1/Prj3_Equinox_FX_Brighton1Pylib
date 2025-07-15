@@ -43,7 +43,7 @@ class CMLogServiceSetup:
     def initialize_logging(cls, app_params: Dict = None, tune_params: Dict = None,
                            base_params: Dict = None, role_hint: str = "main",
                            loglevel: str = 'INFO', enable_logging: bool = True,
-                           logfile: Optional[str] = None):
+                           logfile: Optional[str] = None, backend: str = "pytorch"): # Added backend parameter
         """
         Initializes the Loguru logger with dynamic configuration.
         This method is designed to be called once per process.
@@ -57,6 +57,7 @@ class CMLogServiceSetup:
         :param enable_logging: If False, logging to files will be disabled. Console logging might still occur.
         :param logfile: Optional. A specific filename for the log. If not provided,
                         it defaults to '{role_hint}_tsneuropredict_app.log'.
+        :param backend: The backend type (e.g., 'tensorflow', 'pytorch'). Used for log directory structure.
         :return: The configured logger instance.
         """
         if cls._initialized:
@@ -73,7 +74,8 @@ class CMLogServiceSetup:
         base_log_dir = Path(base_params.get('mp_glob_base_log_path', cls._default_base_log_dir))
         
         # Determine the backend for sub-directory creation
-        backend = tune_params.get('backend', 'pytorch') # Default to 'pytorch' if not specified
+        # The 'backend' parameter is now directly available
+        # backend = tune_params.get('backend', 'pytorch') # No longer needed here as it's a parameter
 
         # Construct the final log directory path
         final_log_dir = base_log_dir / backend
@@ -167,7 +169,8 @@ if __name__ == "__main__":
         app_params={'LOGLEVEL': 'DEBUG', 'xerces_logfile': 'my_app.log'},
         tune_params={'backend': 'tensorflow'},
         base_params={'mp_glob_base_log_path': './TestLogdir'},
-        role_hint='worker_1'
+        role_hint='worker_1',
+        backend='tensorflow' # Explicitly passing backend for the example
     )
     logger_worker.info("This is an INFO message from worker_1.")
     logger_worker.debug("This DEBUG message SHOULD be seen from worker_1.")
@@ -182,3 +185,4 @@ if __name__ == "__main__":
 
     print("\n--- All examples finished. Check the 'TestLogdir' folder for generated log files. ---")
     print(f"Expected log directory structure under: {Path('./TestLogdir')}")
+

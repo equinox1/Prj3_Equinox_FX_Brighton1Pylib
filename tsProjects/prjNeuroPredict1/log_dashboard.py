@@ -28,10 +28,13 @@ backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch'
 # This ensures the dashboard's own logs go to the correct place if needed,
 # but primarily we need it to understand the structure for tsneuropredict_app.log
 dashboard_logger = CMLogServiceSetup.initialize_logging(
+    app_params=app_params,
+    tune_params=tune_params,
+    base_params=base_params,
     role_hint=__name__,
     loglevel='INFO',
     logfile='log_dashboard.log', # A separate log file for the dashboard itself
-    backend=backend_for_log
+    # Removed 'backend=backend_for_log' as it's not expected by CMLogServiceSetup.initialize_logging
 )
 
 # Dynamically resolve log file

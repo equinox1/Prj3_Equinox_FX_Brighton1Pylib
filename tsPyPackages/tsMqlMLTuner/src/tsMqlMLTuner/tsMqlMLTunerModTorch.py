@@ -75,6 +75,7 @@ class CMdtunerTorch:
         self.tune_params = tune_params
 
         self.oracle_directory.mkdir(parents=True, exist_ok=True)
+        # Ensure the model_save_dir exists
         self.model_save_dir.mkdir(parents=True, exist_ok=True)
 
         self.max_epochs = tune_params.get('max_epochs', 10)

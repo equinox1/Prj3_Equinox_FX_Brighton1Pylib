@@ -4,7 +4,7 @@
 # |                                    tsNeuroPredictWinMql_chief.py |
 # |                                                    Tony Shepherd |
 # |                                    https://www.xercescloud.co.uk |
-# +------------------------------------------------------------------+
+# +------------------------------------------------------------------+\
 import os
 import sys
 import logging
@@ -25,6 +25,8 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
+# Add this import for type hints
+from typing import Dict, Any
 # Import mixed_precision for TensorFlow policy
 from tensorflow.keras import mixed_precision
 
@@ -41,271 +43,273 @@ from tsMqlSetup import CMqlSetup
 from tsMqlOverrides import CMqlOverrides
 from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES, config
 from tsMqlEnvMgr import CMqlEnvMgr # Corrected import: Changed CEnvMgr to CMqlEnvMgr
-from tsMqlConnect import CMqlBrokerConfig  # Ensure tsMqlConnect.py exists and CMqlBrokerConfig is in it
-from tsMqlPlotService import PlottingService # UNCOMMENTED THIS LINE
+from tsMqlConnect import CMqlBrokerConfig  # Ensure tsMqlConnect is importable
+from tsMqlLogService import CMLogServiceSetup # Import the centralized logging setup
 
-# Import the CMdtunerSelector
+# Import the distributed tuner selector
 from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
 from tsMqlMLTuner.tsMqlMLOracleClient import OracleClient
-from tsMqlLogService import CMLogServiceSetup
 
-# --- Global Configuration Loading (for module-level access if needed) ---
-# These are loaded here for module-level constants and default values.
-# Actual runtime parameters will be passed to the main task function.
-mql_overrides = CMqlOverrides()
-all_params_global = mql_overrides.env.all_params()
-app_params_global = all_params_global.get("app", {})
-tune_params_global = all_params_global.get('mltune', {})
-base_params_global = all_params_global.get("base", {})
+# Onnx and tf2onnx imports (kept for imports, but conversion logic removed from worker main)
+try:
+    import tf2onnx
+    import onnx
+    from onnx import checker
+    import onnxruntime as ort
+    TF2ONNX_AVAILABLE = True
+except ImportError:
+    TF2ONNX_AVAILABLE = False
+    # print("tf2onnx, onnx, or onnxruntime not installed. ONNX conversion/verification will be skipped.") # Use logger instead
+    pass # Let the logger handle this in the main function
 
-# Use CMqlSetup for centralized logging (initial setup for this script's own logger)
-backend_for_log_global = os.environ.get('BACKEND', tune_params_global.get('backend', 'pytorch'))
 
+# Setup logging for the chief process
+# Load configuration (similar to other main scripts)
+mql_overrides_init = CMqlOverrides()
+all_params_init = mql_overrides_init.env.all_params()
+app_params_init = all_params_init.get("app", {})
+tune_params_init = all_params_init.get('mltune', {})
+base_params_init = all_params_init.get("base", {})
 
-# Initialize logging for this script's module-level operations
+# Determine the backend from environment, default to 'pytorch'
+backend_for_log_init = os.environ.get('BACKEND', tune_params_init.get('backend', 'pytorch'))
+
 CMLogServiceSetup.initialize_logging(
-    app_params=app_params_global,
-    tune_params=tune_params_global,
-    base_params=base_params_global,
-    role_hint='chief_module_init', # A distinct role hint for the module's own logger
-    loglevel=app_params_global.get('LOGLEVEL', 'INFO').upper()
+    app_params=app_params_init,
+    tune_params=tune_params_init,
+    base_params=base_params_init,
+    role_hint='chief',
+    loglevel='INFO',
+    logfile='tsneuropredict_app.log', # Main log file for the application
+    backend=backend_for_log_init # Re-added backend parameter as it is now in initialize_logging signature
 )
 logger = logging.getLogger(__name__)
-logger.info(f"Chief module-level logging initialized. Log level: {app_params_global.get('LOGLEVEL', 'INFO').upper()}")
 
+# Define a plotting service class (can be moved to a separate module if it grows)
+class PlottingService:
+    def __init__(self, log_dir: Path):
+        self.plot_dir = log_dir / "plots"
+        self.plot_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"PlottingService initialized. Plots will be saved to: {self.plot_dir}")
 
-def generate_dummy_data(num_samples=1000, num_features=10):
-    """Generates dummy data for training and validation."""
-    logger.info("Generating dummy data...")
-    X = np.random.rand(num_samples, num_features).astype(np.float32)
-    y = np.random.rand(num_samples, 1).astype(np.float32) * 100 # Dummy regression target
-    
-    # Split into train and validation sets
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    # Scale features
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_val_scaled = scaler.transform(X_val)
-    
-    logger.info(f"Dummy data generated: X_train_scaled.shape={X_train_scaled.shape}, y_train.shape={y_train.shape}")
-    return (X_train_scaled, y_train), (X_val_scaled, y_val), num_features
+    def plot_predictions(self, y_true, y_pred, title_suffix, filename_suffix):
+        plt.figure(figsize=(12, 6))
+        plt.plot(y_true, label='Actual')
+        plt.plot(y_pred, label='Predicted')
+        plt.title(f'Actual vs Predicted {title_suffix}')
+        plt.xlabel('Time/Index')
+        plt.ylabel('Value')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(self.plot_dir / f"predictions_{filename_suffix}.png")
+        plt.close()
+        logger.info(f"Plot saved successfully: {self.plot_dir / f'predictions_{filename_suffix}.png'}")
+
+    def plot_residuals(self, y_true, y_pred, title_suffix, filename_suffix):
+        residuals = y_true - y_pred
+        plt.figure(figsize=(12, 6))
+        plt.hist(residuals, bins=50)
+        plt.title(f'Residuals Distribution {title_suffix}')
+        plt.xlabel('Residual Value')
+        plt.ylabel('Frequency')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(self.plot_dir / f"residuals_{filename_suffix}.png")
+        plt.close()
+        logger.info(f"Plot saved successfully: {self.plot_dir / f'residuals_{filename_suffix}.png'}")
+
+    def plot_scatter(self, y_true, y_pred, title_suffix, filename_suffix):
+        plt.figure(figsize=(8, 8))
+        sns.regplot(x=y_true, y=y_pred, scatter_kws={'alpha':0.3}, line_kws={'color':'red'})
+        plt.xlabel('Actual Values')
+        plt.ylabel('Predicted Values')
+        plt.title(f'Actual vs Predicted Scatter Plot {title_suffix}')
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(self.plot_dir / f"scatter_{filename_suffix}.png")
+        plt.close()
+        logger.info(f"Plot saved successfully: {self.plot_dir / f'scatter_{filename_suffix}.png'}")
 
 
 def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
-                           app_params: dict, tune_params: dict, base_params: dict):
+                           app_params: Dict[str, Any], tune_params: Dict[str, Any], base_params: Dict[str, Any]):
     """
-    Main task function for the chief process.
-    This function will be called by multiprocessing.Process.
+    The main task for the chief process.
+    It initializes the OracleClient, runs the tuner, retrieves the best model,
+    evaluates it, and performs ONNX conversion if enabled.
     """
-    # Re-initialize logging specifically for this process's execution context
-    # This ensures logs from this process go to the correct, unique file.
-    log_level = app_params.get('LOGLEVEL', 'INFO').upper()
-    CMLogServiceSetup.initialize_logging(
-        app_params=app_params,
-        tune_params=tune_params,
-        base_params=base_params,
-        role_hint=tuner_id, # Use tuner_id (e.g., 'chief') as role hint for unique log file
-        loglevel=log_level,
-        logfile=f"{tuner_id}_{app_params.get('xerces_logfile', 'tsneuropredict_app.log')}"
+    logger.info(f"Chief {tuner_id} process task started. Is Chief: {is_chief}")
+
+    # Initialize OracleClient
+    oracle_client = OracleClient(oracle_url=oracle_url)
+    logger.info(f"OracleClient initialized for chief, connecting to {oracle_url}")
+
+    # Dummy data for demonstration (replace with actual data loading)
+    # In a real scenario, you would load your preprocessed data here.
+    # For now, let's create some random data that matches the expected input_shape.
+    input_shape = (10,) # Example: 10 features per time step
+    num_samples = 1000
+    x_data = np.random.rand(num_samples, input_shape[0]).astype(np.float32)
+    y_data = np.random.rand(num_samples, 1).astype(np.float32) * 100 # Dummy labels
+
+    # Split data
+    x_train, x_val, y_train, y_val = train_test_split(x_data, y_data, test_size=0.2, random_state=42)
+
+    # Determine model save directory
+    model_save_dir = Path(base_params.get('mp_glob_base_log_path')) / app_params.get('mp_app_model_id', 'default_model') / "saved_models"
+    model_save_dir.mkdir(parents=True, exist_ok=True) # Ensure directory exists
+
+    # Initialize the Tuner Selector based on the backend
+    backend = tune_params.get('backend', 'tensorflow')
+    logger.info(f"Initializing CMdtunerSelector with backend: {backend}")
+
+    # Pass the actual data and input_shape to the tuner
+    tuner_selector = CMdtunerSelector(
+        backend=backend,
+        tuner_id=tuner_id,
+        oracle_client=oracle_client,
+        is_chief=is_chief,
+        train_data=(x_train, y_train),
+        val_data=(x_val, y_val),
+        input_shape=input_shape,
+        model_save_dir=model_save_dir,
+        oracle_directory=Path(tune_params.get('tuner_dir', base_params.get('mp_glob_base_log_path') / "keras_tuner_data")),
+        app_params=app_params, # Pass app_params
+        tune_params=tune_params # Pass tune_params
     )
-    process_logger = logging.getLogger(__name__) # Get logger for this specific process
-    process_logger.info(f"Chief process task started. Tuner ID: {tuner_id}, Is Chief: {is_chief}, Oracle URL: {oracle_url}")
-    process_logger.info(f"Chief process LOGDIR: {base_params.get('mp_glob_base_log_path')}")
 
+    # Run the tuner (this will block until all trials are processed or max_trials reached)
+    logger.info("Chief chief trial execution starting.")
+    tuner_selector.run()
+    logger.info("Chief chief trial execution completed.")
 
-    # Ensure MetaTrader5 is initialized for this process
-    process_logger.info("PARAM HEADER: MP_APP_BROKER: %s", app_params.get('mp_app_broker'))
-    broker_config = CMqlBrokerConfig(app_params.get('mp_app_broker'))
-    mqqlobj = broker_config.run_mql_login()
-    if mqqlobj is True:
-        process_logger.info("Successfully logged in to MetaTrader 5.")
-    else:
-        process_logger.error("Failed to login to MetaTrader 5. Error code: %s", mqqlobj)
-        sys.exit(1) # Exit if login fails
+    # Retrieve the best model
+    logger.info("Attempting to retrieve the best model from the Oracle Server...")
+    best_model = tuner_selector.get_best_model()
 
+    if best_model:
+        logger.info("✅ Best model retrieved successfully.")
 
-    try:
-        # Determine backend
-        backend_for_log = tune_params.get('backend', 'pytorch')
-
-        # Setup mixed precision for TensorFlow if backend is TensorFlow/Keras
-        if backend_for_log == 'tensorflow' or backend_for_log == 'keras':
-            mixed_precision_policy = tune_params.get('mixed_precision_policy', 'mixed_float16')
-            mixed_precision.set_global_policy(mixed_precision_policy)
-            process_logger.info(f"TensorFlow Mixed Precision Policy set to: {mixed_precision_policy}")
-
-        # 1. Generate/Load Data
-        (train_data_x, train_data_y), (val_data_x, val_data_y), input_dim = generate_dummy_data()
-        input_shape = (input_dim,)
-
-        # 2. Initialize Oracle Client
-        oracle_client = OracleClient(oracle_url)
-
-        # 3. Initialize CMdtunerSelector
-        tuner_selector = CMdtunerSelector(
-            backend=backend_for_log,
-            tuner_id=tuner_id,
-            oracle_client=oracle_client,
-            is_chief=is_chief,
-            train_data=(train_data_x, train_data_y),
-            val_data=(val_data_x, val_data_y),
-            input_shape=input_shape,
-            oracle_directory=str(Path(base_params.get('mp_glob_base_log_path')) / "keras_tuner_chief_data"),
-            model_save_dir=Path(base_params.get('mp_glob_base_log_path')) / "tsneuromodel_1" / "saved_models",
-            app_params=app_params, # Pass app_params for ModelCheckpoint in TunerMod
-            tune_params=tune_params # Pass tune_params for tuner configuration
-        )
-
-        process_logger.info(f"Chief {tuner_id} starting its trial execution loop...")
-        tuner_selector.run()
-        process_logger.info(f"Chief {tuner_id} trial execution completed.")
-
-        # 4. Get Best Model from Oracle (after all trials are expected to be completed)
-        process_logger.info("Attempting to retrieve the best model from the Oracle Server...")
-        best_model = tuner_selector.get_best_model()
-
-        if best_model:
-            process_logger.info("✅ Best model retrieved successfully.")
-
-            # 5. Evaluate the Best Model
-            process_logger.info("Evaluating the best model on validation data...")
-            if backend_for_log == 'tensorflow' or backend_for_log == 'keras':
-                y_pred_val = best_model.predict(val_data_x)
-            elif backend_for_log == 'pytorch':
-                best_model.eval()
-                with torch.no_grad():
-                    val_data_x_tensor = torch.tensor(val_data_x, dtype=torch.float32).to(tuner_selector.tuner.device)
-                    y_pred_val = best_model(val_data_x_tensor).cpu().numpy()
-            else:
-                raise ValueError("Unsupported backend for evaluation.")
-
-            mse = mean_squared_error(val_data_y, y_pred_val)
-            mae = mean_absolute_error(val_data_y, y_pred_val)
-            r2 = r2_score(val_data_y, y_pred_val)
-
-            process_logger.info(f"Best Model Evaluation on Validation Data:")
-            process_logger.info(f"  Mean Squared Error (MSE): {mse:.4f}")
-            process_logger.info(f"  Mean Absolute Error (MAE): {mae:.4f}")
-            process_logger.info(f"  R-squared (R2): {r2:.4f}")
-
-            # 6. Save Final Best Model (Chief's responsibility)
-            model_save_path = tuner_selector.get_model_dir()
-            model_save_path.mkdir(parents=True, exist_ok=True)
-            final_model_path = model_save_path / f"final_best_model_{backend_for_log}"
-
-            try:
-                if backend_for_log == 'tensorflow' or backend_for_log == 'keras':
-                    best_model.save(str(final_model_path))
-                    process_logger.info(f"✅ Final best TensorFlow/Keras model saved to {final_model_path}")
-                elif backend_for_log == 'pytorch':
-                    torch.save(best_model.state_dict(), str(final_model_path.with_suffix('.pth')))
-                    process_logger.info(f"✅ Final best PyTorch model state dict saved to {final_model_path.with_suffix('.pth')}")
-                
-                import joblib
-                scaler_path = model_save_path / "scaler.joblib"
-                joblib.dump(StandardScaler(), scaler_path)
-                process_logger.info(f"Scaler saved to {scaler_path}")
-
-            except Exception as e:
-                process_logger.error(f"❌ Failed to save the final best model: {e}", exc_info=True)
-
-            # 7. Plotting (Chief's responsibility)
-            try:
-                plotting_service = PlottingService(log_dir=Path(base_params.get('mp_glob_base_log_path')))
-                
-                y_pred_val_flat = y_pred_val.flatten()
-                val_data_y_flat = val_data_y.flatten()
-
-                plotting_service.plot_predictions(val_data_y_flat, y_pred_val_flat, "Chief - Actual vs. Predicted (Validation Set)", f"predictions_chief_{backend_for_log}.png")
-                residuals = val_data_y_flat - y_pred_val_flat
-                plotting_service.plot_residuals(residuals, "Chief - Residuals Plot (Validation Set)", f"residuals_chief_{backend_for_log}.png")
-                plotting_service.plot_scatter(val_data_y_flat, y_pred_val_flat, "Chief - Actual vs. Predicted Scatter", f"scatter_chief_{backend_for_log}.png")
-
-                process_logger.info("✅ Plots generated successfully.")
-            except Exception as e:
-                process_logger.error(f"❌ Error during plotting: {e}", exc_info=True)
-
-            # 8. ONNX Conversion (Chief's responsibility, for TensorFlow/Keras only)
-            if backend_for_log == 'tensorflow' or backend_for_log == 'keras':
-                process_logger.info("Attempting ONNX conversion and verification for TensorFlow/Keras model...")
-                try:
-                    import tf2onnx
-                    import onnx
-                    from onnx import checker
-                    import onnxruntime as ort
-
-                    onnx_model_path = model_save_path / f"final_best_model_{backend_for_log}.onnx"
-                    input_signature = [tf.TensorSpec(best_model.inputs[0].shape, best_model.inputs[0].dtype, name="input_1")]
-                    onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature, opset=13)
-                    with open(onnx_model_path, "wb") as f:
-                        f.write(onnx_model.SerializeToString())
-                    process_logger.info(f"✅ ONNX model saved to {onnx_model_path}")
-
-                    onnx_model = onnx.load(onnx_model_path)
-                    checker.check_model(onnx_model)
-                    process_logger.info("✅ ONNX model verified successfully.")
-
-                    ort_session = ort.InferenceSession(str(onnx_model_path))
-                    ort_inputs = {ort_session.get_inputs()[0].name: val_data_x.astype(np.float32)}
-                    ort_outs = ort_session.run(None, ort_inputs)
-                    np.testing.assert_allclose(y_pred_val, ort_outs[0], rtol=1e-3, atol=1e-3)
-                    process_logger.info("✅ ONNX Runtime output matches TensorFlow/Keras output.")
-                    process_logger.info(f"ONNX output shape: {ort_outs[0].shape}")
-
-                except ImportError:
-                    process_logger.warning("tf2onnx, onnx, or onnxruntime not installed. Skipping ONNX conversion/verification.")
-                except Exception as e:
-                    process_logger.error(f"❌ Failed to convert or verify ONNX model: {e}", exc_info=True)
-                finally:
-                    pass
-        else:
-            process_logger.info("Skipping final evaluation, model saving, and plotting as no best model was found.")
-
-    except Exception as e:
-        process_logger.critical(f"Unhandled exception in chief process task: {e}", exc_info=True)
-        sys.exit(1) # Exit with error code
-
-    finally:
-        # Ensure MT5 is shut down properly for this process
+        # Save the final best model
+        final_model_name = f"final_best_model_{backend}"
+        # Ensure a proper file extension is added
+        final_model_path = model_save_dir / f"{final_model_name}.keras" # Changed to .keras extension
         try:
-            mt5.shutdown()
-            process_logger.info("MetaTrader 5 connection shut down.")
+            best_model.save(str(final_model_path))
+            logger.info(f"✅ Final best model saved to: {final_model_path}")
         except Exception as e:
-            process_logger.warning(f"Error during MT5 shutdown in chief process: {e}")
+            logger.error(f"❌ Failed to save the final best model: {e}", exc_info=True)
 
-    process_logger.info("🏁 Chief process task finished.")
+        # Evaluate the best model on validation data
+        logger.info("Evaluating the best model on validation data...")
+        if backend == 'tensorflow':
+            loss, mae = best_model.evaluate(x_val, y_val, verbose=0)
+            y_pred = best_model.predict(x_val).flatten()
+        elif backend == 'pytorch':
+            # Convert validation data to tensors and move to device
+            val_tensor_x = torch.tensor(x_val, dtype=torch.float32).to(tuner_selector.tuner.device)
+            val_tensor_y = torch.tensor(y_val, dtype=torch.float32).to(tuner_selector.tuner.device)
+            val_dataset = TensorDataset(val_tensor_x, val_tensor_y)
+            val_loader = DataLoader(val_dataset, batch_size=tuner_selector.tuner.batch_size, shuffle=False)
+
+            best_model.eval()
+            all_preds = []
+            all_targets = []
+            total_loss = 0
+            criterion = nn.MSELoss()
+            with torch.no_grad():
+                for X_batch, y_batch in val_loader:
+                    outputs = best_model(X_batch)
+                    loss_batch = criterion(outputs, y_batch)
+                    total_loss += loss_batch.item()
+                    all_preds.extend(outputs.cpu().numpy().flatten())
+                    all_targets.extend(y_batch.cpu().numpy().flatten())
+            loss = total_loss / len(val_loader)
+            y_pred = np.array(all_preds)
+            y_true = np.array(all_targets)
+            mae = mean_absolute_error(y_true, y_pred)
+        else:
+            logger.warning(f"Evaluation not implemented for backend: {backend}")
+            loss, mae, y_pred = None, None, None
+
+        if loss is not None and mae is not None:
+            r2 = r2_score(y_val, y_pred)
+            logger.info("Best Model Evaluation on Validation Data:")
+            logger.info(f"  Mean Squared Error (MSE): {loss:.4f}")
+            logger.info(f"  Mean Absolute Error (MAE): {mae:.4f}")
+            logger.info(f"  R-squared (R2): {r2:.4f}")
+
+            # Generate plots
+            plotting_service = PlottingService(Path(base_params.get('mp_glob_base_log_path')))
+            plotting_service.plot_predictions(y_val.flatten(), y_pred, f'({backend} Chief)', f'chief_{backend}')
+            plotting_service.plot_residuals(y_val.flatten(), y_pred, f'({backend} Chief)', f'chief_{backend}')
+            plotting_service.plot_scatter(y_val.flatten(), y_pred, f'({backend} Chief)', f'chief_{backend}')
+            logger.info("✅ Plots generated successfully.")
+        else:
+            logger.warning("Skipping plot generation due to missing evaluation metrics.")
+
+        # ONNX conversion and verification
+        if TF2ONNX_AVAILABLE and backend == 'tensorflow':
+            logger.info("Attempting ONNX conversion and verification for TensorFlow/Keras model...")
+            try:
+                # For Sequential models, tf2onnx might need a concrete input signature
+                # Infer input shape from the model directly
+                if hasattr(best_model, 'input_shape') and best_model.input_shape is not None:
+                    # For a simple Sequential model, input_shape is a tuple (None, features)
+                    # We need to provide a concrete batch size for ONNX export, e.g., 1
+                    concrete_input_shape = (1,) + best_model.input_shape[1:]
+                    input_signature = [tf.TensorSpec(concrete_input_shape, tf.float32, name="input_1")]
+                else:
+                    # Fallback if input_shape is not directly available or more complex
+                    logger.warning("Model input_shape not directly available, using default (None, 10) for ONNX conversion.")
+                    input_signature = [tf.TensorSpec((None, 10), tf.float32, name="input_1")]
+
+                # Check if 'output_names' attribute exists before trying to access it
+                # This handles the AttributeError: 'Sequential' object has no attribute 'output_names'
+                if hasattr(best_model, 'output_names') and best_model.output_names:
+                    onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature, opset=13, output_names=best_model.output_names)
+                else:
+                    # If output_names is not present or empty, proceed without it.
+                    # tf2onnx will typically infer default output names.
+                    onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature, opset=13)
+                
+                onnx_model_path = model_save_dir / f"best_model_{backend}.onnx"
+                with open(onnx_model_path, "wb") as f:
+                    f.write(onnx_model.SerializeToString())
+                logger.info(f"✅ ONNX model saved to: {onnx_model_path}")
+
+                # Verify ONNX model
+                onnx.checker.check_model(onnx_model)
+                logger.info("✅ ONNX model verification successful.")
+
+                # Test ONNX model with ONNX Runtime
+                ort_session = ort.InferenceSession(str(onnx_model_path))
+                onnx_input_name = ort_session.get_inputs()[0].name
+                onnx_output_name = ort_session.get_outputs()[0].name
+
+                # Use a subset of validation data for ONNX inference
+                # Ensure sample_input matches the concrete_input_shape used for export
+                sample_input = x_val[:1].astype(np.float32) # Use batch size 1 for testing
+                onnx_preds = ort_session.run([onnx_output_name], {onnx_input_name: sample_input})[0]
+                logger.info(f"✅ ONNX Runtime inference successful for a sample. Predictions: {onnx_preds.flatten()}")
+
+            except Exception as e:
+                logger.error(f"❌ Failed to convert or verify ONNX model: {e}", exc_info=True)
+        elif backend == 'pytorch':
+            logger.info("ONNX conversion for PyTorch models is not yet implemented in this chief script.")
+        else:
+            logger.info("ONNX conversion skipped for non-TensorFlow backend or if tf2onnx is not available.")
+    else:
+        logger.error("❌ No best model found or retrieved. Skipping evaluation and ONNX conversion.")
+
+    # Disconnect MetaTrader 5 if connected
+    # Changed mt5.is_connected() to mt5.initialize() and added a check for its return value
+    if mt5.initialize():
+        mt5.shutdown()
+        logger.info("MetaTrader 5 connection shut down.")
+    else:
+        logger.warning("MetaTrader 5 connection was not initialized, skipping shutdown.")
 
 
-if __name__ == "__main__":
-    # When this script is run as a subprocess by multiprocessing.Process,
-    # the code inside this block will be executed in the new process.
-    # The parameters will be passed via the 'args' of multiprocessing.Process.
-    # We need to parse them from sys.argv or ensure they are set as environment variables
-    # if multiprocessing's 'spawn' method is used and arguments are not directly passed.
-    # For simplicity and robustness with multiprocessing, it's often better to pass
-    # arguments directly to the target function.
-
-    # For now, we'll assume environment variables are still being used for simplicity
-    # with the multiprocessing.Process setup, as they were with subprocess.Popen.
-    # A more robust solution would involve explicit argument passing and parsing.
-
-    # Retrieve parameters from environment variables set by the launcher
-    tuner_id = os.environ.get("TUNER_ID", "chief_standalone")
-    oracle_url = os.environ.get("ORACLE_URL")
-    is_chief = os.environ.get("IS_CHIEF", "true").lower() == "true"
-
-    # Re-load parameters from environment for this specific process
-    # This is important because the child process has its own environment.
-    mql_overrides_child = CMqlOverrides()
-    all_params_child = mql_overrides_child.env.all_params()
-    app_params_child = all_params_child.get("app", {})
-    tune_params_child = all_params_child.get('mltune', {})
-    base_params_child = all_params_child.get("base", {})
-
-    if not oracle_url:
-        logging.getLogger(__name__).critical("ORACLE_URL environment variable not set in child process. Exiting.")
-        sys.exit(1)
-
-    run_chief_process_task(tuner_id, oracle_url, is_chief,
-                           app_params_child, tune_params_child, base_params_child)
+    logger.info("🏁 Chief process task finished.")
