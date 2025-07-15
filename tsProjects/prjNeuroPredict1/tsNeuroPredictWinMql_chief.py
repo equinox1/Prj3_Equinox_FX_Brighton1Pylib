@@ -253,26 +253,24 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
         if TF2ONNX_AVAILABLE and backend == 'tensorflow':
             logger.info("Attempting ONNX conversion and verification for TensorFlow/Keras model...")
             try:
-                # For Sequential models, tf2onnx might need a concrete input signature
+                # Workaround for tf2onnx expecting 'output_names' on Sequential models
+                # Check if it's a Sequential model and if it lacks the 'output_names' attribute
+                if isinstance(best_model, tf.keras.Sequential) and not hasattr(best_model, 'output_names'):
+                    # Assign a default output name to satisfy tf2onnx's internal check
+                    # Assuming a single output for typical Sequential models
+                    best_model.output_names = ["output_1"]
+                    logger.warning("Temporarily added 'output_names' attribute to Sequential model for tf2onnx compatibility.")
+
                 # Infer input shape from the model directly
                 if hasattr(best_model, 'input_shape') and best_model.input_shape is not None:
-                    # For a simple Sequential model, input_shape is a tuple (None, features)
-                    # We need to provide a concrete batch size for ONNX export, e.g., 1
                     concrete_input_shape = (1,) + best_model.input_shape[1:]
                     input_signature = [tf.TensorSpec(concrete_input_shape, tf.float32, name="input_1")]
                 else:
-                    # Fallback if input_shape is not directly available or more complex
                     logger.warning("Model input_shape not directly available, using default (None, 10) for ONNX conversion.")
                     input_signature = [tf.TensorSpec((None, 10), tf.float32, name="input_1")]
 
-                # Check if 'output_names' attribute exists before trying to access it
-                # This handles the AttributeError: 'Sequential' object has no attribute 'output_names'
-                if hasattr(best_model, 'output_names') and best_model.output_names:
-                    onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature, opset=13, output_names=best_model.output_names)
-                else:
-                    # If output_names is not present or empty, proceed without it.
-                    # tf2onnx will typically infer default output names.
-                    onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature, opset=13)
+                # Now call from_keras. The previous workaround should prevent the AttributeError.
+                onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature, opset=13)
                 
                 onnx_model_path = model_save_dir / f"best_model_{backend}.onnx"
                 with open(onnx_model_path, "wb") as f:
@@ -304,7 +302,6 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
         logger.error("❌ No best model found or retrieved. Skipping evaluation and ONNX conversion.")
 
     # Disconnect MetaTrader 5 if connected
-    # Changed mt5.is_connected() to mt5.initialize() and added a check for its return value
     if mt5.initialize():
         mt5.shutdown()
         logger.info("MetaTrader 5 connection shut down.")
