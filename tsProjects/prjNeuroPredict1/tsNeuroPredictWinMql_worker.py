@@ -71,7 +71,8 @@ CMLogServiceSetup.initialize_logging(
     tune_params=tune_params_global,
     base_params=base_params_global,
     role_hint='worker_module_init', # A distinct role hint for the module's own logger
-    loglevel=app_params_global.get('LOGLEVEL', 'INFO').upper()
+    loglevel=app_params_global.get('LOGLEVEL', 'INFO').upper(),
+    logfile='tsneuropredict_app.log', # Main log file for the application
 )
 logger = logging.getLogger(__name__)
 logger.info(f"Worker module-level logging initialized. Log level: {app_params_global.get('LOGLEVEL', 'INFO').upper()}")

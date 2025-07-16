@@ -43,12 +43,16 @@ _estimated_physical_cores = _logical_cores // 2 if _logical_cores > 1 else 1
 # Initialize logging for this module. This ensures logs from this module
 # are correctly routed by the centralized logging system.
 log_level = app_params.get('LOGLEVEL', 'INFO').upper()
+# Determine the backend for logging path - crucial for correct log file path
+backend_for_log = os.environ.get('BACKEND', tune_params.get('backend', 'pytorch')) # Get backend here
+
 CMLogServiceSetup.initialize_logging(
     app_params=app_params,
     tune_params=tune_params,
     base_params=base_params,
     role_hint='CMdtunerTorch_module', # A specific role hint for this module
-    loglevel=log_level
+    loglevel=log_level,
+    backend=backend_for_log # Pass the backend parameter
 )
 
 

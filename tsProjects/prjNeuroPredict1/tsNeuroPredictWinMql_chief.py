@@ -1,10 +1,14 @@
 # filename: tsNeuroPredictWinMql_chief.py
 #!/usr/bin/env python3
-# +------------------------------------------------------------------+
-# |                                    tsNeuroPredictWinMql_chief.py |
-# |                                                    Tony Shepherd |
-# |                                    https://www.xercescloud.co.uk |
-# +------------------------------------------------------------------+\
+# -*- coding: utf-8 -*-
+"""
+Filename: tsNeuroPredictWinMql_chief.py
+Description: The chief process for distributed machine learning tuning.
+Author: Tony Shepherd - Xercescloud
+Date: 2025-01-24
+Version: 1.4.0
+License: MIT License
+"""
 import os
 import sys
 import logging
@@ -34,6 +38,7 @@ from tensorflow.keras import mixed_precision
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
+import torch.onnx # Added for PyTorch ONNX export
 
 # Import MetaTrader5
 import MetaTrader5 as mt5
@@ -45,6 +50,7 @@ from tsMqlPlatform import run_platform, platform_checker, PLATFORM_DEPENDENCIES,
 from tsMqlEnvMgr import CMqlEnvMgr # Corrected import: Changed CEnvMgr to CMqlEnvMgr
 from tsMqlConnect import CMqlBrokerConfig  # Ensure tsMqlConnect is importable
 from tsMqlLogService import CMLogServiceSetup # Import the centralized logging setup
+from tsMqlPlotService import PlottingService # Import PlottingService
 
 # Import the distributed tuner selector
 from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
@@ -108,51 +114,8 @@ CMLogServiceSetup.initialize_logging(
 )
 logger = logging.getLogger(__name__)
 
-# Define a plotting service class (can be moved to a separate module if it grows)
-class PlottingService:
-    def __init__(self, log_dir: Path):
-        self.plot_dir = log_dir / "plots"
-        self.plot_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"PlottingService initialized. Plots will be saved to: {self.plot_dir}")
-
-    def plot_predictions(self, y_true, y_pred, title_suffix, filename_suffix):
-        plt.figure(figsize=(12, 6))
-        plt.plot(y_true, label='Actual')
-        plt.plot(y_pred, label='Predicted')
-        plt.title(f'Actual vs Predicted {title_suffix}')
-        plt.xlabel('Time/Index')
-        plt.ylabel('Value')
-        plt.legend()
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(self.plot_dir / f"predictions_{filename_suffix}.png")
-        plt.close()
-        logger.info(f"Plot saved successfully: {self.plot_dir / f'predictions_{filename_suffix}.png'}")
-
-    def plot_residuals(self, y_true, y_pred, title_suffix, filename_suffix):
-        residuals = y_true - y_pred
-        plt.figure(figsize=(12, 6))
-        plt.hist(residuals, bins=50)
-        plt.title(f'Residuals Distribution {title_suffix}')
-        plt.xlabel('Residual Value')
-        plt.ylabel('Frequency')
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(self.plot_dir / f"residuals_{filename_suffix}.png")
-        plt.close()
-        logger.info(f"Plot saved successfully: {self.plot_dir / f'residuals_{filename_suffix}.png'}")
-
-    def plot_scatter(self, y_true, y_pred, title_suffix, filename_suffix):
-        plt.figure(figsize=(8, 8))
-        sns.regplot(x=y_true, y=y_pred, scatter_kws={'alpha':0.3}, line_kws={'color':'red'})
-        plt.xlabel('Actual Values')
-        plt.ylabel('Predicted Values')
-        plt.title(f'Actual vs Predicted Scatter Plot {title_suffix}')
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(self.plot_dir / f"scatter_{filename_suffix}.png")
-        plt.close()
-        logger.info(f"Plot saved successfully: {self.plot_dir / f'scatter_{filename_suffix}.png'}")
+# The PlottingService class is now imported from tsMqlPlotService.py
+# No need to redefine it here.
 
 
 def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
@@ -269,62 +232,114 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
             logger.info(f"  Mean Absolute Error (MAE): {mae:.4f}")
             logger.info(f"  R-squared (R2): {r2:.4f}")
 
-            # Generate plots
+            # Initialize PlottingService
             plotting_service = PlottingService(Path(base_params.get('mp_glob_base_log_path')))
+            
+            # Log model performance analysis using the PlottingService
+            plotting_service.log_model_performance(loss, mae, r2)
+
+            # Calculate residuals
+            residuals = y_val.flatten() - y_pred
+
+            # Generate plots
             plotting_service.plot_predictions(y_val.flatten(), y_pred, f'({backend} Chief)', f'chief_{backend}')
-            plotting_service.plot_residuals(y_val.flatten(), y_pred, f'({backend} Chief)', f'chief_{backend}')
+            plotting_service.plot_residuals(residuals, f'Residuals ({backend} Chief)', f'chief_{backend}_residuals.png') # Pass residuals directly
             plotting_service.plot_scatter(y_val.flatten(), y_pred, f'({backend} Chief)', f'chief_{backend}')
             logger.info("✅ Plots generated successfully.")
         else:
             logger.warning("Skipping plot generation due to missing evaluation metrics.")
 
         # ONNX conversion and verification
-        if TF2ONNX_AVAILABLE and backend == 'tensorflow':
-            logger.info("Attempting ONNX conversion and verification for TensorFlow/Keras model...")
-            try:
-                # Workaround for tf2onnx expecting 'output_names' on Sequential models
-                # Check if it's a Sequential model and if it lacks the 'output_names' attribute
-                if isinstance(best_model, tf.keras.Sequential) and not hasattr(best_model, 'output_names'):
-                    # Assign a default output name to satisfy tf2onnx's internal check
-                    # Assuming a single output for typical Sequential models
-                    best_model.output_names = ["output_1"]
-                    logger.warning("Temporarily added 'output_names' attribute to Sequential model for tf2onnx compatibility.")
+        if TF2ONNX_AVAILABLE: # Check if TF2ONNX is available for either backend
+            if backend == 'tensorflow':
+                logger.info("Attempting ONNX conversion and verification for TensorFlow/Keras model...")
+                try:
+                    # Workaround for tf2onnx expecting 'output_names' on Sequential models
+                    # Check if it's a Sequential model and if it lacks the 'output_names' attribute
+                    if isinstance(best_model, tf.keras.Sequential) and not hasattr(best_model, 'output_names'):
+                        # Assign a default output name to satisfy tf2onnx's internal check
+                        # Assuming a single output for typical Sequential models
+                        best_model.output_names = ["output_1"]
+                        logger.warning("Temporarily added 'output_names' attribute to Sequential model for tf2onnx compatibility.")
 
-                # Infer input shape from the model directly
-                if hasattr(best_model, 'input_shape') and best_model.input_shape is not None:
-                    concrete_input_shape = (1,) + best_model.input_shape[1:]
-                    input_signature = [tf.TensorSpec(concrete_input_shape, tf.float32, name="input_1")]
-                else:
-                    logger.warning("Model input_shape not directly available, using default (None, 10) for ONNX conversion.")
-                    input_signature = [tf.TensorSpec((None, 10), tf.float32, name="input_1")]
+                    # Infer input shape from the model directly
+                    if hasattr(best_model, 'input_shape') and best_model.input_shape is not None:
+                        concrete_input_shape = (1,) + best_model.input_shape[1:]
+                        input_signature = [tf.TensorSpec(concrete_input_shape, tf.float32, name="input_1")]
+                    else:
+                        logger.warning("Model input_shape not directly available, using default (None, 10) for ONNX conversion.")
+                        input_signature = [tf.TensorSpec((None, 10), tf.float32, name="input_1")]
 
-                # Now call from_keras. The previous workaround should prevent the AttributeError.
-                onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature, opset=13)
-                
-                onnx_model_path = model_save_dir / f"best_model_{backend}.onnx"
-                with open(onnx_model_path, "wb") as f:
-                    f.write(onnx_model.SerializeToString())
-                logger.info(f"✅ ONNX model saved to: {onnx_model_path}")
+                    # Now call from_keras. The previous workaround should prevent the AttributeError.
+                    onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature, opset=13)
+                    
+                    onnx_model_path = model_save_dir / f"best_model_{backend}.onnx"
+                    with open(onnx_model_path, "wb") as f:
+                        f.write(onnx_model.SerializeToString())
+                    logger.info(f"✅ ONNX model saved to: {onnx_model_path}")
 
-                # Verify ONNX model
-                onnx.checker.check_model(onnx_model)
-                logger.info("✅ ONNX model verification successful.")
+                    # Verify ONNX model
+                    onnx.checker.check_model(onnx_model)
+                    logger.info("✅ ONNX model verification successful.")
 
-                # Test ONNX model with ONNX Runtime
-                ort_session = ort.InferenceSession(str(onnx_model_path))
-                onnx_input_name = ort_session.get_inputs()[0].name
-                onnx_output_name = ort_session.get_outputs()[0].name
+                    # Test ONNX model with ONNX Runtime
+                    ort_session = ort.InferenceSession(str(onnx_model_path))
+                    onnx_input_name = ort_session.get_inputs()[0].name
+                    onnx_output_name = ort_session.get_outputs()[0].name
 
-                # Use a subset of validation data for ONNX inference
-                # Ensure sample_input matches the concrete_input_shape used for export
-                sample_input = x_val[:1].astype(np.float32) # Use batch size 1 for testing
-                onnx_preds = ort_session.run([onnx_output_name], {onnx_input_name: sample_input})[0]
-                logger.info(f"✅ ONNX Runtime inference successful for a sample. Predictions: {onnx_preds.flatten()}")
+                    # Use a subset of validation data for ONNX inference
+                    # Ensure sample_input matches the concrete_input_shape used for export
+                    sample_input = x_val[:1].astype(np.float32) # Use batch size 1 for testing
+                    onnx_preds = ort_session.run([onnx_output_name], {onnx_input_name: sample_input})[0]
+                    logger.info(f"✅ ONNX Runtime inference successful for a sample. Predictions: {onnx_preds.flatten()}")
 
-            except Exception as e:
-                logger.error(f"❌ Failed to convert or verify ONNX model: {e}", exc_info=True)
-        elif backend == 'pytorch':
-            logger.info("ONNX conversion for PyTorch models is not yet implemented in this chief script.")
+                except Exception as e:
+                    logger.error(f"❌ Failed to convert or verify ONNX model for TensorFlow/Keras: {e}", exc_info=True)
+            elif backend == 'pytorch':
+                logger.info("Attempting ONNX conversion and verification for PyTorch model...")
+                try:
+                    # Set model to evaluation mode
+                    best_model.eval()
+
+                    # Create a dummy input tensor for ONNX export
+                    # The input_shape for PyTorch model is (batch_size, features)
+                    # We use a batch size of 1 for export, and the feature dimension from input_shape
+                    dummy_input = torch.randn(1, input_shape[0], device=best_model.device, dtype=torch.float32)
+                    
+                    onnx_model_path = model_save_dir / f"best_model_{backend}.onnx"
+
+                    # Export the PyTorch model to ONNX
+                    torch.onnx.export(
+                        best_model,
+                        dummy_input,
+                        onnx_model_path,
+                        export_params=True,        # Store the trained parameter weights inside the model file
+                        opset_version=11,          # The ONNX opset version to use
+                        do_constant_folding=True,  # Apply constant folding for optimization
+                        input_names=['input'],     # The name to assign to the input node of the graph
+                        output_names=['output'],   # The name to assign to the output node of the graph
+                        dynamic_axes={'input': {0: 'batch_size'}, # Variable length axes
+                                      'output': {0: 'batch_size'}}
+                    )
+                    logger.info(f"✅ ONNX model saved to: {onnx_model_path}")
+
+                    # Verify ONNX model
+                    onnx_model = onnx.load(onnx_model_path)
+                    onnx.checker.check_model(onnx_model)
+                    logger.info("✅ ONNX model verification successful.")
+
+                    # Test ONNX model with ONNX Runtime
+                    ort_session = ort.InferenceSession(str(onnx_model_path))
+                    onnx_input_name = ort_session.get_inputs()[0].name
+                    onnx_output_name = ort_session.get_outputs()[0].name
+
+                    # Use a subset of validation data for ONNX inference
+                    sample_input = x_val[:1].astype(np.float32) # Use batch size 1 for testing
+                    onnx_preds = ort_session.run([onnx_output_name], {onnx_input_name: sample_input})[0]
+                    logger.info(f"✅ ONNX Runtime inference successful for a sample. Predictions: {onnx_preds.flatten()}")
+
+                except Exception as e:
+                    logger.error(f"❌ Failed to convert or verify ONNX model for PyTorch: {e}", exc_info=True)
         else:
             logger.info("ONNX conversion skipped for non-TensorFlow backend or if tf2onnx is not available.")
     else:

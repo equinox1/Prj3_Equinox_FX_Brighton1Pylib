@@ -52,41 +52,32 @@ class CMLogServiceSetup:
         :param tune_params: Dictionary of ML tuning parameters.
         :param base_params: Dictionary of base parameters, including global log path.
         :param role_hint: A string indicating the role of the current process (e.g., 'chief', 'worker_1', 'oracle_server').
-                          Used to create distinct log file names and directories.
+                          Used for internal Loguru naming if needed, but not for the fixed file name.
         :param loglevel: The minimum logging level to capture (e.g., 'INFO', 'DEBUG', 'WARNING').
         :param enable_logging: If False, logging to files will be disabled. Console logging might still occur.
-        :param logfile: Optional. A specific filename for the log. If not provided,
-                        it defaults to '{role_hint}_tsneuropredict_app.log'.
+        :param logfile: Optional. A specific filename for the log. This parameter is now largely ignored
+                        in favor of a fixed 'tsneuro_predict.log' for consolidated logging.
         :param backend: The backend type (e.g., 'tensorflow', 'pytorch'). Used for log directory structure.
         :return: The configured logger instance.
         """
-        if cls._initialized:
-            # logger.warning("CMLogServiceSetup already initialized. Skipping re-initialization.")
-            return logging.getLogger(role_hint) # Return a logger for the specific role
-
         # Ensure parameters are dictionaries
         app_params = app_params if app_params is not None else {}
         tune_params = tune_params if tune_params is not None else {}
         base_params = base_params if base_params is not None else {}
 
         # Determine the base log directory
-        # Prioritize 'mp_glob_base_log_path' from base_params
         base_log_dir = Path(base_params.get('mp_glob_base_log_path', cls._default_base_log_dir))
         
-        # Determine the backend for sub-directory creation
-        # The 'backend' parameter is now directly available
-        # backend = tune_params.get('backend', 'pytorch') # No longer needed here as it's a parameter
-
-        # Construct the final log directory path
+        # Construct the final log directory path based on backend
         final_log_dir = base_log_dir / backend
         final_log_dir.mkdir(parents=True, exist_ok=True)
 
-        # Determine the log file name
-        # If a specific logfile is provided, use it. Otherwise, use role_hint.
-        effective_logfile_name = logfile if logfile else f"{role_hint}_{app_params.get('xerces_logfile', cls._default_log_file_name)}"
+        # The log file name is now fixed as per the request
+        effective_logfile_name = 'tsneuro_predict.log'
         log_file_path = final_log_dir / effective_logfile_name
 
-        # Remove all existing handlers from Loguru to start fresh
+        # Always remove all existing Loguru handlers to ensure a clean slate
+        # and prevent duplicate handlers, especially for the file sink.
         loguru_logger.remove()
 
         # Add a handler for console output (stderr)
@@ -97,7 +88,7 @@ class CMLogServiceSetup:
             format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
         )
 
-        # Add a handler for the log file if logging is enabled
+        # Add a handler for the fixed log file if logging is enabled
         if enable_logging:
             loguru_logger.add(
                 str(log_file_path),
@@ -112,21 +103,14 @@ class CMLogServiceSetup:
         else:
             loguru_logger.info("Logging disabled by configuration (no file handler added).")
 
-        # Redirect standard logging to Loguru
-        logging.basicConfig(handlers=[RichHandler(console=Console(file=sys.stderr), show_time=True, show_level=True, show_path=True, enable_link_path=True)], level=loglevel.upper())
-        # This line ensures that calls to the standard `logging` module
-        # are routed through Loguru's configured handlers.
-        logging.getLogger().handlers = [LoguruHandler()] # Ensure root logger uses LoguruHandler
-        
-        # Suppress loguru's default handler if it's already added
-        # This is a common issue where Loguru adds a default handler to stderr
-        # even if you explicitly remove and re-add.
-        # It's better to manage all handlers explicitly.
-        # loguru_logger.configure(handlers=[{"sink": sys.stderr, "level": loglevel.upper()}])
+        # Redirect standard logging to Loguru. This part should only run once per process.
+        if not cls._initialized:
+            logging.basicConfig(handlers=[RichHandler(console=Console(file=sys.stderr), show_time=True, show_level=True, show_path=True, enable_link_path=True)], level=loglevel.upper())
+            # Ensure the root logger uses LoguruHandler to bridge standard logging calls
+            # to Loguru's configured sinks.
+            logging.getLogger().handlers = [LoguruHandler()]
+            cls._initialized = True # Set the flag to indicate initialization
 
-        # Set the flag to indicate initialization
-        cls._initialized = True
-        
         # Return a standard Python logger instance for the specific role,
         # which will now be managed by Loguru.
         return logging.getLogger(role_hint)
@@ -141,10 +125,12 @@ class LoguruHandler(logging.Handler):
 
         frame = logging.currentframe()
         depth = 2
+        # Traverse up the stack until we are out of the logging module itself
         while frame.f_code.co_filename == logging.__file__:
             frame = frame.f_back
             depth += 1
 
+        # Use Loguru's .opt() for correct stack level and exception handling
         loguru_logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
 # Example usage (for testing purposes, will not run when imported as a module)
@@ -164,7 +150,7 @@ if __name__ == "__main__":
     logging.getLogger("some_other_module").warning("This standard WARNING message should also be captured.")
 
     # Example 2: Worker logging
-    print("\n--- Example 2: Worker logging (role: worker_1) ---")
+    print("\n--- Example 2: Worker logging (role: worker_1) ---\n")
     logger_worker = CMLogServiceSetup.initialize_logging(
         app_params={'LOGLEVEL': 'DEBUG', 'xerces_logfile': 'my_app.log'},
         tune_params={'backend': 'tensorflow'},
@@ -176,7 +162,7 @@ if __name__ == "__main__":
     logger_worker.debug("This DEBUG message SHOULD be seen from worker_1.")
 
     # Example 3: Disabled logging
-    print("\n--- Example 3: Disabled logging (role: disabled_client) ---")
+    print("\n--- Example 3: Disabled logging (role: disabled_client) ---\n")
     disabled_logger = CMLogServiceSetup.initialize_logging(role_hint='disabled_client', enable_logging=False)
     disabled_logger.info(f"This INFO message should NOT be seen in disabled_client logs ({disabled_logger.name}).")
     disabled_logger.debug("This DEBUG message should definitely NOT be seen in disabled_client logs.")
@@ -185,4 +171,3 @@ if __name__ == "__main__":
 
     print("\n--- All examples finished. Check the 'TestLogdir' folder for generated log files. ---")
     print(f"Expected log directory structure under: {Path('./TestLogdir')}")
-

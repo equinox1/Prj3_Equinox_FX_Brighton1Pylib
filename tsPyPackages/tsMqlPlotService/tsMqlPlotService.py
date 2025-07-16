@@ -119,6 +119,34 @@ class PlottingService:
         ax.set_aspect('equal', adjustable='box') # Ensure equal scaling
         self._save_plot(fig, filename)
 
+    def log_model_performance(self, mse: float, mae: float, r2: float):
+        """
+        Logs an English-style analysis of the model's performance based on MSE, MAE, and R2.
+
+        :param mse: Mean Squared Error of the model.
+        :param mae: Mean Absolute Error of the model.
+        :param r2: R-squared value of the model.
+        """
+        logger.info("--- Model Performance Analysis ---")
+
+        # R-squared analysis
+        if r2 > 0.75:
+            logger.info("The R-squared value of %.4f indicates a very strong fit. The model explains a large proportion of the variance in the target variable, suggesting excellent predictive power.", r2)
+        elif r2 > 0.5:
+            logger.info("The R-squared value of %.4f indicates a good fit. The model explains a significant portion of the variance, suggesting reasonable predictive capability.", r2)
+        elif r2 > 0.25:
+            logger.info("The R-squared value of %.4f suggests a moderate fit. The model explains some variance, but there's still considerable room for improvement in predictive accuracy.", r2)
+        elif r2 >= 0:
+            logger.info("The R-squared value of %.4f indicates a weak fit. The model explains very little of the variance in the target variable, meaning its predictive power is limited, possibly no better than simply predicting the mean.", r2)
+        else: # R2 is negative
+            logger.info("The R-squared value of %.4f is negative. This indicates that the model performs worse than a simple horizontal line (mean of the data). This is often a sign that the model is poorly specified or fitted to the data.", r2)
+
+        # MSE and MAE analysis
+        logger.info("The Mean Squared Error (MSE) of %.4f represents the average squared difference between the estimated values and the actual value. Lower MSE values indicate better accuracy.", mse)
+        logger.info("The Mean Absolute Error (MAE) of %.4f represents the average absolute difference between the estimated values and the actual value. It provides a more intuitive measure of error in the same units as the target variable.", mae)
+        logger.info("--- End of Model Performance Analysis ---")
+
+
 # Example usage (for testing purposes, will not run when imported)
 if __name__ == "__main__":
     # Dummy data for testing
@@ -149,4 +177,11 @@ if __name__ == "__main__":
     # Test plot_scatter
     plot_service.plot_scatter(test_actual, test_predicted, "Test Scatter", "test_scatter.png")
 
-    logger.info("All test plots attempted. Check the 'test_plot_output' directory.")
+    # Test log_model_performance
+    test_mse = np.mean((test_actual - test_predicted)**2)
+    test_mae = np.mean(np.abs(test_actual - test_predicted))
+    from sklearn.metrics import r2_score as test_r2_score
+    test_r2 = test_r2_score(test_actual, test_predicted)
+    plot_service.log_model_performance(test_mse, test_mae, test_r2)
+
+    logger.info("All test plots and performance analysis attempted. Check the 'test_plot_output' directory.")

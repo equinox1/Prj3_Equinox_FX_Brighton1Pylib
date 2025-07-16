@@ -1,5 +1,6 @@
 # filename: multiworker_launcher.py
 # Rewritten: patched_oracle_server_main.py
+runtuner= 'pt' # 'pt' for PyTorch, 'tf' for TensorFlow
 import os
 import sys
 import time
@@ -50,11 +51,30 @@ print(f"Using Xerces server: {xerces_server}, port: {xerces_port}")
 
 # --- Backend Selection Variable ---
 # Define the default backend here. Change this variable to switch between backends.
-DEFAULT_BACKEND = 'pytorch' # Options: 'tensorflow', 'pytorch'
+# Check for an environment variable 'ML_BACKEND' first, otherwise default to 'tensorflow'.
+if runtuner == 'pt':
+    DEFAULT_BACKEND = 'pytorch'
+else:
+    # Default to 'tensorflow' if not specified
+    # This allows the user to set an environment variable to override the default backend.
+    # If the environment variable is not set, it will default to 'tensorflow'.
+    # This is useful for users who want to run the code with a specific backend without modifying
+    # the source code.
+    DEFAULT_BACKEND = os.environ.get('ML_BACKEND', 'tensorflow').lower() # Options: 'tensorflow', 'pytorch'
+
+# Validate the selected backend
+if DEFAULT_BACKEND not in ['tensorflow', 'pytorch']:
+    logger.error(f"Invalid ML_BACKEND environment variable value: {DEFAULT_BACKEND}. Defaulting to 'tensorflow'.")
+    DEFAULT_BACKEND = 'tensorflow'
 
 # Override backend in tune_params with the defined variable
 tune_params['backend'] = DEFAULT_BACKEND
-logger.info(f"Selected backend: {DEFAULT_BACKEND}")
+logger.info(f"Selected backend: {DEFAULT_BACKEND} (from ML_BACKEND env variable or default)")
+
+# Set the number of epochs and trials as requested
+tune_params['max_epochs'] = 500
+tune_params['num_trials'] = 50
+logger.info(f"Set max_epochs to {tune_params['max_epochs']} and num_trials to {tune_params['num_trials']}")
 
 
 # Suppress deprecated warnings (if any)
