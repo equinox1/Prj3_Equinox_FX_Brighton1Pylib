@@ -12,13 +12,11 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import os
 import sys
-
-from tsMqlSetup import CMqlSetup # Correctly import the class
-
-    
-import numpy as np
+# Add this import for type hints
+from typing import Dict, Any
+# Import necessary modules for data loading and processing
 import pandas as pd
-import tensorflow as tf
+import numpy as np
 from datetime import datetime
 import textwrap
 from tabulate import tabulate
@@ -30,8 +28,11 @@ import logging
 from tsMqlPlatform import run_platform, platform_checker
 from tsMqlEnvMgr import CMqlEnvMgr
 from tsMqlOverrides import CMqlOverrides
+from tsMqlDataLoader import CDataLoader # Added CDataLoader import
+from tsMqlDataProcess import CDataProcess # Added CDataProcess import
 
-# Load configuration
+
+# Load configuration for this module's logger
 mql_overrides = CMqlOverrides()
 all_params = mql_overrides.env.all_params()
 app_params = all_params.get("app", {})
@@ -45,8 +46,8 @@ logger = logging.getLogger(__name__)
 
 
 class CDMLProcess:
-    def __init__(self, df, all_params=None, project_dir=None): # Modified signature
-        self.df = df
+    def __init__(self, df: pd.DataFrame = None, all_params: Dict = None, project_dir: Path = None): # Modified signature
+        self.df = df # This will be the processed DataFrame, potentially set by load_and_prepare_data
         self.all_params = all_params if all_params is not None else {} # Store all_params
         self.project_dir = project_dir # Store project_dir
         
@@ -62,6 +63,71 @@ class CDMLProcess:
         self.scaler_X = StandardScaler() # For scaling input features
         self.scaler_y = StandardScaler() # For scaling labels
 
+    def load_and_prepare_data(self, app_params: Dict, tune_params: Dict, base_params: Dict):
+        """
+        Loads raw data, processes it, and prepares it into X and y NumPy arrays
+        suitable for ML model training. This method encapsulates the data pipeline.
+
+        :param app_params: Application parameters.
+        :param tune_params: ML tuning parameters.
+        :param base_params: Base parameters including global paths.
+        :return: Tuple (x_data, y_data) as NumPy arrays.
+        """
+        logger.info("Starting data loading and processing for ML...")
+
+        # 1. Load data using CDataLoader
+        symbol = app_params.get('mp_app_primary_symbol', 'EURUSD')
+        timeframe = app_params.get('mp_data_timeframe', 'mt5.TIMEFRAME_M1')
+        start_date_str = app_params.get('mp_data_start_date', '2023-01-01')
+        end_date_str = app_params.get('mp_data_end_date', '2023-01-31')
+        data_path = base_params.get('mp_glob_base_data_path', './Mql5Data')
+
+        # Assuming 'mp_data_filename2' points to your rates CSV file
+        file_rates_name = self.all_params.get('data', {}).get('mp_data_filename2', 'ratessample1.xlsx - Sheet1.csv')
+        
+        dataloader = CDataLoader(
+            symbol=symbol,
+            timeframe=timeframe,
+            start_date_str=start_date_str,
+            end_date_str=end_date_str,
+            data_path=data_path,
+            mp_data_loadapirates=False, # Assuming we load from file for now
+            mp_data_loadfilerates=True, # Explicitly load file rates
+            mp_data_filename2=file_rates_name
+        )
+        
+        loaded_dfs = dataloader.run_dataloader_services()
+        raw_df = loaded_dfs.get("df_file_rates")
+
+        if raw_df.empty:
+            logger.error("Raw rates DataFrame is empty after loading. Cannot proceed with ML data preparation.")
+            return np.array([]), np.array([])
+
+        logger.info(f"Raw data loaded. Shape: {raw_df.shape}")
+
+        # 2. Process data using CDataProcess
+        data_processor = CDataProcess(raw_df)
+        data_processor.app_params['mp_app_cfg_usedata'] = 'df_file_rates' # Inform CDataProcess which config to use
+        
+        processed_df = data_processor.process_data()
+
+        if processed_df.empty:
+            logger.error("Processed DataFrame is empty after CDataProcess. Cannot proceed with ML data preparation.")
+            return np.array([]), np.array([])
+        
+        self.df = processed_df # Set the internal DataFrame for CDMLProcess
+        logger.info(f"Data processed by CDataProcess. Shape: {self.df.shape}")
+
+        # 3. Prepare ML data (features and labels) using CDMLProcess's internal logic
+        x_data, y_data, _, _ = self.process_ml_data()
+
+        if x_data is None or y_data is None or x_data.size == 0 or y_data.size == 0:
+            logger.error("ML data (X, y) is empty after CDMLProcess's internal processing. Returning empty arrays.")
+            return np.array([]), np.array([])
+
+        logger.info(f"ML data prepared. X shape: {x_data.shape}, Y shape: {y_data.shape}")
+        return x_data, y_data
+
     def create_datasets(self):
         """
         Processes the input DataFrame to create sequences for X and corresponding y targets.
@@ -69,23 +135,36 @@ class CDMLProcess:
         """
         logger.info("Creating datasets...")
 
+        if self.df is None or self.df.empty:
+            logger.error("DataFrame is not set or is empty in CDMLProcess. Cannot create datasets.")
+            return None, None
+
         # Ensure required columns exist
         if self.input_key_feature not in self.df.columns:
             logger.error(f"Input feature '{self.input_key_feature}' not found in DataFrame columns.")
-            raise KeyError([self.input_key_feature])
+            raise KeyError(f"Input feature '{self.input_key_feature}' missing.")
 
         if self.label_key_feature not in self.df.columns:
             logger.warning(f"Label feature '{self.label_key_feature}' not found. Auto-generating using diff_pct fallback.")
             if 'Close' in self.df.columns:
-                self.df[self.label_key_feature] = self.df['Close'].pct_change().shift(-1)
+                # Calculate next period's close price as label, or percentage change
+                # For regression, predicting the next close price is common.
+                # Shift by -1 to get the *future* value
+                self.df[self.label_key_feature] = self.df['Close'].shift(-1)
+                logger.info(f"Auto-generated label '{self.label_key_feature}' as next 'Close' price.")
             else:
-                logger.error("Cannot auto-generate label: 'Close' column missing.")
-                raise KeyError([self.label_key_feature])
+                logger.error("Cannot auto-generate label: 'Close' column missing. Please ensure 'Close' exists or define a valid label.")
+                raise KeyError(f"Label feature '{self.label_key_feature}' missing and 'Close' not available for auto-generation.")
 
         # Drop rows with missing values for these key columns
-        processed_df = self.df.dropna(subset=[self.input_key_feature, self.label_key_feature])
+        processed_df = self.df.dropna(subset=[self.input_key_feature, self.label_key_feature]).copy()
+        
+        if processed_df.empty:
+            logger.error("DataFrame became empty after dropping NaNs for input/label features.")
+            return None, None
 
         # Extract features and labels
+        # Ensure features are 2D for scaler (even if single feature)
         features = processed_df[[self.input_key_feature]].values
         labels = processed_df[[self.label_key_feature]].values
 
@@ -96,17 +175,21 @@ class CDMLProcess:
         X_sequences = []
         y_targets = []
 
-        # Create sequences
+        # Create sequences for time series data
+        # Adjust loop range to ensure there are enough future values for the label
         for i in range(len(scaled_features) - self.history_size):
-            X_sequences.append(scaled_features[i:i + self.history_size])
+            # X_sequences: current and past 'history_size' features
+            X_sequences.append(scaled_features[i : i + self.history_size])
+            # y_targets: the label corresponding to the *end* of the X sequence, or the *next* value
+            # If label is already shifted to represent future, then i + history_size is correct.
             y_targets.append(scaled_labels[i + self.history_size])
 
         X = np.array(X_sequences)
         y = np.array(y_targets)
 
-        # Reshape X for LSTM if needed
-        if X.ndim == 2:
-            X = X.reshape(X.shape[0], X.shape[1], 1)
+        # Reshape y to be 2D if it's currently 1D (e.g., (N,) to (N, 1))
+        if y.ndim == 1:
+            y = y.reshape(-1, 1)
 
         logger.info(f"Created X shape: {X.shape}, y shape: {y.shape}")
         return X, y
@@ -114,7 +197,7 @@ class CDMLProcess:
 
     def process_ml_data(self):
         """
-        Main method to process data for ML. It replaces the direct call to create_datasets
+        Main method to process data for ML. It calls create_datasets
         and also returns input_shape and num_classes for model building.
         """
         logger.info("Starting ML data processing...")
@@ -124,10 +207,18 @@ class CDMLProcess:
             logger.error("Generated X or y dataset is empty during ML data processing.")
             return None, None, None, None
 
-        input_shape = (X.shape[1], X.shape[2]) if X.ndim == 3 else (X.shape[1], 1)
+        # Determine input_shape for the model
+        # If X is (samples, timesteps, features), input_shape is (timesteps, features)
+        # If X is (samples, features), input_shape is (features,)
+        if X.ndim == 3:
+            input_shape = X.shape[1:]
+        elif X.ndim == 2:
+            input_shape = (X.shape[1],)
+        else:
+            logger.error(f"Unexpected X data dimensions: {X.ndim}. Expected 2 or 3.")
+            return None, None, None, None
+
         # For regression, num_classes is typically 1 (the output dimension)
-        # For classification, it would be the number of unique labels.
-        # Assuming regression for now based on 'Dense(1)' in build_and_compile_model.
         num_classes = y.shape[1] if y.ndim > 1 else 1
 
         logger.info(f"ML data processing complete. Input shape: {input_shape}, Num classes: {num_classes}")

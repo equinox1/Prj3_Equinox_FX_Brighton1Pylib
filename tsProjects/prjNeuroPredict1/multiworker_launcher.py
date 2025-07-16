@@ -72,7 +72,7 @@ tune_params['backend'] = DEFAULT_BACKEND
 logger.info(f"Selected backend: {DEFAULT_BACKEND} (from ML_BACKEND env variable or default)")
 
 # Set the number of epochs and trials as requested
-tune_params['max_epochs'] = 500
+tune_params['max_epochs'] = 100
 tune_params['num_trials'] = 50
 logger.info(f"Set max_epochs to {tune_params['max_epochs']} and num_trials to {tune_params['num_trials']}")
 

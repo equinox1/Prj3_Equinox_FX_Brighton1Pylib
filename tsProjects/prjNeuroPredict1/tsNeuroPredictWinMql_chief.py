@@ -22,7 +22,7 @@ import pytz
 import socket
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np # Import numpy here, before tf2onnx is potentially imported
+import numpy as np
 import pandas as pd
 import tensorflow as tf
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
@@ -51,6 +51,7 @@ from tsMqlEnvMgr import CMqlEnvMgr # Corrected import: Changed CEnvMgr to CMqlEn
 from tsMqlConnect import CMqlBrokerConfig  # Ensure tsMqlConnect is importable
 from tsMqlLogService import CMLogServiceSetup # Import the centralized logging setup
 from tsMqlPlotService import PlottingService # Import PlottingService
+from tsMqlMLProcess import CDMLProcess # Import CDMLProcess
 
 # Import the distributed tuner selector
 from tsMqlMLTuner.cm_dtuner_selector import CMdtunerSelector
@@ -88,19 +89,16 @@ try:
     TF2ONNX_AVAILABLE = True
 except ImportError:
     TF2ONNX_AVAILABLE = False
-    # print("tf2onnx, onnx, or onnxruntime not installed. ONNX conversion/verification will be skipped.") # Use logger instead
-    pass # Let the logger handle this in the main function
+    pass
 
 
 # Setup logging for the chief process
-# Load configuration (similar to other main scripts)
 mql_overrides_init = CMqlOverrides()
 all_params_init = mql_overrides_init.env.all_params()
 app_params_init = all_params_init.get("app", {})
 tune_params_init = all_params_init.get('mltune', {})
 base_params_init = all_params_init.get("base", {})
 
-# Determine the backend from environment, default to 'pytorch'
 backend_for_log_init = os.environ.get('BACKEND', tune_params_init.get('backend', 'pytorch'))
 
 CMLogServiceSetup.initialize_logging(
@@ -109,13 +107,10 @@ CMLogServiceSetup.initialize_logging(
     base_params=base_params_init,
     role_hint='chief',
     loglevel='INFO',
-    logfile='tsneuropredict_app.log', # Main log file for the application
-    backend=backend_for_log_init # Re-added backend parameter as it is now in initialize_logging signature
+    logfile='tsneuropredict_app.log',
+    backend=backend_for_log_init
 )
 logger = logging.getLogger(__name__)
-
-# The PlottingService class is now imported from tsMqlPlotService.py
-# No need to redefine it here.
 
 
 def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
@@ -131,13 +126,41 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
     oracle_client = OracleClient(oracle_url=oracle_url)
     logger.info(f"OracleClient initialized for chief, connecting to {oracle_url}")
 
-    # Dummy data for demonstration (replace with actual data loading)
-    # In a real scenario, you would load your preprocessed data here.
-    # For now, let's create some random data that matches the expected input_shape.
-    input_shape = (10,) # Example: 10 features per time step
-    num_samples = 1000
-    x_data = np.random.rand(num_samples, input_shape[0]).astype(np.float32)
-    y_data = np.random.rand(num_samples, 1).astype(np.float32) * 100 # Dummy labels
+    # --- Start: Load and Process real data using CDMLProcess ---
+    logger.info("Attempting to load and process real data using CDMLProcess...")
+    x_data, y_data = np.array([]), np.array([]) # Initialize as empty arrays
+
+    try:
+        # Initialize CDMLProcess with all_params
+        ml_processor = CDMLProcess(all_params=all_params_init)
+        
+        # Load and prepare data using the new method
+        x_data, y_data = ml_processor.load_and_prepare_data(app_params_init, tune_params_init, base_params_init)
+
+        # Check if data loading was successful and data is not empty
+        if x_data.size == 0 or y_data.size == 0:
+            raise ValueError("Loaded real data (x_data or y_data) is empty after processing.")
+
+        # Dynamically determine input_shape from the loaded data
+        if x_data.ndim == 3:
+            input_shape = x_data.shape[1:] # For sequence data (samples, timesteps, features)
+        elif x_data.ndim == 2:
+            input_shape = (x_data.shape[1],) # For flat features (samples, features)
+        else:
+            raise ValueError(f"Unsupported x_data dimensions: {x_data.ndim}. Expected 2D or 3D array.")
+
+        logger.info(f"✅ Real data loaded and processed successfully. x_data shape: {x_data.shape}, y_data shape: {y_data.shape}")
+        logger.info(f"Dynamically determined input_shape for model: {input_shape}")
+
+    except Exception as e:
+        logger.critical(f"❌ Failed to load and process real data using CDMLProcess: {e}", exc_info=True)
+        logger.critical("Using dummy data as fallback. Model performance will be meaningless.")
+        # Fallback to dummy data if real data loading fails
+        input_shape = (10,) # Default dummy input shape
+        num_samples = 1000
+        x_data = np.random.rand(num_samples, input_shape[0]).astype(np.float32)
+        y_data = np.random.rand(num_samples, 1).astype(np.float32) * 100 # Dummy labels
+    # --- End: Load and Process real data using CDMLProcess ---
 
     # Split data
     x_train, x_val, y_train, y_val = train_test_split(x_data, y_data, test_size=0.2, random_state=42)
@@ -158,11 +181,11 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
         is_chief=is_chief,
         train_data=(x_train, y_train),
         val_data=(x_val, y_val),
-        input_shape=input_shape,
+        input_shape=input_shape, # Pass the dynamically determined input_shape
         model_save_dir=model_save_dir,
         oracle_directory=Path(tune_params.get('tuner_dir', base_params.get('mp_glob_base_log_path') / "keras_tuner_data")),
-        app_params=app_params, # Pass app_params
-        tune_params=tune_params # Pass tune_params
+        app_params=app_params,
+        tune_params=tune_params
     )
 
     # Run the tuner (this will block until all trials are processed or max_trials reached)
@@ -186,7 +209,7 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
                 logger.info(f"✅ Final best TensorFlow model saved to: {final_model_path}")
             elif backend == 'pytorch':
                 final_model_path = model_save_dir / f"{final_model_name}.pth"
-                torch.save(best_model.state_dict(), final_model_path) # Save state_dict for flexibility
+                torch.save(best_model.state_dict(), final_model_path)
                 logger.info(f"✅ Final best PyTorch model state_dict saved to: {final_model_path}")
             else:
                 logger.warning(f"Model saving not implemented for backend: {backend}")
@@ -213,8 +236,8 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
             with torch.no_grad():
                 for X_batch, y_batch in val_loader:
                     outputs = best_model(X_batch)
-                    loss_batch = criterion(outputs, y_batch)
-                    total_loss += loss_batch.item()
+                    loss = criterion(outputs, y_batch)
+                    total_loss += loss.item()
                     all_preds.extend(outputs.cpu().numpy().flatten())
                     all_targets.extend(y_batch.cpu().numpy().flatten())
             loss = total_loss / len(val_loader)
@@ -243,26 +266,21 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
 
             # Generate plots
             plotting_service.plot_predictions(y_val.flatten(), y_pred, f'({backend} Chief)', f'chief_{backend}')
-            plotting_service.plot_residuals(residuals, f'Residuals ({backend} Chief)', f'chief_{backend}_residuals.png') # Pass residuals directly
+            plotting_service.plot_residuals(residuals, f'Residuals ({backend} Chief)', f'chief_{backend}_residuals.png')
             plotting_service.plot_scatter(y_val.flatten(), y_pred, f'({backend} Chief)', f'chief_{backend}')
             logger.info("✅ Plots generated successfully.")
         else:
             logger.warning("Skipping plot generation due to missing evaluation metrics.")
 
         # ONNX conversion and verification
-        if TF2ONNX_AVAILABLE: # Check if TF2ONNX is available for either backend
+        if TF2ONNX_AVAILABLE:
             if backend == 'tensorflow':
                 logger.info("Attempting ONNX conversion and verification for TensorFlow/Keras model...")
                 try:
-                    # Workaround for tf2onnx expecting 'output_names' on Sequential models
-                    # Check if it's a Sequential model and if it lacks the 'output_names' attribute
                     if isinstance(best_model, tf.keras.Sequential) and not hasattr(best_model, 'output_names'):
-                        # Assign a default output name to satisfy tf2onnx's internal check
-                        # Assuming a single output for typical Sequential models
                         best_model.output_names = ["output_1"]
                         logger.warning("Temporarily added 'output_names' attribute to Sequential model for tf2onnx compatibility.")
 
-                    # Infer input shape from the model directly
                     if hasattr(best_model, 'input_shape') and best_model.input_shape is not None:
                         concrete_input_shape = (1,) + best_model.input_shape[1:]
                         input_signature = [tf.TensorSpec(concrete_input_shape, tf.float32, name="input_1")]
@@ -270,7 +288,6 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
                         logger.warning("Model input_shape not directly available, using default (None, 10) for ONNX conversion.")
                         input_signature = [tf.TensorSpec((None, 10), tf.float32, name="input_1")]
 
-                    # Now call from_keras. The previous workaround should prevent the AttributeError.
                     onnx_model, _ = tf2onnx.convert.from_keras(best_model, input_signature, opset=13)
                     
                     onnx_model_path = model_save_dir / f"best_model_{backend}.onnx"
@@ -278,18 +295,14 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
                         f.write(onnx_model.SerializeToString())
                     logger.info(f"✅ ONNX model saved to: {onnx_model_path}")
 
-                    # Verify ONNX model
                     onnx.checker.check_model(onnx_model)
                     logger.info("✅ ONNX model verification successful.")
 
-                    # Test ONNX model with ONNX Runtime
                     ort_session = ort.InferenceSession(str(onnx_model_path))
                     onnx_input_name = ort_session.get_inputs()[0].name
                     onnx_output_name = ort_session.get_outputs()[0].name
 
-                    # Use a subset of validation data for ONNX inference
-                    # Ensure sample_input matches the concrete_input_shape used for export
-                    sample_input = x_val[:1].astype(np.float32) # Use batch size 1 for testing
+                    sample_input = x_val[:1].astype(np.float32)
                     onnx_preds = ort_session.run([onnx_output_name], {onnx_input_name: sample_input})[0]
                     logger.info(f"✅ ONNX Runtime inference successful for a sample. Predictions: {onnx_preds.flatten()}")
 
@@ -298,43 +311,36 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
             elif backend == 'pytorch':
                 logger.info("Attempting ONNX conversion and verification for PyTorch model...")
                 try:
-                    # Set model to evaluation mode
                     best_model.eval()
 
-                    # Create a dummy input tensor for ONNX export
-                    # The input_shape for PyTorch model is (batch_size, features)
-                    # We use a batch size of 1 for export, and the feature dimension from input_shape
-                    dummy_input = torch.randn(1, input_shape[0], device=best_model.device, dtype=torch.float32)
+                    # Use tuner_selector.tuner.device to get the correct device
+                    dummy_input = torch.randn(1, *input_shape, device=tuner_selector.tuner.device, dtype=torch.float32)
                     
                     onnx_model_path = model_save_dir / f"best_model_{backend}.onnx"
 
-                    # Export the PyTorch model to ONNX
                     torch.onnx.export(
                         best_model,
                         dummy_input,
                         onnx_model_path,
-                        export_params=True,        # Store the trained parameter weights inside the model file
-                        opset_version=11,          # The ONNX opset version to use
-                        do_constant_folding=True,  # Apply constant folding for optimization
-                        input_names=['input'],     # The name to assign to the input node of the graph
-                        output_names=['output'],   # The name to assign to the output node of the graph
-                        dynamic_axes={'input': {0: 'batch_size'}, # Variable length axes
+                        export_params=True,
+                        opset_version=11,
+                        do_constant_folding=True,
+                        input_names=['input'],
+                        output_names=['output'],
+                        dynamic_axes={'input': {0: 'batch_size'},
                                       'output': {0: 'batch_size'}}
                     )
                     logger.info(f"✅ ONNX model saved to: {onnx_model_path}")
 
-                    # Verify ONNX model
                     onnx_model = onnx.load(onnx_model_path)
                     onnx.checker.check_model(onnx_model)
                     logger.info("✅ ONNX model verification successful.")
 
-                    # Test ONNX model with ONNX Runtime
                     ort_session = ort.InferenceSession(str(onnx_model_path))
                     onnx_input_name = ort_session.get_inputs()[0].name
                     onnx_output_name = ort_session.get_outputs()[0].name
 
-                    # Use a subset of validation data for ONNX inference
-                    sample_input = x_val[:1].astype(np.float32) # Use batch size 1 for testing
+                    sample_input = x_val[:1].astype(np.float32)
                     onnx_preds = ort_session.run([onnx_output_name], {onnx_input_name: sample_input})[0]
                     logger.info(f"✅ ONNX Runtime inference successful for a sample. Predictions: {onnx_preds.flatten()}")
 
