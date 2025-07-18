@@ -218,9 +218,14 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
 
         # Evaluate the best model on validation data
         logger.info("Evaluating the best model on validation data...")
+        loss, mae, y_pred, y_true = None, None, None, None # Initialize variables
+
         if backend == 'tensorflow':
-            loss, mae = best_model.evaluate(x_val, y_val, verbose=0)
+            # Evaluate directly using Keras evaluate method
+            loss, _ = best_model.evaluate(x_val, y_val, verbose=0) # _ to discard other metrics if any
             y_pred = best_model.predict(x_val).flatten()
+            y_true = y_val.flatten() # Ensure y_true is also flattened for consistent comparison
+            mae = mean_absolute_error(y_true, y_pred) # Calculate MAE explicitly
         elif backend == 'pytorch':
             # Convert validation data to tensors and move to device
             val_tensor_x = torch.tensor(x_val, dtype=torch.float32).to(tuner_selector.tuner.device)
@@ -236,8 +241,8 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
             with torch.no_grad():
                 for X_batch, y_batch in val_loader:
                     outputs = best_model(X_batch)
-                    loss = criterion(outputs, y_batch)
-                    total_loss += loss.item()
+                    loss_batch = criterion(outputs, y_batch)
+                    total_loss += loss_batch.item()
                     all_preds.extend(outputs.cpu().numpy().flatten())
                     all_targets.extend(y_batch.cpu().numpy().flatten())
             loss = total_loss / len(val_loader)
@@ -246,10 +251,14 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
             mae = mean_absolute_error(y_true, y_pred)
         else:
             logger.warning(f"Evaluation not implemented for backend: {backend}")
-            loss, mae, y_pred = None, None, None
 
-        if loss is not None and mae is not None:
-            r2 = r2_score(y_val, y_pred)
+        if loss is not None and mae is not None and y_true is not None and y_pred is not None:
+            # Ensure y_true and y_pred have consistent shapes before calculating R2 score
+            # Reshape to 1D arrays if they are not already, for consistent behavior with sklearn metrics
+            y_true = y_true.flatten()
+            y_pred = y_pred.flatten()
+            
+            r2 = r2_score(y_true, y_pred)
             logger.info("Best Model Evaluation on Validation Data:")
             logger.info(f"  Mean Squared Error (MSE): {loss:.4f}")
             logger.info(f"  Mean Absolute Error (MAE): {mae:.4f}")
@@ -262,12 +271,12 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
             plotting_service.log_model_performance(loss, mae, r2)
 
             # Calculate residuals
-            residuals = y_val.flatten() - y_pred
+            residuals = y_true - y_pred # Use y_true for residuals
 
             # Generate plots
-            plotting_service.plot_predictions(y_val.flatten(), y_pred, f'({backend} Chief)', f'chief_{backend}')
+            plotting_service.plot_predictions(y_true, y_pred, f'({backend} Chief)', f'chief_{backend}')
             plotting_service.plot_residuals(residuals, f'Residuals ({backend} Chief)', f'chief_{backend}_residuals.png')
-            plotting_service.plot_scatter(y_val.flatten(), y_pred, f'({backend} Chief)', f'chief_{backend}')
+            plotting_service.plot_scatter(y_true, y_pred, f'({backend} Chief)', f'chief_{backend}')
             logger.info("✅ Plots generated successfully.")
         else:
             logger.warning("Skipping plot generation due to missing evaluation metrics.")
