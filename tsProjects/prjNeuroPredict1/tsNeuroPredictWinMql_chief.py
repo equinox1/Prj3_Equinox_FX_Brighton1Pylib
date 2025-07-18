@@ -164,6 +164,9 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
 
     # Split data
     x_train, x_val, y_train, y_val = train_test_split(x_data, y_data, test_size=0.2, random_state=42)
+    logger.info(f"After train_test_split: x_train.shape={x_train.shape}, y_train.shape={y_train.shape}")
+    logger.info(f"After train_test_split: x_val.shape={x_val.shape}, y_val.shape={y_val.shape}")
+
 
     # Determine model save directory
     model_save_dir = Path(base_params.get('mp_glob_base_log_path')) / app_params.get('mp_app_model_id', 'default_model') / "saved_models"
@@ -222,9 +225,39 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
 
         if backend == 'tensorflow':
             # Evaluate directly using Keras evaluate method
-            loss, _ = best_model.evaluate(x_val, y_val, verbose=0) # _ to discard other metrics if any
-            y_pred = best_model.predict(x_val).flatten()
+            # Note: evaluate returns loss and metrics. Assuming the second return is MAE if configured.
+            # We explicitly calculate MAE and R2 below for clarity and consistency.
+            loss, _ = best_model.evaluate(x_val, y_val, verbose=0) 
+            
+            # Predict directly on x_val to ensure y_pred matches its size
+            raw_y_pred = best_model.predict(x_val)
+            
+            logger.debug(f"Shape of raw_y_pred immediately after predict: {raw_y_pred.shape}")
+
+            # Handle case where model might output sequence of predictions
+            if raw_y_pred.ndim == 3: # e.g., (samples, timesteps, 1)
+                # Take the prediction from the last timestep.
+                # If the last dimension is 1 (e.g., (samples, timesteps, 1)), slice it out.
+                # Otherwise, it's (samples, timesteps) and we just take the last timestep.
+                if raw_y_pred.shape[-1] == 1:
+                    y_pred = raw_y_pred[:, -1, 0].flatten() # Take last timestep, first (and only) feature, then flatten
+                else:
+                    y_pred = raw_y_pred[:, -1].flatten() # Take last timestep, then flatten
+                logger.debug(f"Shape of y_pred after selecting last timestep and flatten: {y_pred.shape}")
+            else: # Assume (samples, 1) or (samples,)
+                y_pred = raw_y_pred.flatten()
+                logger.debug(f"Shape of y_pred after direct flatten: {y_pred.shape}")
+
             y_true = y_val.flatten() # Ensure y_true is also flattened for consistent comparison
+            
+            logger.debug(f"Shape of y_true after flatten: {y_true.shape}")
+            
+            # Critical check for consistent lengths before R2 calculation
+            if len(y_true) != len(y_pred):
+                logger.error(f"❌ Inconsistent sample lengths for R2 score: y_true={len(y_true)}, y_pred={len(y_pred)}")
+                # If lengths are inconsistent, raise an error to prevent incorrect metric calculation
+                raise ValueError(f"Inconsistent sample lengths for R2 score: y_true={len(y_true)}, y_pred={len(y_pred)}")
+
             mae = mean_absolute_error(y_true, y_pred) # Calculate MAE explicitly
         elif backend == 'pytorch':
             # Convert validation data to tensors and move to device
@@ -258,6 +291,12 @@ def run_chief_process_task(tuner_id: str, oracle_url: str, is_chief: bool,
             y_true = y_true.flatten()
             y_pred = y_pred.flatten()
             
+            # Critical check for consistent lengths before R2 calculation
+            if len(y_true) != len(y_pred):
+                logger.error(f"❌ Inconsistent sample lengths for R2 score: y_true={len(y_true)}, y_pred={len(y_pred)}")
+                # If lengths are inconsistent, raise an error to prevent incorrect metric calculation
+                raise ValueError(f"Inconsistent sample lengths for R2 score: y_true={len(y_true)}, y_pred={len(y_pred)}")
+
             r2 = r2_score(y_true, y_pred)
             logger.info("Best Model Evaluation on Validation Data:")
             logger.info(f"  Mean Squared Error (MSE): {loss:.4f}")
