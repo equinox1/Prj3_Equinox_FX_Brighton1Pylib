@@ -1,6 +1,6 @@
 # filename: multiworker_launcher.py
 # Rewritten: patched_oracle_server_main.py
-runtuner= 'tf' # 'pt' for PyTorch, 'tf' for TensorFlow
+runtuner= 'pt' # 'pt' for PyTorch, 'tf' for TensorFlow
 import os
 import sys
 import time
